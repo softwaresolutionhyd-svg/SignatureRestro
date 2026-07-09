@@ -243,6 +243,23 @@ function login_page_branding(): array
     }
 }
 
+/**
+ * Public URL for a company logo stored on the public disk.
+ */
+function company_logo_url(?string $path): ?string
+{
+    $path = trim((string) $path);
+    if ($path === '') {
+        return null;
+    }
+
+    if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+        return $path;
+    }
+
+    return asset('storage/'.$path);
+}
+
 /** @return list<string> All 192.168.x.x on this PC. */
 function local_lan_ips(): array
 {

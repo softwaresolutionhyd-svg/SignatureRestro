@@ -9,9 +9,9 @@
     <div class="auth-panel">
         <div class="auth-panel-inner">
             <div class="auth-brand-top">
-                @if (! empty(trim($loginBrand['company_logo'] ?? '')))
+                @if ($logoUrl = company_logo_url($loginBrand['company_logo'] ?? ''))
                     <div class="mb-2">
-                        <img src="{{ \Illuminate\Support\Facades\Storage::url($loginBrand['company_logo']) }}"
+                        <img src="{{ $logoUrl }}"
                              alt="{{ $loginBrand['company_name'] }}"
                              class="company-logo">
                     </div>

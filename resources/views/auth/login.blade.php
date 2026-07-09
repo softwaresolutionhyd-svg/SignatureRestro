@@ -9,6 +9,11 @@
     <div class="auth-hero" aria-hidden="true">
         <div class="auth-hero-overlay"></div>
         <div class="auth-hero-content">
+            @if ($logoUrl = company_logo_url($loginBrand['company_logo'] ?? ''))
+                <div class="auth-hero-logo mb-3">
+                    <img src="{{ $logoUrl }}" alt="{{ $loginBrand['company_name'] }}">
+                </div>
+            @endif
             <div class="auth-hero-badge">
                 <i class="bi bi-stars"></i>
                 <span>Management Portal</span>
@@ -27,9 +32,9 @@
         <div class="auth-panel">
             <div class="auth-panel-inner">
                 <div class="auth-brand-top">
-                    @if (! empty(trim($loginBrand['company_logo'] ?? '')))
+                    @if ($logoUrl = company_logo_url($loginBrand['company_logo'] ?? ''))
                         <div class="auth-logo-wrap">
-                            <img src="{{ \Illuminate\Support\Facades\Storage::url($loginBrand['company_logo']) }}"
+                            <img src="{{ $logoUrl }}"
                                  alt="{{ $loginBrand['company_name'] }}"
                                  class="company-logo">
                         </div>
@@ -40,7 +45,9 @@
                     @endif
 
                     <p class="auth-welcome">{{ __('Welcome back') }}</p>
-                    <h1 class="auth-company-name">{{ $loginBrand['company_name'] }}</h1>
+                    @if (empty($loginBrand['company_logo'] ?? ''))
+                        <h1 class="auth-company-name">{{ $loginBrand['company_name'] }}</h1>
+                    @endif
 
                     @if (! empty(trim($loginBrand['company_phone'] ?? '')))
                         <p class="auth-contact mb-0">
@@ -98,8 +105,13 @@
         </div>
 
         <div class="auth-footer-global">
-            <img src="{{ asset('images/stair-logo.svg') }}" alt="Stair" width="32" height="32">
-            <span>Stair by Software Solutions</span>
+            @if ($logoUrl = company_logo_url($loginBrand['company_logo'] ?? ''))
+                <img src="{{ $logoUrl }}" alt="{{ $loginBrand['company_name'] }}" width="36" height="36" class="auth-footer-logo">
+                <span>{{ $loginBrand['company_name'] }}</span>
+            @else
+                <img src="{{ asset('images/stair-logo.svg') }}" alt="Stair" width="32" height="32">
+                <span>Stair by Software Solutions</span>
+            @endif
         </div>
     </div>
 </div>

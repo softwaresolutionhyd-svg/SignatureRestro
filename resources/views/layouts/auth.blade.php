@@ -197,16 +197,37 @@
         }
 
         .auth-brand-top img.company-logo {
-            max-height: 80px;
-            max-width: 180px;
+            max-height: 110px;
+            max-width: 240px;
             width: auto;
             height: auto;
             object-fit: contain;
             border-radius: 1rem;
-            padding: 0.55rem;
+            padding: 0.65rem;
             background: #fff;
             border: 1px solid var(--auth-border);
-            box-shadow: 0 6px 20px rgba(44, 34, 24, 0.08);
+            box-shadow: 0 8px 24px rgba(44, 34, 24, 0.1);
+        }
+
+        .auth-hero-logo img {
+            max-height: 72px;
+            max-width: 200px;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            border-radius: 0.85rem;
+            padding: 0.45rem;
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .auth-footer-logo {
+            width: 36px;
+            height: 36px;
+            object-fit: contain;
+            border-radius: 0.5rem;
+            background: #fff;
+            padding: 2px;
         }
 
         .auth-logo-fallback {
