@@ -3,10 +3,20 @@
 @section('title', __('Login'))
 
 @php($loginBrand = login_page_branding())
+@php($foodCollage = login_page_food_collage(6))
 
 @section('content')
 <div class="auth-page">
     <div class="auth-hero" aria-hidden="true">
+        @if (count($foodCollage) > 0)
+            <div class="auth-hero-collage">
+                @foreach ($foodCollage as $index => $imageUrl)
+                    <div class="auth-hero-collage-item auth-hero-collage-item--{{ $index + 1 }}">
+                        <img src="{{ $imageUrl }}" alt="" loading="lazy" decoding="async">
+                    </div>
+                @endforeach
+            </div>
+        @endif
         <div class="auth-hero-overlay"></div>
         <div class="auth-hero-content">
             @if ($logoUrl = company_logo_url($loginBrand['company_logo'] ?? ''))

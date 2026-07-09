@@ -57,10 +57,54 @@
             display: none;
             position: relative;
             overflow: hidden;
+            background: #14100e;
+        }
+
+        .auth-hero-collage {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            display: grid;
+            grid-template-columns: 1.15fr 0.95fr 1.1fr;
+            grid-template-rows: repeat(3, 1fr);
+            gap: 7px;
+            padding: 10px;
+        }
+
+        .auth-hero-collage-item {
+            overflow: hidden;
+            border-radius: 14px;
+            min-height: 0;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+        }
+
+        .auth-hero-collage-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scale(1.02);
+            transition: transform 8s ease;
+        }
+
+        .auth-hero:hover .auth-hero-collage-item img {
+            transform: scale(1.08);
+        }
+
+        .auth-hero-collage-item--1 { grid-column: 1; grid-row: 1 / 3; }
+        .auth-hero-collage-item--2 { grid-column: 2; grid-row: 1; }
+        .auth-hero-collage-item--3 { grid-column: 3; grid-row: 1 / 3; }
+        .auth-hero-collage-item--4 { grid-column: 2; grid-row: 2; }
+        .auth-hero-collage-item--5 { grid-column: 1; grid-row: 3; }
+        .auth-hero-collage-item--6 { grid-column: 2 / 4; grid-row: 3; }
+
+        .auth-hero-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
             background:
-                linear-gradient(145deg, rgba(20, 16, 14, 0.72) 0%, rgba(74, 31, 42, 0.82) 100%),
-                radial-gradient(circle at 20% 80%, rgba(201, 168, 76, 0.18) 0%, transparent 45%),
-                linear-gradient(160deg, #1a1410 0%, #2a1818 50%, #14100e 100%);
+                linear-gradient(115deg, rgba(20, 16, 14, 0.92) 0%, rgba(74, 31, 42, 0.78) 42%, rgba(20, 16, 14, 0.88) 100%),
+                linear-gradient(to top, rgba(20, 16, 14, 0.95) 0%, transparent 45%);
+            pointer-events: none;
         }
 
         @media (min-width: 992px) {
@@ -84,7 +128,7 @@
 
         .auth-hero-content {
             position: relative;
-            z-index: 1;
+            z-index: 2;
             max-width: 28rem;
             color: var(--auth-cream);
         }

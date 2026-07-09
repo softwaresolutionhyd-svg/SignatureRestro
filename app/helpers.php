@@ -260,6 +260,35 @@ function company_logo_url(?string $path): ?string
     return asset('storage/'.$path);
 }
 
+/**
+ * Food images for the login page hero collage (from active POS products).
+ *
+ * @return list<string>
+ */
+function login_page_food_collage(int $limit = 6): array
+{
+    try {
+        $cid = \App\Models\Company::query()->where('active', true)->orderBy('id')->value('id');
+        if ($cid === null) {
+            return [];
+        }
+
+        return \App\Models\InventoryProduct::query()
+            ->where('company_id', $cid)
+            ->where('active', true)
+            ->whereNotNull('image_path')
+            ->where('image_path', '!=', '')
+            ->inRandomOrder()
+            ->limit($limit)
+            ->pluck('image_path')
+            ->map(fn (string $path) => asset('storage/'.$path))
+            ->values()
+            ->all();
+    } catch (\Throwable) {
+        return [];
+    }
+}
+
 /** @return list<string> All 192.168.x.x on this PC. */
 function local_lan_ips(): array
 {
