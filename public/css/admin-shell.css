@@ -1,0 +1,391 @@
+/**
+ * Admin layout — loaded after Vite so header/theme works even when build is stale.
+ * Keep in sync with resources/sass/app.scss (admin section).
+ */
+body.admin-app-body {
+  background:
+    radial-gradient(ellipse 90% 55% at 0% -15%, rgba(124, 58, 237, 0.12), transparent 52%),
+    radial-gradient(ellipse 70% 45% at 100% 0%, rgba(99, 102, 241, 0.08), transparent 48%),
+    linear-gradient(180deg, #eef2ff 0%, #f8fafc 42%, #f1f5f9 100%) !important;
+  min-height: 100vh;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.admin-main {
+  max-width: 1480px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+body.admin-app-body--dashboard {
+  background:
+    radial-gradient(1200px 600px at 25% 15%, rgba(111, 66, 193, 0.28), transparent 55%),
+    radial-gradient(900px 500px at 75% 35%, rgba(32, 201, 151, 0.18), transparent 55%),
+    linear-gradient(135deg, #0b1220 0%, #0a0f1a 55%, #0b1020 100%) !important;
+}
+
+.admin-main-dashboard {
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+  padding: 0;
+}
+
+/* Matte black navbar */
+.admin-topbar.navbar {
+  background-color: #121212 !important;
+  background-image: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+}
+
+.admin-topbar .navbar-nav .nav-link {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.admin-brand-stair {
+  padding: 0;
+  line-height: 0;
+  border: none;
+  border-radius: 0.65rem;
+  background: transparent;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.admin-brand-stair-img {
+  width: 40px;
+  height: 40px;
+  display: block;
+}
+
+.admin-brand-stair:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5);
+  filter: brightness(1.07);
+}
+
+.admin-breadcrumb .breadcrumb {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: thin;
+  padding: 0.35rem 0;
+  background: transparent;
+  --bs-breadcrumb-divider-color: rgba(255, 255, 255, 0.35);
+}
+
+.admin-breadcrumb .breadcrumb-item a {
+  color: rgba(255, 255, 255, 0.72);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.admin-breadcrumb .breadcrumb-item a:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+.admin-breadcrumb .breadcrumb-item.active {
+  color: rgba(255, 255, 255, 0.95);
+  font-weight: 600;
+}
+
+.admin-topbar-badge {
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-weight: 500;
+}
+
+/* =============================================
+   Odoo-style app launcher (Dashboard)
+   ============================================= */
+
+/* Full-bleed on the dashboard page */
+.odoo-launcher {
+  min-height: calc(100vh - 3.5rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 2rem 3rem;
+  gap: 0;
+}
+
+/* ---- iPhone lock-screen style clock ---- */
+.iphone-clock-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 1.6rem;
+  user-select: none;
+  line-height: 1;
+}
+
+.iphone-time {
+  font-size: clamp(4rem, 10vw, 7rem);
+  font-weight: 200;
+  letter-spacing: -0.03em;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-shadow:
+    0 0 60px rgba(255,255,255,0.08),
+    0 2px 20px rgba(0,0,0,0.5);
+}
+
+.iphone-date {
+  margin-top: 0.45rem;
+  font-size: clamp(0.95rem, 2vw, 1.15rem);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: rgba(255,255,255,0.65);
+  text-shadow: 0 1px 6px rgba(0,0,0,0.4);
+}
+
+/* ---- Greeting row below clock ---- */
+.odoo-launcher-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 3.5rem;
+  color: rgba(255,255,255,0.55);
+  font-size: 0.95rem;
+}
+
+.odoo-launcher-meta strong {
+  color: rgba(255,255,255,0.92);
+  font-weight: 600;
+}
+
+.odoo-meta-badge {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 999px;
+  padding: 2px 12px;
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.6);
+  text-transform: capitalize;
+}
+
+/* App grid */
+.odoo-app-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2.2rem 2.8rem;
+  max-width: 860px;
+}
+
+/* Individual app tile */
+.odoo-app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Dark rounded icon container — Odoo style */
+.odoo-icon {
+  width: 84px;
+  height: 84px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow:
+    0 2px 0 rgba(255,255,255,0.04) inset,
+    0 14px 32px rgba(0,0,0,0.45);
+  display: grid;
+  place-items: center;
+  color: var(--icon-color, #7c3aed);
+  transition:
+    transform 0.18s cubic-bezier(.34,1.56,.64,1),
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle inner glow using the icon color */
+.odoo-icon::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(80% 80% at 50% 0%, var(--icon-color, #7c3aed) 0%, transparent 75%);
+  opacity: 0.12;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.odoo-icon svg {
+  width: 38px;
+  height: 38px;
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4));
+}
+
+/* App label */
+.odoo-label {
+  color: rgba(255,255,255,0.78);
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-align: center;
+  max-width: 100px;
+  line-height: 1.3;
+  transition: color 0.15s ease;
+}
+
+/* Hover state */
+.odoo-app:hover .odoo-icon {
+  transform: translateY(-5px) scale(1.04);
+  background: rgba(255,255,255,0.09);
+  box-shadow:
+    0 2px 0 rgba(255,255,255,0.07) inset,
+    0 20px 44px rgba(0,0,0,0.55);
+}
+
+.odoo-app:hover .odoo-icon::before {
+  opacity: 0.22;
+}
+
+.odoo-app:hover .odoo-label {
+  color: rgba(255,255,255,1);
+}
+
+/* Active press */
+.odoo-app:active .odoo-icon {
+  transform: translateY(-1px) scale(0.98);
+}
+
+/* ========================================================
+   Override Bootstrap primary → Odoo violet #7c3aed
+   Covers btn-primary, btn-outline-primary, links, badges,
+   form focus rings, pagination, etc.
+   ======================================================== */
+:root {
+  --bs-primary:          #7c3aed;
+  --bs-primary-rgb:      124, 58, 237;
+  --bs-link-color:       #7c3aed;
+  --bs-link-color-rgb:   124, 58, 237;
+  --bs-link-hover-color: #5b21b6;
+}
+
+/* Solid primary button */
+.btn-primary {
+  background-color: #7c3aed !important;
+  border-color:     #7c3aed !important;
+  color: #fff !important;
+}
+.btn-primary:hover, .btn-primary:focus, .btn-primary:active,
+.btn-primary.active, .show > .btn-primary.dropdown-toggle {
+  background-color: #6d28d9 !important;
+  border-color:     #5b21b6 !important;
+}
+.btn-primary:focus, .btn-primary:active:focus {
+  box-shadow: 0 0 0 .2rem rgba(124,58,237,.35) !important;
+}
+
+/* Outline primary button */
+.btn-outline-primary {
+  color:        #7c3aed !important;
+  border-color: #7c3aed !important;
+}
+.btn-outline-primary:hover, .btn-outline-primary:active,
+.btn-outline-primary.active {
+  background-color: #7c3aed !important;
+  border-color:     #7c3aed !important;
+  color: #fff !important;
+}
+.btn-outline-primary:focus {
+  box-shadow: 0 0 0 .2rem rgba(124,58,237,.35) !important;
+}
+
+/* Links */
+a { color: #7c3aed; }
+a:hover { color: #5b21b6; }
+
+/* Text colour helpers */
+.text-primary { color: #7c3aed !important; }
+
+/* Background */
+.bg-primary { background-color: #7c3aed !important; }
+
+/* Badges */
+.badge.bg-primary { background-color: #7c3aed !important; color: #fff !important; }
+
+/* Nav pills / tabs active */
+.nav-pills .nav-link.active,
+.nav-pills .show > .nav-link {
+  background-color: #7c3aed !important;
+}
+.nav-tabs .nav-link.active {
+  color:        #7c3aed !important;
+  border-color: #dee2e6 #dee2e6 #fff !important;
+}
+.nav-tabs .nav-link:hover { color: #5b21b6 !important; }
+
+/* Input focus */
+.form-control:focus,
+.form-select:focus {
+  border-color: #a78bfa !important;
+  box-shadow:   0 0 0 .2rem rgba(124,58,237,.18) !important;
+}
+
+/* Form check (checkbox / radio) */
+.form-check-input:checked {
+  background-color: #7c3aed !important;
+  border-color:     #7c3aed !important;
+}
+.form-check-input:focus {
+  box-shadow: 0 0 0 .2rem rgba(124,58,237,.25) !important;
+}
+
+/* Form switch */
+.form-switch .form-check-input:checked {
+  background-color: #7c3aed !important;
+  border-color:     #7c3aed !important;
+}
+
+/* Pagination */
+.page-link { color: #7c3aed !important; }
+.page-link:hover { color: #5b21b6 !important; }
+.page-item.active .page-link {
+  background-color: #7c3aed !important;
+  border-color:     #7c3aed !important;
+  color: #fff !important;
+}
+
+/* Progress bar */
+.bg-primary.progress-bar { background-color: #7c3aed !important; }
+
+/* Dropdown active item */
+.dropdown-item.active,
+.dropdown-item:active {
+  background-color: #7c3aed !important;
+}
+
+/* ========================================================
+   Expense module — status badge colour helpers
+   Bootstrap bg-opacity + text-* needs explicit colours
+   when the colour isn't a core palette colour.
+   ======================================================== */
+.badge.bg-info.bg-opacity-15      { background-color: rgba(14,165,233,.15) !important; color: #0ea5e9 !important; }
+.badge.bg-primary.bg-opacity-15   { background-color: rgba(124,58,237,.15) !important; color: #7c3aed !important; }
+.badge.bg-success.bg-opacity-15   { background-color: rgba(34,197,94,.15)  !important; color: #22c55e !important; }
+.badge.bg-danger.bg-opacity-15    { background-color: rgba(239,68,68,.15)  !important; color: #ef4444 !important; }
+.badge.bg-secondary.bg-opacity-15 { background-color: rgba(100,116,139,.15)!important; color: #64748b !important; }
+
+/* Expense status timeline step */
+.expense-step-line { flex: 1; height: 2px; min-width: 20px; max-width: 60px; }
+

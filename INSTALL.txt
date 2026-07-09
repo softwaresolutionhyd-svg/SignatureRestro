@@ -1,0 +1,33 @@
+Stair — quick install (localhost / shared hosting)
+=================================================
+
+1) ZIP extract karein server par (ya Laragon www folder mein).
+
+2) Web server ka "document root" / "public_html" === is project ki
+   folder `public/` hona chahiye.
+   (Laragon: project/public ko virtual host root bana dein, ya
+    http://localhost/Softwaresolution/public jaise URL use karein.)
+
+3) MySQL mein ek NAYI khali database banayein.
+
+4) Browser mein kholein:
+      http://YOUR-SITE/install.php
+
+5) Form mein APP URL, database name / user / password bhar kar
+   Install dabayein.
+
+6) Install ke baad `install.php` khud delete ho jata hai.
+   Default logins (seed):
+      admin@example.com / admin12345   (company admin)
+      superadmin@example.com / admin12345   (super admin)
+
+ZIP banane ke liye (developer machine):
+   composer install --no-dev
+   php scripts/make-release-zip.php
+   File: dist/Stair-install-YYYYMMDD.zip
+
+Note: Agar hosting par `proc_open` band ho to installer migrate nahi
+chala payega — SSH se `php artisan migrate --force` aur
+`php artisan db:seed --force` chalayein, phir
+`storage/app/installer.lock` file bana dein (khali) taake /install.php
+dobara na chale.

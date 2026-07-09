@@ -1,0 +1,17 @@
+MOBILE — simple IP
+==================
+
+Phone browser (same WiFi):
+
+  http://192.168.0.109/
+
+(apna IP: network-url.bat ya Guest Rooms dashboard par blue box)
+
+Zaroori:
+  - Laragon Apache ON
+  - Phone aur PC same WiFi / extender
+  - Phone par mobile data OFF (sirf WiFi)
+  - DNS / domain ki zaroorat NAHI
+
+Purana IP 192.168.4.104 ab is PC par nahi — WiFi badle to IP badal sakta hai.
+IP check: network-url.bat

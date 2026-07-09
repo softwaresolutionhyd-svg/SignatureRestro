@@ -1,0 +1,22 @@
+@extends('layouts.admin')
+
+@section('title', 'Edit Designation - Employees - ' . config('app.name'))
+@section('page_title', 'Employees / Designations / Edit')
+
+@section('content')
+    @include('hr.partials.subnav')
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-white d-flex align-items-center justify-content-between">
+            <div class="fw-semibold">Edit designation</div>
+            <a href="{{ route('employees.designations.index') }}" class="btn btn-outline-secondary btn-sm">Back</a>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ route('employees.designations.update', $designation) }}">
+                @method('PUT')
+                @include('employees.designations.form')
+            </form>
+        </div>
+    </div>
+@endsection
+

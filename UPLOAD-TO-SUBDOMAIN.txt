@@ -1,0 +1,130 @@
+Signature → signature.softwaresolutions.pk
+==========================================
+ZIP mein: poora code + vendor + database SQL dump
+
+ZIP file (is PC par):
+  C:\laragon\www\Signature\dist\Signature-full-backup-YYYYMMDD-HHMMSS.zip
+
+
+STEP 1 — Hosting par MySQL database
+------------------------------------
+1. cPanel login
+2. MySQL® Databases
+3. Create Database  (name yaad rakho, aksar: username_signature)
+4. Create User + strong password
+5. User ko database par ALL PRIVILEGES do
+6. Note karo:
+   - Database name
+   - Username
+   - Password
+   - Host: usually localhost
+
+
+STEP 2 — ZIP upload
+-------------------
+1. cPanel → File Manager
+2. Folder: public_html/signature
+   (subdomain document root — aapke panel mein public_html/signature dikhta hai)
+3. Purani files hon to delete / backup
+4. ZIP upload karo, phir Extract
+5. Extract ke baad structure aisi honi chahiye:
+
+   public_html/signature/
+     app/
+     bootstrap/
+     public/
+     vendor/
+     .env
+     artisan
+     backup/database-full-....sql
+     ...
+
+
+STEP 3 — Database import
+------------------------
+1. cPanel → phpMyAdmin
+2. Left se apni nayi database select karo
+3. Import tab
+4. File choose: backup/database-full-....sql  (ZIP se extract wali)
+5. Go / Import
+
+
+STEP 4 — .env edit (ZAROORI)
+----------------------------
+File Manager se public_html/signature/.env open karo (Edit).
+
+Ye lines set karo:
+
+APP_NAME=Signature
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://signature.softwaresolutions.pk
+
+DB_CONNECTION=mysql
+DB_HOST=localhost
+DB_PORT=3306
+DB_DATABASE=yahan_cpanel_db_name
+DB_USERNAME=yahan_cpanel_db_user
+DB_PASSWORD=yahan_cpanel_db_password
+
+SYNC_ENABLED=true
+SYNC_ROLE=cloud
+SYNC_TOKEN=SignatureSync_ChangeMe_2026
+SYNC_REMOTE_URL=
+
+SESSION_SECURE_COOKIE=true
+
+Baaki lines rehne do. Save.
+
+
+STEP 5 — Permissions
+--------------------
+File Manager se:
+  storage/          → Permissions 755 (ya 775)
+  bootstrap/cache/  → Permissions 755 (ya 775)
+
+Agar error aaye to folders + subfolders writable rakho.
+
+
+STEP 6 — Document root (agar site nahi khule)
+---------------------------------------------
+Subdomain Modify:
+  Document Root = public_html/signature/public
+
+Agar change nahi kar sakte:
+  public_html/signature/.htaccess pehle se public/ par bhejti hai — try karo.
+
+
+STEP 7 — Check
+--------------
+Browser:
+  https://signature.softwaresolutions.pk/login
+
+Login:
+  admin@example.com / admin12345
+  superadmin@example.com / admin12345
+
+Pehli login ke baad password change kar lena better hai.
+
+
+STEP 8 — Local PC sync (optional)
+---------------------------------
+Local .env (Laragon Signature) mein ye pehle se hona chahiye:
+
+SYNC_ENABLED=true
+SYNC_ROLE=local
+SYNC_REMOTE_URL=https://signature.softwaresolutions.pk
+SYNC_TOKEN=SignatureSync_ChangeMe_2026
+
+Pehli baar poora data bhejne ke liye (local PC, net on):
+  cd C:\laragon\www\Signature
+  C:\laragon\bin\php\php-8.1.10-Win32-vs16-x64\php.exe artisan sync:cloud --snapshot
+
+
+Masla ho to
+-----------
+- 500 error: storage/ aur bootstrap/cache permissions
+- Database error: .env DB name/user/pass check
+- Blank page: document root public/ par set karo
+- install.php dikhe: mat chalao agar SQL pehle import kar chuke ho
+  (warna double install ho sakta hai)

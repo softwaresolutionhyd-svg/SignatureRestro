@@ -1,0 +1,285 @@
+// Fonts
+@import url('https://fonts.bunny.net/css?family=Inter:400,500,600,700&display=swap');
+@import url('https://fonts.bunny.net/css?family=Nunito:400,600&display=swap');
+
+// Variables
+@import 'variables';
+
+// Bootstrap
+@import 'bootstrap/scss/bootstrap';
+
+// Admin shell (no sidebar — full width under dark top bar)
+body.admin-app-body {
+  background:
+    radial-gradient(ellipse 90% 55% at 0% -15%, rgba(124, 58, 237, 0.12), transparent 52%),
+    radial-gradient(ellipse 70% 45% at 100% 0%, rgba(99, 102, 241, 0.08), transparent 48%),
+    linear-gradient(180deg, #eef2ff 0%, #f8fafc 42%, #f1f5f9 100%) !important;
+  min-height: 100vh;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.admin-main {
+  max-width: 1480px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+// Dashboard: edge-to-edge dark (no boxed main / light gutters)
+body.admin-app-body--dashboard {
+  background:
+    radial-gradient(1200px 600px at 25% 15%, rgba(111, 66, 193, 0.28), transparent 55%),
+    radial-gradient(900px 500px at 75% 35%, rgba(32, 201, 151, 0.18), transparent 55%),
+    linear-gradient(135deg, #0b1220 0%, #0a0f1a 55%, #0b1020 100%) !important;
+}
+
+.admin-main-dashboard {
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+  padding: 0;
+}
+
+// Matte black header (no blue tint; wins over Bootstrap .navbar defaults)
+.admin-topbar.navbar {
+  background-color: #121212 !important;
+  background-image: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+}
+
+.admin-topbar .navbar-nav .nav-link {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+// Project Stair mark (`public/images/stair-logo.svg`)
+.admin-brand-stair {
+  padding: 0;
+  line-height: 0;
+  border: none;
+  border-radius: 0.65rem;
+  background: transparent;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.admin-brand-stair-img {
+  width: 40px;
+  height: 40px;
+  display: block;
+}
+
+.admin-brand-stair:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5);
+  filter: brightness(1.07);
+}
+
+.admin-breadcrumb .breadcrumb {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: thin;
+  padding: 0.35rem 0;
+  background: transparent;
+  --bs-breadcrumb-divider-color: rgba(255, 255, 255, 0.35);
+}
+
+.admin-breadcrumb .breadcrumb-item a {
+  color: rgba(255, 255, 255, 0.72);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.admin-breadcrumb .breadcrumb-item a:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+.admin-breadcrumb .breadcrumb-item.active {
+  color: rgba(255, 255, 255, 0.95);
+  font-weight: 600;
+}
+
+.admin-topbar-badge {
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-weight: 500;
+}
+
+.btn, .form-control, .form-select, .card, .dropdown-menu {
+  box-shadow: none;
+}
+
+.card.shadow-sm {
+  box-shadow: 0 10px 30px rgba(17, 24, 39, 0.06) !important;
+}
+
+.card {
+  border-color: rgba(17, 24, 39, 0.10);
+}
+
+.table > :not(caption) > * > * {
+  border-color: rgba(17, 24, 39, 0.08);
+}
+
+.table-hover > tbody > tr:hover > * {
+  background-color: rgba($primary, 0.035);
+}
+
+.form-control::placeholder {
+  color: rgba(17, 24, 39, 0.45);
+}
+
+.btn {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.btn-primary {
+  box-shadow: 0 10px 18px rgba(113, 75, 103, 0.20);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 14px 24px rgba(113, 75, 103, 0.24);
+}
+
+.card {
+  border-color: $border-color;
+}
+
+.list-group-item {
+  border-color: rgba(17, 24, 39, 0.10);
+}
+
+.list-group-item-action:hover {
+  background: rgba($primary, 0.06);
+}
+
+.list-group-item.active {
+  background: $primary;
+  border-color: $primary;
+}
+
+.badge.bg-primary {
+  background: $primary !important;
+}
+
+// KPI cards
+.kpi-card .kpi-label {
+  color: rgba(17, 24, 39, 0.62);
+  font-size: .85rem;
+}
+.kpi-card .kpi-value {
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+// Crisp text on standard displays; antialiased on HiDPI (see display-quality.css)
+body.admin-app-body {
+  color: #0f172a;
+}
+
+// App launcher (Dashboard only) — full-bleed; no card border/shadow
+.launcher-page {
+  background: transparent;
+  min-height: calc(100vh - 3.5rem);
+}
+
+.launcher-title {
+  color: rgba(255, 255, 255, 0.92);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-size: 1.35rem;
+}
+
+.launcher-subtitle {
+  color: rgba(255, 255, 255, 0.60);
+  font-size: 0.95rem;
+}
+
+.launcher-badge {
+  color: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(10px);
+}
+
+.launcher-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 28px;
+  max-width: 980px;
+  margin: 0 auto;
+  justify-items: center;
+}
+
+.launcher-app {
+  text-decoration: none;
+  text-align: center;
+  position: relative;
+  user-select: none;
+  width: 170px;
+}
+
+.launcher-icon {
+  width: 86px;
+  height: 86px;
+  border-radius: 20px;
+  margin: 0 auto 10px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.40);
+  transform: translateY(0);
+  transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+}
+
+.launcher-icon i {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 34px;
+}
+
+.launcher-label {
+  color: rgba(255, 255, 255, 0.82);
+  font-weight: 700;
+  font-size: 0.92rem;
+  letter-spacing: -0.01em;
+}
+
+.launcher-pill {
+  position: absolute;
+  top: 6px;
+  right: 18px;
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+.launcher-app:hover .launcher-icon {
+  transform: translateY(-4px);
+  box-shadow: 0 22px 40px rgba(0, 0, 0, 0.50);
+  filter: saturate(1.05);
+}
+
+.launcher-app.disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.bg-grad-1 { background: linear-gradient(135deg, #7c3aed, #22c55e); }
+.bg-grad-2 { background: linear-gradient(135deg, #f97316, #f43f5e); }
+.bg-grad-3 { background: linear-gradient(135deg, #22c55e, #0ea5e9); }
+.bg-grad-4 { background: linear-gradient(135deg, #8b5cf6, #ec4899); }
+.bg-grad-5 { background: linear-gradient(135deg, #f59e0b, #ef4444); }
+.bg-grad-6 { background: linear-gradient(135deg, #06b6d4, #6366f1); }
+.bg-grad-7 { background: linear-gradient(135deg, #eab308, #14b8a6); }
+.bg-grad-8 { background: linear-gradient(135deg, #64748b, #a855f7); }

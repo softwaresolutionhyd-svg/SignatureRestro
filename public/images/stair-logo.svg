@@ -1,0 +1,7 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Stair logo">
+  <rect x="32" y="32" width="448" height="448" rx="112" fill="#714B67"/>
+  <path d="M158 336H234V288H282V240H330V192H354V360H158V336Z" fill="white" opacity="0.95"/>
+  <path d="M158 360H354" stroke="white" stroke-width="20" stroke-linecap="round" opacity="0.95"/>
+  <circle cx="354" cy="192" r="14" fill="white" opacity="0.95"/>
+</svg>
+

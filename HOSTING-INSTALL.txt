@@ -1,0 +1,76 @@
+Signature — Hosting + Local online/offline sync
+================================================
+
+Subdomain: https://signature.softwaresolutions.pk
+Document root (cPanel): public_html/signature
+  (project root OK — root .htaccess public/ par bhejta hai)
+  Prefer: document root = public_html/signature/public
+
+------------------------------------------------
+A) LOCALHOST (Laragon — pehle se ready)
+------------------------------------------------
+1) Database: signature_local  (ban chuki hai, data copy ho chuka hai)
+2) .env:
+     DB_DATABASE=signature_local
+     SYNC_ENABLED=true
+     SYNC_ROLE=local
+     SYNC_REMOTE_URL=https://signature.softwaresolutions.pk
+     SYNC_TOKEN=SignatureSync_ChangeMe_2026
+
+3) App chalao: http://signature.test  (ya LAN IP)
+4) Net band: data local DB mein save hota hai (pending queue)
+5) Net on: auto sync hosting par (topbar badge / har 30 sec)
+
+Manual full first sync:
+  php artisan sync:cloud --snapshot
+
+------------------------------------------------
+B) HOSTING (cPanel — aapko ye steps karne hain)
+------------------------------------------------
+1) cPanel → MySQL Databases:
+   - Database banao:  signature_hosting  (ya jo prefix cPanel de)
+   - User banao + password
+   - User ko database par ALL PRIVILEGES
+
+2) Files upload:
+   - dist/Stair-install-YYYYMMDD.zip extract karo
+     path: /home/.../public_html/signature/
+   - Ya File Manager se poora project upload
+
+3) Permissions:
+   - storage/  aur  bootstrap/cache/  writable (755/775)
+
+4) Browser:
+   https://signature.softwaresolutions.pk/install.php
+
+5) Install form:
+   APP URL:     https://signature.softwaresolutions.pk
+   DB host:     localhost  (ya cPanel jo dikhaye)
+   DB name:     (jo aap ne banaya)
+   DB user/pass:(jo aap ne banaya)
+   Production:  ON
+   Cloud sync:  ON
+   Sync role:   cloud
+   Sync token:  SignatureSync_ChangeMe_2026
+                (local .env jaisa hi — zaroor same rakhein)
+
+6) Install ke baad login:
+   admin@example.com / admin12345
+
+------------------------------------------------
+C) PEHLI BAAR POORA DATA HOSTING PAR
+------------------------------------------------
+Local PC par (net on):
+  php artisan sync:cloud --snapshot
+
+Yeh saari tables queue karke hosting par bhej dega.
+
+------------------------------------------------
+D) KAAM KAISE KARTA HAI
+------------------------------------------------
+- Cafe PC hamesha LOCAL database use karti hai (offline bhi POS chalta hai)
+- Har create/update/delete sync_queue mein jata hai
+- Internet aate hi queue hosting API (/api/sync/push) par chali jati hai
+- Hosting remote dekhne / backup ke liye use ho sakti hai
+
+Token change karna ho to local + hosting DONO .env mein SYNC_TOKEN update karein.

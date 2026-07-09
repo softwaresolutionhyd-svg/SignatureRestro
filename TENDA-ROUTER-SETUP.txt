@@ -1,0 +1,92 @@
+TENDA ROUTER — softwaresolution.cafe (mobile / tablet)
+======================================================
+
+Pehle PC par: setup-mobile-dns.vbs chalao + Technitium DNS install karo
+(config/MOBILE-ACCESS.txt dekho)
+
+Phir Tenda router par yeh steps:
+
+
+STEP 1 — Router login
+---------------------
+Browser mein kholo (jo kaam kare):
+
+  http://192.168.4.1
+  http://192.168.0.1
+  http://192.168.1.1
+  http://tendawifi.com
+
+Password: router ke neeche sticker par (admin / admin bhi ho sakta hai)
+
+
+STEP 2 — Server PC ko FIXED IP (DHCP Reservation)
+---------------------------------------------------
+Menu names thore alag ho sakte hain:
+
+  Advanced > DHCP Server > DHCP Reservation
+  YA
+  Advanced Settings > Network > DHCP > Static IP / Address Reservation
+  YA
+  Tenda WiFi App > Settings > DHCP > Static IP
+
+  Add new:
+    MAC Address  = Server PC ka (ipconfig /all se "Physical Address")
+    IP Address   = 192.168.4.104  (apna PC IP — ipconfig se confirm)
+    Status       = Enable / Save
+
+Is se PC ka IP badlega nahi.
+
+
+STEP 3 — Sab devices ka DNS = yahi PC
+-------------------------------------
+  Advanced > DHCP Server > DHCP Settings
+  YA
+  Network Settings > DHCP
+
+  Primary DNS Server   = 192.168.4.104   (Technitium wala PC)
+  Secondary DNS        = KHALI chhor do
+                         (agar 8.8.8.8 rakho ge to kabhi kabhi phone Google use kare)
+
+  Save / Apply
+
+Router restart ho to theek hai.
+
+
+STEP 4 — Tenda EXTENDERS (agar lagy hain)
+-----------------------------------------
+Har extender jo alag 192.168.2 / 192.168.3 subnet banata hai — problem hai.
+
+Best:
+  1. Extender ko "AP Mode" / "Access Point" par set karo (Router mode OFF)
+  2. Extender ko main Tenda router se LAN cable se connect karo
+  3. Extender par DHCP BAND — sirf main router DHCP de
+  4. Sab phones ek hi network (192.168.4.x) par aayenge
+
+Agar extender alag router mode mein hai:
+  Us extender ke DHCP mein bhi Primary DNS = 192.168.4.104 set karo
+  (tab bhi phone ko server PC tak route chahiye — AP mode behtar hai)
+
+
+STEP 5 — Phone
+--------------
+  1. WiFi disconnect / connect (ya Airplane mode ON/OFF)
+  2. Browser: http://softwaresolution.cafe/
+
+  Test: ping softwaresolution.cafe (Network Utilities app)
+        Reply 192.168.4.104 aana chahiye
+
+
+STEP 6 — Laragon
+----------------
+  Apache + MySQL GREEN
+
+
+Agar page na khule
+------------------
+[ ] Technitium mein zone softwaresolution.cafe + A record @ = 192.168.4.104
+[ ] Technitium: Settings > Allow access from network = ON
+[ ] Windows Firewall — setup-mobile-dns.vbs ne port 53 allow kiya
+[ ] Phone aur PC SAME WiFi / extender (AP mode)
+[ ] PC IP ipconfig se confirm — reservation wahi ho
+
+Gateway check: ipconfig → Default Gateway (often 192.168.4.1 Tenda)

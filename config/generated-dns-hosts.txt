@@ -1,0 +1,5 @@
+# Signature hosts (Softwaresolution se alag)
+# PC hosts file / Acrylic DNS:
+
+192.168.3.50 signature.test
+192.168.3.50 www.signature.test

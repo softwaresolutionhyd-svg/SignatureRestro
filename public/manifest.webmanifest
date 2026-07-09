@@ -1,0 +1,25 @@
+{
+  "name": "Stair",
+  "short_name": "Stair",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#e8ecf4",
+  "theme_color": "#121212",
+  "description": "Stair ERP - Inventory, Purchase, POS.",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./images/stair-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
+

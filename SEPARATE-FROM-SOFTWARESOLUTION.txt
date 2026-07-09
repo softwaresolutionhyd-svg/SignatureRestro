@@ -1,0 +1,16 @@
+Signature vs Softwaresolution — fully separate
+==============================================
+
+|                | Signature                    | Softwaresolution              |
+|----------------|------------------------------|-------------------------------|
+| Folder         | C:\laragon\www\Signature     | C:\laragon\www\Softwaresolution |
+| Database       | signature_local              | softwaresolution              |
+| PC URL         | http://signature.test        | http://softwaresolution.cafe  |
+| LAN / mobile   | http://PC-IP:8080            | http://PC-IP  (port 80)       |
+| Session cookie | signature_session            | stair_session                 |
+
+Rules:
+- Signature mein jo change karo, Softwaresolution par asar NAHI.
+- Softwaresolution mein abhi koi change nahi karni.
+- localhost / 127.0.0.1 / IP:80 = Softwaresolution
+- signature.test / IP:8080 = Signature

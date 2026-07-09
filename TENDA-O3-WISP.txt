@@ -1,0 +1,73 @@
+TENDA O3 (WISP mode) — DHCP kahan hai?
+=======================================
+
+Aapka router: Tenda O3 V3.0
+Mode: WISP (top-right)
+IP: 192.168.4.1
+
+DHCP "Advanced" ke andar NAHI hota — left menu mein alag "Network" hai.
+
+
+OPTION 1 — Pehle yeh dekho
+--------------------------
+Left sidebar:
+
+  Network   <-- is par CLICK karo (Wireless aur Advanced ke beech)
+
+Andar dhundo:
+  - DHCP Server
+  - LAN Setup
+
+Agar "DHCP Server" dikhe:
+  - DHCP Server = Enable
+  - Primary DNS = 192.168.4.104  (Technitium wala PC)
+  - Secondary DNS = khali
+  - Save
+
+
+OPTION 2 — WISP mode mein DHCP band ho sakta hai
+-------------------------------------------------
+Tenda O3 WISP mode mein kabhi DHCP auto OFF rehta hai.
+Tab router se DNS change NAHI hoga.
+
+Solution A — Phone par manual DNS (har WiFi par ek dafa):
+  Android:
+    WiFi long press > Modify / Manage
+    Advanced > IP settings: DHCP
+    DNS 1: 192.168.4.104
+    DNS 2: (khali)
+    Save
+
+  iPhone:
+    WiFi (i) > Configure DNS > Manual
+    Add: 192.168.4.104
+
+  Phir browser: http://softwaresolution.cafe/
+
+Solution B — Mode badlo (agar mumkin ho):
+  Quick Setup > AP mode ya Router mode
+  (WISP sirf internet extend ke liye hai)
+  Phir Network > DHCP Server milega
+
+
+OPTION 3 — Asal DHCP kahan se aa raha hai?
+------------------------------------------
+Agar phones 192.168.1.x ya 192.168.2.x lete hain:
+  DHCP is O3 (192.168.4.1) se NAHI — koi AUR extender/router de raha hai.
+  Us device ka admin kholo aur wahan DNS = 192.168.4.104 set karo.
+
+Phone par check:
+  WiFi details > Gateway / Router IP
+  Wahi IP browser mein kholo — wahan DHCP hoga.
+
+
+PC par pehle zaroori
+--------------------
+1. setup-mobile-dns.vbs (Technitium DNS)
+2. Laragon Apache ON
+3. PC IP fixed: 192.168.4.104 (ipconfig se confirm)
+
+
+Temporary (bina DNS ke)
+-----------------------
+http://192-168-4-104.sslip.io/

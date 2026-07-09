@@ -1,0 +1,42 @@
+// Body (soft cool gray; layered gradient applied in app.scss for admin shell)
+$body-bg: #e9edf5;
+
+// Odoo violet-purple palette
+$primary:   #7c3aed;   // Odoo-style violet
+$secondary: #6b7280;
+$success:   #16a34a;
+$info:      #0ea5e9;
+$warning:   #f59e0b;
+$danger:    #ef4444;
+$light:     #f8f7fb;
+$dark:      #111827;
+
+$link-color:       $primary;
+$link-hover-color: #5b21b6;   // darker violet
+
+// Cards / borders
+$border-color:  rgba(17, 24, 39, 0.12);
+$box-shadow-sm: 0 .125rem .25rem rgba(17, 24, 39, 0.08);
+$box-shadow:    0 .5rem 1.25rem rgba(17, 24, 39, 0.10);
+
+// Typography
+$font-family-sans-serif: 'Inter', 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
+$font-size-base:  1rem;
+$line-height-base: 1.5;
+
+// Buttons
+$btn-border-radius:    .6rem;
+$btn-border-radius-sm: .5rem;
+$btn-border-radius-lg: .7rem;
+
+// Inputs
+$input-border-radius:    .6rem;
+$input-border-radius-sm: .5rem;
+$input-border-radius-lg: .7rem;
+$input-focus-border-color: #a78bfa;              // light violet
+$input-focus-box-shadow: 0 0 0 .2rem rgba(124, 58, 237, 0.18);
+
+// Navbar
+$navbar-light-color: rgba(17, 24, 39, 0.72);
+$navbar-light-hover-color: rgba(17, 24, 39, 0.92);
+$navbar-light-active-color: rgba(17, 24, 39, 0.92);

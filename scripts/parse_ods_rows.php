@@ -1,0 +1,44 @@
+<?php
+
+$path = $argv[1] ?? '';
+if ($path === '' || ! is_file($path)) {
+    fwrite(STDERR, "Usage: php parse_ods_rows.php <file.ods>\n");
+    exit(1);
+}
+
+$zip = new ZipArchive();
+if ($zip->open($path) !== true) {
+    fwrite(STDERR, "Cannot open ODS\n");
+    exit(1);
+}
+$xml = $zip->getFromName('content.xml');
+$zip->close();
+
+$dom = new DOMDocument();
+$dom->loadXML($xml);
+$xpath = new DOMXPath($dom);
+$xpath->registerNamespace('table', 'urn:oasis:names:tc:opendocument:xmlns:table:1.0');
+$xpath->registerNamespace('text', 'urn:oasis:names:tc:opendocument:xmlns:text:1.0');
+$xpath->registerNamespace('office', 'urn:oasis:names:tc:opendocument:xmlns:office:1.0');
+
+$isHeader = true;
+foreach ($xpath->query('//table:table-row') as $row) {
+    $cells = $xpath->query('table:table-cell', $row);
+    $values = [];
+    foreach ($cells as $cell) {
+        $repeated = (int) $cell->getAttributeNS('urn:oasis:names:tc:opendocument:xmlns:table:1.0', 'number-columns-repeated');
+        if ($repeated > 1) {
+            break;
+        }
+        $value = $cell->getAttributeNS('urn:oasis:names:tc:opendocument:xmlns:office:1.0', 'value');
+        if ($value !== '') {
+            $values[] = $value;
+        } else {
+            $p = $xpath->query('text:p', $cell)->item(0);
+            $values[] = trim($p ? $p->textContent : '');
+        }
+    }
+    if (count($values) >= 1) {
+        echo json_encode($values, JSON_UNESCAPED_UNICODE) . PHP_EOL;
+    }
+}

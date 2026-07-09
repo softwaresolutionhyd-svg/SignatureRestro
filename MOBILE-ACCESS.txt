@@ -1,0 +1,28 @@
+MOBILE par softwaresolution.cafe — kyun nahi chalta?
+===============================================
+
+Phone apna DNS Google (8.8.8.8) ya router se leta hai.
+Internet par "softwaresolution.cafe" exist nahi karta (NXDOMAIN).
+Is liye mobile par hosts file kaam nahi karti — sirf PC par.
+
+SOLUTION (ek dafa setup):
+-------------------------
+Double-click: setup-mobile-dns.vbs
+
+Phir:
+  A) Is PC par DNS server install (Technitium ya Acrylic)
+  B) Router par DHCP DNS = is PC ka IP (192.168.x.x)
+  C) Phone WiFi reconnect
+
+Tab har mobile par: http://softwaresolution.cafe/
+
+Generated hosts: config/generated-dns-hosts.txt
+
+Agar router DNS change na ho sake (extender):
+  - Server PC ko main router se LAN cable se connect karo
+  - Extenders AP mode mein lao
+  - DNS main router par set karo
+
+Temporary (DNS ke baghair):
+  http://192-168-4-104.sslip.io/
+  (IP ke hisaab se badlega — ipconfig se dekho, dashes laga kar sslip.io)
