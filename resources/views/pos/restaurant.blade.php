@@ -41,7 +41,8 @@
         if (! $p->category_id || ! $p->category || ! $p->category->parent_id || ! $p->category->parent) {
             continue;
         }
-        if (strcasecmp((string) $p->category->parent->name, 'Menu') !== 0) {
+        // POS tabs: direct sub-categories under a top-level root (e.g. Menu / All Products).
+        if ($p->category->parent->parent_id !== null) {
             continue;
         }
         $cat = $p->category;
