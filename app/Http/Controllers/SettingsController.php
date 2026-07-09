@@ -6,6 +6,7 @@ use App\Models\PosOrder;
 use App\Models\PosTable;
 use App\Models\Setting;
 use App\Support\ActivityLogger;
+use App\Services\PublicStorageMirror;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -155,9 +156,11 @@ class SettingsController extends Controller
         if ($request->hasFile('company_logo')) {
             $old = Setting::get('company_logo');
             if ($old && Storage::disk('public')->exists($old)) {
+                PublicStorageMirror::unpublish($old);
                 Storage::disk('public')->delete($old);
             }
             $path = $request->file('company_logo')->store('logos', 'public');
+            PublicStorageMirror::publish($path);
             $data['company_logo'] = $path;
         } else {
             unset($data['company_logo']);

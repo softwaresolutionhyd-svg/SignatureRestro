@@ -17,6 +17,7 @@ final class ProductImageService
 
         $name = 'products/'.Str::uuid()->toString().'.jpg';
         Storage::disk('public')->put($name, $contents);
+        PublicStorageMirror::publish($name);
 
         return $name;
     }
@@ -27,6 +28,7 @@ final class ProductImageService
             return;
         }
 
+        PublicStorageMirror::unpublish($path);
         Storage::disk('public')->delete($path);
     }
 

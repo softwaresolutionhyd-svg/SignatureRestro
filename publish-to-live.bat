@@ -20,7 +20,11 @@ echo  Code  -^> GitHub -^> signature.softwaresolutions.pk
 echo  Data  -^> sync   -^> hosting MySQL
 echo.
 
-echo [1/3] Database sync (local -^> hosting)...
+echo [1/4] Mirror product images to public/storage...
+"%PHP%" artisan storage:mirror-public
+echo.
+
+echo [2/4] Database sync (local -^> hosting)...
 "%PHP%" artisan sync:cloud --status
 "%PHP%" artisan sync:cloud
 if errorlevel 1 (
@@ -28,7 +32,7 @@ if errorlevel 1 (
 )
 echo.
 
-echo [2/3] Git status...
+echo [3/4] Git status...
 git status -sb 2>nul
 if errorlevel 1 (
     echo Git not initialized. Run: git init
@@ -47,7 +51,7 @@ if "!MSG!"=="" (
     exit /b 1
 )
 
-echo [3/3] Push code to GitHub...
+echo [4/4] Push code to GitHub...
 git add .
 git commit -m "!MSG!"
 if errorlevel 1 (
