@@ -25,3 +25,6 @@ yarn-error.log
 /backup/*.zip
 Signature-full-backup-*.zip
 .ftp-deploy-sync-state.json
+
+# Cursor auto-push hook log
+.cursor/hooks/auto-push.log
