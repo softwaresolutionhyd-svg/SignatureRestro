@@ -65,6 +65,7 @@ echo.
 echo [OK] Done!
 echo  - Data: hosting DB par sync ho gaya (agar net tha)
 echo  - Code: GitHub Actions 2-5 min mein live site par deploy karega
+echo  - Agar Actions "Queued" par atka ho: deploy-ftp-local.bat use karo
 echo  - Check: https://signature.softwaresolutions.pk
 echo.
 pause

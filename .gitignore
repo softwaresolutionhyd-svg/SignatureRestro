@@ -26,5 +26,8 @@ yarn-error.log
 Signature-full-backup-*.zip
 .ftp-deploy-sync-state.json
 
+# Local FTP deploy credentials (same as GitHub Secrets)
+.env.deploy
+
 # Cursor auto-push hook log
 .cursor/hooks/auto-push.log
