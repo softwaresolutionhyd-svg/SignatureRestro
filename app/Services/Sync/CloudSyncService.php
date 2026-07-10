@@ -105,7 +105,7 @@ class CloudSyncService
             } catch (Throwable $e) {
                 foreach ($items as $item) {
                     $item->forceFill([
-                        'attempts' => $item->attempts + 1,
+                        'attempts' => min(254, (int) $item->attempts + 1),
                         'last_error' => $e->getMessage(),
                     ])->save();
                 }
@@ -122,7 +122,7 @@ class CloudSyncService
                 $message = (string) ($response->json('message') ?? $response->body());
                 foreach ($items as $item) {
                     $item->forceFill([
-                        'attempts' => $item->attempts + 1,
+                        'attempts' => min(254, (int) $item->attempts + 1),
                         'last_error' => $message,
                     ])->save();
                 }
@@ -149,9 +149,21 @@ class CloudSyncService
                 }
 
                 $err = $failed->get((int) $item->id);
+                $errorText = is_array($err) ? (string) ($err['error'] ?? 'unknown') : 'not applied';
+
+                if (str_contains($errorText, 'Duplicate entry')) {
+                    $item->forceFill([
+                        'synced_at' => now(),
+                        'last_error' => null,
+                    ])->save();
+                    $pushed++;
+
+                    continue;
+                }
+
                 $item->forceFill([
-                    'attempts' => $item->attempts + 1,
-                    'last_error' => is_array($err) ? (string) ($err['error'] ?? 'unknown') : 'not applied',
+                    'attempts' => min(254, (int) $item->attempts + 1),
+                    'last_error' => $errorText,
                 ])->save();
             }
 
@@ -227,12 +239,19 @@ class CloudSyncService
 
                     $applied[] = $clientId;
                 } catch (Throwable $e) {
+                    $message = $e->getMessage();
+                    if ($action === 'upsert' && str_contains($message, 'Duplicate entry')) {
+                        $applied[] = $clientId;
+
+                        continue;
+                    }
+
                     Log::warning('sync.apply_failed', [
                         'table' => $table,
                         'key' => $key,
-                        'error' => $e->getMessage(),
+                        'error' => $message,
                     ]);
-                    $failed[] = ['id' => $clientId, 'error' => $e->getMessage()];
+                    $failed[] = ['id' => $clientId, 'error' => $message];
                 }
             }
         } finally {

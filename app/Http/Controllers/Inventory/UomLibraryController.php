@@ -13,12 +13,20 @@ class UomLibraryController extends Controller
 {
     public function index(): View
     {
+        // Broken rows (unit deleted but conversion left) crash the page on hosting.
+        InventoryUnitConversion::query()
+            ->whereDoesntHave('fromUnit')
+            ->orWhereDoesntHave('toUnit')
+            ->delete();
+
         $units = InventoryUnit::query()
             ->withCount(['conversionsFrom', 'conversionsTo'])
             ->orderBy('code')
             ->get();
         $conversions = InventoryUnitConversion::query()
             ->with(['fromUnit', 'toUnit'])
+            ->whereHas('fromUnit')
+            ->whereHas('toUnit')
             ->orderBy('from_unit_id')
             ->orderBy('to_unit_id')
             ->get();

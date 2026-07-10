@@ -116,8 +116,8 @@
                         <tbody>
                         @forelse($conversions as $c)
                             <tr>
-                                <td><code>{{ $c->fromUnit->code }}</code></td>
-                                <td><code>{{ $c->toUnit->code }}</code></td>
+                                <td><code>{{ $c->fromUnit?->code ?? '—' }}</code></td>
+                                <td><code>{{ $c->toUnit?->code ?? '—' }}</code></td>
                                 <td>{{ fmt_num($c->factor, 8) }}</td>
                                 <td class="small text-secondary">{{ $c->explainFactor() }}</td>
                                 <td class="text-end">

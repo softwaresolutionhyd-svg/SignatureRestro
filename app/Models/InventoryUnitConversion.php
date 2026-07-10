@@ -37,6 +37,9 @@ class InventoryUnitConversion extends Model
      */
     public function explainFactor(): string
     {
-        return '1 '.$this->fromUnit->code.' = '.fmt_num($this->factor, 8).' '.$this->toUnit->code;
+        $from = $this->fromUnit?->code ?? '?';
+        $to = $this->toUnit?->code ?? '?';
+
+        return '1 '.$from.' = '.fmt_num($this->factor, 8).' '.$to;
     }
 }
