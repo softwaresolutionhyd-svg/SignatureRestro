@@ -14,12 +14,17 @@ Har extender par same URL tabhi chalega jab:
   - Server PC ka fixed IP ho (recommended 192.168.3.50)
   - Windows Firewall port 8080 allow ho
 
-Setup (Admin PowerShell):
-  cd C:\laragon\www\signature\scripts
-  .\setup-signature-lan-network.ps1
+Setup (Admin — koi bhi tareeqa):
+
+  A) Double-click:
+     scripts\setup-signature-lan-network.bat
+
+  B) PowerShell (Admin):
+     cd C:\laragon\www\signature\scripts
+     powershell -ExecutionPolicy Bypass -File .\setup-signature-lan-network.ps1
 
 Fixed IP (optional):
-  .\set-cafe-lan-ip.ps1
+  scripts\set-cafe-lan-ip.bat
 
 Quick URLs check:
   Double-click network-url.bat
