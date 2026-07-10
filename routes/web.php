@@ -229,6 +229,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
             Route::post('/hold', [PosController::class, 'hold'])->name('hold');
             Route::delete('/hold/{orderId}', [PosController::class, 'discardHeld'])->whereNumber('orderId')->name('hold.discard');
             Route::get('/resume/{order}', [PosController::class, 'resume'])->name('resume');
+            Route::get('/receipt/{order}/unpaid', [PosController::class, 'unpaidReceipt'])->name('receipt.unpaid');
             Route::get('/receipt/{order}', [PosController::class, 'receipt'])->name('receipt');
         });
     });

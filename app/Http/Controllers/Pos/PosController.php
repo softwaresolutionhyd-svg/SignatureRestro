@@ -1299,32 +1299,93 @@ class PosController extends Controller
 
     public function receipt(Request $request, PosOrder $order): View
     {
-        abort_unless((int) $order->user_id === (int) Auth::id(), 403);
-        abort_unless($order->status === 'paid', 404);
+        return $this->renderReceipt($request, $order, paidOnly: true);
+    }
+
+    public function unpaidReceipt(Request $request, PosOrder $order): View
+    {
+        abort_unless(Setting::get('pos_allow_bill_print', '1') === '1', 403);
+
+        return $this->renderReceipt($request, $order, paidOnly: false);
+    }
+
+    private function renderReceipt(Request $request, PosOrder $order, bool $paidOnly): View
+    {
+        if ($paidOnly) {
+            abort_unless($order->status === 'paid', 404);
+            abort_unless((int) $order->user_id === (int) Auth::id(), 403);
+        } else {
+            abort_unless($order->status === 'draft', 404);
+            $this->assertDraftReceiptAccess($order);
+        }
 
         $order->load(['items.product:id,name,sku', 'payments', 'contact:id,name,phone', 'user:id,name', 'table:id,name']);
 
+        $settings = $this->receiptSettingsMap();
+        $isUnpaid = ! $paidOnly;
+        $allowBillPrint = (($settings['pos_allow_bill_print'] ?? '1') === '1');
+        $autoPrint = ! $request->boolean('noprint', false) && (
+            $paidOnly
+                ? Setting::get('pos_auto_print_receipt', '1') === '1'
+                : $request->boolean('autoprint', true)
+        );
+        $backUrl = route('restaurant-pos.index');
+        $backLabel = '← Back to Restaurant POS';
+
+        return view('pos.receipt', compact('order', 'settings', 'autoPrint', 'allowBillPrint', 'backUrl', 'backLabel', 'isUnpaid'));
+    }
+
+    private function assertDraftReceiptAccess(PosOrder $order): void
+    {
+        $user = Auth::user();
+        if ((int) $order->user_id === (int) $user->id) {
+            return;
+        }
+
+        $session = $this->openPosSessionForUser($user);
+        if ($session !== null && (int) $order->session_id === (int) $session->id) {
+            return;
+        }
+
+        abort(403);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function receiptSettingsMap(): array
+    {
         $settings = array_merge([
             'company_name' => config('app.name'),
             'company_address' => '',
             'company_phone' => '',
+            'company_logo' => '',
             'currency_symbol' => 'Rs.',
             'pos_allow_bill_print' => '1',
             'pos_enable_tables' => '1',
         ], Setting::all_map());
 
-        $autoPrint = Setting::get('pos_auto_print_receipt', '1') === '1' && !$request->boolean('noprint', false);
-        $allowBillPrint = (($settings['pos_allow_bill_print'] ?? '1') === '1');
-        $backUrl = route('restaurant-pos.index');
-        $backLabel = '← Back to Restaurant POS';
+        $settings['company_logo_url'] = company_logo_url($settings['company_logo'] ?? '') ?? '';
 
-        return view('pos.receipt', compact('order', 'settings', 'autoPrint', 'allowBillPrint', 'backUrl', 'backLabel'));
+        return $settings;
+    }
+
+    private function openPosSessionForUser(User $user): ?PosSession
+    {
+        $today = now()->toDateString();
+
+        return PosSession::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'open')
+            ->where(function ($q) use ($today) {
+                $q->whereDate('opened_at', $today)
+                    ->orWhereDate('business_date', $today);
+            })
+            ->latest('id')
+            ->first();
     }
 
     /**
-     * Map each line’s UOM to the product’s canonical allowed code (case-insensitive) so resume/hold lines still checkout after unit renames.
-     *
-     * @param  array<int, array<string, mixed>>  $items
      * @return array<int, array<string, mixed>>
      */
     private function canonicalizePosLineUoms(array $items): array

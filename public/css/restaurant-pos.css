@@ -1259,7 +1259,7 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
 
 .restaurant-pos-app .rp-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
     gap: 0.4rem;
     margin-top: 0.4rem;
 }
@@ -1290,6 +1290,18 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     background: rgba(240, 180, 41, 0.18);
     border-color: var(--rp-amber);
     color: #fef3c7;
+}
+
+.restaurant-pos-app .rp-actions .btn-outline-light {
+    border-color: rgba(255, 255, 255, 0.22);
+    color: var(--rp-text-soft);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.restaurant-pos-app .rp-actions .btn-outline-light:hover {
+    border-color: rgba(255, 255, 255, 0.35);
+    color: var(--rp-text);
+    background: rgba(255, 255, 255, 0.08);
 }
 
 .restaurant-pos-app .btn-rp-primary {

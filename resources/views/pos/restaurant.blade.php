@@ -242,6 +242,11 @@
                         <i class="bi bi-send"></i> Hold &amp; Kitchen
                     </button>
                 @endif
+                @if($posSettings['allow_bill_print'] ?? true)
+                    <button type="button" class="btn btn-outline-light btn-sm" id="rpPrintUnpaidBtn" title="Thermal printer par unpaid bill print karein">
+                        <i class="bi bi-printer"></i> Print Unpaid Bill
+                    </button>
+                @endif
                 <button type="button" class="btn btn-sm btn-rp-whatsapp d-none" id="rpWhatsappBtn" title="Customer ko WhatsApp par order confirm karein">
                     <i class="bi bi-whatsapp"></i> WhatsApp
                 </button>
@@ -339,6 +344,7 @@
 @section('scripts')
 @php
     $receiptStub = str_replace('999999999', '__ID__', route('restaurant-pos.receipt', ['order' => 999999999]));
+    $receiptUnpaidStub = str_replace('999999999', '__ID__', route('restaurant-pos.receipt.unpaid', ['order' => 999999999]));
     $discardStub = str_replace('999999999', '__ID__', route('restaurant-pos.hold.discard', ['orderId' => 999999999]));
     $restaurantBootstrap = [
         'csrf' => csrf_token(),
@@ -361,11 +367,12 @@
             'sync' => route('restaurant-pos.sync'),
             'resume' => $resumeStub . '?ui=restaurant',
             'receipt' => $receiptStub,
+            'receiptUnpaid' => $receiptUnpaidStub,
         ],
     ];
 @endphp
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=31"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=32"></script>
 @endsection

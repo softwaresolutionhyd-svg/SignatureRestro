@@ -1134,6 +1134,81 @@
         });
     }
 
+    async function ensureHeldOrderForPrint() {
+        if (resumeOrderId) {
+            await saveResumedDraftChanges();
+            return resumeOrderId;
+        }
+
+        const formData = buildHoldFormData();
+        if (!formData) {
+            throw new Error('Bill print ke liye pehle item add karein.');
+        }
+
+        const res = await fetch(routes.hold, {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: formData,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            const validationMsg = data.errors ? Object.values(data.errors).flat()[0] : null;
+            throw new Error(data.message || validationMsg || 'Order save nahi ho saki.');
+        }
+
+        const orderId = data.order?.id;
+        if (!orderId) {
+            throw new Error('Order save ho gaya lekin print ke liye ID nahi mili.');
+        }
+
+        resumeOrderId = orderId;
+        const form = $('#rpSubmitForm');
+        if (form) {
+            form.querySelector('[name="resume_order_id"]').value = String(orderId);
+        }
+        if (data.order) {
+            upsertPendingBill(data.order, !!data.updated);
+        }
+
+        let badge = document.querySelector('.rp-badge-order');
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'badge rp-badge-order';
+            $('#rpTabMenu')?.parentElement?.prepend(badge);
+        }
+        badge.textContent = data.order.order_no || String(orderId);
+
+        return orderId;
+    }
+
+    async function printUnpaidBill() {
+        if (settings.allow_bill_print === false) {
+            return;
+        }
+        if (!cart.length) {
+            alert('Pehle item add karein.');
+            return;
+        }
+
+        const btn = $('#rpPrintUnpaidBtn');
+        if (btn) btn.disabled = true;
+        try {
+            const orderId = await ensureHeldOrderForPrint();
+            const base = (routes.receiptUnpaid || '').replace('__ID__', String(orderId));
+            if (!base) {
+                throw new Error('Print route missing.');
+            }
+            window.open(`${base}?autoprint=1`, '_blank', 'noopener,noreferrer');
+        } catch (e) {
+            alert(e.message || 'Unpaid bill print nahi ho saki.');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
     async function submitHoldOrder() {
         if (!prepareSubmit('hold')) return;
 
@@ -1226,6 +1301,7 @@
             setServiceType(btn.dataset.type);
         });
         $('#rpHoldBtn')?.addEventListener('click', () => submitHoldOrder());
+        $('#rpPrintUnpaidBtn')?.addEventListener('click', () => printUnpaidBill());
         $('#rpWhatsappBtn')?.addEventListener('click', () => openDeliveryWhatsapp());
         $('#rpPayBtn')?.addEventListener('click', () => openPayModal());
         $('#rpPayModalConfirm')?.addEventListener('click', () => confirmPayModal());
