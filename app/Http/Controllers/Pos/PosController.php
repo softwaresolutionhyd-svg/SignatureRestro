@@ -1187,6 +1187,13 @@ class PosController extends Controller
 
         $order->delete();
 
+        if (request()->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Held order discarded.',
+            ]);
+        }
+
         return back()->with('success', 'Held order discarded.');
     }
 

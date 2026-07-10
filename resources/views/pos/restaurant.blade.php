@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=32">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=33">
 @endpush
 
 @section('content')
@@ -339,6 +339,7 @@
 @section('scripts')
 @php
     $receiptStub = str_replace('999999999', '__ID__', route('restaurant-pos.receipt', ['order' => 999999999]));
+    $discardStub = str_replace('999999999', '__ID__', route('restaurant-pos.hold.discard', ['order' => 999999999]));
     $restaurantBootstrap = [
         'csrf' => csrf_token(),
         'products' => $productJs,
@@ -355,6 +356,7 @@
         'routes' => [
             'checkout' => route('restaurant-pos.checkout'),
             'hold' => route('restaurant-pos.hold'),
+            'discardHold' => $discardStub,
             'sync' => route('restaurant-pos.sync'),
             'resume' => $resumeStub . '?ui=restaurant',
             'receipt' => $receiptStub,
@@ -364,5 +366,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=28"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=29"></script>
 @endsection

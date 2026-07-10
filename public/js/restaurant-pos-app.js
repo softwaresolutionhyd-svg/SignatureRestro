@@ -300,11 +300,12 @@
         renderAll();
     }
 
-    function removeCartLine(index, reason) {
+    async function removeCartLine(index, reason) {
         const row = cart[index];
         if (!row) return;
 
         const locked = Number(row.kitchen_locked_qty) || 0;
+        const voidsBefore = kitchenVoids.length;
         if (locked > 0) {
             const reasonText = String(reason || '').trim();
             if (!reasonText) {
@@ -323,6 +324,19 @@
 
         cart.splice(index, 1);
         renderAll();
+
+        if (!resumeOrderId) {
+            return;
+        }
+
+        try {
+            await saveResumedDraftChanges();
+        } catch (e) {
+            cart.splice(index, 0, row);
+            kitchenVoids.length = voidsBefore;
+            renderAll();
+            throw e;
+        }
     }
 
     function getRemoveReasonModal() {
@@ -350,7 +364,7 @@
         setTimeout(() => input?.focus(), 280);
     }
 
-    function confirmRemoveWithReason() {
+    async function confirmRemoveWithReason() {
         const reason = ($('#rpRemoveReason')?.value || '').trim();
         if (reason.length < 3) {
             $('#rpRemoveReasonError')?.classList.remove('d-none');
@@ -360,7 +374,11 @@
         const idx = pendingRemoveIndex;
         pendingRemoveIndex = null;
         getRemoveReasonModal()?.hide();
-        removeCartLine(idx, reason);
+        try {
+            await removeCartLine(idx, reason);
+        } catch (e) {
+            alert(e.message || 'Item remove save nahi ho saki.');
+        }
     }
 
     function cancelRemoveReasonModal() {
@@ -952,23 +970,130 @@
         $('#rpProductSearch')?.focus();
     }
 
-    async function submitHoldOrder() {
-        if (!prepareSubmit('hold')) return;
-
-        const holdBtn = $('#rpHoldBtn');
+    function buildHoldFormData() {
+        if (!cart.length) {
+            return null;
+        }
+        if (!prepareSubmit('hold')) {
+            return null;
+        }
         const form = $('#rpSubmitForm');
-        if (!form) return;
+        if (!form) {
+            return null;
+        }
 
         const totals = calcCartTotals();
         const formData = new FormData(form);
         formData.set('items', JSON.stringify(cartItemsForSubmit()));
+        formData.set('kitchen_voids', JSON.stringify(kitchenVoids));
         formData.set('client_grand_total', String(totals.grand));
         formData.set('client_subtotal', String(totals.subtotal));
         formData.set('client_discount_total', String(totals.discount));
         formData.set('client_tax_total', String(totals.tax));
+        return formData;
+    }
 
+    async function discardResumedDraft() {
+        if (!resumeOrderId) {
+            return;
+        }
+
+        const url = (routes.discardHold || '').replace('__ID__', String(resumeOrderId));
+        if (!url) {
+            throw new Error('Discard route missing.');
+        }
+
+        const body = new FormData();
+        body.append('_token', csrf);
+        body.append('_method', 'DELETE');
+
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            throw new Error(data.message || 'Pending order discard nahi ho saki.');
+        }
+
+        boot.pendingBillsDetail = (boot.pendingBillsDetail || []).filter(
+            (o) => Number(o.id) !== Number(resumeOrderId)
+        );
+        updateOrderTabCounts();
+        if (orderListMode === 'pending') {
+            renderOrderCards();
+        }
+        resetForNewBill();
+    }
+
+    async function saveResumedDraftChanges() {
+        if (!resumeOrderId) {
+            return;
+        }
+
+        setCartSaving(true);
+        try {
+            if (!cart.length) {
+                await discardResumedDraft();
+                return;
+            }
+
+            const formData = buildHoldFormData();
+            if (!formData) {
+                throw new Error('Order save tayyar nahi ho saki.');
+            }
+
+            const res = await fetch(routes.hold, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: formData,
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                const validationMsg = data.errors ? Object.values(data.errors).flat()[0] : null;
+                throw new Error(data.message || validationMsg || 'Order save nahi ho saki.');
+            }
+
+            if (data.order) {
+                upsertPendingBill(data.order, true);
+            }
+            kitchenVoids = [];
+        } finally {
+            setCartSaving(false);
+        }
+    }
+
+    function setCartSaving(isSaving) {
+        const wrap = $('#rpCartLines');
+        if (!wrap) return;
+        wrap.classList.toggle('is-saving', isSaving);
+        wrap.querySelectorAll('.rp-cl-remove').forEach((btn) => {
+            btn.disabled = isSaving;
+        });
+    }
+
+    async function submitHoldOrder() {
+        if (!prepareSubmit('hold')) return;
+
+        const holdBtn = $('#rpHoldBtn');
         if (holdBtn) holdBtn.disabled = true;
         try {
+            if (resumeOrderId) {
+                await saveResumedDraftChanges();
+                resetForNewBill();
+                return;
+            }
+
+            const formData = buildHoldFormData();
+            if (!formData) return;
+
             const res = await fetch(routes.hold, {
                 method: 'POST',
                 headers: {
@@ -1029,12 +1154,16 @@
             if (btn.dataset.action === 'inc') addOrIncrementProduct(id);
             if (btn.dataset.action === 'dec') changeCartQty(id, -1);
         });
-        $('#rpCartLines')?.addEventListener('click', (e) => {
+        $('#rpCartLines')?.addEventListener('click', async (e) => {
             const btn = e.target.closest('[data-action="remove-line"]');
-            if (!btn) return;
+            if (!btn || btn.disabled) return;
             const index = Number(btn.dataset.index);
             if (!Number.isFinite(index)) return;
-            removeCartLine(index);
+            try {
+                await removeCartLine(index);
+            } catch (err) {
+                alert(err.message || 'Item remove save nahi ho saki.');
+            }
         });
         $('#rpServiceTypes')?.addEventListener('click', (e) => {
             const btn = e.target.closest('.rp-service-type');

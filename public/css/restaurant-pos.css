@@ -1052,6 +1052,16 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     color: #ece8e2;
 }
 
+.restaurant-pos-app .rp-cart-lines.is-saving {
+    opacity: 0.65;
+    pointer-events: none;
+}
+
+.restaurant-pos-app .rp-cl-remove:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
 .restaurant-pos-app .rp-cl-actions {
     display: flex;
     flex-direction: column;
