@@ -1083,12 +1083,55 @@
         badge.textContent = order.order_no || String(order.id);
     }
 
-    function openKitchenPrint(orderId) {
+    function printUrlInHiddenFrame(url) {
+        return new Promise((resolve, reject) => {
+            document.getElementById('rpPrintFrame')?.remove();
+
+            const iframe = document.createElement('iframe');
+            iframe.id = 'rpPrintFrame';
+            iframe.title = 'Print';
+            iframe.style.cssText = 'position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none;';
+            iframe.setAttribute('aria-hidden', 'true');
+
+            let settled = false;
+            const finish = (err) => {
+                if (settled) return;
+                settled = true;
+                window.setTimeout(() => iframe.remove(), 1500);
+                if (err) reject(err);
+                else resolve();
+            };
+
+            iframe.onload = () => {
+                window.setTimeout(() => {
+                    try {
+                        const win = iframe.contentWindow;
+                        if (!win) {
+                            finish(new Error('Print tayyar nahi ho saki.'));
+                            return;
+                        }
+                        win.focus();
+                        win.print();
+                        finish();
+                    } catch (e) {
+                        finish(e);
+                    }
+                }, 350);
+            };
+
+            iframe.onerror = () => finish(new Error('Print load failed.'));
+
+            document.body.appendChild(iframe);
+            iframe.src = url;
+        });
+    }
+
+    function printKitchenSlip(orderId) {
         const base = (routes.kitchen || '').replace('__ID__', String(orderId));
         if (!base) {
             throw new Error('Kitchen print route missing.');
         }
-        window.open(`${base}?autoprint=1`, '_blank', 'noopener,noreferrer');
+        return printUrlInHiddenFrame(`${base}?noprint=1`);
     }
 
     function clearStaleResumeState(message) {
@@ -1405,7 +1448,7 @@
             if (!orderId) {
                 throw new Error('Order save nahi ho saki.');
             }
-            openKitchenPrint(orderId);
+            await printKitchenSlip(orderId);
         } catch (e) {
             alert(e.message || 'Kitchen print failed.');
         } finally {
