@@ -736,13 +736,22 @@ class PosController extends Controller
             }
         }
 
-        $order = DB::connection('tenant')->transaction(function () use ($request, $session, $isCredit, $contactId, $itemsNormalized, $guestName, $roomNo, $waiterName, $serveTime, $serveDate, $orderNotes, $resumeOrderId, $customerType, $saleMode, $serviceType, $restaurantTableId) {
+        try {
+            $order = DB::connection('tenant')->transaction(function () use ($request, $session, $isCredit, $contactId, $itemsNormalized, $guestName, $roomNo, $waiterName, $serveTime, $serveDate, $orderNotes, $resumeOrderId, $customerType, $saleMode, $serviceType, $restaurantTableId) {
             $enableTables = (string) Setting::get('pos_enable_tables', '1') !== '0';
             if ($this->isRestaurantPosRequest($request)) {
                 $tableId = $restaurantTableId;
             } else {
                 $tableId = ($enableTables && $customerType !== 'booking') ? $request->integer('table_id') : null;
             }
+
+            $usesTable = $this->isRestaurantPosRequest($request)
+                ? ($serviceType === PosOrder::SERVICE_DINE_IN && $tableId)
+                : ($enableTables && $customerType !== 'booking' && $tableId);
+            if ($usesTable) {
+                $this->orderTaker->assertTableAvailable($tableId, $resumeOrderId ?: null, true);
+            }
+
             $pricing = $this->posPricingOptions();
             $billTax = $pricing['tax_mode'] === 'bill'
                 ? round((float) $request->input('bill_tax_percent', $pricing['default_tax_rate']), 3)
@@ -864,6 +873,13 @@ class PosController extends Controller
 
             return $order;
         });
+        } catch (\RuntimeException $e) {
+            if ($wantsJson) {
+                return response()->json(['message' => $e->getMessage()], 422);
+            }
+
+            return back()->with('error', $e->getMessage());
+        }
 
         $this->logKitchenVoids($order, $this->normalizedKitchenVoids($request));
         $this->autoJournal->postPosSale($order);
@@ -1014,13 +1030,23 @@ class PosController extends Controller
         $sendToKitchen = $this->isRestaurantPosRequest($request)
             ? $request->boolean('send_to_kitchen')
             : true;
-        $order = DB::connection('tenant')->transaction(function () use ($request, $session, $itemsNormalized, $guestName, $roomNo, $waiterName, $serveTime, $serveDate, $orderNotes, $customerType, $saleMode, $serviceType, $restaurantTableId, $resumeOrderId, $clientTotals, $sendToKitchen, &$updatedExisting) {
+
+        try {
+            $order = DB::connection('tenant')->transaction(function () use ($request, $session, $itemsNormalized, $guestName, $roomNo, $waiterName, $serveTime, $serveDate, $orderNotes, $customerType, $saleMode, $serviceType, $restaurantTableId, $resumeOrderId, $clientTotals, $sendToKitchen, &$updatedExisting) {
             $enableTables = (string) Setting::get('pos_enable_tables', '1') !== '0';
             if ($this->isRestaurantPosRequest($request)) {
                 $tableId = $restaurantTableId;
             } else {
                 $tableId = ($enableTables && $customerType !== 'booking') ? $request->integer('table_id') : null;
             }
+
+            $usesTable = $this->isRestaurantPosRequest($request)
+                ? ($serviceType === PosOrder::SERVICE_DINE_IN && $tableId)
+                : ($enableTables && $customerType !== 'booking' && $tableId);
+            if ($usesTable) {
+                $this->orderTaker->assertTableAvailable($tableId, $resumeOrderId ?: null, true);
+            }
+
             $pricing = $this->posPricingOptions();
             $billTax = $pricing['tax_mode'] === 'bill'
                 ? round((float) $request->input('bill_tax_percent', $pricing['default_tax_rate']), 3)
@@ -1131,6 +1157,13 @@ class PosController extends Controller
 
             return $order->fresh(['table']);
         });
+        } catch (\RuntimeException $e) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $e->getMessage()], 422);
+            }
+
+            return back()->with('error', $e->getMessage());
+        }
 
         if ($this->repairDraftOrderIfNeeded($order)) {
             $order->refresh();

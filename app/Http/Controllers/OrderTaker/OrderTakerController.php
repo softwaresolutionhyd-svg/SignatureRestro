@@ -23,8 +23,19 @@ class OrderTakerController extends Controller
         if ($request->filled('table_id') && ! $request->filled('order_id')) {
             $tableId = $request->integer('table_id');
             $occupied = $this->orderTaker->draftOrdersByTableId()->get($tableId);
-            if ($occupied !== null && $this->orderTaker->isPendingAmendable($occupied)) {
-                return redirect()->route('order-taker.index', ['order_id' => $occupied->id]);
+            if ($occupied !== null) {
+                if ($this->orderTaker->isPendingAmendable($occupied)) {
+                    return redirect()->route('order-taker.index', ['order_id' => $occupied->id]);
+                }
+
+                $tableName = $occupied->table?->name ?? 'Table';
+
+                return redirect()->route('order-taker.index')
+                    ->with('error', sprintf(
+                        '%s pehle se reserved hai (Order %s). Naya order yahan punch nahi ho sakta.',
+                        $tableName,
+                        $occupied->order_no
+                    ));
             }
         }
 

@@ -33,6 +33,9 @@ final class OrderTakerService
         [$subtotal, $discountTotal, $taxTotal, $grandTotal, $lines] = $this->buildLines($items);
         $guest = $this->resolveGuestMeta($meta);
         $this->validateProductsForCustomerType($lines, $guest['customer_type']);
+        if (($guest['service_type'] ?? PosOrder::SERVICE_DINE_IN) === PosOrder::SERVICE_DINE_IN) {
+            $this->assertTableAvailable($guest['table_id'], null, true);
+        }
         $session = $this->openPosSession();
 
         $order = PosOrder::create([
@@ -121,6 +124,45 @@ final class OrderTakerService
             ->get()
             ->unique('table_id')
             ->keyBy('table_id');
+    }
+
+    public function assertTableAvailable(?int $tableId, ?int $exceptOrderId = null, bool $lockForUpdate = false): void
+    {
+        if ($tableId === null || $tableId <= 0) {
+            return;
+        }
+
+        if ((string) Setting::get('pos_enable_tables', '1') === '0') {
+            return;
+        }
+
+        $today = now()->toDateString();
+        $query = PosOrder::query()
+            ->where('status', 'draft')
+            ->where('table_id', $tableId)
+            ->where(function ($q) use ($today) {
+                $q->whereDate('created_at', $today)
+                    ->orWhereDate('updated_at', $today);
+            });
+
+        if ($exceptOrderId !== null && $exceptOrderId > 0) {
+            $query->where('id', '!=', $exceptOrderId);
+        }
+
+        if ($lockForUpdate) {
+            $query->lockForUpdate();
+        }
+
+        $existing = $query->orderByDesc('id')->first();
+
+        if ($existing !== null) {
+            $tableName = PosTable::query()->whereKey($tableId)->value('name') ?? 'Table';
+            throw new RuntimeException(sprintf(
+                '%s pehle se reserved hai (Order %s). Pehle wahi bill resume karein ya pay karein.',
+                $tableName,
+                $existing->order_no
+            ));
+        }
     }
 
     /**

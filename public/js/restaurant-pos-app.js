@@ -86,6 +86,52 @@
         applyTableBoard(boot.tableBoard);
     }
 
+    function tableBoardRow(tableId) {
+        return (boot.tableBoard || []).find((t) => Number(t.id) === Number(tableId)) || null;
+    }
+
+    function validateTableSelection() {
+        if (!posTablesEnabled || selectedServiceType() !== 'dine_in') {
+            return true;
+        }
+        const tableId = Number($('#rpTable')?.value || 0);
+        if (!tableId) {
+            return true;
+        }
+        const row = tableBoardRow(tableId);
+        if (!row || row.status !== 'occupied') {
+            return true;
+        }
+        const occupiedOrderId = Number(row.order_id || 0);
+        if (resumeOrderId && Number(resumeOrderId) === occupiedOrderId) {
+            return true;
+        }
+        alert(`Table ${row.name} pehle se reserved hai (${row.order_no || 'order'}). Pending se resume karein.`);
+        return false;
+    }
+
+    function handleReservedTableSelection(tableId) {
+        const row = tableBoardRow(tableId);
+        if (!row || row.status !== 'occupied') {
+            updateTableSelectAppearance();
+            return;
+        }
+        const occupiedOrderId = Number(row.order_id || 0);
+        if (resumeOrderId && Number(resumeOrderId) === occupiedOrderId) {
+            updateTableSelectAppearance();
+            return;
+        }
+        alert(`Table ${row.name} pehle se reserved hai (${row.order_no || 'order'}). Wahi order open ho rahi hai.`);
+        if (occupiedOrderId && routes.resume) {
+            window.location.assign(routes.resume.replace('__ID__', String(occupiedOrderId)));
+            return;
+        }
+        if ($('#rpTable')) {
+            $('#rpTable').value = '';
+        }
+        updateTableSelectAppearance();
+    }
+
     function selectedServiceType() {
         return $('#rpServiceType')?.value || 'dine_in';
     }
@@ -760,6 +806,10 @@
 
         if (isCreditMode && mode === 'checkout' && !selectedContactId) {
             alert('Credit sale ke liye contact select karein.');
+            return false;
+        }
+
+        if (!validateTableSelection()) {
             return false;
         }
 
@@ -1504,7 +1554,14 @@
             if (!btn?.dataset.type) return;
             setServiceType(btn.dataset.type);
         });
-        $('#rpTable')?.addEventListener('change', updateTableSelectAppearance);
+        $('#rpTable')?.addEventListener('change', () => {
+            const tableId = Number($('#rpTable')?.value || 0);
+            if (!tableId) {
+                updateTableSelectAppearance();
+                return;
+            }
+            handleReservedTableSelection(tableId);
+        });
         $('#rpHoldBtn')?.addEventListener('click', () => submitHoldOrder());
         $('#rpKitchenPrintBtn')?.addEventListener('click', () => submitKitchenPrint());
         $('#rpPrintUnpaidBtn')?.addEventListener('click', () => printUnpaidBill());
