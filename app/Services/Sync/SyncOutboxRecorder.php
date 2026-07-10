@@ -2,6 +2,8 @@
 
 namespace App\Services\Sync;
 
+use App\Models\InventoryUnit;
+use App\Models\InventoryUnitConversion;
 use App\Models\SyncQueueItem;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Schema;
@@ -53,6 +55,7 @@ class SyncOutboxRecorder
                     $payload[$k] = (string) $v;
                 }
             }
+            $payload = $this->enrichPayload($table, $payload, $model);
         }
 
         // Collapse rapid edits of the same row into one pending item.
@@ -84,5 +87,27 @@ class SyncOutboxRecorder
     public function isExcluded(string $table): bool
     {
         return in_array($table, config('sync.exclude_tables', []), true);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    public function enrichPayload(string $table, array $payload, ?Model $model = null): array
+    {
+        if ($table === 'inventory_unit_conversions') {
+            if ($model instanceof InventoryUnitConversion) {
+                $model->loadMissing(['fromUnit', 'toUnit']);
+                $payload['from_unit_code'] = $model->fromUnit?->code;
+                $payload['to_unit_code'] = $model->toUnit?->code;
+            } elseif (! empty($payload['from_unit_id']) || ! empty($payload['to_unit_id'])) {
+                $from = InventoryUnit::query()->find($payload['from_unit_id'] ?? 0);
+                $to = InventoryUnit::query()->find($payload['to_unit_id'] ?? 0);
+                $payload['from_unit_code'] = $from?->code;
+                $payload['to_unit_code'] = $to?->code;
+            }
+        }
+
+        return $payload;
     }
 }

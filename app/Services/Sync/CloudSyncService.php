@@ -2,6 +2,7 @@
 
 namespace App\Services\Sync;
 
+use App\Models\InventoryUnit;
 use App\Models\SyncQueueItem;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -226,13 +227,24 @@ class CloudSyncService
                     }
 
                     if ($action === 'delete') {
-                        $connection->table($table)->where('id', $key)->delete();
+                        if ($table === 'inventory_units' && is_array($payload) && ! empty($payload['code'])) {
+                            $connection->table($table)->where('code', InventoryUnit::normalizeCode((string) $payload['code']))->delete();
+                        } else {
+                            $connection->table($table)->where('id', $key)->delete();
+                        }
                     } elseif ($action === 'upsert') {
                         if (! is_array($payload) || $payload === []) {
                             throw new \InvalidArgumentException('Empty payload.');
                         }
-                        unset($payload['id']);
-                        $connection->table($table)->updateOrInsert(['id' => $key], $payload);
+
+                        if ($table === 'inventory_units') {
+                            $this->upsertInventoryUnitByCode($connection, $payload);
+                        } elseif ($table === 'inventory_unit_conversions') {
+                            $this->upsertInventoryUnitConversionByCode($connection, $payload);
+                        } else {
+                            unset($payload['id']);
+                            $connection->table($table)->updateOrInsert(['id' => $key], $payload);
+                        }
                     } else {
                         throw new \InvalidArgumentException("Unknown action: {$action}");
                     }
@@ -292,6 +304,8 @@ class CloudSyncService
                     if ($key === '') {
                         continue;
                     }
+
+                    $attrs = $this->recorder->enrichPayload($table, $attrs);
 
                     $pending = SyncQueueItem::query()
                         ->whereNull('synced_at')
@@ -375,5 +389,90 @@ class CloudSyncService
         $row = DB::table('sync_meta')->where('meta_key', $key)->first();
 
         return $row?->meta_value;
+    }
+
+    /**
+     * Units sync by code — local/cloud row IDs often differ (seeder order).
+     *
+     * @param  \Illuminate\Database\Connection  $connection
+     * @param  array<string, mixed>  $payload
+     */
+    protected function upsertInventoryUnitByCode($connection, array $payload): void
+    {
+        $code = InventoryUnit::normalizeCode((string) ($payload['code'] ?? ''));
+        if ($code === '') {
+            throw new \InvalidArgumentException('Unit code missing.');
+        }
+
+        unset($payload['id']);
+        $payload['code'] = $code;
+
+        $connection->table('inventory_units')->updateOrInsert(
+            ['code' => $code],
+            $payload
+        );
+    }
+
+    /**
+     * Conversion rules sync by unit codes — avoids wrong from/to when IDs differ on hosting.
+     *
+     * @param  \Illuminate\Database\Connection  $connection
+     * @param  array<string, mixed>  $payload
+     */
+    protected function upsertInventoryUnitConversionByCode($connection, array $payload): void
+    {
+        $fromCode = isset($payload['from_unit_code'])
+            ? InventoryUnit::normalizeCode((string) $payload['from_unit_code'])
+            : '';
+        $toCode = isset($payload['to_unit_code'])
+            ? InventoryUnit::normalizeCode((string) $payload['to_unit_code'])
+            : '';
+
+        if ($fromCode === '' || $toCode === '') {
+            $fromId = (int) ($payload['from_unit_id'] ?? 0);
+            $toId = (int) ($payload['to_unit_id'] ?? 0);
+            if ($fromId > 0) {
+                $fromCode = (string) $connection->table('inventory_units')->where('id', $fromId)->value('code');
+            }
+            if ($toId > 0) {
+                $toCode = (string) $connection->table('inventory_units')->where('id', $toId)->value('code');
+            }
+        }
+
+        $fromCode = InventoryUnit::normalizeCode($fromCode);
+        $toCode = InventoryUnit::normalizeCode($toCode);
+
+        if ($fromCode === '' || $toCode === '') {
+            throw new \InvalidArgumentException('Conversion unit codes missing.');
+        }
+
+        $fromUnitId = (int) $connection->table('inventory_units')->where('code', $fromCode)->value('id');
+        $toUnitId = (int) $connection->table('inventory_units')->where('code', $toCode)->value('id');
+
+        if ($fromUnitId < 1 || $toUnitId < 1) {
+            throw new \RuntimeException("Units not found for conversion: {$fromCode} → {$toCode}");
+        }
+
+        $row = [
+            'from_unit_id' => $fromUnitId,
+            'to_unit_id' => $toUnitId,
+            'factor' => $payload['factor'] ?? 0,
+            'note' => $payload['note'] ?? null,
+            'updated_at' => $payload['updated_at'] ?? now(),
+        ];
+
+        $existing = $connection->table('inventory_unit_conversions')
+            ->where('from_unit_id', $fromUnitId)
+            ->where('to_unit_id', $toUnitId)
+            ->first();
+
+        if ($existing) {
+            $connection->table('inventory_unit_conversions')
+                ->where('id', $existing->id)
+                ->update($row);
+        } else {
+            $row['created_at'] = $payload['created_at'] ?? now();
+            $connection->table('inventory_unit_conversions')->insert($row);
+        }
     }
 }
