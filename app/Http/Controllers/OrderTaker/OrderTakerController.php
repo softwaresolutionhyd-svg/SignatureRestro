@@ -3,12 +3,11 @@
 namespace App\Http\Controllers\OrderTaker;
 
 use App\Http\Controllers\Controller;
-use App\Models\Employee;
 use App\Models\InventoryProduct;
 use App\Models\PosOrder;
+use App\Models\PosTable;
 use Illuminate\Http\RedirectResponse;
 use App\Models\Setting;
-use App\Support\ServeMealSchedule;
 use App\Services\OrderTakerService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -117,18 +116,22 @@ class OrderTakerController extends Controller
             ->with(['category:id,name,parent_id', 'category.parent:id,name'])
             ->get(['id', 'sku', 'name', 'image_path', 'uom', 'price', 'for_pos', 'for_purchase', 'category_id']);
 
-        $waiters = Employee::query()->where('active', true)->waiters()->orderBy('name')->get(['id', 'name']);
         $currency = Setting::get('currency_symbol', 'Rs.');
         $taxMode = Setting::get('pos_tax_mode', 'line');
         if (! in_array($taxMode, ['off', 'line', 'bill'], true)) {
             $taxMode = 'line';
         }
 
-        return compact('session', 'tableBoard', 'pendingBills', 'resumedOrder', 'products', 'waiters', 'currency') + [
+        $enableTables = (string) Setting::get('pos_enable_tables', '1') !== '0';
+        $tables = $enableTables
+            ? PosTable::query()->where('active', true)->orderBy('name')->get(['id', 'name'])
+            : collect();
+
+        return compact('session', 'tableBoard', 'pendingBills', 'resumedOrder', 'products', 'currency', 'tables', 'enableTables') + [
             'taxMode' => $taxMode,
             'defaultTaxRate' => (float) Setting::get('tax_rate', 0),
             'startTableId' => $request->filled('order_id') ? null : ($request->filled('table_id') ? $request->integer('table_id') : null),
-            'serveMealsJson' => ServeMealSchedule::optionsForUi(),
+            'startServiceType' => $request->input('service_type'),
         ];
     }
 
@@ -157,12 +160,10 @@ class OrderTakerController extends Controller
         if (! $pendingMode) {
             $rules = array_merge($rules, [
                 'customer_type' => ['required', 'in:mess_use,booking,ast_offr'],
+                'service_type' => ['required', 'in:dine_in,takeaway,delivery'],
                 'guest_name' => ['nullable', 'string', 'max:120'],
-                'room_no' => ['required_if:customer_type,booking', 'nullable', 'string', 'max:50'],
-                'waiter_name' => ['required_if:customer_type,mess_use', 'nullable', 'string', 'max:120'],
-                'serve_time' => ['nullable', 'string', 'max:10'],
-                'serve_date' => ['nullable', 'date_format:Y-m-d'],
-                'serve_meal' => ['nullable', 'string', 'in:'.implode(',', ServeMealSchedule::keys())],
+                'room_no' => ['nullable', 'string', 'max:50'],
+                'order_notes' => ['nullable', 'string', 'max:1000'],
                 'table_id' => ['nullable', 'integer', 'exists:tenant.pos_tables,id'],
             ]);
         }
@@ -195,12 +196,10 @@ class OrderTakerController extends Controller
         return [
             'meta' => [
                 'customer_type' => $validated['customer_type'],
+                'service_type' => $validated['service_type'],
                 'guest_name' => $validated['guest_name'] ?? '',
                 'room_no' => $validated['room_no'] ?? '',
-                'waiter_name' => $validated['waiter_name'] ?? '',
-                'serve_time' => $validated['serve_time'] ?? '',
-                'serve_date' => $validated['serve_date'] ?? '',
-                'serve_meal' => $validated['serve_meal'] ?? '',
+                'order_notes' => $validated['order_notes'] ?? '',
                 'table_id' => $validated['table_id'] ?? null,
             ],
             'items' => $items,

@@ -151,17 +151,35 @@
     color: var(--rp-text-soft) !important;
 }
 
-.order-taker-pos-app .ot-guest-fields {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    align-items: center;
+.order-taker-pos-app .ot-legend-sep {
+    width: 1px;
+    height: 1.25rem;
+    background: var(--rp-border-strong);
+    margin: 0 0.25rem;
 }
 
-.order-taker-pos-app .ot-guest-fields .form-control,
-.order-taker-pos-app .ot-guest-fields .form-select {
-    min-width: 8rem;
-    max-width: 12rem;
+.order-taker-pos-app .ot-quick-type {
+    border: 1px solid var(--rp-border-strong);
+    background: var(--rp-bg-elevated);
+    color: var(--rp-text-soft);
+    border-radius: var(--rp-radius-pill);
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.order-taker-pos-app .ot-quick-type:hover {
+    border-color: var(--rp-gold);
+    color: var(--rp-gold-light);
+}
+
+.order-taker-pos-app .rp-service-type:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.order-taker-pos-app #otServiceDetails .form-control,
+.order-taker-pos-app #otServiceDetails .form-select {
     background: var(--rp-bg-elevated);
     border-color: var(--rp-border-strong);
     color: var(--rp-text);

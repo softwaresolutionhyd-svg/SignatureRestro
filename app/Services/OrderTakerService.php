@@ -44,10 +44,12 @@ final class OrderTakerService
             'type' => 'sale',
             'sale_mode' => $guest['customer_type'] === 'ast_offr' ? 'staff' : 'customer',
             'customer_type' => $guest['customer_type'],
+            'service_type' => $guest['service_type'] ?? PosOrder::SERVICE_DINE_IN,
             'table_id' => $guest['table_id'],
             'guest_name' => $guest['guest_name'],
             'room_no' => $guest['room_no'],
             'waiter_name' => $guest['waiter_name'],
+            'order_notes' => $guest['order_notes'] ?? null,
             'serve_time' => $guest['serve_time'] ?? null,
             'serve_date' => $guest['serve_date'] ?? null,
             'serve_meal' => $guest['serve_meal'] ?? null,
@@ -366,31 +368,72 @@ final class OrderTakerService
             ];
         }
 
-        if ($guestName === '') {
-            throw new RuntimeException('Guest name zaroori hai.');
-        }
-        if ($waiterName === '') {
-            throw new RuntimeException('Waiter select karein.');
+        $serviceType = $this->normalizeServiceType((string) ($meta['service_type'] ?? PosOrder::SERVICE_DINE_IN));
+        $orderNotes = trim((string) ($meta['order_notes'] ?? ''));
+        $enableTables = (string) Setting::get('pos_enable_tables', '1') !== '0';
+
+        if ($serviceType === PosOrder::SERVICE_DINE_IN) {
+            if ($enableTables && $tableId === null && $guestName === '') {
+                throw new RuntimeException('Table select karein.');
+            }
+
+            return [
+                'customer_type' => $customerType,
+                'service_type' => $serviceType,
+                'guest_name' => $enableTables ? null : ($guestName !== '' ? $guestName : null),
+                'room_no' => null,
+                'waiter_name' => null,
+                'order_notes' => null,
+                'table_id' => $tableId,
+                'serve_time' => null,
+                'serve_date' => null,
+                'serve_meal' => null,
+            ];
         }
 
-        if ($serveMeal !== '' && ServeMealSchedule::isValid($serveMeal)) {
-            if ($serveDate === '' || $serveTime === '') {
-                $resolved = ServeMealSchedule::resolveNext($serveMeal);
-                $serveDate = $resolved['serve_date'];
-                $serveTime = $resolved['serve_time'];
+        if ($serviceType === PosOrder::SERVICE_DELIVERY) {
+            if ($guestName === '') {
+                throw new RuntimeException('Delivery ke liye customer name likhein.');
             }
+            if ($roomNo === '') {
+                throw new RuntimeException('Delivery ke liye phone number likhein.');
+            }
+
+            return [
+                'customer_type' => $customerType,
+                'service_type' => $serviceType,
+                'guest_name' => $guestName,
+                'room_no' => $roomNo,
+                'waiter_name' => null,
+                'order_notes' => $orderNotes !== '' ? $orderNotes : null,
+                'table_id' => null,
+                'serve_time' => null,
+                'serve_date' => null,
+                'serve_meal' => null,
+            ];
         }
 
         return [
             'customer_type' => $customerType,
-            'guest_name' => $guestName,
+            'service_type' => PosOrder::SERVICE_TAKEAWAY,
+            'guest_name' => null,
             'room_no' => null,
-            'waiter_name' => $waiterName,
-            'table_id' => $tableId,
-            'serve_time' => $serveTime !== '' ? $serveTime : null,
-            'serve_date' => $serveDate !== '' ? $serveDate : null,
-            'serve_meal' => ServeMealSchedule::isValid($serveMeal) ? $serveMeal : null,
+            'waiter_name' => null,
+            'order_notes' => null,
+            'table_id' => null,
+            'serve_time' => null,
+            'serve_date' => null,
+            'serve_meal' => null,
         ];
+    }
+
+    private function normalizeServiceType(string $type): string
+    {
+        return in_array($type, [
+            PosOrder::SERVICE_DINE_IN,
+            PosOrder::SERVICE_TAKEAWAY,
+            PosOrder::SERVICE_DELIVERY,
+        ], true) ? $type : PosOrder::SERVICE_DINE_IN;
     }
 
     /**

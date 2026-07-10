@@ -4,9 +4,14 @@
     const menuCategories = boot.menuCategories || [];
     const settings = boot.settings || {};
     const routes = boot.routes || {};
-    const serveMeals = boot.serveMeals || [];
+    const serviceTypeLabels = boot.serviceTypeLabels || {
+        dine_in: 'Dine-in',
+        takeaway: 'Takeaway',
+        delivery: 'Delivery',
+    };
     const posTaxMode = settings.tax_mode || 'line';
     const posDefaultLineTax = Number(settings.default_tax_rate || 0);
+    const posTablesEnabled = settings.enable_tables !== false;
     const canVoidKitchenItems = boot.canVoidKitchenItems === true;
 
     let cart = [];
@@ -34,6 +39,43 @@
         if (!Number.isFinite(v)) return '0';
         if (Math.abs(v - Math.round(v)) < 1e-6) return String(Math.round(v));
         return parseFloat(v.toFixed(3)).toString();
+    }
+
+    function selectedServiceType() {
+        return $('#otServiceType')?.value || 'dine_in';
+    }
+
+    function serviceTypeLabel(type) {
+        return serviceTypeLabels[type] || serviceTypeLabels.dine_in || 'Dine-in';
+    }
+
+    function setServiceType(type) {
+        const input = $('#otServiceType');
+        if (input) input.value = type;
+        $$('.rp-service-type').forEach((btn) => {
+            const active = btn.dataset.type === type;
+            btn.classList.toggle('is-active', active);
+            btn.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        syncServiceDetailPanels();
+        updateOrderHeader();
+    }
+
+    function syncServiceDetailPanels() {
+        const type = selectedServiceType();
+        $$('.rp-service-panel').forEach((panel) => {
+            panel.classList.toggle('d-none', panel.dataset.service !== type);
+        });
+        const chip = $('#otSelectedTableChip');
+        if (chip && selectedTableName) {
+            chip.textContent = `Table ${selectedTableName}`;
+        }
+    }
+
+    function lockServiceTypeFields(locked) {
+        $$('#otServiceTypes .rp-service-type').forEach((btn) => {
+            btn.disabled = locked;
+        });
     }
 
     function productById(id) {
@@ -291,7 +333,7 @@
         document.querySelector('.order-taker-pos-app')?.classList.add('ot-screen-order');
         $('#otOrderScreen')?.classList.remove('d-none');
         updateOrderHeader();
-        syncGuestFieldsMode();
+        syncServiceFields();
         renderAll();
     }
 
@@ -303,7 +345,14 @@
 
     function updateOrderHeader() {
         const label = $('#otTableLabel');
-        if (label) label.textContent = selectedTableName ? `Table ${selectedTableName}` : 'Table —';
+        const type = pendingMode ? (boot.resumeServiceType || selectedServiceType()) : selectedServiceType();
+        if (label) {
+            if (type === 'dine_in' && selectedTableName) {
+                label.textContent = `${serviceTypeLabel(type)} · Table ${selectedTableName}`;
+            } else {
+                label.textContent = serviceTypeLabel(type);
+            }
+        }
         const badge = $('#otOrderNoBadge');
         if (badge) {
             if (pendingMode && boot.resumeOrderNo) {
@@ -317,17 +366,18 @@
         if (sendLabel) sendLabel.textContent = pendingMode ? 'Update Bill' : 'Send to Kitchen';
     }
 
-    function syncGuestFieldsMode() {
-        const editable = !pendingMode;
-        $('#otGuestFields')?.classList.toggle('d-none', !editable);
-        $('#otGuestReadonly')?.classList.toggle('d-none', editable);
-        if (editable) {
-            if (boot.resumeGuestName && $('#otGuestName')) $('#otGuestName').value = boot.resumeGuestName;
-            if (boot.resumeWaiterName && $('#otWaiterName')) $('#otWaiterName').value = boot.resumeWaiterName;
-        } else {
-            if ($('#otReadonlyGuest')) $('#otReadonlyGuest').textContent = boot.resumeGuestName || 'Guest';
-            if ($('#otReadonlyWaiter')) $('#otReadonlyWaiter').textContent = boot.resumeWaiterName ? `Waiter: ${boot.resumeWaiterName}` : '';
+    function syncServiceFields() {
+        lockServiceTypeFields(pendingMode);
+        if (pendingMode) {
+            setServiceType(boot.resumeServiceType || 'dine_in');
+            if (boot.resumeGuestName && $('#otDeliveryName')) $('#otDeliveryName').value = boot.resumeGuestName;
+            if (boot.resumeRoomNo && $('#otDeliveryPhone')) $('#otDeliveryPhone').value = boot.resumeRoomNo;
+            if (boot.resumeOrderNotes && $('#otDeliveryAddress')) $('#otDeliveryAddress').value = boot.resumeOrderNotes;
+            if ($('#otTableNo') && boot.resumeGuestName) $('#otTableNo').value = boot.resumeGuestName;
+            return;
         }
+        setServiceType(boot.startServiceType || boot.defaultServiceType || 'dine_in');
+        syncServiceDetailPanels();
     }
 
     function resolveTableName(tableId) {
@@ -350,16 +400,20 @@
         }));
     }
 
-    function startNewOrder(tableId, tableName) {
+    function startNewOrder(tableId, tableName, serviceType) {
         editOrderId = null;
         pendingMode = false;
-        selectedTableId = tableId;
-        selectedTableName = tableName;
+        selectedTableId = tableId || null;
+        selectedTableName = tableName || null;
         cart = [];
-        boot.resumeGuestName = '';
-        boot.resumeWaiterName = '';
         boot.resumeOrderNo = null;
+        boot.startServiceType = serviceType || 'dine_in';
         showOrderScreen();
+        setServiceType(serviceType || 'dine_in');
+    }
+
+    function startServiceOrder(serviceType) {
+        startNewOrder(null, null, serviceType);
     }
 
     function startEditOrder(orderId, tableId, tableName) {
@@ -373,45 +427,41 @@
         window.location.href = `${routes.index}?order_id=${orderId}`;
     }
 
-    function resolveServeSchedule() {
-        const mealKey = $('#otServeMeal')?.value || '';
-        const meal = serveMeals.find((m) => m.key === mealKey);
-        let serveDate = '';
-        let serveTime = '';
-        if (meal) {
-            const now = new Date();
-            serveDate = now.toISOString().slice(0, 10);
-            serveTime = meal.time || '';
-        }
-        return { serveMeal: mealKey, serveDate, serveTime };
-    }
-
     function submitOrder() {
         if (!cart.length) {
             alert('Kam az kam aik item add karein.');
             return;
         }
+
+        const serviceType = pendingMode ? (boot.resumeServiceType || 'dine_in') : selectedServiceType();
+
         if (!pendingMode) {
-            const guest = ($('#otGuestName')?.value || '').trim();
-            const waiter = ($('#otWaiterName')?.value || '').trim();
-            if (!guest) {
-                alert('Guest name likhein.');
-                $('#otGuestName')?.focus();
-                return;
-            }
-            if (!waiter) {
-                alert('Waiter select karein.');
-                $('#otWaiterName')?.focus();
-                return;
-            }
-            if (!selectedTableId) {
-                alert('Table select karein.');
-                showTableBoard();
-                return;
+            if (serviceType === 'dine_in') {
+                if (posTablesEnabled) {
+                    if (!selectedTableId) {
+                        alert('Table select karein.');
+                        showTableBoard();
+                        return;
+                    }
+                } else if (!($('#otTableNo')?.value || '').trim()) {
+                    alert('Table No. enter karein.');
+                    $('#otTableNo')?.focus();
+                    return;
+                }
+            } else if (serviceType === 'delivery') {
+                if (!($('#otDeliveryName')?.value || '').trim()) {
+                    alert('Customer name likhein.');
+                    $('#otDeliveryName')?.focus();
+                    return;
+                }
+                if (!($('#otDeliveryPhone')?.value || '').trim()) {
+                    alert('Phone number likhein.');
+                    $('#otDeliveryPhone')?.focus();
+                    return;
+                }
             }
         }
 
-        const schedule = resolveServeSchedule();
         const form = $('#otSubmitForm');
         if (!form) return;
 
@@ -422,12 +472,32 @@
             notes: r.notes || '',
         }));
 
-        $('#otFormGuestName').value = pendingMode ? (boot.resumeGuestName || '') : ($('#otGuestName')?.value || '').trim();
-        $('#otFormWaiterName').value = pendingMode ? (boot.resumeWaiterName || '') : ($('#otWaiterName')?.value || '').trim();
-        $('#otFormTableId').value = selectedTableId ? String(selectedTableId) : '';
-        $('#otFormServeMeal').value = schedule.serveMeal;
-        $('#otFormServeDate').value = schedule.serveDate;
-        $('#otFormServeTime').value = schedule.serveTime;
+        let guestName = '';
+        let roomNo = '';
+        let orderNotes = '';
+        let tableId = '';
+
+        if (pendingMode) {
+            guestName = boot.resumeGuestName || '';
+            roomNo = boot.resumeRoomNo || '';
+            orderNotes = boot.resumeOrderNotes || '';
+            tableId = boot.resumeTableId ? String(boot.resumeTableId) : '';
+        } else if (serviceType === 'dine_in') {
+            tableId = selectedTableId ? String(selectedTableId) : '';
+            if (!posTablesEnabled) {
+                guestName = ($('#otTableNo')?.value || '').trim();
+            }
+        } else if (serviceType === 'delivery') {
+            guestName = ($('#otDeliveryName')?.value || '').trim();
+            roomNo = ($('#otDeliveryPhone')?.value || '').trim();
+            orderNotes = ($('#otDeliveryAddress')?.value || '').trim();
+        }
+
+        $('#otFormServiceType').value = serviceType;
+        $('#otFormGuestName').value = guestName;
+        $('#otFormRoomNo').value = roomNo;
+        $('#otFormOrderNotes').value = orderNotes;
+        $('#otFormTableId').value = tableId;
         $('#otFormItems').value = JSON.stringify(itemsPayload);
 
         if (pendingMode && editOrderId) {
@@ -459,7 +529,19 @@
                 startEditOrder(orderId, tableId, tableName);
                 return;
             }
-            startNewOrder(tableId, tableName);
+            startNewOrder(tableId, tableName, 'dine_in');
+        });
+
+        $$('.ot-quick-type').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                startServiceOrder(btn.dataset.service || 'takeaway');
+            });
+        });
+
+        $('#otServiceTypes')?.addEventListener('click', (e) => {
+            const btn = e.target.closest('.rp-service-type');
+            if (!btn || btn.disabled || pendingMode) return;
+            setServiceType(btn.dataset.type || 'dine_in');
         });
 
         $('#otBackTables')?.addEventListener('click', showTableBoard);
@@ -497,8 +579,6 @@
         $('#otToggleCartView')?.addEventListener('click', () => setPanelView(panelView === 'cart' ? 'split' : 'cart'));
 
         $('#otSendBtn')?.addEventListener('click', submitOrder);
-
-        $('#otServeMeal')?.addEventListener('change', () => {});
     }
 
     function init() {
@@ -518,7 +598,12 @@
         if (boot.startTableId) {
             selectedTableId = boot.startTableId;
             selectedTableName = resolveTableName(selectedTableId);
-            startNewOrder(selectedTableId, selectedTableName);
+            startNewOrder(selectedTableId, selectedTableName, 'dine_in');
+            return;
+        }
+
+        if (boot.startServiceType && boot.startServiceType !== 'dine_in') {
+            startServiceOrder(boot.startServiceType);
         }
     }
 
