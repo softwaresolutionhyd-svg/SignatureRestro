@@ -46,18 +46,6 @@
                 <option value="refund" @selected($type === 'refund')>Refunds only</option>
             </select>
         </div>
-        <div>
-            <label class="form-label small fw-semibold mb-1">Guest Name</label>
-            <input type="text" name="guest_name" value="{{ $guestName ?? '' }}" class="form-control" placeholder="Guest">
-        </div>
-        <div>
-            <label class="form-label small fw-semibold mb-1">Room No</label>
-            <input type="text" name="room_no" value="{{ $roomNo ?? '' }}" class="form-control" placeholder="Room">
-        </div>
-        <div>
-            <label class="form-label small fw-semibold mb-1">Waiter Name</label>
-            <input type="text" name="waiter_name" value="{{ $waiterName ?? '' }}" class="form-control" placeholder="Waiter">
-        </div>
         <div class="d-flex gap-2 mt-1">
             <button type="submit" class="btn btn-primary">Apply</button>
             <a href="{{ route('reports.pos-bills') }}" class="btn btn-outline-secondary">This month</a>
@@ -111,9 +99,6 @@
                     <th>Date</th>
                     <th>Time</th>
                     <th>Cashier</th>
-                    <th>Guest</th>
-                    <th>Room</th>
-                    <th>Waiter</th>
                     <th class="text-end">Bill total</th>
                     <th class="text-end">Discount</th>
                     <th class="text-end">Tax</th>
@@ -141,9 +126,6 @@
                     <td class="small text-nowrap">{{ $at->format('d M Y') }}</td>
                     <td class="small text-nowrap">{{ $at->format('H:i') }}</td>
                     <td class="small">{{ optional($order->user)->name ?? '—' }}</td>
-                    <td class="small">{{ $order->guest_name ?: '—' }}</td>
-                    <td class="small">{{ $order->room_no ?: '—' }}</td>
-                    <td class="small">{{ $order->waiter_name ?: '—' }}</td>
                     <td class="text-end small">{{ $currency }} {{ fmt_num($order->subtotal, 2) }}</td>
                     <td class="text-end small text-danger">{{ $currency }} {{ fmt_num($order->discount_total, 2) }}</td>
                     <td class="text-end small">{{ $currency }} {{ fmt_num($order->tax_total, 2) }}</td>
@@ -166,14 +148,14 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="{{ auth()->user()?->isPlatformSuperAdmin() ? 14 : 13 }}" class="text-center text-secondary py-4">No paid bills in this date range.</td>
+                    <td colspan="{{ auth()->user()?->isPlatformSuperAdmin() ? 11 : 10 }}" class="text-center text-secondary py-4">No paid bills in this date range.</td>
                 </tr>
             @endforelse
             </tbody>
             @if($orders->isNotEmpty())
             <tfoot class="table-light fw-semibold">
                 <tr>
-                    <td colspan="8" class="text-end">Totals</td>
+                    <td colspan="5" class="text-end">Totals</td>
                     <td class="text-end">{{ $currency }} {{ fmt_num($totalSubtotal, 2) }}</td>
                     <td class="text-end text-danger">{{ $currency }} {{ fmt_num($totalDiscount, 2) }}</td>
                     <td class="text-end">{{ $currency }} {{ fmt_num($totalTax, 2) }}</td>

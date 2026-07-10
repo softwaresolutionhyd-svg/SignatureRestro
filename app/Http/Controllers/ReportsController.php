@@ -234,9 +234,6 @@ class ReportsController extends Controller
         $from = $request->input('from', now()->startOfMonth()->format('Y-m-d'));
         $to = $request->input('to', now()->format('Y-m-d'));
         $type = $request->input('type', 'all');
-        $guestName = trim((string) $request->input('guest_name', ''));
-        $roomNo = trim((string) $request->input('room_no', ''));
-        $waiterName = trim((string) $request->input('waiter_name', ''));
         if (! in_array($type, ['all', 'sale', 'refund'], true)) {
             $type = 'all';
         }
@@ -252,15 +249,6 @@ class ReportsController extends Controller
             $q->where('type', 'sale');
         } elseif ($type === 'refund') {
             $q->where('type', 'refund');
-        }
-        if ($guestName !== '') {
-            $q->where('guest_name', 'like', '%'.$guestName.'%');
-        }
-        if ($roomNo !== '') {
-            $q->where('room_no', 'like', '%'.$roomNo.'%');
-        }
-        if ($waiterName !== '') {
-            $q->where('waiter_name', 'like', '%'.$waiterName.'%');
         }
 
         $orders = $q->orderByRaw('COALESCE(paid_at, created_at) DESC')->get();
@@ -286,9 +274,6 @@ class ReportsController extends Controller
             'from',
             'to',
             'type',
-            'guestName',
-            'roomNo',
-            'waiterName',
             'currency',
             'totalSubtotal',
             'totalDiscount',
