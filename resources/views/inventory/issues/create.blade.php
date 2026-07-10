@@ -18,7 +18,17 @@
                 <div class="row g-3">
                     <div class="col-12 col-lg-6">
                         <label class="form-label">Product</label>
-                        <select name="product_id" id="issueProductSelect" class="form-select @error('product_id') is-invalid @enderror" required>
+                        <input
+                            type="text"
+                            id="issueProductSearch"
+                            class="form-control @error('product_id') is-invalid @enderror"
+                            placeholder="SKU ya naam likhein — list filter hoti jayegi..."
+                            autocomplete="off"
+                            list="issueProductSearchOptions"
+                        >
+                        <datalist id="issueProductSearchOptions"></datalist>
+                        <input type="hidden" name="product_id" id="issueProductId" value="{{ old('product_id') }}" required>
+                        <select id="issueProductSelect" class="d-none" aria-hidden="true">
                             <option value="">Select product...</option>
                             @foreach($products as $p)
                                 <option value="{{ $p->id }}" @selected((string) old('product_id') === (string) $p->id)
@@ -28,8 +38,8 @@
                                 </option>
                             @endforeach
                         </select>
-                        @error('product_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        <div class="form-text" id="warehouseQtyHint">Warehouse stock select karne par dikhega.</div>
+                        @error('product_id')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                        <div class="form-text" id="warehouseQtyHint">Type karein ya list se select karein — warehouse stock neeche dikhega.</div>
                     </div>
 
                     <div class="col-12 col-lg-6">
@@ -90,24 +100,123 @@
 @section('scripts')
 <script>
 (() => {
+    const productSearch = document.getElementById('issueProductSearch');
+    const productSearchOptions = document.getElementById('issueProductSearchOptions');
+    const productIdInput = document.getElementById('issueProductId');
     const productSelect = document.getElementById('issueProductSelect');
     const uomInput = document.getElementById('issueUomInput');
     const hint = document.getElementById('warehouseQtyHint');
+    const initialProductId = @json(old('product_id'));
 
-    function syncProduct() {
-        const opt = productSelect?.selectedOptions?.[0];
-        if (!opt || !opt.value) {
+    const productOptions = Array.from(productSelect?.options || [])
+        .filter((opt) => !!opt.value)
+        .map((opt) => ({
+            id: String(opt.value),
+            label: String(opt.text).trim(),
+            normalized: String(opt.text).toLowerCase(),
+            uom: opt.dataset.uom || '',
+            warehouseQty: Number(opt.dataset.warehouseQty || 0),
+        }));
+
+    function syncProductMeta(option) {
+        if (!option) {
             if (uomInput) uomInput.value = '';
-            if (hint) hint.textContent = 'Warehouse stock select karne par dikhega.';
+            if (hint) hint.textContent = 'Type karein ya list se select karein — warehouse stock neeche dikhega.';
             return;
         }
-        if (uomInput) uomInput.value = opt.dataset.uom || '';
-        const qty = Number(opt.dataset.warehouseQty || 0);
-        if (hint) hint.textContent = `Warehouse me available: ${qty.toFixed(3)} ${opt.dataset.uom || ''}`;
+        if (uomInput) uomInput.value = option.uom;
+        if (hint) {
+            hint.textContent = `Warehouse me available: ${option.warehouseQty.toFixed(3)} ${option.uom}`;
+        }
     }
 
-    productSelect?.addEventListener('change', syncProduct);
-    syncProduct();
+    function findProductByLabel(label) {
+        const value = (label || '').trim().toLowerCase();
+        if (!value) return null;
+        return productOptions.find((opt) => opt.normalized === value) ?? null;
+    }
+
+    function findProductByContains(term) {
+        const value = (term || '').trim().toLowerCase();
+        if (!value) return null;
+        return productOptions.find((opt) => opt.normalized.includes(value)) ?? null;
+    }
+
+    function setSelectedProduct(option) {
+        if (!option) {
+            productIdInput.value = '';
+            productSelect.value = '';
+            productSearch.value = '';
+            syncProductMeta(null);
+            return;
+        }
+        productIdInput.value = option.id;
+        productSelect.value = option.id;
+        productSearch.value = option.label;
+        syncProductMeta(option);
+    }
+
+    function buildProductSearchOptions(term) {
+        const query = (term || '').trim().toLowerCase();
+        const list = !query
+            ? productOptions.slice(0, 50)
+            : productOptions.filter((opt) => opt.normalized.includes(query)).slice(0, 100);
+
+        productSearchOptions.innerHTML = list
+            .map((opt) => `<option value="${opt.label}"></option>`)
+            .join('');
+    }
+
+    productSearch?.addEventListener('focus', () => {
+        buildProductSearchOptions(productSearch.value);
+    });
+
+    productSearch?.addEventListener('input', () => {
+        const exact = findProductByLabel(productSearch.value);
+        if (exact) {
+            setSelectedProduct(exact);
+        } else {
+            productIdInput.value = '';
+            syncProductMeta(null);
+        }
+        buildProductSearchOptions(productSearch.value);
+    });
+
+    productSearch?.addEventListener('blur', () => {
+        const exact = findProductByLabel(productSearch.value);
+        const contains = findProductByContains(productSearch.value);
+        if (exact) {
+            setSelectedProduct(exact);
+        } else if (contains) {
+            setSelectedProduct(contains);
+        } else if (!productSearch.value.trim()) {
+            setSelectedProduct(null);
+        }
+    });
+
+    productSearch?.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const exact = findProductByLabel(productSearch.value);
+        const contains = findProductByContains(productSearch.value);
+        if (exact) setSelectedProduct(exact);
+        else if (contains) setSelectedProduct(contains);
+    });
+
+    productSearch?.closest('form')?.addEventListener('submit', (e) => {
+        if (!productIdInput.value) {
+            e.preventDefault();
+            productSearch.classList.add('is-invalid');
+            if (hint) hint.textContent = 'Product list se select karein (type karke suggestion choose karein).';
+            productSearch.focus();
+        }
+    });
+
+    buildProductSearchOptions('');
+    if (initialProductId) {
+        const selected = productOptions.find((opt) => opt.id === String(initialProductId));
+        if (selected) setSelectedProduct(selected);
+    }
 })();
 </script>
 @endsection
