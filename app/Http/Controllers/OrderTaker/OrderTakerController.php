@@ -10,7 +10,6 @@ use Illuminate\Http\RedirectResponse;
 use App\Models\Setting;
 use App\Support\ServeMealSchedule;
 use App\Services\OrderTakerService;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
