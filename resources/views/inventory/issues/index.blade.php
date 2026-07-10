@@ -17,9 +17,14 @@
                     <div class="fw-semibold">Warehouse se departments ko stock issue karein</div>
                     <div class="small text-secondary">Purchase receive hone par stock pehle <strong>{{ $warehouse?->name ?? 'Warehouse' }}</strong> mein aata hai. Yahan se aap doosre departments ko issue kar sakte hain.</div>
                 </div>
-                <a href="{{ route('inventory.issues.create') }}" class="btn btn-primary">
-                    <i class="bi bi-box-arrow-right me-1"></i> New Issue
-                </a>
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="{{ route('inventory.issues.warehouse-stock-print', ['print' => 1]) }}" class="btn btn-outline-secondary" target="_blank">
+                        <i class="bi bi-printer me-1"></i> Warehouse Stock Print
+                    </a>
+                    <a href="{{ route('inventory.issues.create') }}" class="btn btn-primary">
+                        <i class="bi bi-box-arrow-right me-1"></i> New Issue
+                    </a>
+                </div>
             </div>
         </div>
     </div>

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\InventoryDepartment;
 use App\Models\InventoryMove;
 use App\Models\InventoryProduct;
+use App\Models\InventoryProductStock;
 use App\Models\Setting;
 use App\Services\InventoryStockService;
 use Illuminate\Http\Request;
@@ -102,5 +103,49 @@ class StockIssueController extends Controller
         return redirect()
             ->route('inventory.issues.index')
             ->with('status', sprintf('Stock %s ko %s mein issue ho gaya.', $product->name, $toDepartment->name));
+    }
+
+    public function warehouseStockPrint()
+    {
+        $warehouse = $this->stockService->ensureWarehouse();
+
+        $stocks = InventoryProductStock::query()
+            ->where('department_id', $warehouse->id)
+            ->where('qty_on_hand', '>', 0)
+            ->with(['product:id,sku,name,uom,cost,gas_charges,extra_costs,price'])
+            ->get();
+
+        $lines = $stocks
+            ->map(function (InventoryProductStock $stock) {
+                $product = $stock->product;
+                if (! $product) {
+                    return null;
+                }
+
+                $qty = (float) $stock->qty_on_hand;
+                $unitCost = (float) $product->total;
+
+                return [
+                    'sku' => (string) $product->sku,
+                    'name' => (string) $product->name,
+                    'uom' => (string) $product->uom,
+                    'qty' => $qty,
+                    'unit_price' => $unitCost,
+                    'amount' => round($qty * $unitCost, 2),
+                ];
+            })
+            ->filter()
+            ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
+
+        $grandTotal = round((float) $lines->sum('amount'), 2);
+        $currency = Setting::get('currency_symbol', 'Rs.');
+
+        return view('inventory.issues.warehouse-stock-print', compact(
+            'warehouse',
+            'lines',
+            'grandTotal',
+            'currency'
+        ));
     }
 }
