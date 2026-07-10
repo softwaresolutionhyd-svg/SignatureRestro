@@ -26,6 +26,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\StockUpdated;
 use App\Support\DailyOrderNumber;
+use App\Support\ActivityLogger;
 use App\Services\KitchenService;
 use App\Services\ManufacturingStockService;
 use App\Services\AutoJournalService;
@@ -671,7 +672,11 @@ class PosController extends Controller
                 ->where('session_id', $session->id)
                 ->first();
             if ($resumeDraft) {
-                $this->assertKitchenLockedQuantitiesPreserved($resumeDraft->items()->get()->all(), $itemsNormalized);
+                $this->assertKitchenLockedQuantitiesPreserved(
+                    $resumeDraft->items()->get()->all(),
+                    $itemsNormalized,
+                    $this->normalizedKitchenVoids($request)
+                );
             }
         }
 
@@ -844,6 +849,7 @@ class PosController extends Controller
             return $order;
         });
 
+        $this->logKitchenVoids($order, $this->normalizedKitchenVoids($request));
         $this->autoJournal->postPosSale($order);
 
         $openReceipt = Setting::get('pos_open_receipt_after_sale', '1') === '1';
@@ -931,7 +937,11 @@ class PosController extends Controller
                 ->where('session_id', $session->id)
                 ->first();
             if ($resumeDraft) {
-                $this->assertKitchenLockedQuantitiesPreserved($resumeDraft->items()->get()->all(), $itemsNormalized);
+                $this->assertKitchenLockedQuantitiesPreserved(
+                    $resumeDraft->items()->get()->all(),
+                    $itemsNormalized,
+                    $this->normalizedKitchenVoids($request)
+                );
             }
         }
 
@@ -1105,6 +1115,8 @@ class PosController extends Controller
             $order->refresh();
             $order->loadMissing('table');
         }
+
+        $this->logKitchenVoids($order, $this->normalizedKitchenVoids($request));
 
         $message = $updatedExisting ? 'Held order updated.' : 'Order held successfully.';
 
@@ -2544,12 +2556,14 @@ class PosController extends Controller
     }
 
     /**
-     * Kitchen-sent qty (served or pending) cannot be reduced or removed on hold/checkout.
+     * Kitchen-sent qty (served or pending) cannot be reduced or removed on hold/checkout
+     * unless a matching kitchen void reason is supplied.
      *
      * @param  array<int, PosOrderItem>  $existingItems
      * @param  array<int, array<string, mixed>>  $incomingItems
+     * @param  array<int, array<string, mixed>>  $kitchenVoids
      */
-    private function assertKitchenLockedQuantitiesPreserved(array $existingItems, array $incomingItems): void
+    private function assertKitchenLockedQuantitiesPreserved(array $existingItems, array $incomingItems, array $kitchenVoids = []): void
     {
         $kitchen = app(KitchenService::class);
         $lockedByFingerprint = [];
@@ -2571,6 +2585,12 @@ class PosController extends Controller
             return;
         }
 
+        $voidByFingerprint = [];
+        foreach ($kitchenVoids as $void) {
+            $fp = $kitchen->baseItemFingerprint($void);
+            $voidByFingerprint[$fp] = ($voidByFingerprint[$fp] ?? 0) + (float) ($void['qty'] ?? 0);
+        }
+
         $incomingByFingerprint = [];
         foreach ($incomingItems as $incoming) {
             $fp = $kitchen->baseItemFingerprint($incoming);
@@ -2579,11 +2599,69 @@ class PosController extends Controller
 
         foreach ($lockedByFingerprint as $fp => $lockedQty) {
             $newQty = $incomingByFingerprint[$fp] ?? 0;
-            if ($newQty + 0.00001 < $lockedQty) {
+            $allowedVoid = $voidByFingerprint[$fp] ?? 0;
+            $minimumQty = max(0.0, $lockedQty - $allowedVoid);
+            if ($newQty + 0.00001 < $minimumQty) {
                 throw ValidationException::withMessages([
-                    'items' => 'Kitchen me bheji hui items ki quantity kam ya remove nahi ho sakti.',
+                    'items' => 'Kitchen me bheji hui items hataane ke liye reason dena zaroori hai.',
                 ]);
             }
+        }
+    }
+
+    /**
+     * @return list<array{product_id: int, uom: string, qty: float, reason: string, notes?: string}>
+     */
+    private function normalizedKitchenVoids(PosCheckoutRequest $request): array
+    {
+        $voids = [];
+        foreach ((array) $request->input('kitchen_voids', []) as $void) {
+            if (! is_array($void)) {
+                continue;
+            }
+            $reason = trim((string) ($void['reason'] ?? ''));
+            $qty = (float) ($void['qty'] ?? 0);
+            if ($reason === '' || $qty <= 0) {
+                continue;
+            }
+            $voids[] = [
+                'product_id' => (int) ($void['product_id'] ?? 0),
+                'uom' => (string) ($void['uom'] ?? ''),
+                'qty' => $qty,
+                'reason' => $reason,
+                'notes' => trim((string) ($void['notes'] ?? '')),
+            ];
+        }
+
+        return $voids;
+    }
+
+    /**
+     * @param  list<array{product_id: int, uom: string, qty: float, reason: string, notes?: string, name?: string}>  $kitchenVoids
+     */
+    private function logKitchenVoids(PosOrder $order, array $kitchenVoids): void
+    {
+        if ($kitchenVoids === []) {
+            return;
+        }
+
+        foreach ($kitchenVoids as $void) {
+            $label = trim((string) ($void['name'] ?? ''));
+            if ($label === '') {
+                $label = 'Product #'.(int) ($void['product_id'] ?? 0);
+            }
+            ActivityLogger::log(
+                'pos.kitchen_void',
+                sprintf(
+                    'Kitchen item removed from %s: %s × %s — %s',
+                    $order->order_no,
+                    $label,
+                    (float) ($void['qty'] ?? 0),
+                    (string) ($void['reason'] ?? '')
+                ),
+                $order,
+                ['void' => $void]
+            );
         }
     }
 

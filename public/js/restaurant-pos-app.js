@@ -18,6 +18,9 @@
     const posShowCustomerSection = settings.show_customer_section !== false;
 
     let cart = [];
+    let kitchenVoids = [];
+    let pendingRemoveIndex = null;
+    let removeReasonModalInstance = null;
     let payments = [{ method: 'cash', amount: 0 }];
     let orderType = 'sale';
     let isCreditMode = false;
@@ -297,6 +300,74 @@
         renderAll();
     }
 
+    function removeCartLine(index, reason) {
+        const row = cart[index];
+        if (!row) return;
+
+        const locked = Number(row.kitchen_locked_qty) || 0;
+        if (locked > 0) {
+            const reasonText = String(reason || '').trim();
+            if (!reasonText) {
+                openRemoveReasonModal(index);
+                return;
+            }
+            kitchenVoids.push({
+                product_id: row.product_id,
+                uom: row.uom,
+                qty: locked,
+                reason: reasonText,
+                notes: String(row.notes || '').trim(),
+                name: row.name,
+            });
+        }
+
+        cart.splice(index, 1);
+        renderAll();
+    }
+
+    function getRemoveReasonModal() {
+        const el = $('#rpRemoveReasonModal');
+        if (!el || !window.bootstrap?.Modal) return null;
+        if (!removeReasonModalInstance) {
+            removeReasonModalInstance = new window.bootstrap.Modal(el, { backdrop: 'static', keyboard: true });
+        }
+        return removeReasonModalInstance;
+    }
+
+    function openRemoveReasonModal(index) {
+        pendingRemoveIndex = index;
+        const row = cart[index];
+        const label = $('#rpRemoveItemName');
+        if (label) {
+            label.textContent = row ? `${fmtQty(row.qty)}× ${row.name}` : '';
+        }
+        const input = $('#rpRemoveReason');
+        if (input) {
+            input.value = '';
+        }
+        $('#rpRemoveReasonError')?.classList.add('d-none');
+        getRemoveReasonModal()?.show();
+        setTimeout(() => input?.focus(), 280);
+    }
+
+    function confirmRemoveWithReason() {
+        const reason = ($('#rpRemoveReason')?.value || '').trim();
+        if (reason.length < 3) {
+            $('#rpRemoveReasonError')?.classList.remove('d-none');
+            return;
+        }
+        if (pendingRemoveIndex === null) return;
+        const idx = pendingRemoveIndex;
+        pendingRemoveIndex = null;
+        getRemoveReasonModal()?.hide();
+        removeCartLine(idx, reason);
+    }
+
+    function cancelRemoveReasonModal() {
+        pendingRemoveIndex = null;
+        getRemoveReasonModal()?.hide();
+    }
+
     function changeCartQty(productId, delta) {
         const p = products.find((x) => Number(x.id) === Number(productId));
         if (delta > 0) {
@@ -435,13 +506,18 @@
                     ${r.kitchen_served ? 'Served' : 'Kitchen'}
                    </span>`
                 : '';
-            return `<div class="rp-cart-line${locked > 0 ? ' is-kitchen-locked' : ''}">
+            return `<div class="rp-cart-line${locked > 0 ? ' is-kitchen-locked' : ''}" data-cart-index="${i}">
                 <div class="rp-cl-main">
                     <span class="rp-cl-qty">${fmtQty(r.qty)}×</span>
                     <span class="rp-cl-name">${escHtml(r.name)}</span>
                     ${kitchenBadge}
                 </div>
-                <div class="rp-cl-total">${fmtMoney(total)}</div>
+                <div class="rp-cl-actions">
+                    <div class="rp-cl-total">${fmtMoney(total)}</div>
+                    <button type="button" class="rp-cl-remove" data-action="remove-line" data-index="${i}" aria-label="Remove item" title="${locked > 0 ? 'Kitchen item — reason required' : 'Remove item'}">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
             </div>`;
         }).join('');
     }
@@ -677,6 +753,10 @@
         form.querySelector('[name="bill_tax_percent"]').value = '0';
         form.querySelector('[name="bill_discount_percent"]').value = posShowDiscount ? String(getBillDiscountPercent()) : '0';
         form.querySelector('[name="resume_order_id"]').value = resumeOrderId ? String(resumeOrderId) : '';
+        const kitchenVoidsInput = form.querySelector('[name="kitchen_voids"]');
+        if (kitchenVoidsInput) {
+            kitchenVoidsInput.value = JSON.stringify(kitchenVoids);
+        }
         const cashTenderedInput = form.querySelector('[name="cash_tendered"]');
         const cashChangeInput = form.querySelector('[name="cash_change"]');
         if (cashTenderedInput) cashTenderedInput.value = '';
@@ -838,6 +918,8 @@
 
     function resetForNewBill() {
         cart.length = 0;
+        kitchenVoids = [];
+        pendingRemoveIndex = null;
         resumeOrderId = null;
         payments = [{ method: $('#rpPayMethod')?.value || 'cash', amount: 0 }];
         autoPaymentAmount = true;
@@ -947,6 +1029,13 @@
             if (btn.dataset.action === 'inc') addOrIncrementProduct(id);
             if (btn.dataset.action === 'dec') changeCartQty(id, -1);
         });
+        $('#rpCartLines')?.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-action="remove-line"]');
+            if (!btn) return;
+            const index = Number(btn.dataset.index);
+            if (!Number.isFinite(index)) return;
+            removeCartLine(index);
+        });
         $('#rpServiceTypes')?.addEventListener('click', (e) => {
             const btn = e.target.closest('.rp-service-type');
             if (!btn?.dataset.type) return;
@@ -1000,6 +1089,17 @@
 
         $('#rpPayMethod')?.addEventListener('change', () => {
             payments = [{ method: $('#rpPayMethod')?.value || 'cash', amount: calcCartTotals().grand }];
+        });
+
+        $('#rpRemoveConfirm')?.addEventListener('click', () => confirmRemoveWithReason());
+        $('#rpRemoveReason')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                confirmRemoveWithReason();
+            }
+        });
+        $('#rpRemoveReasonModal')?.addEventListener('hidden.bs.modal', () => {
+            pendingRemoveIndex = null;
         });
     }
 

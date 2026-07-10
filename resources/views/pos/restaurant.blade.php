@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=31">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=32">
 @endpush
 
 @section('content')
@@ -253,6 +253,30 @@
     </div>
 </div>
 
+<div class="modal fade" id="rpRemoveReasonModal" tabindex="-1" aria-labelledby="rpRemoveReasonModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-pay-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold" id="rpRemoveReasonModalLabel">Item remove karein</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <p class="small text-secondary mb-2">Ye item kitchen ko bhej diya gaya hai. Hataane ka reason likhein:</p>
+                <p class="fw-semibold mb-2" id="rpRemoveItemName"></p>
+                <label for="rpRemoveReason" class="form-label fw-semibold mb-1">Reason</label>
+                <textarea class="form-control" id="rpRemoveReason" rows="3" maxlength="500" placeholder="Masalan: galat item select ho gaya"></textarea>
+                <p class="text-danger small mb-0 mt-2 d-none" id="rpRemoveReasonError">Kam az kam 3 characters ka reason likhein.</p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="rpRemoveConfirm">
+                    <i class="bi bi-trash"></i> Remove
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="rpPayModal" tabindex="-1" aria-labelledby="rpPayModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered rp-pay-modal-dialog">
         <div class="modal-content rp-pay-modal">
@@ -308,6 +332,7 @@
     <input type="hidden" name="bill_discount_percent" value="0">
     <input type="hidden" name="cash_tendered" value="">
     <input type="hidden" name="cash_change" value="">
+    <input type="hidden" name="kitchen_voids" value="">
 </form>
 @endsection
 
@@ -339,5 +364,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=27"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=28"></script>
 @endsection

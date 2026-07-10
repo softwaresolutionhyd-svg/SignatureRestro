@@ -1052,6 +1052,37 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     color: #ece8e2;
 }
 
+.restaurant-pos-app .rp-cl-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.2rem;
+    flex-shrink: 0;
+}
+
+.restaurant-pos-app .rp-cl-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    padding: 0;
+    border: 1px solid rgba(248, 113, 113, 0.35);
+    border-radius: 6px;
+    background: rgba(248, 113, 113, 0.08);
+    color: #f87171;
+    font-size: 0.65rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.restaurant-pos-app .rp-cl-remove:hover {
+    background: rgba(248, 113, 113, 0.18);
+    border-color: rgba(248, 113, 113, 0.55);
+    color: #fecaca;
+}
+
 .restaurant-pos-app .rp-cart-line .rp-cl-total {
     font-size: 0.8rem;
     font-weight: 700;

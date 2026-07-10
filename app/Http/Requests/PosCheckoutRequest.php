@@ -24,6 +24,11 @@ class PosCheckoutRequest extends FormRequest
             }
         }
 
+        $kitchenVoids = $this->input('kitchen_voids');
+        $this->merge([
+            'kitchen_voids' => is_string($kitchenVoids) ? (json_decode($kitchenVoids, true) ?: []) : ($kitchenVoids ?? []),
+        ]);
+
         $payList = $this->input('payments');
         if (is_array($payList)) {
             foreach ($payList as $i => $p) {
@@ -134,6 +139,11 @@ class PosCheckoutRequest extends FormRequest
                 'payments.*.reference' => ['nullable', 'string', 'max:100'],
                 'cash_tendered' => ['nullable', 'numeric', 'min:0'],
                 'cash_change' => ['nullable', 'numeric', 'min:0'],
+                'kitchen_voids' => ['nullable', 'array'],
+                'kitchen_voids.*.product_id' => ['required', 'integer', 'exists:tenant.inventory_products,id'],
+                'kitchen_voids.*.uom' => ['required', 'string', 'max:30'],
+                'kitchen_voids.*.qty' => ['required', 'numeric', 'gt:0'],
+                'kitchen_voids.*.reason' => ['required', 'string', 'min:3', 'max:500'],
             ];
         }
 
