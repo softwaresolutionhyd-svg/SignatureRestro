@@ -32,7 +32,8 @@ echo --- Extender ---
 echo   Repeater/AP mode = same URL har jagah chalega
 echo   Router mode extender = kaam nahi karega
 echo.
-echo Laragon: Apache + MySQL GREEN (port 8080)
-echo Firewall setup: scripts\setup-signature-lan-network.ps1  (Admin)
+echo Laragon: Apache + MySQL GREEN
+echo Port 8080 setup: scripts\setup-signature-lan-network.bat  (Admin, ek dafa)
+echo Firewall setup: same script (Admin)
 echo.
 pause

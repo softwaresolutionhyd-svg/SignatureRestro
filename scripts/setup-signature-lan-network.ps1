@@ -16,6 +16,16 @@ Write-Host ''
 Write-Host '=== Signature LAN / Extender setup ===' -ForegroundColor Cyan
 Write-Host ''
 
+# --- Apache: Listen 8080 + Signature vhost (IP access without hostname) ---
+$apacheScript = Join-Path $PSScriptRoot 'enable-signature-apache-8080.ps1'
+if (Test-Path $apacheScript) {
+    & $apacheScript
+} else {
+    Write-Host '[WARN] enable-signature-apache-8080.ps1 missing — port 8080 Apache config skipped.' -ForegroundColor Yellow
+}
+
+Write-Host ''
+
 # --- Firewall: allow Signature port on Private network (WiFi / LAN) ---
 $ruleName = "Signature Laragon HTTP (port $SignaturePort)"
 $existing = Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
@@ -54,6 +64,12 @@ if (-not $activeIp) {
 }
 if (-not $activeIp -and $ips) {
     $activeIp = $ips | Select-Object -First 1
+}
+
+if ($PreferredIp -notin $ips -and $ips) {
+    Write-Host ''
+    Write-Host "NOTE: .env / docs mein $PreferredIp hai lekin ab PC ka IP alag hai." -ForegroundColor Yellow
+    Write-Host '      Purana URL (192.168.3.50:8080) tab tak timeout dega jab tak fixed IP set na ho.' -ForegroundColor Yellow
 }
 
 if ($activeIp) {

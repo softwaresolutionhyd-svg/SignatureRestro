@@ -5,8 +5,10 @@ PC browser:
   http://signature.test/
 
 LAN / mobile / tablet / WiFi EXTENDER (same network):
-  http://192.168.3.50:8080/
-  (port 8080 = Signature only)
+  Pehle network-url.bat chalao — wahan sahi IP dikhegi.
+  Example: http://192.168.1.15:8080/
+  Fixed IP (optional): http://192.168.3.50:8080/
+  (port 8080 = Signature only — setup script Apache configure karta hai)
 
 Har extender par same URL tabhi chalega jab:
   - Extender "Access Point / Repeater" mode mein ho (same WiFi name)
