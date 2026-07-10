@@ -219,7 +219,7 @@ final class GuestRoomReceiptBreakdown
 
                         return [
                             'name' => $name,
-                            'qty' => fmt_num((float) $item->qty, 0).' '.(string) $item->uom,
+                            'qty' => fmt_num((float) $item->qty, 0),
                             'amount' => round((float) $item->total, 2),
                         ];
                     })->values()->all(),

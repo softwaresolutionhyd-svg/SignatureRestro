@@ -95,7 +95,7 @@
         @foreach($order->items as $line)
             <tr>
                 <td class="item-name bold">{{ $line->product->name ?? 'Item' }}</td>
-                <td class="item-qty">{{ fmt_num((float) $line->qty, 3) }} {{ $line->uom }}</td>
+                <td class="item-qty">{{ fmt_num((float) $line->qty, 3) }}</td>
                 <td class="amt bold">{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $line->total, 2) }}</td>
             </tr>
             @if(trim((string) ($line->notes ?? '')) !== '')
