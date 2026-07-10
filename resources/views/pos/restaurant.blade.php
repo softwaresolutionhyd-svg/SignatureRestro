@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=33">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=34">
 @endpush
 
 @section('content')
@@ -135,8 +135,11 @@
                         @if($posSettings['enable_tables'] ?? false)
                             <select id="rpTable" class="form-select form-select-sm" aria-label="Table No.">
                                 <option value="">Table…</option>
-                                @foreach($tables as $t)
-                                    <option value="{{ $t->id }}" @selected(($posSettings['resume_table_id'] ?? null) === (int) $t->id)>{{ $t->name }}</option>
+                                @foreach($tableBoard as $t)
+                                    <option value="{{ $t['id'] }}"
+                                            class="rp-table--{{ $t['status'] === 'occupied' ? 'occupied' : 'free' }}"
+                                            data-status="{{ $t['status'] === 'occupied' ? 'occupied' : 'free' }}"
+                                            @selected(($posSettings['resume_table_id'] ?? null) === (int) $t['id'])>{{ $t['name'] }}</option>
                                 @endforeach
                             </select>
                         @else
@@ -358,6 +361,7 @@
         'paidBillsDetail' => $paidBillsDetail ?? [],
         'serviceTypeLabels' => \App\Models\PosOrder::serviceTypeLabels(),
         'tablesEnabled' => (bool) ($posSettings['enable_tables'] ?? false),
+        'tableBoard' => $tableBoard ?? [],
         'restaurantName' => config('app.name'),
         'canVoidKitchenItems' => auth()->user()?->bypassesModulePermissions() ?? false,
         'routes' => [
@@ -374,5 +378,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=32"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=33"></script>
 @endsection

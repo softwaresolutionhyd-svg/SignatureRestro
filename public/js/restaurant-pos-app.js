@@ -50,6 +50,42 @@
         return parseFloat(v.toFixed(3)).toString();
     }
 
+    function updateTableSelectAppearance() {
+        const sel = $('#rpTable');
+        if (!sel) return;
+        sel.classList.remove('rp-table-select--free', 'rp-table-select--occupied');
+        if (!sel.value) return;
+        const status = sel.selectedOptions[0]?.dataset?.status;
+        if (status === 'free') sel.classList.add('rp-table-select--free');
+        else if (status === 'occupied') sel.classList.add('rp-table-select--occupied');
+    }
+
+    function applyTableBoard(board) {
+        if (Array.isArray(board)) {
+            boot.tableBoard = board;
+        }
+        const sel = $('#rpTable');
+        if (!sel || !Array.isArray(boot.tableBoard)) return;
+
+        sel.querySelectorAll('option[value]').forEach((opt) => {
+            const row = boot.tableBoard.find((t) => String(t.id) === opt.value);
+            const status = row?.status === 'occupied' ? 'occupied' : 'free';
+            opt.dataset.status = status;
+            opt.classList.remove('rp-table--free', 'rp-table--occupied');
+            opt.classList.add(status === 'occupied' ? 'rp-table--occupied' : 'rp-table--free');
+        });
+        updateTableSelectAppearance();
+    }
+
+    function setTableBoardStatus(tableId, status) {
+        if (!tableId || !Array.isArray(boot.tableBoard)) return;
+        const row = boot.tableBoard.find((t) => Number(t.id) === Number(tableId));
+        if (row) {
+            row.status = status === 'occupied' ? 'occupied' : 'free';
+        }
+        applyTableBoard(boot.tableBoard);
+    }
+
     function selectedServiceType() {
         return $('#rpServiceType')?.value || 'dine_in';
     }
@@ -1065,9 +1101,16 @@
             throw new Error(data.message || 'Pending order discard nahi ho saki.');
         }
 
+        const discardedOrder = (boot.pendingBillsDetail || []).find(
+            (o) => Number(o.id) === Number(orderId)
+        );
+
         boot.pendingBillsDetail = (boot.pendingBillsDetail || []).filter(
             (o) => Number(o.id) !== Number(orderId)
         );
+        if (discardedOrder?.table_id) {
+            setTableBoardStatus(discardedOrder.table_id, 'free');
+        }
         updateOrderTabCounts();
         if (orderListMode === 'pending') {
             renderOrderCards();
@@ -1240,6 +1283,9 @@
 
             if (data.order) {
                 upsertPendingBill(data.order, !!data.updated);
+                if (data.order.table_id) {
+                    setTableBoardStatus(data.order.table_id, 'occupied');
+                }
             } else if (typeof data.held_count === 'number') {
                 updateOrderTabCounts();
             }
@@ -1300,6 +1346,7 @@
             if (!btn?.dataset.type) return;
             setServiceType(btn.dataset.type);
         });
+        $('#rpTable')?.addEventListener('change', updateTableSelectAppearance);
         $('#rpHoldBtn')?.addEventListener('click', () => submitHoldOrder());
         $('#rpPrintUnpaidBtn')?.addEventListener('click', () => printUnpaidBill());
         $('#rpWhatsappBtn')?.addEventListener('click', () => openDeliveryWhatsapp());
@@ -1396,6 +1443,9 @@
                     renderOrderCards();
                 }
             }
+            if (Array.isArray(data.table_board)) {
+                applyTableBoard(data.table_board);
+            }
         } catch (_) { /* ignore */ }
     }
 
@@ -1411,6 +1461,7 @@
         restoreResumeContact();
         loadResumeItems();
         bindEvents();
+        applyTableBoard(boot.tableBoard || []);
         updateOrderTabCounts();
         renderAll();
         payments = [{ method: 'cash', amount: 0 }];

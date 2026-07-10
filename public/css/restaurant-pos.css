@@ -303,6 +303,30 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     display: none !important;
 }
 
+.restaurant-pos-app #rpTable option.rp-table--free {
+    background-color: #166534;
+    color: #fff;
+}
+
+.restaurant-pos-app #rpTable option.rp-table--occupied {
+    background-color: #991b1b;
+    color: #fff;
+}
+
+.restaurant-pos-app #rpTable.rp-table-select--free {
+    border-color: rgba(34, 197, 94, 0.7);
+    background-color: rgba(34, 197, 94, 0.14);
+    color: #14532d;
+    font-weight: 700;
+}
+
+.restaurant-pos-app #rpTable.rp-table-select--occupied {
+    border-color: rgba(239, 68, 68, 0.75);
+    background-color: rgba(239, 68, 68, 0.14);
+    color: #7f1d1d;
+    font-weight: 700;
+}
+
 .restaurant-pos-app .rp-service-panel--delivery .form-control-sm {
     min-width: 6.5rem;
 }

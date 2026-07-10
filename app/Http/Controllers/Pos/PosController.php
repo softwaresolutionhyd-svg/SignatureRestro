@@ -48,6 +48,7 @@ class PosController extends Controller
     public function __construct(
         private readonly ManufacturingStockService $manufacturingStock,
         private readonly AutoJournalService $autoJournal,
+        private readonly OrderTakerService $orderTaker,
     ) {}
 
     public function restaurant(Request $request): View|RedirectResponse
@@ -83,6 +84,7 @@ class PosController extends Controller
         $pendingBillsDetail = collect();
         $resumedOrder = null;
         $resumeProductIds = [];
+        $tableBoard = [];
         $tables = collect();
         $rawEnableTables = Setting::get('pos_enable_tables', '1');
         $enableTables = (string) $rawEnableTables !== '0';
@@ -125,6 +127,7 @@ class PosController extends Controller
         }
 
         if ($enableTables) {
+            $tableBoard = $this->orderTaker->tableBoard();
             $tables = PosTable::query()
                 ->where('active', true)
                 ->orderBy('name')
@@ -229,7 +232,7 @@ class PosController extends Controller
                 'note',
             ]);
 
-        return compact('session', 'products', 'heldOrders', 'paidOrders', 'paidBillsDetail', 'pendingBillsDetail', 'resumedOrder', 'contacts', 'posSettings', 'sessionCashExpected', 'sessionPosStats', 'tables', 'checkedInRooms', 'waiters', 'recentDailyClosings');
+        return compact('session', 'products', 'heldOrders', 'paidOrders', 'paidBillsDetail', 'pendingBillsDetail', 'resumedOrder', 'contacts', 'posSettings', 'sessionCashExpected', 'sessionPosStats', 'tables', 'tableBoard', 'checkedInRooms', 'waiters', 'recentDailyClosings');
     }
 
     public function sync(Request $request): JsonResponse
@@ -271,6 +274,7 @@ class PosController extends Controller
             'pending' => $pending,
             'count' => $pending->count(),
             'resumed' => $resumed,
+            'table_board' => $this->orderTaker->tableBoard(),
         ]);
     }
 
@@ -2218,6 +2222,7 @@ class PosController extends Controller
             'waiter_name' => $order->waiter_name,
             'order_notes' => trim((string) ($order->order_notes ?? '')),
             'room_no' => $order->room_no,
+            'table_id' => $order->table_id ? (int) $order->table_id : null,
             'table_name' => $order->table?->name,
             'table_room' => $tableRoomParts !== [] ? implode(' / ', $tableRoomParts) : null,
             'from_order_taker' => $order->isFromOrderTaker(),
