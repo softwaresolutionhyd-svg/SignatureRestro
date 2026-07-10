@@ -31,9 +31,21 @@
         table.items td.amt { text-align: right; white-space: nowrap; width: 28%; }
         table.items td.item-note { font-size: 10px; padding-top: 0; padding-bottom: 4px; color: #333; }
         .tot-row { display: flex; justify-content: space-between; padding: 2px 0; }
+        .totals-block { margin-top: 2px; }
+        .totals-block .tot-row + .tot-row { padding-top: 2px; }
+        .totals-block .pay-heading { font-weight: 700; margin: 6px 0 2px; font-size: 11px; }
+        .r-bill-status {
+            margin-top: 12px;
+            padding: 8px 4px 4px;
+            text-align: center;
+            font-size: 15px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            border-top: 2px solid #000;
+        }
+        .r-bill-status--unpaid { font-size: 16px; }
         .r-logo { max-width: 56mm; max-height: 18mm; object-fit: contain; margin: 0 auto 6px; display: block; }
-        .r-unpaid-banner { font-size: 13px; font-weight: 800; letter-spacing: 0.04em; }
-        .r-unpaid-note { font-size: 10px; font-weight: 600; margin-top: 2px; }
         .noprint { margin-top: 12px; text-align: center; }
         @media print {
             .noprint { display: none !important; }
@@ -59,12 +71,6 @@
         <div class="center muted" style="font-size:10px;">{{ $settings['company_phone'] }}</div>
     @endif
     <hr class="line">
-    @if(!empty($isUnpaid))
-        <div class="center bold r-unpaid-banner">UNPAID BILL</div>
-        <div class="center muted r-unpaid-note">Payment pending — provisional bill</div>
-    @else
-        <div class="center bold">{{ $order->type === 'refund' ? 'REFUND' : 'SALES RECEIPT' }}</div>
-    @endif
     <div class="tot-row"><span class="muted">Order</span><span class="bold">{{ $order->order_no }}</span></div>
     @if(!empty($settings['pos_enable_tables']) && $settings['pos_enable_tables'] === '1' && $order->table)
         <div class="tot-row"><span class="muted">Table</span><span class="bold">{{ $order->table->name }}</span></div>
@@ -105,42 +111,48 @@
         @endforeach
     </table>
     <hr class="line">
-    <div class="tot-row"><span class="muted">Subtotal</span><span>{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $order->subtotal, 2) }}</span></div>
-    @if((float) $order->discount_total > 0)
-        <div class="tot-row"><span class="muted">Discount <span style="font-size:9px;">(on profit)</span></span><span>-{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $order->discount_total, 2) }}</span></div>
-    @endif
-    @if((float) $order->tax_total > 0)
-        <div class="tot-row"><span class="muted">Tax</span><span>{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $order->tax_total, 2) }}</span></div>
-    @endif
-    <div class="tot-row bold" style="font-size:13px;margin-top:4px;">
-        <span>{{ !empty($isUnpaid) ? 'AMOUNT DUE' : 'TOTAL' }}</span>
-        <span>{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $order->grand_total, 2) }}</span>
-    </div>
-    @if(empty($isUnpaid) && !$order->is_credit && $order->payments->isNotEmpty())
-        <hr class="line">
-        <div class="bold" style="margin-bottom:4px;">Payment</div>
-        @foreach($order->payments as $pay)
-            <div class="tot-row">
-                <span class="muted">{{ ucfirst($pay->method) }}</span>
-                <span>{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $pay->amount, 2) }}</span>
-            </div>
-        @endforeach
-    @elseif(empty($isUnpaid) && $order->is_credit)
-        <hr class="line">
-        <div class="center bold">CREDIT SALE</div>
-        <div class="center muted">Amount on account: {{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $order->grand_total, 2) }}</div>
-    @endif
-    @if(empty($isUnpaid) && $order->cash_tendered !== null && (float) $order->cash_tendered >= 0)
-        <hr class="line">
-        <div class="tot-row"><span class="muted">Received</span><span>{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $order->cash_tendered, 2) }}</span></div>
-        @if($order->cash_change !== null)
-            <div class="tot-row bold"><span>Change</span><span>{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $order->cash_change, 2) }}</span></div>
+    <div class="totals-block">
+        <div class="tot-row"><span class="muted">Subtotal</span><span>{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $order->subtotal, 2) }}</span></div>
+        @if((float) $order->discount_total > 0)
+            <div class="tot-row"><span class="muted">Discount <span style="font-size:9px;">(on profit)</span></span><span>-{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $order->discount_total, 2) }}</span></div>
         @endif
-    @endif
+        @if((float) $order->tax_total > 0)
+            <div class="tot-row"><span class="muted">Tax</span><span>{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $order->tax_total, 2) }}</span></div>
+        @endif
+        <div class="tot-row bold" style="font-size:13px;margin-top:4px;">
+            <span>{{ !empty($isUnpaid) ? 'AMOUNT DUE' : 'TOTAL' }}</span>
+            <span>{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $order->grand_total, 2) }}</span>
+        </div>
+        @if(empty($isUnpaid) && !$order->is_credit && $order->payments->isNotEmpty())
+            <div class="pay-heading">Payment</div>
+            @foreach($order->payments as $pay)
+                <div class="tot-row">
+                    <span class="muted">{{ ucfirst($pay->method) }}</span>
+                    <span>{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $pay->amount, 2) }}</span>
+                </div>
+            @endforeach
+        @elseif(empty($isUnpaid) && $order->is_credit)
+            <div class="center bold" style="margin-top:6px;">CREDIT SALE</div>
+            <div class="center muted">Amount on account: {{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $order->grand_total, 2) }}</div>
+        @endif
+        @if(empty($isUnpaid) && $order->cash_tendered !== null && (float) $order->cash_tendered >= 0)
+            <div class="tot-row" style="margin-top:4px;"><span class="muted">Received</span><span>{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $order->cash_tendered, 2) }}</span></div>
+            @if($order->cash_change !== null)
+                <div class="tot-row bold"><span>Change</span><span>{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $order->cash_change, 2) }}</span></div>
+            @endif
+        @endif
+    </div>
     <hr class="line">
     <div class="center muted" style="font-size:10px;margin-top:8px;">Thank you — {{ $settings['company_name'] ?? config('app.name') }}</div>
     @if(!empty(trim((string) ($settings['pos_receipt_footer_note'] ?? ''))))
         <div class="center muted" style="font-size:10px;margin-top:6px;white-space:pre-line;">{{ $settings['pos_receipt_footer_note'] }}</div>
+    @endif
+    @if(!empty($isUnpaid))
+        <div class="r-bill-status r-bill-status--unpaid">Unpaid Bill</div>
+    @elseif($order->type === 'refund')
+        <div class="r-bill-status">Refund</div>
+    @else
+        <div class="r-bill-status">Paid Bill</div>
     @endif
 </div>
 <div class="noprint" style="max-width:80mm;margin:12px auto 24px;padding:0 8px;">
