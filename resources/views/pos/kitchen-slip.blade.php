@@ -26,15 +26,36 @@
         .line { border: 0; border-top: 1px dashed #000; margin: 8px 0; }
         .k-title { font-size: 16px; font-weight: 800; letter-spacing: 0.06em; margin: 4px 0; }
         .tot-row { display: flex; justify-content: space-between; padding: 2px 0; }
+        .tot-row.k-table-row span:last-child {
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+        }
         table.items { width: 100%; border-collapse: collapse; }
-        table.items td { padding: 4px 0; vertical-align: top; }
-        table.items td.item-name { word-break: break-word; font-weight: 700; padding-right: 6px; }
-        table.items td.item-qty { white-space: nowrap; text-align: center; width: 18%; font-weight: 800; font-size: 13px; }
+        table.items td { padding: 5px 0; vertical-align: top; }
+        table.items td.item-name {
+            word-break: break-word;
+            font-weight: 800;
+            font-size: 15px;
+            line-height: 1.25;
+            padding-right: 6px;
+        }
+        table.items td.item-qty {
+            white-space: nowrap;
+            text-align: center;
+            width: 20%;
+            font-weight: 800;
+            font-size: 17px;
+            line-height: 1.25;
+        }
         table.items td.item-note { font-size: 10px; padding-top: 0; padding-bottom: 4px; color: #333; }
         .noprint { margin-top: 12px; text-align: center; }
         @media print {
             .noprint { display: none !important; }
             html, body { max-width: none; }
+            .tot-row.k-table-row span:last-child { font-size: 19px; }
+            table.items td.item-name { font-size: 16px; }
+            table.items td.item-qty { font-size: 18px; }
         }
     </style>
 </head>
@@ -45,7 +66,7 @@
     <hr class="line">
     <div class="tot-row"><span class="muted">Order</span><span class="bold">{{ $order->order_no }}</span></div>
     @if(!empty($settings['pos_enable_tables']) && $settings['pos_enable_tables'] === '1' && $order->table)
-        <div class="tot-row"><span class="muted">Table</span><span class="bold">{{ $order->table->name }}</span></div>
+        <div class="tot-row k-table-row"><span class="muted">Table</span><span>{{ $order->table->name }}</span></div>
     @endif
     @if($order->serviceTypeLabel())
         <div class="tot-row"><span class="muted">Service</span><span>{{ $order->serviceTypeLabel() }}</span></div>
