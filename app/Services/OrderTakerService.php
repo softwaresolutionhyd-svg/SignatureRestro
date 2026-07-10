@@ -6,6 +6,7 @@ use App\Models\InventoryProduct;
 use App\Models\PosOrder;
 use App\Models\PosOrderItem;
 use App\Models\PosSession;
+use App\Models\PosTable;
 use App\Models\RoomBooking;
 use App\Models\Setting;
 use App\Support\ServeMealSchedule;
@@ -73,6 +74,84 @@ final class OrderTakerService
             ->where('status', 'open')
             ->latest('id')
             ->first();
+    }
+
+    /**
+     * Draft orders keyed by table_id (cashier hold + order taker) for the open session.
+     *
+     * @return \Illuminate\Support\Collection<int, PosOrder>
+     */
+    public function draftOrdersByTableId(): \Illuminate\Support\Collection
+    {
+        $session = $this->openPosSession();
+        if ($session === null) {
+            return collect();
+        }
+
+        $hasOrderTakerColumns = Schema::hasColumn('pos_orders', 'order_source')
+            && Schema::hasColumn('pos_orders', 'ready_for_pos_at');
+
+        return PosOrder::query()
+            ->where('status', 'draft')
+            ->whereNotNull('table_id')
+            ->where(function ($outer) use ($session, $hasOrderTakerColumns) {
+                $outer->where('session_id', $session->id);
+                if ($hasOrderTakerColumns) {
+                    $outer->orWhere(function ($w) {
+                        $w->where('order_source', self::SOURCE_ORDER_TAKER)
+                            ->whereNotNull('ready_for_pos_at');
+                    });
+                }
+            })
+            ->with(['table:id,name'])
+            ->withCount('items')
+            ->latest('id')
+            ->get()
+            ->unique('table_id')
+            ->keyBy('table_id');
+    }
+
+    /**
+     * @return list<array{
+     *   id: int,
+     *   name: string,
+     *   status: 'free'|'occupied',
+     *   order_id: ?int,
+     *   order_no: ?string,
+     *   amendable: bool,
+     *   items_count: int,
+     *   grand_total: float
+     * }>
+     */
+    public function tableBoard(): array
+    {
+        if ((string) Setting::get('pos_enable_tables', '1') === '0') {
+            return [];
+        }
+
+        $occupied = $this->draftOrdersByTableId();
+
+        return \App\Models\PosTable::query()
+            ->where('active', true)
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(function (\App\Models\PosTable $table) use ($occupied) {
+                /** @var PosOrder|null $order */
+                $order = $occupied->get($table->id);
+
+                return [
+                    'id' => (int) $table->id,
+                    'name' => (string) $table->name,
+                    'status' => $order !== null ? 'occupied' : 'free',
+                    'order_id' => $order?->id,
+                    'order_no' => $order?->order_no,
+                    'amendable' => $order !== null ? $this->isPendingAmendable($order) : false,
+                    'items_count' => $order ? (int) $order->items_count : 0,
+                    'grand_total' => $order ? (float) $order->grand_total : 0.0,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**

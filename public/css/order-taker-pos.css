@@ -1,0 +1,215 @@
+/* Order Taker POS — table board + shared restaurant POS shell */
+
+.order-taker-pos-app .ot-table-board {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.order-taker-pos-app .ot-table-topbar {
+    flex-shrink: 0;
+}
+
+.order-taker-pos-app .ot-table-legend {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    padding: 0.75rem 1rem;
+    flex-shrink: 0;
+}
+
+.order-taker-pos-app .ot-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.85rem;
+    color: var(--rp-text-soft);
+    font-weight: 500;
+}
+
+.order-taker-pos-app .ot-legend-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.order-taker-pos-app .ot-legend-dot--free {
+    background: linear-gradient(145deg, #3dd68c 0%, #22a06b 100%);
+    box-shadow: 0 0 12px rgba(61, 214, 140, 0.35);
+}
+
+.order-taker-pos-app .ot-legend-dot--occupied {
+    background: linear-gradient(145deg, #ff6b6b 0%, #c92a2a 100%);
+    box-shadow: 0 0 12px rgba(255, 107, 107, 0.35);
+}
+
+.order-taker-pos-app .ot-table-board-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 1rem 1.25rem 2rem;
+    -webkit-overflow-scrolling: touch;
+}
+
+.order-taker-pos-app .ot-table-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+    gap: 0.85rem;
+    max-width: 72rem;
+    margin: 0 auto;
+}
+
+.order-taker-pos-app .ot-table-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    min-height: 6.5rem;
+    padding: 0.85rem 0.5rem;
+    border: 2px solid transparent;
+    border-radius: var(--rp-radius);
+    background: var(--rp-bg-panel);
+    color: var(--rp-text);
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    font-family: inherit;
+    touch-action: manipulation;
+}
+
+.order-taker-pos-app .ot-table-box:hover {
+    transform: translateY(-2px);
+}
+
+.order-taker-pos-app .ot-table-box--free {
+    border-color: rgba(61, 214, 140, 0.45);
+    background: linear-gradient(160deg, rgba(34, 160, 107, 0.18) 0%, var(--rp-bg-panel) 55%);
+    box-shadow: 0 4px 20px rgba(34, 160, 107, 0.12);
+}
+
+.order-taker-pos-app .ot-table-box--free:hover {
+    border-color: rgba(61, 214, 140, 0.75);
+    box-shadow: 0 8px 28px rgba(34, 160, 107, 0.22);
+}
+
+.order-taker-pos-app .ot-table-box--occupied {
+    border-color: rgba(255, 107, 107, 0.5);
+    background: linear-gradient(160deg, rgba(201, 42, 42, 0.2) 0%, var(--rp-bg-panel) 55%);
+    box-shadow: 0 4px 20px rgba(201, 42, 42, 0.14);
+}
+
+.order-taker-pos-app .ot-table-box--occupied:hover {
+    border-color: rgba(255, 107, 107, 0.8);
+    box-shadow: 0 8px 28px rgba(201, 42, 42, 0.24);
+}
+
+.order-taker-pos-app .ot-table-box-no {
+    font-size: 1.35rem;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+}
+
+.order-taker-pos-app .ot-table-box-meta {
+    font-size: 0.7rem;
+    color: var(--rp-text-soft);
+    line-height: 1.2;
+    text-align: center;
+}
+
+.order-taker-pos-app .ot-table-box-meta--free {
+    color: #3dd68c;
+    font-weight: 600;
+}
+
+.order-taker-pos-app .ot-no-session {
+    max-width: 28rem;
+    margin: 3rem auto;
+    text-align: center;
+    color: var(--rp-text-soft);
+}
+
+.order-taker-pos-app .ot-no-session i {
+    font-size: 2.5rem;
+    color: var(--rp-gold);
+    display: block;
+    margin-bottom: 1rem;
+}
+
+.order-taker-pos-app .ot-no-session p {
+    margin: 0;
+    line-height: 1.5;
+}
+
+.order-taker-pos-app .ot-back-tables {
+    margin-right: 0.35rem;
+    border-color: var(--rp-border-strong) !important;
+    color: var(--rp-text-soft) !important;
+}
+
+.order-taker-pos-app .ot-guest-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.order-taker-pos-app .ot-guest-fields .form-control,
+.order-taker-pos-app .ot-guest-fields .form-select {
+    min-width: 8rem;
+    max-width: 12rem;
+    background: var(--rp-bg-elevated);
+    border-color: var(--rp-border-strong);
+    color: var(--rp-text);
+}
+
+.order-taker-pos-app .ot-readonly-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.65rem;
+    border-radius: var(--rp-radius-pill);
+    background: var(--rp-bg-elevated);
+    border: 1px solid var(--rp-border-strong);
+    font-size: 0.8rem;
+    color: var(--rp-text-soft);
+}
+
+.order-taker-pos-app #otOrderScreen {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.order-taker-pos-app #otOrderScreen.d-none {
+    display: none !important;
+}
+
+.order-taker-pos-app.ot-screen-order #otTableBoard {
+    display: none;
+}
+
+.order-taker-pos-app.ot-screen-order #otOrderScreen {
+    display: flex !important;
+}
+
+@media (max-width: 767.98px) {
+    .order-taker-pos-app .ot-table-grid {
+        grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
+        gap: 0.65rem;
+    }
+
+    .order-taker-pos-app .ot-table-box {
+        min-height: 5.25rem;
+        padding: 0.65rem 0.35rem;
+    }
+
+    .order-taker-pos-app .ot-table-box-no {
+        font-size: 1.1rem;
+    }
+}

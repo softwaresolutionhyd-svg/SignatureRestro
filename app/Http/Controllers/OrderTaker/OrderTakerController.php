@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\InventoryProduct;
 use App\Models\PosOrder;
-use App\Models\PosTable;
+use Illuminate\Http\RedirectResponse;
 use App\Models\Setting;
 use App\Support\ServeMealSchedule;
 use App\Services\OrderTakerService;
@@ -20,28 +20,34 @@ class OrderTakerController extends Controller
         private readonly OrderTakerService $orderTaker
     ) {}
 
-    public function index(): View
+    public function index(Request $request): View|RedirectResponse
     {
-        $pendingBills = $this->orderTaker->pendingPosOrders();
+        if ($request->filled('table_id') && ! $request->filled('order_id')) {
+            $tableId = $request->integer('table_id');
+            $occupied = $this->orderTaker->draftOrdersByTableId()->get($tableId);
+            if ($occupied !== null && $this->orderTaker->isPendingAmendable($occupied)) {
+                return redirect()->route('order-taker.index', ['order_id' => $occupied->id]);
+            }
+        }
 
-        return view('order-taker.index', compact('pendingBills'));
+        return view('order-taker.pos', $this->posViewData($request));
     }
 
-    public function create(): View
+    public function create(Request $request): RedirectResponse
     {
-        return $this->formView(new PosOrder([
-            'customer_type' => 'mess_use',
-            'sale_mode' => 'customer',
-        ]), false);
+        $tableId = $request->integer('table_id');
+        if ($tableId <= 0) {
+            return redirect()->route('order-taker.index');
+        }
+
+        return redirect()->route('order-taker.index', ['table_id' => $tableId]);
     }
 
-    public function edit(PosOrder $order): View
+    public function edit(PosOrder $order): RedirectResponse
     {
         abort_unless($this->orderTaker->isPendingAmendable($order), 404);
 
-        $order->load(['items.product', 'table']);
-
-        return $this->formView($order, true);
+        return redirect()->route('order-taker.index', ['order_id' => $order->id]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -49,7 +55,7 @@ class OrderTakerController extends Controller
         $data = $this->validated($request);
 
         try {
-            $order = $this->orderTaker->createForPos($data['meta'], $data['items']);
+            $this->orderTaker->createForPos($data['meta'], $data['items']);
         } catch (\Throwable $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }
@@ -72,6 +78,59 @@ class OrderTakerController extends Controller
 
         return redirect()->route('order-taker.index')
             ->with('success', 'Bill update ho gayi — kitchen screen par naye items dikhenge.');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function posViewData(Request $request): array
+    {
+        $session = $this->orderTaker->openPosSession();
+        $tableBoard = $this->orderTaker->tableBoard();
+        $pendingBills = $this->orderTaker->pendingPosOrders();
+
+        $resumedOrder = null;
+        $resumeProductIds = [];
+
+        if ($request->filled('order_id')) {
+            $candidate = PosOrder::query()->find($request->integer('order_id'));
+            if ($candidate !== null && $this->orderTaker->isPendingAmendable($candidate)) {
+                $resumedOrder = $candidate->load(['items.product', 'table']);
+                $resumeProductIds = $resumedOrder->items->pluck('product_id')->unique()->values()->all();
+            }
+        }
+
+        $products = InventoryProduct::query()
+            ->where(function ($q) use ($resumeProductIds) {
+                $q->where(function ($w) {
+                    $w->where('active', true)
+                        ->where(function ($inner) {
+                            $inner->where('for_pos', true)
+                                ->orWhere('for_purchase', true);
+                        });
+                });
+                if ($resumeProductIds !== []) {
+                    $q->orWhereIn('id', $resumeProductIds);
+                }
+            })
+            ->orderBy('name')
+            ->with(['uomConversions' => fn ($q) => $q->where('active', true)])
+            ->with(['category:id,name,parent_id', 'category.parent:id,name'])
+            ->get(['id', 'sku', 'name', 'image_path', 'uom', 'price', 'for_pos', 'for_purchase', 'category_id']);
+
+        $waiters = Employee::query()->where('active', true)->waiters()->orderBy('name')->get(['id', 'name']);
+        $currency = Setting::get('currency_symbol', 'Rs.');
+        $taxMode = Setting::get('pos_tax_mode', 'line');
+        if (! in_array($taxMode, ['off', 'line', 'bill'], true)) {
+            $taxMode = 'line';
+        }
+
+        return compact('session', 'tableBoard', 'pendingBills', 'resumedOrder', 'products', 'waiters', 'currency') + [
+            'taxMode' => $taxMode,
+            'defaultTaxRate' => (float) Setting::get('tax_rate', 0),
+            'startTableId' => $request->filled('order_id') ? null : ($request->filled('table_id') ? $request->integer('table_id') : null),
+            'serveMealsJson' => ServeMealSchedule::optionsForUi(),
+        ];
     }
 
     /**
@@ -147,64 +206,5 @@ class OrderTakerController extends Controller
             ],
             'items' => $items,
         ];
-    }
-
-    private function formView(PosOrder $order, bool $pendingPosMode = false): View
-    {
-        $products = InventoryProduct::query()
-            ->where('active', true)
-            ->where(function ($q) {
-                $q->where('for_pos', true)->orWhere('for_purchase', true);
-            })
-            ->orderBy('name')
-            ->with(['uomConversions' => fn ($q) => $q->where('active', true)])
-            ->get(['id', 'sku', 'name', 'uom', 'price', 'for_pos', 'for_purchase']);
-
-        $productsJson = $products->map(function (InventoryProduct $p) {
-            return [
-                'id' => $p->id,
-                'name' => $p->name,
-                'sku' => $p->sku,
-                'base_uom' => $p->uom,
-                'price' => (float) $p->price,
-                'for_pos' => (bool) ($p->for_pos ?? false),
-                'for_purchase' => (bool) ($p->for_purchase ?? false),
-                'uoms' => $p->uomsForForms(),
-            ];
-        })->values();
-
-        $cartJson = $order->exists
-            ? $order->items->map(fn ($i) => [
-                'product_id' => (int) $i->product_id,
-                'name' => (string) ($i->product?->name ?? ''),
-                'uom' => (string) $i->uom,
-                'qty' => (float) $i->qty,
-                'unit_price' => (float) $i->unit_price,
-                'notes' => (string) ($i->notes ?? ''),
-                'kitchen_served' => $i->isKitchenServed(),
-                'kitchen_pending' => (bool) $i->kitchen_pending,
-            ])->values()
-            : collect();
-
-        $tables = (string) Setting::get('pos_enable_tables', '1') !== '0'
-            ? PosTable::query()->where('active', true)->orderBy('name')->get(['id', 'name'])
-            : collect();
-
-        $waiters = Employee::query()->where('active', true)->waiters()->orderBy('name')->get(['id', 'name']);
-        $checkedInRooms = $this->orderTaker->checkedInRooms();
-        $currency = Setting::get('currency_symbol', 'Rs.');
-
-        return view('order-taker.form', compact(
-            'order',
-            'productsJson',
-            'cartJson',
-            'tables',
-            'waiters',
-            'checkedInRooms',
-            'currency',
-            'pendingPosMode',
-        ) + [
-            'serveMealsJson' => ServeMealSchedule::optionsForUi(),
-        ]);
     }
 }
