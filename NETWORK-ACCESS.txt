@@ -4,9 +4,25 @@ Signature — alag app (Softwaresolution se alag)
 PC browser:
   http://signature.test/
 
-LAN / mobile (same WiFi):
+LAN / mobile / tablet / WiFi EXTENDER (same network):
   http://192.168.3.50:8080/
   (port 8080 = Signature only)
+
+Har extender par same URL tabhi chalega jab:
+  - Extender "Access Point / Repeater" mode mein ho (same WiFi name)
+  - Router mode extender NA ho (alag subnet ban jati hai)
+  - Server PC ka fixed IP ho (recommended 192.168.3.50)
+  - Windows Firewall port 8080 allow ho
+
+Setup (Admin PowerShell):
+  cd C:\laragon\www\signature\scripts
+  .\setup-signature-lan-network.ps1
+
+Fixed IP (optional):
+  .\set-cafe-lan-ip.ps1
+
+Quick URLs check:
+  Double-click network-url.bat
 
 Softwaresolution alag rehta hai:
   http://softwaresolution.cafe/

@@ -29,13 +29,19 @@ netsh interface ip set address name="$AdapterName" static $StaticIp 255.255.255.
 netsh interface ip set dns name="$AdapterName" static $Dns1
 netsh interface ip add dns name="$AdapterName" $Dns2 index=2
 
-$ruleName = 'Cafe Laragon HTTP (LAN)'
+$ruleName = 'Signature Laragon HTTP (LAN)'
 $existing = Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
 if (-not $existing) {
-    New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow | Out-Null
-    Write-Host 'Firewall: port 80 allow (LAN).' -ForegroundColor Green
+    New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Protocol TCP -LocalPort 8080 -Action Allow -Profile Private,Domain | Out-Null
+    Write-Host 'Firewall: port 8080 allow (Signature LAN).' -ForegroundColor Green
 } else {
     Write-Host 'Firewall rule already exists.' -ForegroundColor DarkGray
+}
+
+# Legacy rule (Softwaresolution port 80) — optional
+$rule80 = 'Cafe Laragon HTTP (LAN port 80)'
+if (-not (Get-NetFirewallRule -DisplayName $rule80 -ErrorAction SilentlyContinue)) {
+    New-NetFirewallRule -DisplayName $rule80 -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow -Profile Private,Domain | Out-Null
 }
 
 Write-Host ''
