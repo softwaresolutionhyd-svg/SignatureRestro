@@ -13,8 +13,15 @@ LAN / mobile / tablet / WiFi EXTENDER (same network):
 Har extender par same URL tabhi chalega jab:
   - Extender "Access Point / Repeater" mode mein ho (same WiFi name)
   - Router mode extender NA ho (alag subnet ban jati hai)
-  - Server PC ka fixed IP ho (recommended 192.168.3.50)
+  - AP Isolation / Client Isolation OFF ho
+  - Guest WiFi NA use ho
+  - Server PC Ethernet par ho to router mein "WiFi -> LAN access" ON ho
   - Windows Firewall port 8080 allow ho
+
+Extender par nahi chal raha?
+  1. scripts\fix-extender-access.bat  (Admin, double-click)
+  2. Phone par WiFi IP dekho — 192.168.1.x honi chahiye (server: 192.168.1.15)
+  3. Browser: http://192.168.1.15:8080/  (purana 192.168.3.50 mat likho)
 
 Setup (Admin — koi bhi tareeqa):
 

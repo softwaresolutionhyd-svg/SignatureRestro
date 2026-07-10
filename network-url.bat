@@ -28,9 +28,14 @@ if "!found!"=="0" (
     echo   Fixed IP setup: scripts\set-cafe-lan-ip.ps1
 )
 
-echo --- Extender ---
-echo   Repeater/AP mode = same URL har jagah chalega
-echo   Router mode extender = kaam nahi karega
+echo --- Extender / Phone ---
+echo   URL: http://192.168.1.15:8080/  (PC ki IP — network-url se confirm karo)
+echo   192.168.3.50 mat use karo jab tak fixed IP na ho
+echo   Phone WiFi IP 192.168.1.x honi chahiye (Settings - WiFi - IP)
+echo   Agar 192.168.2.x / 10.x hai = extender ROUTER mode (galat)
+echo   Fix script: scripts\fix-extender-access.bat  (Admin)
+echo   Extender: AP/Repeater mode, AP Isolation OFF
+echo   Router: Guest WiFi band; WiFi se LAN access ON
 echo.
 echo Laragon: Apache + MySQL GREEN
 echo Port 8080 setup: scripts\setup-signature-lan-network.bat  (Admin, ek dafa)

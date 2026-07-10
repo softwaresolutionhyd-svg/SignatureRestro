@@ -36,11 +36,12 @@ if (-not $existing) {
         -Protocol TCP `
         -LocalPort $SignaturePort `
         -Action Allow `
-        -Profile Private,Domain `
+        -Profile Any `
         | Out-Null
-    Write-Host "[OK] Firewall: port $SignaturePort allow (Private LAN)." -ForegroundColor Green
+    Write-Host "[OK] Firewall: port $SignaturePort allow (all profiles)." -ForegroundColor Green
 } else {
-    Write-Host "[OK] Firewall rule already exists for port $SignaturePort." -ForegroundColor DarkGray
+    Set-NetFirewallRule -DisplayName $ruleName -Enabled True -Action Allow -Profile Any | Out-Null
+    Write-Host "[OK] Firewall rule updated for port $SignaturePort (all profiles)." -ForegroundColor Green
 }
 
 # --- Show current LAN IPs ---
