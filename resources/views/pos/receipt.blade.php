@@ -26,7 +26,10 @@
         .line { border: 0; border-top: 1px dashed #000; margin: 8px 0; }
         table.items { width: 100%; border-collapse: collapse; }
         table.items td { padding: 3px 0; vertical-align: top; }
-        table.items td.amt { text-align: right; white-space: nowrap; width: 32%; }
+        table.items td.item-name { word-break: break-word; padding-right: 4px; }
+        table.items td.item-qty { white-space: nowrap; text-align: center; width: 22%; font-size: 10px; color: #333; padding: 3px 2px; }
+        table.items td.amt { text-align: right; white-space: nowrap; width: 28%; }
+        table.items td.item-note { font-size: 10px; padding-top: 0; padding-bottom: 4px; color: #333; }
         .tot-row { display: flex; justify-content: space-between; padding: 2px 0; }
         .r-logo { max-width: 56mm; max-height: 18mm; object-fit: contain; margin: 0 auto 6px; display: block; }
         .r-unpaid-banner { font-size: 13px; font-weight: 800; letter-spacing: 0.04em; }
@@ -91,28 +94,14 @@
     <table class="items">
         @foreach($order->items as $line)
             <tr>
-                <td colspan="2" class="bold">{{ $line->product->name ?? 'Item' }}</td>
-            </tr>
-            <tr>
-                <td class="muted">{{ fmt_num((float) $line->qty, 3) }} {{ $line->uom }} × {{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $line->unit_price, 2) }}</td>
-                <td class="amt">{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $line->total, 2) }}</td>
+                <td class="item-name bold">{{ $line->product->name ?? 'Item' }}</td>
+                <td class="item-qty">{{ fmt_num((float) $line->qty, 3) }} {{ $line->uom }}</td>
+                <td class="amt bold">{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $line->total, 2) }}</td>
             </tr>
             @if(trim((string) ($line->notes ?? '')) !== '')
             <tr>
-                <td colspan="2" class="muted" style="font-size:10px;padding-top:0;">Note: {{ $line->notes }}</td>
+                <td colspan="3" class="item-note muted">Note: {{ $line->notes }}</td>
             </tr>
-            @endif
-            @if(\Illuminate\Support\Facades\Schema::hasColumn('pos_order_items', 'kitchen_served_at'))
-                @php
-                    $kitchenStatus = $line->isKitchenServed()
-                        ? 'Served'
-                        : (($line->kitchen_pending ?? false) ? 'Pending' : null);
-                @endphp
-                @if($kitchenStatus)
-                <tr>
-                    <td colspan="2" class="muted" style="font-size:10px;padding-top:0;">Kitchen: {{ $kitchenStatus }}</td>
-                </tr>
-                @endif
             @endif
         @endforeach
     </table>
