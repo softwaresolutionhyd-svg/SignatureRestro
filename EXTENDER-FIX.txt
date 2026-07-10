@@ -1,0 +1,58 @@
+# Extender / Phone — ERR_CONNECTION_REFUSED fix
+# =============================================
+
+Server PC sirf ETHERNET se connected hai (WiFi nahi).
+Phones WiFi EXTENDER se hain.
+Agar router/extender WiFi ko wired LAN se block karta hai to phone refuse/timeout dega.
+
+## STEP 1 — Phone par EXACT URL (https NAHI)
+
+Browser address bar mein poora likho:
+
+    http://192.168.1.15/lan-test.html
+
+Zaroori:
+  - http:// likho (https:// NAHI)
+  - 192.168.1.57 ya .245 mat likho (wo extender hain)
+  - Chrome agar https laga de to Firefox try karo
+
+Test pass ho jaye to:
+    http://192.168.1.15/login
+    http://192.168.1.15/restaurant-pos
+
+## STEP 2 — Dono extenders par settings
+
+Har extender ke admin panel mein (browser mein extender IP):
+  - Mode: Access Point / Repeater (Router mode OFF)
+  - AP Isolation / Client Isolation: OFF
+  - Guest WiFi: OFF
+
+Extender 1 IP: 192.168.1.57
+Extender 2 IP: 192.168.1.245
+
+## STEP 3 — Router (192.168.1.1)
+
+Login karke dhundo:
+  - "Allow wireless to access wired LAN" → ON
+  - "AP Isolation" → OFF
+  - "Guest network isolation" → OFF
+
+## STEP 4 — Server PC cable (best fix)
+
+Server ka Ethernet cable:
+  Router se nikalo
+  Extender ke LAN port mein lagao (WAN port NAHI)
+
+Phir server restart / IP check karo (network-url.bat).
+
+## STEP 5 — USB WiFi dongle (agar upar kaam na kare)
+
+Is PC mein WiFi card nahi hai — sirf Ethernet.
+USB WiFi adapter lagao, same WiFi se connect karo jis se phones connect hain.
+Phir network-url.bat se naya IP use karo.
+
+## STEP 6 — Server par script (Admin)
+
+    scripts\fix-extender-access.bat
+
+Right-click → Run as administrator
