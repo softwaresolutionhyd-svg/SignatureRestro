@@ -50,8 +50,18 @@ class PosController extends Controller
         private readonly AutoJournalService $autoJournal,
     ) {}
 
-    public function restaurant(Request $request): View
+    public function restaurant(Request $request): View|RedirectResponse
     {
+        if ($request->filled('resume_order')) {
+            $session = $this->ensureOpenSessionForUser(Auth::user());
+            $draft = $this->findDraftOrderForSession($session, $request->integer('resume_order'));
+            if ($draft === null) {
+                return redirect()
+                    ->route('restaurant-pos.index')
+                    ->with('warning', 'Pending order maujood nahi ya pehle se band ho chuki hai.');
+            }
+        }
+
         return view('pos.restaurant', $this->posIndexViewData($request));
     }
 
@@ -1173,15 +1183,40 @@ class PosController extends Controller
     }
 
     /** Delete a draft held order for the current open register session (items cascade). */
-    public function discardHeld(PosOrder $order): RedirectResponse
+    public function discardHeld(int $orderId): RedirectResponse|JsonResponse
     {
         $session = $this->ensureOpenSessionForUser(Auth::user());
+        $order = PosOrder::query()->find($orderId);
+
+        if ($order === null) {
+            if (request()->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'already_discarded' => true,
+                    'message' => 'Order pehle se khatam ho chuki hai.',
+                ]);
+            }
+
+            return back()->with('warning', 'Order pehle se khatam ho chuki hai.');
+        }
 
         if ($order->status !== 'draft' || (int) $order->session_id !== (int) $session->id) {
+            if (request()->expectsJson()) {
+                return response()->json([
+                    'message' => 'Is order ko discard nahi kar sakte.',
+                ], 403);
+            }
+
             abort(403);
         }
 
         if ($order->session->user_id !== Auth::id()) {
+            if (request()->expectsJson()) {
+                return response()->json([
+                    'message' => 'Is order ko discard nahi kar sakte.',
+                ], 403);
+            }
+
             abort(403);
         }
 

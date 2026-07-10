@@ -339,7 +339,7 @@
 @section('scripts')
 @php
     $receiptStub = str_replace('999999999', '__ID__', route('restaurant-pos.receipt', ['order' => 999999999]));
-    $discardStub = str_replace('999999999', '__ID__', route('restaurant-pos.hold.discard', ['order' => 999999999]));
+    $discardStub = str_replace('999999999', '__ID__', route('restaurant-pos.hold.discard', ['orderId' => 999999999]));
     $restaurantBootstrap = [
         'csrf' => csrf_token(),
         'products' => $productJs,
@@ -366,5 +366,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=29"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=30"></script>
 @endsection

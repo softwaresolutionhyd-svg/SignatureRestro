@@ -227,7 +227,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
             Route::post('/cash-movement', [PosController::class, 'addCashMovement'])->name('cash-movement');
             Route::post('/checkout', [PosController::class, 'checkout'])->name('checkout');
             Route::post('/hold', [PosController::class, 'hold'])->name('hold');
-            Route::delete('/hold/{order}', [PosController::class, 'discardHeld'])->name('hold.discard');
+            Route::delete('/hold/{orderId}', [PosController::class, 'discardHeld'])->whereNumber('orderId')->name('hold.discard');
             Route::get('/resume/{order}', [PosController::class, 'resume'])->name('resume');
             Route::get('/receipt/{order}', [PosController::class, 'receipt'])->name('receipt');
         });

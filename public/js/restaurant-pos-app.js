@@ -21,6 +21,7 @@
     let kitchenVoids = [];
     let pendingRemoveIndex = null;
     let removeReasonModalInstance = null;
+    let resumeSaveLock = Promise.resolve();
     let payments = [{ method: 'cash', amount: 0 }];
     let orderType = 'sale';
     let isCreditMode = false;
@@ -993,12 +994,44 @@
         return formData;
     }
 
+    function clearStaleResumeState(message) {
+        if (resumeOrderId) {
+            boot.pendingBillsDetail = (boot.pendingBillsDetail || []).filter(
+                (o) => Number(o.id) !== Number(resumeOrderId)
+            );
+            updateOrderTabCounts();
+            if (orderListMode === 'pending') {
+                renderOrderCards();
+            }
+        }
+        kitchenVoids = [];
+        resetForNewBill();
+        if (message) {
+            alert(message);
+        }
+    }
+
+    function isStaleOrderResponse(res, data, message) {
+        if (res.status === 404) {
+            return true;
+        }
+        const text = String(message || data.message || '').toLowerCase();
+        return text.includes('no query results for model') && text.includes('posorder');
+    }
+
+    function enqueueResumeSave(task) {
+        const run = resumeSaveLock.then(task, task);
+        resumeSaveLock = run.catch(() => {});
+        return run;
+    }
+
     async function discardResumedDraft() {
         if (!resumeOrderId) {
             return;
         }
 
-        const url = (routes.discardHold || '').replace('__ID__', String(resumeOrderId));
+        const orderId = resumeOrderId;
+        const url = (routes.discardHold || '').replace('__ID__', String(orderId));
         if (!url) {
             throw new Error('Discard route missing.');
         }
@@ -1016,17 +1049,24 @@
             body,
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
+
+        if (isStaleOrderResponse(res, data, data.message)) {
+            clearStaleResumeState('Ye pending order pehle se band ho chuki hai.');
+            return;
+        }
+
+        if (!res.ok && !data.already_discarded) {
             throw new Error(data.message || 'Pending order discard nahi ho saki.');
         }
 
         boot.pendingBillsDetail = (boot.pendingBillsDetail || []).filter(
-            (o) => Number(o.id) !== Number(resumeOrderId)
+            (o) => Number(o.id) !== Number(orderId)
         );
         updateOrderTabCounts();
         if (orderListMode === 'pending') {
             renderOrderCards();
         }
+        kitchenVoids = [];
         resetForNewBill();
     }
 
@@ -1035,39 +1075,48 @@
             return;
         }
 
-        setCartSaving(true);
-        try {
-            if (!cart.length) {
-                await discardResumedDraft();
-                return;
-            }
+        return enqueueResumeSave(async () => {
+            setCartSaving(true);
+            try {
+                if (!cart.length) {
+                    await discardResumedDraft();
+                    return;
+                }
 
-            const formData = buildHoldFormData();
-            if (!formData) {
-                throw new Error('Order save tayyar nahi ho saki.');
-            }
+                const formData = buildHoldFormData();
+                if (!formData) {
+                    throw new Error('Order save tayyar nahi ho saki.');
+                }
 
-            const res = await fetch(routes.hold, {
-                method: 'POST',
-                headers: {
-                    Accept: 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: formData,
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
+                const res = await fetch(routes.hold, {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: formData,
+                });
+                const data = await res.json().catch(() => ({}));
                 const validationMsg = data.errors ? Object.values(data.errors).flat()[0] : null;
-                throw new Error(data.message || validationMsg || 'Order save nahi ho saki.');
-            }
+                const errMsg = data.message || validationMsg || 'Order save nahi ho saki.';
 
-            if (data.order) {
-                upsertPendingBill(data.order, true);
+                if (isStaleOrderResponse(res, data, errMsg)) {
+                    clearStaleResumeState('Ye pending order pehle se band ho chuki hai.');
+                    return;
+                }
+
+                if (!res.ok) {
+                    throw new Error(errMsg);
+                }
+
+                if (data.order) {
+                    upsertPendingBill(data.order, true);
+                }
+                kitchenVoids = [];
+            } finally {
+                setCartSaving(false);
             }
-            kitchenVoids = [];
-        } finally {
-            setCartSaving(false);
-        }
+        });
     }
 
     function setCartSaving(isSaving) {
