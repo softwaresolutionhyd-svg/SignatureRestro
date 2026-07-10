@@ -81,7 +81,6 @@
     @if($order->serviceTypeLabel())
         <div class="tot-row"><span class="muted">Service</span><span>{{ $order->serviceTypeLabel() }}</span></div>
     @endif
-    <div class="tot-row"><span class="muted">Type</span><span>{{ $order->customerTypeLabel() }}</span></div>
     <div class="tot-row"><span class="muted">Date</span><span>{{ ($order->paid_at ?? $order->updated_at ?? $order->created_at)?->format('d M Y H:i') }}</span></div>
     <div class="tot-row"><span class="muted">Cashier</span><span>{{ $order->user->name ?? '—' }}</span></div>
     @if($order->is_credit && $order->contact)
