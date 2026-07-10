@@ -675,6 +675,8 @@ class PosController extends Controller
             $this->validatePosStockForSale($itemsNormalized);
         }
 
+        $this->assertKitchenVoidPermission($request);
+
         if ($resumeOrderId) {
             $resumeDraft = PosOrder::query()
                 ->where('id', $resumeOrderId)
@@ -939,6 +941,8 @@ class PosController extends Controller
             $this->validatePosProductsForCustomerType($itemsNormalized, $customerType);
             $this->validatePosStockForSale($itemsNormalized);
         }
+
+        $this->assertKitchenVoidPermission($request);
 
         if ($resumeOrderId) {
             $resumeDraft = PosOrder::query()
@@ -2599,7 +2603,7 @@ class PosController extends Controller
 
     /**
      * Kitchen-sent qty (served or pending) cannot be reduced or removed on hold/checkout
-     * unless a matching kitchen void reason is supplied.
+     * unless a matching kitchen void reason is supplied by an admin.
      *
      * @param  array<int, PosOrderItem>  $existingItems
      * @param  array<int, array<string, mixed>>  $incomingItems
@@ -2648,6 +2652,20 @@ class PosController extends Controller
                     'items' => 'Kitchen me bheji hui items hataane ke liye reason dena zaroori hai.',
                 ]);
             }
+        }
+    }
+
+    private function assertKitchenVoidPermission(PosCheckoutRequest $request): void
+    {
+        if ($this->normalizedKitchenVoids($request) === []) {
+            return;
+        }
+
+        $user = Auth::user();
+        if (! $user || ! $user->bypassesModulePermissions()) {
+            throw ValidationException::withMessages([
+                'kitchen_voids' => 'Kitchen items sirf admin remove kar sakta hai.',
+            ]);
         }
     }
 

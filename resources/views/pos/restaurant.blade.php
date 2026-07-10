@@ -353,6 +353,7 @@
         'serviceTypeLabels' => \App\Models\PosOrder::serviceTypeLabels(),
         'tablesEnabled' => (bool) ($posSettings['enable_tables'] ?? false),
         'restaurantName' => config('app.name'),
+        'canVoidKitchenItems' => auth()->user()?->bypassesModulePermissions() ?? false,
         'routes' => [
             'checkout' => route('restaurant-pos.checkout'),
             'hold' => route('restaurant-pos.hold'),
@@ -366,5 +367,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=30"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=31"></script>
 @endsection

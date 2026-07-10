@@ -16,6 +16,7 @@
     const posShowDiscount = settings.show_discount !== false;
     const posTablesEnabled = boot.tablesEnabled !== undefined ? !!boot.tablesEnabled : !!settings.enable_tables;
     const posShowCustomerSection = settings.show_customer_section !== false;
+    const canVoidKitchenItems = boot.canVoidKitchenItems === true;
 
     let cart = [];
     let kitchenVoids = [];
@@ -306,6 +307,10 @@
         if (!row) return;
 
         const locked = Number(row.kitchen_locked_qty) || 0;
+        if (locked > 0 && !canVoidKitchenItems) {
+            alert('Kitchen print ke baad item sirf admin remove kar sakta hai.');
+            return;
+        }
         const voidsBefore = kitchenVoids.length;
         if (locked > 0) {
             const reasonText = String(reason || '').trim();
@@ -519,6 +524,7 @@
         wrap.innerHTML = cart.map((r, i) => {
             const total = lineRowTotal(r, totals, i);
             const locked = Number(r.kitchen_locked_qty) || 0;
+            const showRemove = locked === 0 || canVoidKitchenItems;
             const kitchenBadge = locked > 0
                 ? `<span class="rp-kitchen-pill ${r.kitchen_served ? 'rp-kitchen-pill--served' : 'rp-kitchen-pill--pending'}" title="Kitchen me bheja hua">
                     <i class="bi ${r.kitchen_served ? 'bi-check-circle-fill' : 'bi-fire'}"></i>
@@ -533,9 +539,9 @@
                 </div>
                 <div class="rp-cl-actions">
                     <div class="rp-cl-total">${fmtMoney(total)}</div>
-                    <button type="button" class="rp-cl-remove" data-action="remove-line" data-index="${i}" aria-label="Remove item" title="${locked > 0 ? 'Kitchen item — reason required' : 'Remove item'}">
+                    ${showRemove ? `<button type="button" class="rp-cl-remove" data-action="remove-line" data-index="${i}" aria-label="Remove item" title="${locked > 0 ? 'Kitchen item — reason required' : 'Remove item'}">
                         <i class="bi bi-x-lg"></i>
-                    </button>
+                    </button>` : ''}
                 </div>
             </div>`;
         }).join('');
