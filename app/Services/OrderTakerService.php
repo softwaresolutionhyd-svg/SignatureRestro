@@ -77,27 +77,48 @@ final class OrderTakerService
     }
 
     /**
-     * Draft orders keyed by table_id (cashier hold + order taker) for the open session.
+     * Open POS sessions for today (all cashiers) — table occupancy uses every active session.
+     *
+     * @return \Illuminate\Support\Collection<int, int>
+     */
+    public function openPosSessionIdsForToday(): \Illuminate\Support\Collection
+    {
+        $today = now()->toDateString();
+
+        return PosSession::query()
+            ->where('status', 'open')
+            ->where(function ($q) use ($today) {
+                $q->whereDate('opened_at', $today)
+                    ->orWhereDate('business_date', $today);
+            })
+            ->pluck('id');
+    }
+
+    /**
+     * Draft orders keyed by table_id (cashier hold + order taker) for all open sessions today.
      *
      * @return \Illuminate\Support\Collection<int, PosOrder>
      */
     public function draftOrdersByTableId(): \Illuminate\Support\Collection
     {
-        $session = $this->openPosSession();
-        if ($session === null) {
-            return collect();
-        }
-
+        $sessionIds = $this->openPosSessionIdsForToday();
         $hasOrderTakerColumns = Schema::hasColumn('pos_orders', 'order_source')
             && Schema::hasColumn('pos_orders', 'ready_for_pos_at');
+
+        if ($sessionIds->isEmpty() && ! $hasOrderTakerColumns) {
+            return collect();
+        }
 
         return PosOrder::query()
             ->where('status', 'draft')
             ->whereNotNull('table_id')
-            ->where(function ($outer) use ($session, $hasOrderTakerColumns) {
-                $outer->where('session_id', $session->id);
+            ->where(function ($outer) use ($sessionIds, $hasOrderTakerColumns) {
+                if ($sessionIds->isNotEmpty()) {
+                    $outer->whereIn('session_id', $sessionIds);
+                }
                 if ($hasOrderTakerColumns) {
-                    $outer->orWhere(function ($w) {
+                    $method = $sessionIds->isNotEmpty() ? 'orWhere' : 'where';
+                    $outer->{$method}(function ($w) {
                         $w->where('order_source', self::SOURCE_ORDER_TAKER)
                             ->whereNotNull('ready_for_pos_at');
                     });
