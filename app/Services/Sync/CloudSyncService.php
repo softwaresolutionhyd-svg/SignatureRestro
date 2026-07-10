@@ -199,18 +199,28 @@ class CloudSyncService
                         throw new \InvalidArgumentException('Invalid table/key.');
                     }
 
-                    if (! Schema::hasTable($table)) {
+                    if (! Schema::hasTable($table) && Schema::connection('tenant')->hasTable($table)) {
+                        $landlordDb = (string) config('database.connections.mysql.database', '');
+                        if ($landlordDb !== '') {
+                            config(['database.connections.tenant.database' => $landlordDb]);
+                            DB::purge('tenant');
+                        }
+                    }
+
+                    $connection = Schema::hasTable($table) ? DB::connection() : DB::connection('tenant');
+
+                    if (! Schema::connection($connection->getName())->hasTable($table)) {
                         throw new \RuntimeException("Table missing: {$table}");
                     }
 
                     if ($action === 'delete') {
-                        DB::table($table)->where('id', $key)->delete();
+                        $connection->table($table)->where('id', $key)->delete();
                     } elseif ($action === 'upsert') {
                         if (! is_array($payload) || $payload === []) {
                             throw new \InvalidArgumentException('Empty payload.');
                         }
                         unset($payload['id']);
-                        DB::table($table)->updateOrInsert(['id' => $key], $payload);
+                        $connection->table($table)->updateOrInsert(['id' => $key], $payload);
                     } else {
                         throw new \InvalidArgumentException("Unknown action: {$action}");
                     }

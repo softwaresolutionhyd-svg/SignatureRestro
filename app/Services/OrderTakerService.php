@@ -97,34 +97,23 @@ final class OrderTakerService
     }
 
     /**
-     * Draft orders keyed by table_id (cashier hold + order taker) for all open sessions today.
+     * Draft orders keyed by table_id for today's open table holds.
+     *
+     * Uses today's draft rows (not only "open session" IDs) so hosting stays
+     * in sync even when pos_sessions state differs between local and cloud.
      *
      * @return \Illuminate\Support\Collection<int, PosOrder>
      */
     public function draftOrdersByTableId(): \Illuminate\Support\Collection
     {
-        $sessionIds = $this->openPosSessionIdsForToday();
-        $hasOrderTakerColumns = Schema::hasColumn('pos_orders', 'order_source')
-            && Schema::hasColumn('pos_orders', 'ready_for_pos_at');
-
-        if ($sessionIds->isEmpty() && ! $hasOrderTakerColumns) {
-            return collect();
-        }
+        $today = now()->toDateString();
 
         return PosOrder::query()
             ->where('status', 'draft')
             ->whereNotNull('table_id')
-            ->where(function ($outer) use ($sessionIds, $hasOrderTakerColumns) {
-                if ($sessionIds->isNotEmpty()) {
-                    $outer->whereIn('session_id', $sessionIds);
-                }
-                if ($hasOrderTakerColumns) {
-                    $method = $sessionIds->isNotEmpty() ? 'orWhere' : 'where';
-                    $outer->{$method}(function ($w) {
-                        $w->where('order_source', self::SOURCE_ORDER_TAKER)
-                            ->whereNotNull('ready_for_pos_at');
-                    });
-                }
+            ->where(function ($q) use ($today) {
+                $q->whereDate('created_at', $today)
+                    ->orWhereDate('updated_at', $today);
             })
             ->with(['table:id,name'])
             ->withCount('items')
