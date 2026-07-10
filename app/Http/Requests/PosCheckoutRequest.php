@@ -140,6 +140,7 @@ class PosCheckoutRequest extends FormRequest
                 'cash_tendered' => ['nullable', 'numeric', 'min:0'],
                 'cash_change' => ['nullable', 'numeric', 'min:0'],
                 'kitchen_voids' => ['nullable', 'array'],
+                'send_to_kitchen' => ['nullable', 'boolean'],
                 'kitchen_voids.*.product_id' => ['required', 'integer', 'exists:tenant.inventory_products,id'],
                 'kitchen_voids.*.uom' => ['required', 'string', 'max:30'],
                 'kitchen_voids.*.qty' => ['required', 'numeric', 'gt:0'],

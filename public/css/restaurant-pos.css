@@ -1316,6 +1316,18 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     color: #fef3c7;
 }
 
+.restaurant-pos-app .rp-actions .btn-outline-danger {
+    border-color: rgba(248, 113, 113, 0.5);
+    color: #fecaca;
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.restaurant-pos-app .rp-actions .btn-outline-danger:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: #f87171;
+    color: #fee2e2;
+}
+
 .restaurant-pos-app .rp-actions .btn-outline-light {
     border-color: rgba(255, 255, 255, 0.22);
     color: var(--rp-text-soft);

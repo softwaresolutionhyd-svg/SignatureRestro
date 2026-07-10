@@ -208,7 +208,7 @@ final class KitchenService
      * @param  list<array<string, mixed>>  $newItemsData
      * @return list<array<string, mixed>>
      */
-    public function applyKitchenPendingFlags(array $oldItems, array $newItemsData): array
+    public function applyKitchenPendingFlags(array $oldItems, array $newItemsData, bool $sendToKitchen = true): array
     {
         if (! Schema::hasColumn('pos_order_items', 'kitchen_pending')) {
             return $newItemsData;
@@ -246,7 +246,7 @@ final class KitchenService
 
             if ($pendingQty > 0.0005) {
                 $pendingLine = $this->splitItemLineByQty($item, $pendingQty);
-                $pendingLine['kitchen_pending'] = true;
+                $pendingLine['kitchen_pending'] = $sendToKitchen;
                 unset($pendingLine['kitchen_served_at']);
                 $out[] = $pendingLine;
             }

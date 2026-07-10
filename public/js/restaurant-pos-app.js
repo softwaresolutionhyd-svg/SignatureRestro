@@ -1013,7 +1013,7 @@
         $('#rpProductSearch')?.focus();
     }
 
-    function buildHoldFormData() {
+    function buildHoldFormData(sendToKitchen = false) {
         if (!cart.length) {
             return null;
         }
@@ -1029,11 +1029,66 @@
         const formData = new FormData(form);
         formData.set('items', JSON.stringify(cartItemsForSubmit()));
         formData.set('kitchen_voids', JSON.stringify(kitchenVoids));
+        formData.set('send_to_kitchen', sendToKitchen ? '1' : '0');
         formData.set('client_grand_total', String(totals.grand));
         formData.set('client_subtotal', String(totals.subtotal));
         formData.set('client_discount_total', String(totals.discount));
         formData.set('client_tax_total', String(totals.tax));
         return formData;
+    }
+
+    function parseOrderQty(qty) {
+        const v = parseFloat(String(qty ?? '').replace(/,/g, ''));
+        return Number.isFinite(v) ? v : 1;
+    }
+
+    function reloadCartFromOrder(order) {
+        if (!order || !Array.isArray(order.items)) {
+            return;
+        }
+        cart.length = 0;
+        order.items.forEach((ri) => {
+            const p = products.find((x) => Number(x.id) === Number(ri.product_id));
+            cart.push({
+                product_id: Number(ri.product_id),
+                name: ri.name || p?.name || 'Item',
+                uom: ri.uom || p?.uom || '',
+                qty: parseOrderQty(ri.qty),
+                unit_price: Number(ri.unit_price) || (p ? unitPriceForProduct(p, ri.uom || p.uom) : 0),
+                tax_percent: Number(ri.tax_percent) || 0,
+                notes: ri.notes || '',
+                kitchen_served: !!ri.kitchen_served,
+                kitchen_pending: !!ri.kitchen_pending,
+                kitchen_locked_qty: kitchenLockedFromResume(ri),
+            });
+        });
+        renderAll();
+    }
+
+    function setResumeStateFromOrder(order) {
+        if (!order?.id) {
+            return;
+        }
+        resumeOrderId = order.id;
+        const form = $('#rpSubmitForm');
+        if (form) {
+            form.querySelector('[name="resume_order_id"]').value = String(order.id);
+        }
+        let badge = document.querySelector('.rp-badge-order');
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'badge rp-badge-order';
+            $('#rpTabMenu')?.parentElement?.prepend(badge);
+        }
+        badge.textContent = order.order_no || String(order.id);
+    }
+
+    function openKitchenPrint(orderId) {
+        const base = (routes.kitchen || '').replace('__ID__', String(orderId));
+        if (!base) {
+            throw new Error('Kitchen print route missing.');
+        }
+        window.open(`${base}?autoprint=1`, '_blank', 'noopener,noreferrer');
     }
 
     function clearStaleResumeState(message) {
@@ -1119,9 +1174,9 @@
         resetForNewBill();
     }
 
-    async function saveResumedDraftChanges() {
+    async function saveResumedDraftChanges(sendToKitchen = false) {
         if (!resumeOrderId) {
-            return;
+            return null;
         }
 
         return enqueueResumeSave(async () => {
@@ -1129,10 +1184,10 @@
             try {
                 if (!cart.length) {
                     await discardResumedDraft();
-                    return;
+                    return null;
                 }
 
-                const formData = buildHoldFormData();
+                const formData = buildHoldFormData(sendToKitchen);
                 if (!formData) {
                     throw new Error('Order save tayyar nahi ho saki.');
                 }
@@ -1151,7 +1206,7 @@
 
                 if (isStaleOrderResponse(res, data, errMsg)) {
                     clearStaleResumeState('Ye pending order pehle se band ho chuki hai.');
-                    return;
+                    return null;
                 }
 
                 if (!res.ok) {
@@ -1160,8 +1215,14 @@
 
                 if (data.order) {
                     upsertPendingBill(data.order, true);
+                    reloadCartFromOrder(data.order);
+                    setResumeStateFromOrder(data.order);
+                    if (data.order.table_id) {
+                        setTableBoardStatus(data.order.table_id, 'occupied');
+                    }
                 }
                 kitchenVoids = [];
+                return data.order || null;
             } finally {
                 setCartSaving(false);
             }
@@ -1259,12 +1320,12 @@
         if (holdBtn) holdBtn.disabled = true;
         try {
             if (resumeOrderId) {
-                await saveResumedDraftChanges();
+                await saveResumedDraftChanges(false);
                 resetForNewBill();
                 return;
             }
 
-            const formData = buildHoldFormData();
+            const formData = buildHoldFormData(false);
             if (!formData) return;
 
             const res = await fetch(routes.hold, {
@@ -1295,6 +1356,60 @@
             alert(e.message || 'Hold failed.');
         } finally {
             if (holdBtn) holdBtn.disabled = false;
+        }
+    }
+
+    async function submitKitchenPrint() {
+        if (!cart.length) {
+            alert('Pehle item add karein.');
+            return;
+        }
+        if (!prepareSubmit('hold')) return;
+
+        const kitchenBtn = $('#rpKitchenPrintBtn');
+        if (kitchenBtn) kitchenBtn.disabled = true;
+        try {
+            let order = null;
+            if (resumeOrderId) {
+                order = await saveResumedDraftChanges(true);
+            } else {
+                const formData = buildHoldFormData(true);
+                if (!formData) return;
+
+                const res = await fetch(routes.hold, {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: formData,
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    const validationMsg = data.errors ? Object.values(data.errors).flat()[0] : null;
+                    throw new Error(data.message || validationMsg || 'Kitchen print failed.');
+                }
+
+                order = data.order || null;
+                if (order) {
+                    upsertPendingBill(order, !!data.updated);
+                    reloadCartFromOrder(order);
+                    setResumeStateFromOrder(order);
+                    if (order.table_id) {
+                        setTableBoardStatus(order.table_id, 'occupied');
+                    }
+                }
+            }
+
+            const orderId = order?.id || resumeOrderId;
+            if (!orderId) {
+                throw new Error('Order save nahi ho saki.');
+            }
+            openKitchenPrint(orderId);
+        } catch (e) {
+            alert(e.message || 'Kitchen print failed.');
+        } finally {
+            if (kitchenBtn) kitchenBtn.disabled = false;
         }
     }
 
@@ -1348,6 +1463,7 @@
         });
         $('#rpTable')?.addEventListener('change', updateTableSelectAppearance);
         $('#rpHoldBtn')?.addEventListener('click', () => submitHoldOrder());
+        $('#rpKitchenPrintBtn')?.addEventListener('click', () => submitKitchenPrint());
         $('#rpPrintUnpaidBtn')?.addEventListener('click', () => printUnpaidBill());
         $('#rpWhatsappBtn')?.addEventListener('click', () => openDeliveryWhatsapp());
         $('#rpPayBtn')?.addEventListener('click', () => openPayModal());

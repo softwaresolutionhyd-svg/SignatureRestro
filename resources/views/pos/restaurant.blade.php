@@ -242,7 +242,10 @@
             <div class="rp-actions">
                 @if($posSettings['show_hold_button'] ?? true)
                     <button type="button" class="btn btn-outline-warning btn-sm" id="rpHoldBtn">
-                        <i class="bi bi-send"></i> Hold &amp; Kitchen
+                        <i class="bi bi-pause-circle"></i> Hold Order
+                    </button>
+                    <button type="button" class="btn btn-outline-danger btn-sm" id="rpKitchenPrintBtn" title="Kitchen ko order bhejein aur print karein">
+                        <i class="bi bi-fire"></i> Kitchen Print
                     </button>
                 @endif
                 @if($posSettings['allow_bill_print'] ?? true)
@@ -348,6 +351,7 @@
 @php
     $receiptStub = str_replace('999999999', '__ID__', route('restaurant-pos.receipt', ['order' => 999999999]));
     $receiptUnpaidStub = str_replace('999999999', '__ID__', route('restaurant-pos.receipt.unpaid', ['order' => 999999999]));
+    $kitchenStub = str_replace('999999999', '__ID__', route('restaurant-pos.kitchen', ['order' => 999999999]));
     $discardStub = str_replace('999999999', '__ID__', route('restaurant-pos.hold.discard', ['orderId' => 999999999]));
     $restaurantBootstrap = [
         'csrf' => csrf_token(),
@@ -372,11 +376,12 @@
             'resume' => $resumeStub . '?ui=restaurant',
             'receipt' => $receiptStub,
             'receiptUnpaid' => $receiptUnpaidStub,
+            'kitchen' => $kitchenStub,
         ],
     ];
 @endphp
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=33"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=34"></script>
 @endsection

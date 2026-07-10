@@ -1011,7 +1011,10 @@ class PosController extends Controller
 
         $updatedExisting = false;
         $clientTotals = $this->clientHoldTotalsFromRequest($request);
-        $order = DB::connection('tenant')->transaction(function () use ($request, $session, $itemsNormalized, $guestName, $roomNo, $waiterName, $serveTime, $serveDate, $orderNotes, $customerType, $saleMode, $serviceType, $restaurantTableId, $resumeOrderId, $clientTotals, &$updatedExisting) {
+        $sendToKitchen = $this->isRestaurantPosRequest($request)
+            ? $request->boolean('send_to_kitchen')
+            : true;
+        $order = DB::connection('tenant')->transaction(function () use ($request, $session, $itemsNormalized, $guestName, $roomNo, $waiterName, $serveTime, $serveDate, $orderNotes, $customerType, $saleMode, $serviceType, $restaurantTableId, $resumeOrderId, $clientTotals, $sendToKitchen, &$updatedExisting) {
             $enableTables = (string) Setting::get('pos_enable_tables', '1') !== '0';
             if ($this->isRestaurantPosRequest($request)) {
                 $tableId = $restaurantTableId;
@@ -1090,7 +1093,7 @@ class PosController extends Controller
                         }
                     }
 
-                    $itemsWithKitchenFlags = $kitchen->applyKitchenPendingFlags($oldItems, $itemsData);
+                    $itemsWithKitchenFlags = $kitchen->applyKitchenPendingFlags($oldItems, $itemsData, $sendToKitchen);
                     $hasNewKitchenItems = collect($itemsWithKitchenFlags)
                         ->contains(fn (array $item) => (bool) ($item['kitchen_pending'] ?? true));
 
@@ -1113,7 +1116,7 @@ class PosController extends Controller
             }
 
             $kitchen = app(KitchenService::class);
-            $itemsWithKitchenFlags = $kitchen->applyKitchenPendingFlags([], $itemsData);
+            $itemsWithKitchenFlags = $kitchen->applyKitchenPendingFlags([], $itemsData, $sendToKitchen);
 
             $order = PosOrder::create([
                 'order_no' => DailyOrderNumber::next(),
@@ -1311,6 +1314,27 @@ class PosController extends Controller
         abort_unless(Setting::get('pos_allow_bill_print', '1') === '1', 403);
 
         return $this->renderReceipt($request, $order, paidOnly: false);
+    }
+
+    public function kitchenSlip(Request $request, PosOrder $order): View
+    {
+        abort_unless($order->status === 'draft', 404);
+        $this->assertDraftReceiptAccess($order);
+
+        $order->load(['items.product:id,name,sku', 'user:id,name', 'table:id,name']);
+
+        $kitchenItems = $order->items->filter(
+            fn (PosOrderItem $item) => (bool) $item->kitchen_pending && ! $item->isKitchenServed()
+        )->values();
+
+        abort_unless($kitchenItems->isNotEmpty(), 404);
+
+        $settings = $this->receiptSettingsMap();
+        $autoPrint = ! $request->boolean('noprint', false) && $request->boolean('autoprint', true);
+        $backUrl = route('restaurant-pos.index', ['resume_order' => $order->id]);
+        $backLabel = '← Back to order';
+
+        return view('pos.kitchen-slip', compact('order', 'kitchenItems', 'settings', 'autoPrint', 'backUrl', 'backLabel'));
     }
 
     private function renderReceipt(Request $request, PosOrder $order, bool $paidOnly): View
@@ -2248,10 +2272,12 @@ class PosController extends Controller
             'pending_count' => $order->items->filter(fn (PosOrderItem $item) => ! $item->isKitchenServed() && (bool) $item->kitchen_pending)->count(),
             'timeline' => $order->orderTimelineSteps(),
             'items' => $order->items->map(fn (PosOrderItem $item) => [
+                'product_id' => (int) $item->product_id,
                 'name' => $item->product->name ?? 'Item',
                 'qty' => fmt_num((float) $item->qty, 3),
                 'uom' => $item->uom,
                 'unit_price' => (float) $item->unit_price,
+                'tax_percent' => (float) $item->tax_percent,
                 'total' => (float) $item->total,
                 'notes' => trim((string) ($item->notes ?? '')),
                 'kitchen_served' => $item->isKitchenServed(),
