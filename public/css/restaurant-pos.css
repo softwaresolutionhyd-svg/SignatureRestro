@@ -636,10 +636,27 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
 
 .restaurant-pos-app .rp-bills-head-main {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: center;
     flex-wrap: wrap;
     gap: 0.45rem;
+}
+
+.restaurant-pos-app .rp-punch-new-order {
+    margin-left: 0.15rem;
+    border: none;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: #1c1917;
+    font-weight: 700;
+    font-size: 0.72rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    box-shadow: 0 2px 8px rgba(217, 119, 6, 0.28);
+}
+
+.restaurant-pos-app .rp-punch-new-order:hover {
+    background: linear-gradient(135deg, #fbbf24 0%, #ea580c 100%);
+    color: #1c1917;
 }
 
 .restaurant-pos-app .rp-bills-head-title {

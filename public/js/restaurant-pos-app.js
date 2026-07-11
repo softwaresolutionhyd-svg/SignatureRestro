@@ -715,9 +715,20 @@
             <div class="rp-bills-head-main">
                 <span class="rp-bills-head-title">${isPending ? 'Pending Bills' : 'Paid Bills'}</span>
                 <span class="rp-bills-head-count">${orders.length} bill${orders.length === 1 ? '' : 's'}</span>
+                ${isPending ? '<button type="button" class="btn btn-sm rp-punch-new-order" id="rpPunchNewOrder"><i class="bi bi-plus-lg me-1"></i>Punch New Order</button>' : ''}
             </div>
             <span class="rp-bills-head-hint">${isPending ? 'Bill kholne ke liye card par click karein.' : 'Receipt ke liye card par click karein.'}</span>
         `;
+
+        if (isPending) {
+            $('#rpPunchNewOrder')?.addEventListener('click', punchNewOrder);
+        }
+    }
+
+    function punchNewOrder() {
+        resetForNewBill();
+        showMenuPanel();
+        setPanelView('split');
     }
 
     function clearBillsMenuHead() {
