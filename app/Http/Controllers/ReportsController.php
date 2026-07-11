@@ -11,6 +11,7 @@ use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\InventoryCategory;
 use App\Models\InventoryDepartment;
+use App\Models\InventoryMove;
 use App\Models\InventoryProduct;
 use App\Models\PosOrder;
 use App\Models\PosOrderItem;
@@ -520,6 +521,122 @@ class ReportsController extends Controller
         return view('reports.inventory-products-print', compact(
             'products', 'filter', 'filterLabel', 'department', 'currency', 'totalValue'
         ));
+    }
+
+    /* ──────────────────────────────────────────
+     |  Issue Stock Report
+     ─────────────────────────────────────────── */
+    public function issueStock(Request $request)
+    {
+        $data = $this->issueStockReportData($request);
+
+        return view('reports.issue-stock', $data);
+    }
+
+    public function issueStockPrint(Request $request)
+    {
+        $data = $this->issueStockReportData($request);
+
+        return view('reports.issue-stock-print', $data);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function issueStockReportData(Request $request): array
+    {
+        $from         = $request->input('from', now()->startOfMonth()->format('Y-m-d'));
+        $to           = $request->input('to', now()->format('Y-m-d'));
+        $departmentId = (int) $request->input('department_id', 0);
+        $departmentId = $departmentId > 0 ? $departmentId : null;
+        $currency     = Setting::get('currency_symbol', 'Rs.');
+
+        $departments = InventoryDepartment::query()
+            ->where('active', true)
+            ->where('is_warehouse', false)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $query = InventoryMove::query()
+            ->where('type', 'transfer')
+            ->whereBetween('created_at', [$from . ' 00:00:00', $to . ' 23:59:59'])
+            ->with([
+                'product:id,sku,name,uom,cost,gas_charges,extra_costs',
+                'fromDepartment:id,name',
+                'toDepartment:id,name',
+                'user:id,name',
+            ]);
+
+        if ($departmentId !== null) {
+            $query->where('to_department_id', $departmentId);
+        }
+
+        $issues = $query->orderByDesc('created_at')->get();
+
+        $moveValue = fn (InventoryMove $issue) => $this->issueMoveValue($issue);
+        $issues->each(function (InventoryMove $issue) use ($moveValue) {
+            $issue->line_value = $moveValue($issue);
+        });
+
+        $issueCount    = $issues->count();
+        $totalQty      = round((float) $issues->sum('qty'), 3);
+        $totalValue    = round((float) $issues->sum($moveValue), 2);
+        $departmentHit = $issues->pluck('to_department_id')->filter()->unique()->count();
+
+        $byDay = $issues
+            ->groupBy(fn (InventoryMove $issue) => $issue->created_at?->format('Y-m-d') ?? 'unknown')
+            ->map(function ($group, $day) use ($moveValue) {
+                return [
+                    'date'  => $day,
+                    'label' => $day !== 'unknown' ? Carbon::parse($day)->format('d M Y (D)') : 'Unknown',
+                    'lines' => $group->count(),
+                    'qty'   => round((float) $group->sum('qty'), 3),
+                    'value' => round((float) $group->sum($moveValue), 2),
+                ];
+            })
+            ->sortKeysDesc();
+
+        $byDepartment = $issues
+            ->groupBy('to_department_id')
+            ->map(function ($group) use ($moveValue) {
+                $first = $group->first();
+
+                return [
+                    'name'  => $first?->toDepartment?->name ?? 'Unknown',
+                    'lines' => $group->count(),
+                    'qty'   => round((float) $group->sum('qty'), 3),
+                    'value' => round((float) $group->sum($moveValue), 2),
+                ];
+            })
+            ->sortByDesc('value')
+            ->values();
+
+        $chartLabels = $byDay->pluck('label')->reverse()->values();
+        $chartData   = $byDay->pluck('lines')->reverse()->values();
+
+        $selectedDepartment = $departmentId
+            ? $departments->firstWhere('id', $departmentId)
+            : null;
+
+        return compact(
+            'issues', 'from', 'to', 'departmentId', 'departments', 'selectedDepartment', 'currency',
+            'issueCount', 'totalQty', 'totalValue', 'departmentHit',
+            'byDay', 'byDepartment', 'chartLabels', 'chartData'
+        );
+    }
+
+    private function issueMoveValue(InventoryMove $issue): float
+    {
+        if ((float) $issue->total_cost > 0) {
+            return (float) $issue->total_cost;
+        }
+
+        $unitCost = (float) ($issue->unit_cost ?? 0);
+        if ($unitCost <= 0 && $issue->relationLoaded('product') && $issue->product) {
+            $unitCost = (float) $issue->product->total;
+        }
+
+        return round((float) $issue->qty * $unitCost, 2);
     }
 
     /* ──────────────────────────────────────────

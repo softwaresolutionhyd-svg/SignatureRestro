@@ -102,6 +102,13 @@
                     <div><div class="fw-semibold">Inventory Report</div><div class="text-secondary small">Stock levels, valuation</div></div>
                     <i class="bi bi-chevron-right ms-auto text-secondary"></i>
                 </a>
+                <a href="{{ route('reports.issue-stock') }}" class="d-flex align-items-center gap-3 px-4 py-3 border-bottom text-decoration-none text-dark">
+                    <span class="rounded-circle d-flex align-items-center justify-content-center" style="width:38px;height:38px;background:rgba(249,115,22,.1);">
+                        <i class="bi bi-box-arrow-right" style="color:#f97316;"></i>
+                    </span>
+                    <div><div class="fw-semibold">Issue Stock Report</div><div class="text-secondary small">Date wise warehouse → department issues</div></div>
+                    <i class="bi bi-chevron-right ms-auto text-secondary"></i>
+                </a>
                 <a href="{{ route('reports.employees') }}" class="d-flex align-items-center gap-3 px-4 py-3 text-decoration-none text-dark">
                     <span class="rounded-circle d-flex align-items-center justify-content-center" style="width:38px;height:38px;background:rgba(236,72,153,.1);">
                         <i class="bi bi-people-fill" style="color:#ec4899;"></i>

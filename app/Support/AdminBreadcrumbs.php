@@ -303,6 +303,7 @@ final class AdminBreadcrumbs
             'reports.sales'      => 'Sales',
             'reports.purchases'  => 'Purchases',
             'reports.inventory'  => 'Inventory',
+            'reports.issue-stock' => 'Issue Stock',
             'reports.employees'  => 'Employees',
         ];
         return [$dash, $hub, ['label' => $labels[$name] ?? 'Report', 'url' => null]];

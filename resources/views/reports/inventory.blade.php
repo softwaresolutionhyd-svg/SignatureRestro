@@ -9,6 +9,7 @@
     </div>
     <div class="d-flex gap-2">
         <button onclick="window.print()" class="btn btn-outline-danger btn-sm">Print / PDF</button>
+        <a href="{{ route('reports.issue-stock') }}" class="btn btn-outline-primary btn-sm">Issue Stock Report</a>
         <a href="{{ route('reports.index') }}" class="btn btn-outline-secondary btn-sm">← All Reports</a>
     </div>
 </div>
