@@ -1363,6 +1363,33 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     color: #d1d9e6;
 }
 
+.restaurant-pos-app .rp-discount-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.restaurant-pos-app .rp-owner-discount-btn {
+    border-color: rgba(56, 189, 248, 0.45);
+    color: #bae6fd;
+    background: rgba(14, 165, 233, 0.1);
+    font-size: 0.62rem;
+    font-weight: 700;
+    padding: 0.18rem 0.45rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    border-radius: 4px;
+}
+
+.restaurant-pos-app .rp-owner-discount-btn:hover,
+.restaurant-pos-app .rp-owner-discount-btn.is-active {
+    background: rgba(14, 165, 233, 0.22);
+    border-color: #38bdf8;
+    color: #e0f2fe;
+}
+
 .restaurant-pos-app .rp-summary-pct {
     width: 2.75rem;
     min-height: 1.35rem !important;
@@ -1461,7 +1488,6 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     border-color: rgba(56, 189, 248, 0.45);
     color: #bae6fd;
     background: rgba(14, 165, 233, 0.1);
-    grid-column: 1 / -1;
 }
 
 .restaurant-pos-app .rp-actions .btn-outline-info:hover,

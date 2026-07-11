@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=40">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=41">
 @endpush
 
 @section('content')
@@ -233,13 +233,18 @@
                 <div class="rp-total-row"><span>Subtotal</span><span id="rpSumSubtotal">0.00</span></div>
                 @if($posSettings['show_discount'] ?? true)
                     <div class="rp-total-row rp-total-row-adjust" id="rpDiscountRow">
-                        <span class="rp-adjust-label">
-                            Discount
-                            <input type="number" id="rpBillDiscount" class="form-control form-control-sm rp-summary-pct"
-                                   min="0" step="0.01" title="Bill discount %"
-                                   value="{{ $posSettings['resume_bill_discount_percent'] ?? 0 }}">
-                            <span class="rp-pct-sym">%</span>
-                        </span>
+                        <div class="rp-discount-controls">
+                            <span class="rp-adjust-label">
+                                Discount
+                                <input type="number" id="rpBillDiscount" class="form-control form-control-sm rp-summary-pct"
+                                       min="0" step="0.01" title="Bill discount %"
+                                       value="{{ $posSettings['resume_bill_discount_percent'] ?? 0 }}">
+                                <span class="rp-pct-sym">%</span>
+                            </span>
+                            <button type="button" class="btn btn-outline-info btn-sm rp-owner-discount-btn" id="rpOwnerDiscountBtn" title="Owner ko 100% discount de kar bill close karein">
+                                <i class="bi bi-gift"></i> Owner 100%
+                            </button>
+                        </div>
                         <span id="rpSumDiscount">0.00</span>
                     </div>
                 @endif
@@ -272,11 +277,6 @@
                 <button type="button" class="btn btn-sm btn-rp-whatsapp d-none" id="rpWhatsappBtn" title="Customer ko WhatsApp par order confirm karein">
                     <i class="bi bi-whatsapp"></i> WhatsApp
                 </button>
-                @if($posSettings['show_discount'] ?? true)
-                    <button type="button" class="btn btn-outline-info btn-sm" id="rpOwnerDiscountBtn" title="Owner ko 100% discount de kar bill close karein">
-                        <i class="bi bi-gift"></i> Owner 100% Discount
-                    </button>
-                @endif
                 <button type="button" class="btn btn-sm btn-rp-primary" id="rpPayBtn">
                     <i class="bi bi-credit-card"></i> Pay Now
                 </button>
@@ -405,5 +405,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=40"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=41"></script>
 @endsection
