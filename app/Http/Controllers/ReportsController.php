@@ -10,6 +10,7 @@ use App\Models\ReportTemplate;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\InventoryCategory;
+use App\Models\InventoryDepartment;
 use App\Models\InventoryProduct;
 use App\Models\PosOrder;
 use App\Models\PosOrderItem;
@@ -422,9 +423,29 @@ class ReportsController extends Controller
     public function inventory(Request $request)
     {
         $filter   = $request->input('filter', 'all'); // all | low | zero
+        $departmentId = (int) $request->input('department_id', 0);
+        $departmentId = $departmentId > 0 ? $departmentId : null;
         $currency = Setting::get('currency_symbol', 'Rs.');
 
-        $query = InventoryProduct::with('category')->where('active', true);
+        $departments = InventoryDepartment::query()
+            ->where('active', true)
+            ->orderByDesc('is_warehouse')
+            ->orderBy('name')
+            ->get(['id', 'name', 'is_warehouse']);
+
+        $applyDepartment = function ($query) use ($departmentId) {
+            if ($departmentId !== null) {
+                $query->whereHas(
+                    'departments',
+                    fn ($dep) => $dep->where('inventory_departments.id', $departmentId)
+                );
+            }
+
+            return $query;
+        };
+
+        $query = InventoryProduct::with(['category', 'departments:id,name'])->where('active', true);
+        $applyDepartment($query);
 
         if ($filter === 'low') {
             $query->where('qty_on_hand', '>', 0)->where('qty_on_hand', '<=', 10)->excludingActiveBomFinishedProducts();
@@ -438,25 +459,26 @@ class ReportsController extends Controller
             return (float) $p->qty_on_hand * ((float) $p->price - (float) $p->cost);
         }), 2);
 
-        $totalProducts = InventoryProduct::where('active', true)->count();
-        $lowStock      = InventoryProduct::where('active', true)->where('qty_on_hand', '>', 0)->where('qty_on_hand', '<=', 10)->excludingActiveBomFinishedProducts()->count();
-        $outOfStock    = InventoryProduct::where('active', true)->where('qty_on_hand', '<=', 0)->count();
-        $totalValue    = InventoryProduct::where('active', true)->selectRaw('SUM(qty_on_hand * cost) as val')->value('val') ?? 0;
-        $retailValue   = InventoryProduct::where('active', true)->selectRaw('SUM(qty_on_hand * price) as val')->value('val') ?? 0;
+        $kpiBase = InventoryProduct::where('active', true);
+        $applyDepartment($kpiBase);
 
-        // Category breakdown for chart
-        $byCategory = InventoryProduct::with('category')
-            ->where('active', true)
-            ->get()
-            ->groupBy(fn($p) => optional($p->category)->name ?? 'Uncategorized')
-            ->map(fn($g) => $g->count())
-            ->sortByDesc(fn($v) => $v);
+        $totalProducts = (clone $kpiBase)->count();
+        $lowStock      = (clone $kpiBase)->where('qty_on_hand', '>', 0)->where('qty_on_hand', '<=', 10)->excludingActiveBomFinishedProducts()->count();
+        $outOfStock    = (clone $kpiBase)->where('qty_on_hand', '<=', 0)->count();
+        $totalValue    = (clone $kpiBase)->selectRaw('SUM(qty_on_hand * cost) as val')->value('val') ?? 0;
+        $retailValue   = (clone $kpiBase)->selectRaw('SUM(qty_on_hand * price) as val')->value('val') ?? 0;
+
+        $byCategory = $products
+            ->groupBy(fn ($p) => optional($p->category)->name ?? 'Uncategorized')
+            ->map(fn ($g) => $g->count())
+            ->sortByDesc(fn ($v) => $v);
 
         $chartLabels = $byCategory->keys();
         $chartData   = $byCategory->values();
 
         return view('reports.inventory', compact(
             'products', 'filter', 'currency',
+            'departmentId', 'departments',
             'totalProducts', 'lowStock', 'outOfStock', 'totalValue', 'retailValue',
             'stockPotentialProfit', 'chartLabels', 'chartData'
         ));

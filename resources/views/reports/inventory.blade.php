@@ -24,6 +24,17 @@
                 <option value="zero" {{ $filter==='zero' ? 'selected' : '' }}>Out of Stock</option>
             </select>
         </div>
+        <div>
+            <label class="form-label small fw-semibold mb-1">Department</label>
+            <select name="department_id" class="form-select" style="min-width:180px;" onchange="this.form.submit()">
+                <option value="">All Departments</option>
+                @foreach($departments as $dep)
+                    <option value="{{ $dep->id }}" @selected($departmentId === (int) $dep->id)>
+                        {{ $dep->name }}{{ $dep->is_warehouse ? ' (Warehouse)' : '' }}
+                    </option>
+                @endforeach
+            </select>
+        </div>
     </div>
 </form>
 
