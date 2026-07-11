@@ -119,7 +119,6 @@
                 <th>UOM</th>
                 <th class="text-end">Total Qty</th>
                 <th class="text-end">Total Amount</th>
-                <th class="text-end">Lines</th>
             </tr>
             </thead>
             <tbody>
@@ -130,10 +129,9 @@
                     <td class="small">{{ $row['uom'] }}</td>
                     <td class="text-end small">{{ fmt_num($row['qty'], 3) }}</td>
                     <td class="text-end small fw-semibold">{{ $currency }} {{ fmt_num($row['total'], 2) }}</td>
-                    <td class="text-end small text-secondary">{{ $row['lines'] }}</td>
                 </tr>
             @empty
-                <tr><td colspan="6" class="text-center py-4 text-secondary">No products purchased in this period</td></tr>
+                <tr><td colspan="5" class="text-center py-4 text-secondary">No products purchased in this period</td></tr>
             @endforelse
             </tbody>
             @if($byProduct->isNotEmpty())
@@ -141,7 +139,6 @@
             <tr>
                 <th colspan="4" class="text-end">Total</th>
                 <th class="text-end">{{ $currency }} {{ fmt_num($purchaseLines->sum('total'), 2) }}</th>
-                <th class="text-end">{{ $lineCount }}</th>
             </tr>
             </tfoot>
             @endif
