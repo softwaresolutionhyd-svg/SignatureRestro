@@ -293,6 +293,7 @@ $colDefs = [
 .template-chip:hover { box-shadow: 0 2px 8px rgba(124,58,237,.15); }
 .tpl-delete:hover svg { color: #ef4444; }
 @media print {
+    @page { size: A4 portrait; margin: 12mm; }
     body * { visibility: hidden; }
     #printArea, #printArea * { visibility: visible; }
     #printArea { position: fixed; top:0; left:0; width:100%; }
@@ -831,7 +832,7 @@ document.getElementById('btnPdf').addEventListener('click', () => {
     html2pdf().set({
         margin:[10,8,10,8], filename:`${currentType}-report-${new Date().toISOString().slice(0,10)}.pdf`,
         image:{type:'jpeg',quality:.98}, html2canvas:{scale:2,useCORS:true},
-        jsPDF:{unit:'mm',format:'a4',orientation:currentCols.length>6?'landscape':'portrait'},
+        jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
     }).from(el).save().then(() => document.body.removeChild(el));
 });
 

@@ -21,7 +21,7 @@
         .noprint { margin-bottom: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
         .noprint button, .noprint a { padding: 8px 14px; font-size: 13px; border-radius: 6px; cursor: pointer; text-decoration: none; border: 1px solid #ccc; background: #fff; color: #111; }
         .noprint .primary { background: #dc3545; border-color: #dc3545; color: #fff; }
-        @media print { body { padding: 0; } .noprint { display: none !important; } @page { size: A4 landscape; margin: 10mm; } }
+        @media print { body { padding: 0; } .noprint { display: none !important; } @page { size: A4 portrait; margin: 12mm; } }
     </style>
 </head>
 <body>

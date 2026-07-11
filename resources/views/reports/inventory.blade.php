@@ -127,4 +127,5 @@ new Chart(document.getElementById('catChart'), {
     options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
 });
 </script>
+@include('reports.partials.print-portrait')
 @endsection

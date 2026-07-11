@@ -190,4 +190,5 @@ new Chart(document.getElementById('salesChart'), {
     }
 });
 </script>
+@include('reports.partials.print-portrait')
 @endsection

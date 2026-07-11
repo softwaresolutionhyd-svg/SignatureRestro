@@ -159,4 +159,5 @@ new Chart(document.getElementById('vendorChart'), {
     options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
 });
 </script>
+@include('reports.partials.print-portrait')
 @endsection

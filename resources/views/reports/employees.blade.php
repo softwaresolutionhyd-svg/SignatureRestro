@@ -137,4 +137,5 @@ new Chart(document.getElementById('deptChart'), {
     }
 });
 </script>
+@include('reports.partials.print-portrait')
 @endsection

@@ -226,6 +226,7 @@
 @section('scripts')
 <style>
 @media print {
+    @page { size: A4 portrait; margin: 12mm; }
     .btn, nav, .odoo-topbar, #filterCard { display: none !important; }
     #printHeader { display: block !important; margin-bottom: 16px; }
     .card { box-shadow: none !important; border: 1px solid #ddd !important; }

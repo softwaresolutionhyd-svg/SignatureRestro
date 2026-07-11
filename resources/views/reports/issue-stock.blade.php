@@ -233,6 +233,7 @@ new Chart(document.getElementById('dayChart'), {
 </script>
 @endif
 <style media="print">
+    @page { size: A4 portrait; margin: 12mm; }
     .no-print, .admin-topbar, nav[aria-label="breadcrumb"] { display: none !important; }
 </style>
 @endsection

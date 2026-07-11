@@ -227,6 +227,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <style>
 @media print {
+    @page { size: A4 portrait; margin: 12mm; }
     .btn, .odoo-topbar, .admin-app-body > nav { display: none !important; }
     .card { box-shadow: none !important; border: 1px solid #eee !important; }
 }

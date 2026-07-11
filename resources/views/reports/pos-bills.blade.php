@@ -172,6 +172,7 @@
 </div>
 
 <style media="print">
+    @page { size: A4 portrait; margin: 12mm; }
     .no-print { display: none !important; }
     body { font-size: 11pt; }
     table { font-size: 10pt; }
