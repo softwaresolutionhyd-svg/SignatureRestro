@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=41">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=42">
 @endpush
 
 @section('content')
@@ -89,21 +89,19 @@
                 <span class="rp-brand-sub">{{ $session->business_date?->format('d M Y') ?? now()->format('d M Y') }}</span>
             </div>
         </div>
-        <div class="rp-topbar-center">
-            <div class="rp-search">
-                <i class="bi bi-search rp-search-icon" aria-hidden="true"></i>
-                <input type="search" id="rpProductSearch" class="form-control form-control-sm" placeholder="Search menu…" autocomplete="off">
-            </div>
+        <div class="rp-search">
+            <i class="bi bi-search rp-search-icon" aria-hidden="true"></i>
+            <input type="search" id="rpProductSearch" class="form-control form-control-sm" placeholder="Search menu…" autocomplete="off">
+        </div>
+        <div class="rp-topbar-actions">
+            @if($resumedOrder)
+                <span class="badge rp-badge-order">{{ $resumedOrder->order_no }}</span>
+            @endif
             @if($posStaffLabel !== '')
                 <div class="rp-staff-badge" title="Logged in staff">
                     <i class="bi bi-person-badge" aria-hidden="true"></i>
                     <span>{{ $posStaffLabel }}</span>
                 </div>
-            @endif
-        </div>
-        <div class="rp-topbar-actions">
-            @if($resumedOrder)
-                <span class="badge rp-badge-order">{{ $resumedOrder->order_no }}</span>
             @endif
             <button type="button" class="btn btn-sm rp-order-tab" id="rpTabMenu" data-mode="menu">
                 <i class="bi bi-grid-3x3-gap-fill"></i> Menu
