@@ -16,10 +16,11 @@
 
     <div class="card shadow-sm">
         <div class="card-header bg-white d-flex flex-wrap gap-2 align-items-center justify-content-between">
-            <form class="d-flex gap-2" method="GET" action="{{ route('employees.index') }}">
-                <input type="text" name="q" value="{{ $q }}" class="form-control" placeholder="Search employee no, name, username, phone..." style="max-width: 360px;">
-                <button class="btn btn-outline-primary" type="submit"><i class="bi bi-search me-1"></i> Search</button>
-                @if($q !== '')
+            <form class="d-flex flex-wrap gap-2 align-items-center" method="GET" action="{{ route('employees.index') }}">
+                <input type="text" name="employee_no" value="{{ $employeeNo }}" class="form-control" placeholder="Employee ID e.g. EMP-00001" style="max-width: 200px;">
+                <input type="text" name="q" value="{{ $q }}" class="form-control" placeholder="Search name, username, phone..." style="max-width: 260px;">
+                <button class="btn btn-outline-primary" type="submit"><i class="bi bi-search me-1"></i> Filter</button>
+                @if($q !== '' || $employeeNo !== '')
                     <a class="btn btn-outline-secondary" href="{{ route('employees.index') }}">Clear</a>
                 @endif
             </form>

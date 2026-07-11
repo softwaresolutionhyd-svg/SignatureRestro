@@ -21,8 +21,11 @@ class EmployeeController extends Controller
     public function index(Request $request)
     {
         $q = trim((string) $request->query('q', ''));
+        $employeeNo = trim((string) $request->query('employee_no', ''));
+
         $employees = Employee::query()
             ->with(['department:id,name', 'designation:id,name', 'user:id,email'])
+            ->when($employeeNo !== '', fn ($query) => $query->where('employee_no', 'like', "%{$employeeNo}%"))
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($sub) use ($q) {
                     $sub->where('employee_no', 'like', "%{$q}%")
@@ -34,11 +37,11 @@ class EmployeeController extends Controller
                 });
             })
             ->orderBy('active', 'desc')
-            ->orderBy('name')
+            ->orderBy('employee_no')
             ->paginate(Setting::pageSize('employees_per_page', 20))
             ->withQueryString();
 
-        return view('employees.index', compact('employees', 'q'));
+        return view('employees.index', compact('employees', 'q', 'employeeNo'));
     }
 
     public function create()
