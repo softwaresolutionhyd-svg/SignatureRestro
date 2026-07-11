@@ -51,9 +51,9 @@
 <div class="row g-3 mb-4">
     @foreach([
         ['Orders', $orderCount, 'bi-file-text', '#22c55e'],
+        ['Products', $productCount, 'bi-box-seam', '#0ea5e9'],
         ['Total Spend', $currency.' '.fmt_num($totalAmount,2), 'bi-cash-stack', '#7c3aed'],
         ['Tax', $currency.' '.fmt_num($totalTax,2), 'bi-percent', '#f97316'],
-        ['Vendors', $byVendor->count(), 'bi-building', '#0ea5e9'],
     ] as [$label,$val,$icon,$color])
     <div class="col-6 col-md-3">
         <div class="card shadow-sm border-0 h-100">
@@ -98,6 +98,104 @@
                 </table>
             </div>
         </div>
+    </div>
+</div>
+
+{{-- Products summary --}}
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+        <span>Purchased Products (Summary)</span>
+        <span class="badge bg-primary">{{ $productCount }}</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle">
+            <thead class="table-light">
+            <tr>
+                <th>Product</th>
+                <th>SKU</th>
+                <th>UOM</th>
+                <th class="text-end">Total Qty</th>
+                <th class="text-end">Total Amount</th>
+                <th class="text-end">Lines</th>
+            </tr>
+            </thead>
+            <tbody>
+            @forelse($byProduct as $row)
+                <tr>
+                    <td class="small fw-semibold">{{ $row['name'] }}</td>
+                    <td class="small text-secondary">{{ $row['sku'] }}</td>
+                    <td class="small">{{ $row['uom'] }}</td>
+                    <td class="text-end small">{{ fmt_num($row['qty'], 3) }}</td>
+                    <td class="text-end small fw-semibold">{{ $currency }} {{ fmt_num($row['total'], 2) }}</td>
+                    <td class="text-end small text-secondary">{{ $row['lines'] }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="6" class="text-center py-4 text-secondary">No products purchased in this period</td></tr>
+            @endforelse
+            </tbody>
+            @if($byProduct->isNotEmpty())
+            <tfoot class="table-light">
+            <tr>
+                <th colspan="4" class="text-end">Total</th>
+                <th class="text-end">{{ $currency }} {{ fmt_num($purchaseLines->sum('total'), 2) }}</th>
+                <th class="text-end">{{ $lineCount }}</th>
+            </tr>
+            </tfoot>
+            @endif
+        </table>
+    </div>
+</div>
+
+{{-- Product line details --}}
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+        <span>Purchase Details — Product wise</span>
+        <span class="badge bg-info text-dark">{{ $lineCount }}</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle">
+            <thead class="table-light">
+            <tr>
+                <th>PO #</th>
+                <th>Date</th>
+                <th>Vendor</th>
+                <th>Product</th>
+                <th>UOM</th>
+                <th class="text-end">Qty</th>
+                <th class="text-end">Unit Price</th>
+                <th class="text-end">Amount</th>
+            </tr>
+            </thead>
+            <tbody>
+            @forelse($purchaseLines as $line)
+                <tr>
+                    <td class="small fw-semibold">{{ $line->order?->number ?? '—' }}</td>
+                    <td class="small text-secondary">{{ optional($line->order?->order_date)->format('d M Y') }}</td>
+                    <td class="small">{{ $line->order?->vendor?->name ?? '—' }}</td>
+                    <td>
+                        <div class="small fw-semibold">{{ $line->product?->name ?? $line->description ?? '—' }}</div>
+                        @if($line->product?->sku)
+                            <div class="small text-secondary">{{ $line->product->sku }}</div>
+                        @endif
+                    </td>
+                    <td class="small">{{ $line->uom ?: ($line->product?->uom ?? '—') }}</td>
+                    <td class="text-end small">{{ fmt_num((float) $line->qty, 3) }}</td>
+                    <td class="text-end small">{{ $currency }} {{ fmt_num((float) $line->unit_price, 2) }}</td>
+                    <td class="text-end small fw-semibold">{{ $currency }} {{ fmt_num((float) $line->total, 2) }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="8" class="text-center py-4 text-secondary">No purchase line items found</td></tr>
+            @endforelse
+            </tbody>
+            @if($purchaseLines->isNotEmpty())
+            <tfoot class="table-light">
+            <tr>
+                <th colspan="7" class="text-end">Total</th>
+                <th class="text-end">{{ $currency }} {{ fmt_num($purchaseLines->sum('total'), 2) }}</th>
+            </tr>
+            </tfoot>
+            @endif
+        </table>
     </div>
 </div>
 

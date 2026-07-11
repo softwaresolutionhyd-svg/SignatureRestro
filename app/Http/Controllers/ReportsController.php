@@ -16,6 +16,7 @@ use App\Models\InventoryProduct;
 use App\Models\PosOrder;
 use App\Models\PosOrderItem;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderLine;
 use App\Models\PurchaseVendor;
 use App\Models\Setting;
 use App\Support\PosOrderMetrics;
@@ -387,7 +388,7 @@ class ReportsController extends Controller
         $status   = $request->input('status', '');
         $currency = Setting::get('currency_symbol', 'Rs.');
 
-        $query = PurchaseOrder::with(['vendor', 'creator'])
+        $query = PurchaseOrder::with(['vendor', 'creator', 'lines.product'])
             ->whereBetween('order_date', [$from, $to]);
 
         if ($vendor) $query->where('vendor_id', $vendor);
@@ -398,6 +399,36 @@ class ReportsController extends Controller
         $totalAmount = $orders->sum('grand_total');
         $totalTax    = $orders->sum('tax_total');
         $orderCount  = $orders->count();
+
+        $purchaseLines = PurchaseOrderLine::query()
+            ->whereIn('purchase_order_id', $orders->pluck('id'))
+            ->with([
+                'product:id,sku,name,uom',
+                'order:id,number,order_date,vendor_id,status',
+                'order.vendor:id,name',
+            ])
+            ->get()
+            ->sortByDesc(fn (PurchaseOrderLine $line) => $line->order?->order_date?->format('Y-m-d') . $line->order?->number);
+
+        $byProduct = $purchaseLines
+            ->groupBy(fn (PurchaseOrderLine $line) => $line->product_id ?: 'desc:' . $line->description)
+            ->map(function ($group) {
+                $first = $group->first();
+
+                return [
+                    'name'  => $first->product?->name ?? $first->description ?? 'Unknown',
+                    'sku'   => $first->product?->sku ?? '—',
+                    'uom'   => $first->uom ?: ($first->product?->uom ?? '—'),
+                    'qty'   => round((float) $group->sum('qty'), 3),
+                    'total' => round((float) $group->sum('total'), 2),
+                    'lines' => $group->count(),
+                ];
+            })
+            ->sortByDesc('total')
+            ->values();
+
+        $lineCount = $purchaseLines->count();
+        $productCount = $byProduct->count();
 
         // By vendor breakdown
         $byVendor = $orders->groupBy('vendor_id')->map(fn($group) => [
@@ -414,7 +445,8 @@ class ReportsController extends Controller
         return view('reports.purchases', compact(
             'orders', 'from', 'to', 'vendor', 'status', 'currency',
             'totalAmount', 'totalTax', 'orderCount',
-            'byVendor', 'vendors', 'chartLabels', 'chartData'
+            'byVendor', 'vendors', 'chartLabels', 'chartData',
+            'purchaseLines', 'byProduct', 'lineCount', 'productCount'
         ));
     }
 
