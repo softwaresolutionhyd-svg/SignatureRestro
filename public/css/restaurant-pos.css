@@ -156,6 +156,39 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     gap: 0.4rem;
 }
 
+.restaurant-pos-app .rp-topbar-center {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.restaurant-pos-app .rp-staff-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    max-width: 320px;
+    padding: 0.38rem 0.75rem;
+    border-radius: var(--rp-radius-pill);
+    background: rgba(232, 176, 74, 0.12);
+    border: 1px solid rgba(232, 176, 74, 0.28);
+    color: #faf6ef;
+    font-size: 0.74rem;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0;
+}
+
+.restaurant-pos-app .rp-staff-badge i {
+    color: var(--rp-gold-light);
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
 .restaurant-pos-app .rp-search {
     flex: 1;
     min-width: 160px;
@@ -733,7 +766,7 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     display: none !important;
 }
 
-.restaurant-pos-app.rp-view-cart .rp-search {
+.restaurant-pos-app.rp-view-cart .rp-topbar-center {
     display: none;
 }
 
@@ -1699,10 +1732,22 @@ body.admin-app-body:has(.restaurant-pos-app) .restaurant-pos-app .rp-checkout-fo
         margin-bottom: 0.15rem;
     }
 
-    .restaurant-pos-app .rp-search {
+    .restaurant-pos-app .rp-topbar-center {
         max-width: none;
         order: 2;
         width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .restaurant-pos-app .rp-search {
+        max-width: none;
+        width: 100%;
+    }
+
+    .restaurant-pos-app .rp-staff-badge {
+        max-width: none;
+        justify-content: center;
     }
 
     .restaurant-pos-app .rp-topbar-actions {

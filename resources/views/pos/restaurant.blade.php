@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=39">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=40">
 @endpush
 
 @section('content')
@@ -70,6 +70,14 @@
         'kitchen_pending' => (bool) $i->kitchen_pending,
     ])->values();
     $resumeStub = str_replace('999999999', '__ID__', route('restaurant-pos.resume', ['order' => 999999999]));
+
+    $posEmployee = auth()->user()?->employee;
+    if ($posEmployee) {
+        $posEmployee->loadMissing('designation:id,name');
+    }
+    $posStaffLabel = $posEmployee
+        ? trim($posEmployee->name.($posEmployee->designation?->name ? ' — '.$posEmployee->designation->name : ''))
+        : trim((string) (auth()->user()?->name ?? ''));
 @endphp
 
 <div class="restaurant-pos-app">
@@ -81,9 +89,17 @@
                 <span class="rp-brand-sub">{{ $session->business_date?->format('d M Y') ?? now()->format('d M Y') }}</span>
             </div>
         </div>
-        <div class="rp-search">
-            <i class="bi bi-search rp-search-icon" aria-hidden="true"></i>
-            <input type="search" id="rpProductSearch" class="form-control form-control-sm" placeholder="Search menu…" autocomplete="off">
+        <div class="rp-topbar-center">
+            <div class="rp-search">
+                <i class="bi bi-search rp-search-icon" aria-hidden="true"></i>
+                <input type="search" id="rpProductSearch" class="form-control form-control-sm" placeholder="Search menu…" autocomplete="off">
+            </div>
+            @if($posStaffLabel !== '')
+                <div class="rp-staff-badge" title="Logged in staff">
+                    <i class="bi bi-person-badge" aria-hidden="true"></i>
+                    <span>{{ $posStaffLabel }}</span>
+                </div>
+            @endif
         </div>
         <div class="rp-topbar-actions">
             @if($resumedOrder)
@@ -389,5 +405,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=39"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=40"></script>
 @endsection
