@@ -85,14 +85,14 @@
             <div class="table-responsive" style="max-height:340px; overflow-y:auto;">
                 <table class="table table-sm table-hover mb-0 align-middle">
                     <thead class="table-light sticky-top">
-                        <tr><th>SKU</th><th>Name</th><th>Category</th><th class="text-end">Qty</th><th class="text-end">Cost</th><th class="text-end">Price</th><th class="text-end">Unit profit</th><th class="text-end">Value</th></tr>
+                        <tr><th>SKU</th><th>Name</th><th>Unit</th><th class="text-end">Qty</th><th class="text-end">Cost</th><th class="text-end">Price</th></tr>
                     </thead>
                     <tbody>
                     @forelse($products as $p)
                     <tr class="{{ $p->qty_on_hand <= 0 ? 'table-danger' : ($p->qty_on_hand <= 10 ? 'table-warning' : '') }}">
                         <td class="small text-secondary">{{ $p->sku }}</td>
                         <td class="small fw-semibold">{{ $p->name }}</td>
-                        <td class="small">{{ optional($p->category)->name ?? '—' }}</td>
+                        <td class="small">{{ $p->uom ?: '—' }}</td>
                         <td class="text-end small">
                             {{ fmt_num($p->qty_on_hand,2) }}
                             @if($p->qty_on_hand <= 0)
@@ -103,12 +103,9 @@
                         </td>
                         <td class="text-end small">{{ $currency }} {{ fmt_num($p->cost,2) }}</td>
                         <td class="text-end small">{{ $currency }} {{ fmt_num($p->price,2) }}</td>
-                        @php $up = (float) $p->price - (float) $p->cost; @endphp
-                        <td class="text-end small fw-semibold {{ $up < 0 ? 'text-danger' : 'text-success' }}">{{ $currency }} {{ fmt_num($up, 2) }}</td>
-                        <td class="text-end small fw-semibold">{{ $currency }} {{ fmt_num($p->qty_on_hand * $p->cost,2) }}</td>
                     </tr>
                     @empty
-                    <tr><td colspan="8" class="text-center py-4 text-secondary">No products found</td></tr>
+                    <tr><td colspan="6" class="text-center py-4 text-secondary">No products found</td></tr>
                     @endforelse
                     </tbody>
                 </table>

@@ -60,46 +60,33 @@
             <th style="width:36px;">#</th>
             <th style="width:90px;">SKU</th>
             <th>Name</th>
-            <th style="width:100px;">Category</th>
+            <th style="width:100px;">Unit</th>
             <th class="num" style="width:70px;">Qty</th>
             <th class="num" style="width:80px;">Cost</th>
             <th class="num" style="width:80px;">Price</th>
-            <th class="num" style="width:80px;">Unit Profit</th>
-            <th class="num" style="width:90px;">Value</th>
         </tr>
         </thead>
         <tbody>
         @forelse($products as $i => $p)
             @php
                 $qty = (float) $p->qty_on_hand;
-                $up = (float) $p->price - (float) $p->cost;
                 $rowClass = $qty <= 0 ? 'out' : ($qty <= 10 ? 'low' : '');
             @endphp
             <tr class="{{ $rowClass }}">
                 <td>{{ $i + 1 }}</td>
                 <td>{{ $p->sku }}</td>
                 <td>{{ $p->name }}</td>
-                <td>{{ optional($p->category)->name ?? '—' }}</td>
+                <td>{{ $p->uom ?: '—' }}</td>
                 <td class="num">{{ fmt_num($qty, 2) }}</td>
                 <td class="num">{{ $currency }} {{ fmt_num($p->cost, 2) }}</td>
                 <td class="num">{{ $currency }} {{ fmt_num($p->price, 2) }}</td>
-                <td class="num">{{ $currency }} {{ fmt_num($up, 2) }}</td>
-                <td class="num">{{ $currency }} {{ fmt_num($qty * (float) $p->cost, 2) }}</td>
             </tr>
         @empty
             <tr>
-                <td colspan="9" style="text-align:center;padding:24px;">No products found.</td>
+                <td colspan="7" style="text-align:center;padding:24px;">No products found.</td>
             </tr>
         @endforelse
         </tbody>
-        @if($products->isNotEmpty())
-        <tfoot>
-        <tr>
-            <td colspan="8" class="num">Total Stock Value (Cost)</td>
-            <td class="num">{{ $currency }} {{ fmt_num($totalValue, 2) }}</td>
-        </tr>
-        </tfoot>
-        @endif
     </table>
 
     @if(request()->boolean('print'))
