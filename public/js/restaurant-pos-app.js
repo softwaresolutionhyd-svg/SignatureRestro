@@ -17,6 +17,7 @@
     const posTablesEnabled = boot.tablesEnabled !== undefined ? !!boot.tablesEnabled : !!settings.enable_tables;
     const posShowCustomerSection = settings.show_customer_section !== false;
     const canVoidKitchenItems = boot.canVoidKitchenItems === true;
+    const canReopenPaidBill = boot.canReopenPaidBill === true;
 
     let cart = [];
     let kitchenVoids = [];
@@ -760,7 +761,7 @@
                 <span class="rp-bills-head-count">${orders.length} bill${orders.length === 1 ? '' : 's'}</span>
                 ${isPending ? '<button type="button" class="btn btn-sm rp-punch-new-order" id="rpPunchNewOrder"><i class="bi bi-plus-lg me-1"></i>Punch New Order</button>' : ''}
             </div>
-            <span class="rp-bills-head-hint">${isPending ? 'Bill kholne ke liye card par click karein.' : 'Receipt ke liye card par click karein.'}</span>
+            <span class="rp-bills-head-hint">${isPending ? 'Bill kholne ke liye card par click karein.' : (canReopenPaidBill ? 'Receipt ya Reopen ke liye card par action use karein.' : 'Receipt ke liye card par click karein.')}</span>
         `;
 
         if (isPending) {
@@ -772,6 +773,34 @@
         resetForNewBill();
         showMenuPanel();
         setPanelView('split');
+    }
+
+    function reopenPaidBill(orderId, orderNo) {
+        const label = orderNo ? `Bill ${orderNo}` : 'Ye bill';
+        const msg = `${label} reopen karein?\n\nPayment reverse hogi aur bill dubara edit ke liye khul jayegi.`;
+        if (!confirm(msg)) {
+            return;
+        }
+
+        const url = (routes.reopen || '').replace('__ID__', String(orderId));
+        if (!url || !csrf) {
+            alert('Reopen route missing.');
+            return;
+        }
+
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = url;
+        form.style.display = 'none';
+
+        const token = document.createElement('input');
+        token.type = 'hidden';
+        token.name = '_token';
+        token.value = csrf;
+        form.appendChild(token);
+
+        document.body.appendChild(form);
+        form.submit();
     }
 
     function clearBillsMenuHead() {
@@ -874,13 +903,23 @@
         grid.innerHTML = paid.map((o) => {
             const receiptUrl = (routes.receipt || '').replace('__ID__', String(o.id));
             const paidAt = o.paid_at_full || o.paid_at || '';
-            return `<a class="rp-order-card rp-order-card-paid rp-order-card--grid" href="${escHtml(receiptUrl)}" target="_blank" rel="noopener">
+            const reopenBtn = canReopenPaidBill && routes.reopen
+                ? `<button type="button" class="btn btn-sm rp-oc-reopen" data-action="reopen-paid" data-order-id="${escHtml(String(o.id))}" data-order-no="${escHtml(o.order_no)}">
+                    <i class="bi bi-arrow-counterclockwise"></i> Reopen
+                </button>`
+                : '';
+            return `<div class="rp-order-card rp-order-card-paid rp-order-card--grid">
                 <div class="rp-oc-no">${escHtml(o.order_no)}</div>
                 <div class="rp-oc-meta">${escHtml(orderMetaLabel(o))} · ${escHtml(orderMetaDetail(o))}</div>
-                <div class="rp-oc-meta">${escHtml(fmtMoney(o.grand_total))} · ${o.payment_label || 'Paid'}</div>
+                <div class="rp-oc-meta">${escHtml(fmtMoney(o.grand_total))} · ${escHtml(o.payment_label || 'Paid')}</div>
                 ${paidAt ? `<div class="rp-oc-pay">${escHtml(paidAt)}</div>` : ''}
-                <div class="rp-oc-open">View receipt <i class="bi bi-box-arrow-up-right"></i></div>
-            </a>`;
+                <div class="rp-oc-actions">
+                    <a class="rp-oc-receipt" href="${escHtml(receiptUrl)}" target="_blank" rel="noopener">
+                        View receipt <i class="bi bi-box-arrow-up-right"></i>
+                    </a>
+                    ${reopenBtn}
+                </div>
+            </div>`;
         }).join('');
     }
 
@@ -1676,6 +1715,14 @@
             setMenuCategory(btn.dataset.catId || null);
         });
         $('#rpMenuGrid')?.addEventListener('click', (e) => {
+            const reopenBtn = e.target.closest('[data-action="reopen-paid"]');
+            if (reopenBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                reopenPaidBill(reopenBtn.dataset.orderId, reopenBtn.dataset.orderNo || '');
+                return;
+            }
+
             const btn = e.target.closest('button[data-action]');
             if (!btn) return;
             const id = Number(btn.dataset.id);

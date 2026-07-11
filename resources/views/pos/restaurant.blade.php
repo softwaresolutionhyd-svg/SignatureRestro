@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=42">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=43">
 @endpush
 
 @section('content')
@@ -373,6 +373,7 @@
     $receiptUnpaidStub = str_replace('999999999', '__ID__', route('restaurant-pos.receipt.unpaid', ['order' => 999999999]));
     $kitchenStub = str_replace('999999999', '__ID__', route('restaurant-pos.kitchen', ['order' => 999999999]));
     $discardStub = str_replace('999999999', '__ID__', route('restaurant-pos.hold.discard', ['orderId' => 999999999]));
+    $reopenStub = str_replace('999999999', '__ID__', route('restaurant-pos.reopen', ['order' => 999999999]));
     $restaurantBootstrap = [
         'csrf' => csrf_token(),
         'products' => $productJs,
@@ -388,6 +389,7 @@
         'tableBoard' => $tableBoard ?? [],
         'restaurantName' => config('app.name'),
         'canVoidKitchenItems' => auth()->user()?->bypassesModulePermissions() ?? false,
+        'canReopenPaidBill' => (bool) ($canReopenPaidBill ?? false),
         'routes' => [
             'checkout' => route('restaurant-pos.checkout'),
             'hold' => route('restaurant-pos.hold'),
@@ -397,11 +399,12 @@
             'receipt' => $receiptStub,
             'receiptUnpaid' => $receiptUnpaidStub,
             'kitchen' => $kitchenStub,
+            'reopen' => $reopenStub,
         ],
     ];
 @endphp
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=41"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=43"></script>
 @endsection

@@ -652,7 +652,46 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
 }
 
 .restaurant-pos-app .rp-order-card.rp-order-card-paid {
-    cursor: pointer;
+    cursor: default;
+}
+
+.restaurant-pos-app .rp-order-card .rp-oc-actions {
+    margin-top: auto;
+    padding-top: 0.35rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+}
+
+.restaurant-pos-app .rp-order-card .rp-oc-receipt {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #fcd98a;
+    text-decoration: none;
+}
+
+.restaurant-pos-app .rp-order-card .rp-oc-receipt:hover {
+    color: #fde68a;
+    text-decoration: underline;
+}
+
+.restaurant-pos-app .rp-order-card .rp-oc-reopen {
+    border: 1px solid rgba(252, 211, 77, 0.45);
+    background: rgba(252, 211, 77, 0.12);
+    color: #fcd98a;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    line-height: 1.2;
+}
+
+.restaurant-pos-app .rp-order-card .rp-oc-reopen:hover {
+    background: rgba(252, 211, 77, 0.22);
+    color: #fff7ed;
+    border-color: rgba(252, 211, 77, 0.65);
 }
 
 .restaurant-pos-app .rp-bills-head {

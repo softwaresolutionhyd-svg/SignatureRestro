@@ -13,6 +13,7 @@ use App\Models\InventoryCostLayer;
 use App\Models\InventoryMove;
 use App\Models\InventoryProduct;
 use App\Models\InventoryUnit;
+use App\Models\JournalEntry;
 use App\Models\ManufacturingBom;
 use App\Models\PosCashMovement;
 use App\Models\PosOrder;
@@ -217,6 +218,7 @@ class PosController extends Controller
         $sessionCashExpected = $this->sessionCashBreakdown($session);
         $sessionPosStats = $this->sessionPosStats($session);
         $checkedInRooms = $this->checkedInRoomsForPos();
+        $canReopenPaidBill = $this->userCanReopenPaidPosBill($user);
         $recentDailyClosings = PosSession::query()
             ->where('user_id', $user->id)
             ->where('status', 'closed')
@@ -233,7 +235,28 @@ class PosController extends Controller
                 'note',
             ]);
 
-        return compact('session', 'products', 'heldOrders', 'paidOrders', 'paidBillsDetail', 'pendingBillsDetail', 'resumedOrder', 'contacts', 'posSettings', 'sessionCashExpected', 'sessionPosStats', 'tables', 'tableBoard', 'checkedInRooms', 'waiters', 'recentDailyClosings');
+        return compact('session', 'products', 'heldOrders', 'paidOrders', 'paidBillsDetail', 'pendingBillsDetail', 'resumedOrder', 'contacts', 'posSettings', 'sessionCashExpected', 'sessionPosStats', 'tables', 'tableBoard', 'checkedInRooms', 'waiters', 'recentDailyClosings', 'canReopenPaidBill');
+    }
+
+    private function userCanReopenPaidPosBill(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->bypassesModulePermissions()) {
+            return true;
+        }
+
+        $employee = $user->employee;
+        if ($employee === null) {
+            return false;
+        }
+
+        $employee->loadMissing('designation:id,name');
+        $designation = mb_strtolower(trim((string) ($employee->designation?->name ?? '')), 'UTF-8');
+
+        return $designation !== '' && (str_contains($designation, 'manager') || str_contains($designation, 'owner'));
     }
 
     public function sync(Request $request): JsonResponse
@@ -780,9 +803,7 @@ class PosController extends Controller
                 ? round((float) $request->input('cash_change'), 2)
                 : null;
 
-            $order = PosOrder::create([
-                'order_no'           => DailyOrderNumber::next(),
-                'session_id'         => $session->id,
+            $orderPayload = [
                 'table_id'           => $tableId ?: null,
                 'user_id'            => Auth::id(),
                 'contact_id'         => $contactId,
@@ -809,17 +830,26 @@ class PosController extends Controller
                 'cash_tendered'      => $cashTendered,
                 'cash_change'        => $cashChange,
                 'paid_at'            => now(),
-            ]);
+            ];
+
+            $existingDraft = null;
+            if ($resumeOrderId) {
+                $existingDraft = PosOrder::query()
+                    ->where('id', $resumeOrderId)
+                    ->where('status', 'draft')
+                    ->where('session_id', $session->id)
+                    ->lockForUpdate()
+                    ->first();
+            }
 
             $kitchen = app(KitchenService::class);
-            $oldKitchenItems = [];
-            if ($resumeOrderId) {
+            $oldKitchenItems = $existingDraft ? $existingDraft->items()->get()->all() : [];
+            if ($oldKitchenItems === [] && $resumeOrderId) {
                 $draftForKitchen = PosOrder::query()
                     ->where('id', $resumeOrderId)
                     ->where('status', 'draft')
                     ->where('session_id', $session->id)
                     ->first();
-
                 if ($draftForKitchen) {
                     $oldKitchenItems = $draftForKitchen->items()->get()->all();
                 }
@@ -827,13 +857,26 @@ class PosController extends Controller
 
             $itemsWithKitchenFlags = $kitchen->applyKitchenPendingFlags($oldKitchenItems, $itemsData);
 
+            if ($existingDraft) {
+                $existingDraft->update($orderPayload);
+                $order = $existingDraft;
+                $order->items()->delete();
+            } else {
+                $order = PosOrder::create([
+                    'order_no'   => DailyOrderNumber::next(),
+                    'session_id' => $session->id,
+                ] + $orderPayload);
+            }
+
             foreach ($itemsWithKitchenFlags as $item) {
                 PosOrderItem::create(['order_id' => $order->id] + $item);
                 $this->applyInventoryForPos($order, $item);
             }
 
+            CreditLedger::query()->where('pos_order_id', $order->id)->delete();
+            $order->payments()->delete();
+
             if ($isCredit) {
-                // Create credit ledger entry — no cash payment recorded
                 $contact        = Contact::findOrFail($contactId);
                 $runningBalance = $contact->balance;
                 $balAfter       = round($runningBalance + (float) $grandTotal, 2);
@@ -861,8 +904,7 @@ class PosController extends Controller
                 }
             }
 
-            // If this checkout came from a resumed held bill, clear the original draft.
-            if ($resumeOrderId) {
+            if ($resumeOrderId && ! $existingDraft) {
                 PosOrder::query()
                     ->where('id', $resumeOrderId)
                     ->where('status', 'draft')
@@ -1212,6 +1254,55 @@ class PosController extends Controller
         }
 
         return redirect()->route($uiRoute, ['resume_order' => $order->id]);
+    }
+
+    public function reopenPaidBill(Request $request, PosOrder $order): RedirectResponse
+    {
+        abort_unless($this->userCanReopenPaidPosBill($request->user()), 403);
+        abort_unless($order->status === 'paid', 404);
+        abort_unless($order->type === 'sale', 403);
+
+        if (PosOrder::query()->where('refund_of_order_id', $order->id)->exists()) {
+            return back()->with('error', 'Is bill ki refund entry maujood hai — pehle refund hataen.');
+        }
+
+        $session = $this->ensureOpenSessionForUser(Auth::user());
+
+        try {
+            DB::connection('tenant')->transaction(function () use ($order, $session) {
+                $locked = PosOrder::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+                if ($locked->status !== 'paid') {
+                    throw new \RuntimeException('Bill pehle se reopen ho chuki hai.');
+                }
+
+                $this->reversePaidOrderInventory($locked);
+                CreditLedger::query()->where('pos_order_id', $locked->id)->delete();
+                $locked->payments()->delete();
+                $this->deletePosJournalEntries($locked);
+
+                $locked->update([
+                    'status' => 'draft',
+                    'paid_at' => null,
+                    'cash_tendered' => null,
+                    'cash_change' => null,
+                    'session_id' => $session->id,
+                    'user_id' => Auth::id(),
+                ]);
+
+                ActivityLogger::log(
+                    'pos.bill_reopened',
+                    'Paid POS bill reopened for editing',
+                    $locked->fresh(),
+                    ['order_no' => $locked->order_no]
+                );
+            });
+        } catch (\Throwable $e) {
+            return back()->with('error', $e->getMessage() ?: 'Bill reopen nahi ho saki.');
+        }
+
+        return redirect()
+            ->route('restaurant-pos.index', ['resume_order' => $order->id])
+            ->with('success', "Bill {$order->order_no} reopen ho gayi — ab edit kar ke dubara pay karein.");
     }
 
     /** Super admin: permanently delete a paid POS bill and reverse its stock impact. */
@@ -1793,28 +1884,48 @@ class PosController extends Controller
         }
 
         DB::connection('tenant')->transaction(function () use ($order) {
-            $order->load(['items.product']);
-
-            $reverseType = $order->type === 'sale' ? 'refund' : 'sale';
-            $order->type = $reverseType;
-
-            foreach ($order->items as $line) {
-                $this->applyInventoryForPos($order, [
-                    'product_id' => (int) $line->product_id,
-                    'uom' => (string) $line->uom,
-                    'qty' => (float) $line->qty,
-                ]);
-            }
+            $this->reversePaidOrderInventory($order);
 
             InventoryMove::query()
                 ->where('reference', $order->order_no)
                 ->delete();
 
             CreditLedger::query()->where('pos_order_id', $order->id)->delete();
+            $this->deletePosJournalEntries($order);
             $order->payments()->delete();
             $order->items()->delete();
             $order->delete();
         });
+    }
+
+    private function reversePaidOrderInventory(PosOrder $order): void
+    {
+        if ($order->type !== 'sale') {
+            return;
+        }
+
+        $order->loadMissing('items');
+        $refundOrder = $order->replicate();
+        $refundOrder->type = 'refund';
+
+        foreach ($order->items as $line) {
+            $this->applyInventoryForPos($refundOrder, [
+                'product_id' => (int) $line->product_id,
+                'uom' => (string) $line->uom,
+                'qty' => (float) $line->qty,
+            ]);
+        }
+    }
+
+    private function deletePosJournalEntries(PosOrder $order): void
+    {
+        JournalEntry::query()
+            ->where('source', 'pos')
+            ->where('source_id', $order->id)
+            ->each(function (JournalEntry $entry) {
+                $entry->lines()->delete();
+                $entry->delete();
+            });
     }
 
     private function applyInventoryForPos(PosOrder $order, array $item): void
