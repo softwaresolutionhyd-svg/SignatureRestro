@@ -34,7 +34,7 @@
             .noprint { display: none !important; }
             tr.out td { background: #fee2e2 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             tr.low td { background: #fef9c3 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            @page { size: A4 landscape; margin: 10mm; }
+            @page { size: A4 portrait; margin: 12mm; }
         }
     </style>
 </head>
