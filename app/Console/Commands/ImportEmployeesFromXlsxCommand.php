@@ -13,6 +13,7 @@ class ImportEmployeesFromXlsxCommand extends Command
     protected $signature = 'employees:import-xlsx
         {path : Path to STAFF DETAILS .xlsx (Name, Designation, Salary, Join date)}
         {--company= : company_id (default: from existing employees or 2)}
+        {--sync : Update designations for existing employees and add missing rows}
         {--dry-run : Preview only, no database writes}';
 
     protected $description = 'Import employees and designations from Excel — auto employee_no';
@@ -36,9 +37,17 @@ class ImportEmployeesFromXlsxCommand extends Command
 
         $companyId = $this->resolveCompanyId();
         $dryRun = (bool) $this->option('dry-run');
+        $sync = (bool) $this->option('sync');
         $created = 0;
+        $updated = 0;
         $skipped = 0;
         $designationsAdded = 0;
+
+        $employeesByName = Employee::query()
+            ->where('company_id', $companyId)
+            ->with('designation:id,name')
+            ->get()
+            ->groupBy(fn (Employee $e) => mb_strtolower(trim($e->name), 'UTF-8'));
 
         $existingKeys = Employee::query()
             ->where('company_id', $companyId)
@@ -54,7 +63,7 @@ class ImportEmployeesFromXlsxCommand extends Command
         $designationCache = EmployeeDesignation::query()
             ->where('company_id', $companyId)
             ->get(['id', 'name'])
-            ->mapWithKeys(fn (EmployeeDesignation $d) => [mb_strtolower(trim($d->name), 'UTF-8') => $d->id])
+            ->mapWithKeys(fn (EmployeeDesignation $d) => [trim($d->name) => $d->id])
             ->all();
 
         $nextNo = $this->resolveStartingEmployeeNo($companyId);
@@ -63,39 +72,61 @@ class ImportEmployeesFromXlsxCommand extends Command
             $parsed,
             $companyId,
             $dryRun,
+            $sync,
             &$created,
+            &$updated,
             &$skipped,
             &$designationsAdded,
             &$existingKeys,
             &$designationCache,
+            &$employeesByName,
             &$nextNo
         ) {
             $importedKeys = [];
 
             foreach ($parsed as $row) {
                 $key = $this->employeeImportKey($row['name'], $row['designation'], $row['salary']);
+                $designationId = $this->resolveDesignationId(
+                    $row['designation'],
+                    $companyId,
+                    $dryRun,
+                    $designationCache,
+                    $designationsAdded
+                );
+
+                if ($sync) {
+                    $employee = $this->findEmployeeForRow($employeesByName, $row);
+                    if ($employee !== null) {
+                        $needsUpdate = (int) $employee->designation_id !== (int) $designationId
+                            || (float) $employee->salary !== (float) $row['salary']
+                            || ($row['join_date'] && (string) $employee->join_date?->format('Y-m-d') !== $row['join_date']);
+
+                        if ($needsUpdate) {
+                            if ($dryRun) {
+                                $this->line("[UPDATE] {$row['name']} → {$row['designation']}");
+                            } else {
+                                $employee->update([
+                                    'designation_id' => $designationId,
+                                    'salary' => $row['salary'],
+                                    'join_date' => $row['join_date'] ?? $employee->join_date,
+                                ]);
+                            }
+                            $updated++;
+                        } else {
+                            $skipped++;
+                        }
+
+                        $importedKeys[$key] = true;
+
+                        continue;
+                    }
+                }
+
                 if (isset($existingKeys[$key]) || isset($importedKeys[$key])) {
                     $this->line("[SKIP] {$row['name']} ({$row['designation']})");
                     $skipped++;
 
                     continue;
-                }
-
-                $desigKey = mb_strtolower($row['designation'], 'UTF-8');
-                if (! isset($designationCache[$desigKey])) {
-                    if ($dryRun) {
-                        $this->line("[DESIG] {$row['designation']}");
-                        $designationCache[$desigKey] = 0;
-                        $designationsAdded++;
-                    } else {
-                        $desig = EmployeeDesignation::query()->create([
-                            'company_id' => $companyId,
-                            'name' => $row['designation'],
-                            'active' => true,
-                        ]);
-                        $designationCache[$desigKey] = $desig->id;
-                        $designationsAdded++;
-                    }
                 }
 
                 $employeeNo = sprintf('EMP-%05d', $nextNo++);
@@ -107,16 +138,20 @@ class ImportEmployeesFromXlsxCommand extends Command
                     continue;
                 }
 
-                Employee::query()->create([
+                $employee = Employee::query()->create([
                     'company_id' => $companyId,
                     'employee_no' => $employeeNo,
                     'name' => $row['name'],
-                    'designation_id' => $designationCache[$desigKey] ?: null,
+                    'designation_id' => $designationId,
                     'join_date' => $row['join_date'],
                     'salary' => $row['salary'],
                     'active' => true,
                 ]);
 
+                $employeesByName->put(
+                    mb_strtolower(trim($row['name']), 'UTF-8'),
+                    collect([$employee])
+                );
                 $importedKeys[$key] = true;
                 $created++;
             }
@@ -130,7 +165,7 @@ class ImportEmployeesFromXlsxCommand extends Command
 
         $this->info(
             ($dryRun ? 'Dry run — ' : '')
-            ."Done. Employees created: {$created}, skipped: {$skipped}, designations added: {$designationsAdded}."
+            ."Done. Created: {$created}, updated: {$updated}, skipped: {$skipped}, designations added: {$designationsAdded}."
         );
 
         return self::SUCCESS;
@@ -162,12 +197,25 @@ class ImportEmployeesFromXlsxCommand extends Command
                 continue;
             }
 
-            if (! is_numeric($c0) || $c2 === '' || $c3 === '') {
+            $name = '';
+            $designation = '';
+            $salary = 0.0;
+            $joinRaw = '';
+
+            if (is_numeric($c0) && $c2 !== '' && $c3 !== '') {
+                $name = trim(preg_replace('/\s+/', ' ', $c2));
+                $designation = trim(preg_replace('/\s+/', ' ', $c3));
+                $salary = is_numeric($c1) ? (float) $c1 : 0;
+                $joinRaw = $c4;
+            } elseif ($c0 === '' && $c2 !== '' && $c3 !== '') {
+                $name = trim(preg_replace('/\s+/', ' ', $c2));
+                $designation = trim(preg_replace('/\s+/', ' ', $c3));
+                $salary = is_numeric($c1) ? (float) $c1 : 0;
+                $joinRaw = $c4;
+            } else {
                 continue;
             }
 
-            $name = trim(preg_replace('/\s+/', ' ', $c2));
-            $designation = trim(preg_replace('/\s+/', ' ', $c3));
             if ($name === '' || $designation === '') {
                 continue;
             }
@@ -175,13 +223,87 @@ class ImportEmployeesFromXlsxCommand extends Command
             $employees[] = [
                 'name' => $name,
                 'designation' => $designation,
-                'salary' => is_numeric($c1) ? (float) $c1 : 0,
-                'join_date' => $this->parseJoinDate($c4),
+                'salary' => $salary,
+                'join_date' => $this->parseJoinDate($joinRaw),
                 'section' => $section,
             ];
         }
 
         return $employees;
+    }
+
+    /**
+     * @param  array<string, \Illuminate\Support\Collection<int, Employee>>  $employeesByName
+     * @param  array{name:string,designation:string,salary:float,join_date:?string,section:string}  $row
+     */
+    private function findEmployeeForRow($employeesByName, array $row): ?Employee
+    {
+        $nameKey = mb_strtolower(trim($row['name']), 'UTF-8');
+        $matches = $employeesByName->get($nameKey);
+        if ($matches === null || $matches->isEmpty()) {
+            return null;
+        }
+
+        if ($matches->count() === 1) {
+            return $matches->first();
+        }
+
+        $salary = number_format($row['salary'], 2, '.', '');
+
+        return $matches->first(fn (Employee $e) => number_format((float) $e->salary, 2, '.', '') === $salary)
+            ?? $matches->first();
+    }
+
+    /**
+     * @param  array<string, int>  $designationCache
+     */
+    private function resolveDesignationId(
+        string $designation,
+        int $companyId,
+        bool $dryRun,
+        array &$designationCache,
+        int &$designationsAdded
+    ): ?int {
+        $designation = trim($designation);
+        if ($designation === '') {
+            return null;
+        }
+
+        if (isset($designationCache[$designation])) {
+            return $designationCache[$designation];
+        }
+
+        $existing = EmployeeDesignation::query()
+            ->where('company_id', $companyId)
+            ->whereRaw('LOWER(TRIM(name)) = ?', [mb_strtolower($designation, 'UTF-8')])
+            ->first();
+
+        if ($existing !== null) {
+            if ($existing->name !== $designation && ! $dryRun) {
+                $existing->update(['name' => $designation]);
+            }
+            $designationCache[$designation] = $existing->id;
+
+            return $existing->id;
+        }
+
+        if ($dryRun) {
+            $this->line("[DESIG] {$designation}");
+            $designationCache[$designation] = 0;
+            $designationsAdded++;
+
+            return 0;
+        }
+
+        $desig = EmployeeDesignation::query()->create([
+            'company_id' => $companyId,
+            'name' => $designation,
+            'active' => true,
+        ]);
+        $designationCache[$designation] = $desig->id;
+        $designationsAdded++;
+
+        return $desig->id;
     }
 
     private function parseJoinDate(string $raw): ?string
