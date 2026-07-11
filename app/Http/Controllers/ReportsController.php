@@ -344,6 +344,12 @@ class ReportsController extends Controller
         // KPIs
         $totalRevenue  = $orders->sum('grand_total');
         $totalDiscount = $orders->sum('discount_total');
+        $ownerDiscountTotal = Schema::hasColumn('pos_orders', 'is_owner_discount')
+            ? round((float) $orders->where('is_owner_discount', true)->sum('discount_total'), 2)
+            : 0.0;
+        $ownerDiscountCount = Schema::hasColumn('pos_orders', 'is_owner_discount')
+            ? $orders->where('is_owner_discount', true)->count()
+            : 0;
         $totalTax      = $orders->sum('tax_total');
         $totalGrossProfit = round((float) $orders->sum('gross_profit'), 2);
         $orderCount    = $orders->count();
@@ -373,6 +379,7 @@ class ReportsController extends Controller
         return view('reports.sales', compact(
             'orders', 'from', 'to', 'currency',
             'totalRevenue', 'totalDiscount', 'totalTax', 'totalGrossProfit', 'orderCount', 'avgOrder',
+            'ownerDiscountTotal', 'ownerDiscountCount',
             'topProducts', 'chartLabels', 'chartData'
         ));
     }

@@ -1424,6 +1424,20 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     background: rgba(255, 255, 255, 0.04);
 }
 
+.restaurant-pos-app .rp-actions .btn-outline-info {
+    border-color: rgba(56, 189, 248, 0.45);
+    color: #bae6fd;
+    background: rgba(14, 165, 233, 0.1);
+    grid-column: 1 / -1;
+}
+
+.restaurant-pos-app .rp-actions .btn-outline-info:hover,
+.restaurant-pos-app .rp-actions .btn-outline-info.is-active {
+    background: rgba(14, 165, 233, 0.22);
+    border-color: #38bdf8;
+    color: #e0f2fe;
+}
+
 .restaurant-pos-app .rp-actions .btn-outline-light:hover {
     border-color: rgba(255, 255, 255, 0.35);
     color: var(--rp-text);

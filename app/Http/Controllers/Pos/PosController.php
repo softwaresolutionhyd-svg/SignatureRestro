@@ -211,6 +211,7 @@ class PosController extends Controller
                     3
                 );
             }
+            $posSettings['resume_is_owner_discount'] = (bool) ($resumedOrder->is_owner_discount ?? false);
         }
 
         $sessionCashExpected = $this->sessionCashBreakdown($session);
@@ -756,6 +757,7 @@ class PosController extends Controller
             $billTax = $pricing['tax_mode'] === 'bill'
                 ? round((float) $request->input('bill_tax_percent', $pricing['default_tax_rate']), 3)
                 : 0.0;
+            $ownerDiscount = $this->isOwnerDiscountRequest($request, $pricing['allow_discount'], $saleMode);
             $billDiscount = $this->resolveBillDiscountPercent($request, $pricing['allow_discount'], $saleMode);
             [$subtotal, $discountTotal, $taxTotal, $grandTotal, $itemsData] = $this->buildLines($itemsNormalized, [
                 'tax_mode' => $pricing['tax_mode'],
@@ -802,6 +804,7 @@ class PosController extends Controller
                 'tax_total'          => $taxTotal,
                 'bill_tax_percent'   => $pricing['tax_mode'] === 'bill' ? $billTax : null,
                 'bill_discount_percent' => $pricing['allow_discount'] ? $billDiscount : null,
+                'is_owner_discount'  => $ownerDiscount,
                 'grand_total'        => $grandTotal,
                 'cash_tendered'      => $cashTendered,
                 'cash_change'        => $cashChange,
@@ -1051,6 +1054,7 @@ class PosController extends Controller
             $billTax = $pricing['tax_mode'] === 'bill'
                 ? round((float) $request->input('bill_tax_percent', $pricing['default_tax_rate']), 3)
                 : 0.0;
+            $ownerDiscount = $this->isOwnerDiscountRequest($request, $pricing['allow_discount'], $saleMode);
             $billDiscount = $this->resolveBillDiscountPercent($request, $pricing['allow_discount'], $saleMode);
             [$subtotal, $discountTotal, $taxTotal, $grandTotal, $itemsData] = $this->buildLines($itemsNormalized, [
                 'tax_mode' => $pricing['tax_mode'],
@@ -1090,6 +1094,7 @@ class PosController extends Controller
                 'tax_total' => $taxTotal,
                 'bill_tax_percent' => $pricing['tax_mode'] === 'bill' ? $billTax : null,
                 'bill_discount_percent' => $pricing['allow_discount'] ? $billDiscount : null,
+                'is_owner_discount' => $ownerDiscount,
                 'grand_total' => $grandTotal,
             ];
 
@@ -1759,10 +1764,23 @@ class PosController extends Controller
         return [$subtotal, $discountTotal, $taxTotal, $grandTotal, $lines];
     }
 
+    private function isOwnerDiscountRequest(PosCheckoutRequest $request, bool $allowDiscount, string $saleMode): bool
+    {
+        if (! $allowDiscount || $saleMode === 'staff') {
+            return false;
+        }
+
+        return $request->boolean('is_owner_discount');
+    }
+
     private function resolveBillDiscountPercent(PosCheckoutRequest $request, bool $allowDiscount, string $saleMode): float
     {
         if (! $allowDiscount || $saleMode === 'staff') {
             return 0.0;
+        }
+
+        if ($this->isOwnerDiscountRequest($request, $allowDiscount, $saleMode)) {
+            return 100.0;
         }
 
         return max(0.0, min(100.0, round((float) $request->input('bill_discount_percent', 0), 3)));
@@ -2048,6 +2066,11 @@ class PosController extends Controller
             if (! Schema::hasColumn('pos_orders', 'bill_discount_percent')) {
                 Schema::table('pos_orders', function (Blueprint $table) {
                     $table->decimal('bill_discount_percent', 8, 3)->nullable()->after('bill_tax_percent');
+                });
+            }
+            if (! Schema::hasColumn('pos_orders', 'is_owner_discount')) {
+                Schema::table('pos_orders', function (Blueprint $table) {
+                    $table->boolean('is_owner_discount')->default(false)->after('bill_discount_percent');
                 });
             }
             if (! Schema::hasColumn('pos_orders', 'table_id') && Schema::hasTable('pos_tables')) {

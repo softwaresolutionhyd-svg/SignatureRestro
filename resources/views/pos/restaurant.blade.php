@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=38">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=39">
 @endpush
 
 @section('content')
@@ -256,6 +256,11 @@
                 <button type="button" class="btn btn-sm btn-rp-whatsapp d-none" id="rpWhatsappBtn" title="Customer ko WhatsApp par order confirm karein">
                     <i class="bi bi-whatsapp"></i> WhatsApp
                 </button>
+                @if($posSettings['show_discount'] ?? true)
+                    <button type="button" class="btn btn-outline-info btn-sm" id="rpOwnerDiscountBtn" title="Owner ko 100% discount de kar bill close karein">
+                        <i class="bi bi-gift"></i> Owner 100% Discount
+                    </button>
+                @endif
                 <button type="button" class="btn btn-sm btn-rp-primary" id="rpPayBtn">
                     <i class="bi bi-credit-card"></i> Pay Now
                 </button>
@@ -341,6 +346,7 @@
     <input type="hidden" name="payments" value="">
     <input type="hidden" name="bill_tax_percent" value="0">
     <input type="hidden" name="bill_discount_percent" value="0">
+    <input type="hidden" name="is_owner_discount" value="0">
     <input type="hidden" name="cash_tendered" value="">
     <input type="hidden" name="cash_change" value="">
     <input type="hidden" name="kitchen_voids" value="">
@@ -383,5 +389,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=38"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=39"></script>
 @endsection

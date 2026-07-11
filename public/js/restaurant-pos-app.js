@@ -316,7 +316,49 @@
     }
 
     function getBillDiscountPercent() {
+        if (ownerDiscountActive) return 100;
         return posShowDiscount ? Number($('#rpBillDiscount')?.value || 0) : 0;
+    }
+
+    function updateOwnerDiscountButton() {
+        $('#rpOwnerDiscountBtn')?.classList.toggle('is-active', ownerDiscountActive);
+    }
+
+    function clearOwnerDiscount(reRender = true) {
+        ownerDiscountActive = false;
+        const discInput = $('#rpBillDiscount');
+        if (discInput) {
+            discInput.readOnly = false;
+        }
+        updateOwnerDiscountButton();
+        if (reRender) {
+            renderTotals();
+        }
+    }
+
+    function applyOwnerDiscount() {
+        if (!cart.length) {
+            alert('Pehle item add karein.');
+            return;
+        }
+        if (isCreditMode) {
+            alert('Credit bill par Owner 100% Discount use nahi ho sakta.');
+            return;
+        }
+        if (!posShowDiscount) {
+            alert('Discount option disabled hai.');
+            return;
+        }
+
+        ownerDiscountActive = true;
+        const discInput = $('#rpBillDiscount');
+        if (discInput) {
+            discInput.value = '100';
+            discInput.readOnly = true;
+        }
+        renderTotals();
+        updateOwnerDiscountButton();
+        openPayModal();
     }
 
     function calcCartTotals() {
@@ -656,6 +698,7 @@
 
     let orderListMode = null;
     let panelView = 'split';
+    let ownerDiscountActive = false;
 
     function setPanelView(view) {
         const app = document.querySelector('.restaurant-pos-app');
@@ -959,6 +1002,7 @@
         );
         form.querySelector('[name="bill_tax_percent"]').value = '0';
         form.querySelector('[name="bill_discount_percent"]').value = posShowDiscount ? String(getBillDiscountPercent()) : '0';
+        form.querySelector('[name="is_owner_discount"]').value = ownerDiscountActive ? '1' : '0';
         form.querySelector('[name="resume_order_id"]').value = resumeOrderId ? String(resumeOrderId) : '';
         const kitchenVoidsInput = form.querySelector('[name="kitchen_voids"]');
         if (kitchenVoidsInput) {
@@ -1064,7 +1108,7 @@
         const grand = calcCartTotals().grand;
         const input = $('#rpCashTendered');
         if (input) {
-            input.value = '';
+            input.value = grand <= 0 ? '0' : '';
         }
         updatePayModalAmounts();
 
@@ -1145,6 +1189,7 @@
         $('#rpSelectedContactWrap')?.classList.add('d-none');
         if ($('#rpContactSearch')) $('#rpContactSearch').value = '';
         setCreditMode(false);
+        clearOwnerDiscount(false);
 
         document.querySelector('.rp-badge-order')?.remove();
 
@@ -1676,6 +1721,7 @@
                 }
             }
         });
+        $('#rpOwnerDiscountBtn')?.addEventListener('click', applyOwnerDiscount);
         $('#rpTabPending')?.addEventListener('click', () => setOrderListMode('pending'));
         $('#rpTabPaid')?.addEventListener('click', () => setOrderListMode('paid'));
         $('#rpTabMenu')?.addEventListener('click', () => {
@@ -1684,7 +1730,15 @@
         });
         $('#rpTabCart')?.addEventListener('click', () => togglePanelView('cart'));
         $('#rpToggleCartView')?.addEventListener('click', () => togglePanelView('cart'));
-        $('#rpBillDiscount')?.addEventListener('input', renderTotals);
+        $('#rpBillDiscount')?.addEventListener('input', () => {
+            if (ownerDiscountActive) {
+                const raw = Number($('#rpBillDiscount')?.value || 0);
+                if (raw !== 100) {
+                    clearOwnerDiscount(false);
+                }
+            }
+            renderTotals();
+        });
 
         $('#rpCreditToggle')?.addEventListener('change', (e) => setCreditMode(e.target.checked));
 
@@ -1778,9 +1832,18 @@
         }
         restoreResumeContact();
         loadResumeItems();
+        if (settings.resume_is_owner_discount) {
+            ownerDiscountActive = true;
+            const discInput = $('#rpBillDiscount');
+            if (discInput) {
+                discInput.value = '100';
+                discInput.readOnly = true;
+            }
+        }
         bindEvents();
         applyTableBoard(boot.tableBoard || []);
         updateOrderTabCounts();
+        updateOwnerDiscountButton();
         renderAll();
         payments = [{ method: 'cash', amount: 0 }];
         setInterval(pollSync, 20000);

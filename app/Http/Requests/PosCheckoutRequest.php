@@ -129,6 +129,7 @@ class PosCheckoutRequest extends FormRequest
                 'items.*.line_total' => ['nullable', 'numeric', 'min:0'],
                 'bill_tax_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
                 'bill_discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+                'is_owner_discount' => ['nullable', 'boolean'],
                 'client_grand_total' => ['nullable', 'numeric', 'min:0'],
                 'client_subtotal' => ['nullable', 'numeric', 'min:0'],
                 'client_discount_total' => ['nullable', 'numeric', 'min:0'],

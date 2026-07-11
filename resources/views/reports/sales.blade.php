@@ -44,6 +44,7 @@
         ['Avg Order', $currency.' '.fmt_num($avgOrder,2), 'bi-graph-up', '#0ea5e9', ''],
         ['Tax Collected', $currency.' '.fmt_num($totalTax,2), 'bi-percent', '#f97316', ''],
         ['Discounts Given', $currency.' '.fmt_num($totalDiscount,2), 'bi-tag', '#ec4899', ''],
+        ['Owner 100% Discount', $currency.' '.fmt_num($ownerDiscountTotal ?? 0, 2).' · '.($ownerDiscountCount ?? 0).' bills', 'bi-gift', '#a855f7', ''],
     ] as [$label,$val,$icon,$color])
     <div class="col-6 col-md">
         <div class="card shadow-sm border-0 h-100">
@@ -134,7 +135,12 @@
                 <td class="text-end small">{{ $currency }} {{ fmt_num($order->subtotal,2) }}</td>
                 <td class="text-end small">{{ $currency }} {{ fmt_num($order->service_total ?? 0,2) }}</td>
                 <td class="text-end small">{{ fmt_num($order->discount_percent_effective ?? 0,2) }}%</td>
-                <td class="text-end small text-danger">{{ $currency }} {{ fmt_num($order->discount_total,2) }}</td>
+                <td class="text-end small text-danger">
+                    {{ $currency }} {{ fmt_num($order->discount_total,2) }}
+                    @if(!empty($order->is_owner_discount))
+                        <span class="badge text-bg-warning text-dark ms-1" style="font-size:0.62rem;">Owner 100%</span>
+                    @endif
+                </td>
                 <td class="text-end small fw-bold">{{ $currency }} {{ fmt_num($order->grand_total,2) }}</td>
             </tr>
             @empty
