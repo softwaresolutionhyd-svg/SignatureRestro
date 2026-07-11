@@ -102,49 +102,6 @@
         @endif
     </table>
 
-    <h2>Purchase Details — Product wise</h2>
-    <table>
-        <thead>
-        <tr>
-            <th>PO #</th>
-            <th>Date</th>
-            <th>Vendor</th>
-            <th>Product</th>
-            <th>UOM</th>
-            <th class="num">Qty</th>
-            <th class="num">Unit Price</th>
-            <th class="num">Amount</th>
-        </tr>
-        </thead>
-        <tbody>
-        @forelse($purchaseLines as $line)
-            <tr>
-                <td>{{ $line->order?->number ?? '—' }}</td>
-                <td>{{ optional($line->order?->order_date)->format('d M Y') }}</td>
-                <td>{{ $line->order?->vendor?->name ?? '—' }}</td>
-                <td>
-                    <strong>{{ $line->product?->name ?? $line->description ?? '—' }}</strong>
-                    @if($line->product?->sku)<br><span style="color:#555;">{{ $line->product->sku }}</span>@endif
-                </td>
-                <td>{{ $line->uom ?: ($line->product?->uom ?? '—') }}</td>
-                <td class="num">{{ fmt_num((float) $line->qty, 3) }}</td>
-                <td class="num">{{ $currency }} {{ fmt_num((float) $line->unit_price, 2) }}</td>
-                <td class="num">{{ $currency }} {{ fmt_num((float) $line->total, 2) }}</td>
-            </tr>
-        @empty
-            <tr><td colspan="8" style="text-align:center;padding:24px;">No line items</td></tr>
-        @endforelse
-        </tbody>
-        @if($purchaseLines->isNotEmpty())
-        <tfoot>
-        <tr>
-            <th colspan="7" class="num">Total</th>
-            <th class="num">{{ $currency }} {{ fmt_num($purchaseLines->sum('total'), 2) }}</th>
-        </tr>
-        </tfoot>
-        @endif
-    </table>
-
     @if(request()->boolean('print'))
     <script>window.addEventListener('load', () => window.print());</script>
     @endif
