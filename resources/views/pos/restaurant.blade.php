@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=43">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=44">
 @endpush
 
 @section('content')
@@ -175,7 +175,7 @@
                     </div>
                 </div>
 
-                @if($posSettings['show_customer_section'] ?? true)
+                @if(($canPosDiscountCredit ?? false) && ($posSettings['show_customer_section'] ?? true))
                     <div class="rp-credit-inline" id="rpCreditBlock">
                         <div class="form-check form-switch mb-0">
                             <input class="form-check-input" type="checkbox" id="rpCreditToggle"
@@ -229,7 +229,7 @@
                 <div class="rp-bill-summary-head">Bill Summary</div>
                 <div class="rp-total-row"><span>Items</span><span id="rpSumItems">0</span></div>
                 <div class="rp-total-row"><span>Subtotal</span><span id="rpSumSubtotal">0.00</span></div>
-                @if($posSettings['show_discount'] ?? true)
+                @if(($canPosDiscountCredit ?? false) && ($posSettings['show_discount'] ?? true))
                     <div class="rp-total-row rp-total-row-adjust" id="rpDiscountRow">
                         <div class="rp-discount-controls">
                             <span class="rp-adjust-label">
@@ -249,6 +249,7 @@
                 <div class="rp-total-row grand"><span>Total</span><span id="rpSumGrand">0.00</span></div>
             </div>
 
+            @if($canPosPay ?? false)
             <div id="rpPaymentsBlock" class="rp-pay-method">
                 <label class="form-label small mb-0">Payment</label>
                 <select id="rpPayMethod" class="form-select form-select-sm">
@@ -257,6 +258,7 @@
                     <option value="bank">Bank</option>
                 </select>
             </div>
+            @endif
 
             <div class="rp-actions">
                 @if($posSettings['show_hold_button'] ?? true)
@@ -275,9 +277,11 @@
                 <button type="button" class="btn btn-sm btn-rp-whatsapp d-none" id="rpWhatsappBtn" title="Customer ko WhatsApp par order confirm karein">
                     <i class="bi bi-whatsapp"></i> WhatsApp
                 </button>
+                @if(($canPosPay ?? false) || ($canPosDiscountCredit ?? false))
                 <button type="button" class="btn btn-sm btn-rp-primary" id="rpPayBtn">
                     <i class="bi bi-credit-card"></i> Pay Now
                 </button>
+                @endif
             </div>
         </div>
     </div>
@@ -390,6 +394,8 @@
         'restaurantName' => config('app.name'),
         'canVoidKitchenItems' => auth()->user()?->bypassesModulePermissions() ?? false,
         'canReopenPaidBill' => (bool) ($canReopenPaidBill ?? false),
+        'canPosPay' => (bool) ($canPosPay ?? false),
+        'canPosDiscountCredit' => (bool) ($canPosDiscountCredit ?? false),
         'routes' => [
             'checkout' => route('restaurant-pos.checkout'),
             'hold' => route('restaurant-pos.hold'),
@@ -406,5 +412,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=43"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=44"></script>
 @endsection

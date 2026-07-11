@@ -13,7 +13,11 @@
     };
     const posTaxMode = settings.tax_mode || 'line';
     const posDefaultLineTax = Number(settings.default_tax_rate || 0);
-    const posShowDiscount = settings.show_discount !== false;
+    const canPosPay = boot.canPosPay === true;
+    const canPosDiscountCredit = boot.canPosDiscountCredit === true;
+    const posShowDiscount = canPosDiscountCredit && settings.show_discount !== false;
+    const resumeBillDiscount = Number(settings.resume_bill_discount_percent || 0);
+    const resumeOwnerDiscount = settings.resume_is_owner_discount === true;
     const posTablesEnabled = boot.tablesEnabled !== undefined ? !!boot.tablesEnabled : !!settings.enable_tables;
     const posShowCustomerSection = settings.show_customer_section !== false;
     const canVoidKitchenItems = boot.canVoidKitchenItems === true;
@@ -243,15 +247,42 @@
     }
 
     function setCreditMode(on) {
+        if (on && !canPosDiscountCredit) {
+            isCreditMode = false;
+            updateCheckoutActions();
+            return;
+        }
         isCreditMode = !!on;
         const toggle = $('#rpCreditToggle');
         if (toggle) toggle.checked = isCreditMode;
-        $('#rpPaymentsBlock')?.classList.toggle('d-none', isCreditMode);
-        $('#rpPayBtn')?.classList.toggle('btn-rp-primary', !isCreditMode);
-        $('#rpPayBtn')?.classList.toggle('btn-danger', isCreditMode);
-        if ($('#rpPayBtn')) {
-            $('#rpPayBtn').textContent = isCreditMode ? 'Record Credit' : 'Pay Now';
+        updateCheckoutActions();
+    }
+
+    function updateCheckoutActions() {
+        const payBtn = $('#rpPayBtn');
+        const paymentsBlock = $('#rpPaymentsBlock');
+
+        if (paymentsBlock) {
+            paymentsBlock.classList.toggle('d-none', isCreditMode || !canPosPay);
         }
+
+        if (!payBtn) return;
+
+        if (canPosPay && !isCreditMode) {
+            payBtn.classList.remove('d-none', 'btn-danger');
+            payBtn.classList.add('btn-rp-primary');
+            payBtn.innerHTML = '<i class="bi bi-credit-card"></i> Pay Now';
+            return;
+        }
+
+        if (canPosDiscountCredit && isCreditMode) {
+            payBtn.classList.remove('d-none', 'btn-rp-primary');
+            payBtn.classList.add('btn-danger');
+            payBtn.innerHTML = '<i class="bi bi-journal-text"></i> Record Credit';
+            return;
+        }
+
+        payBtn.classList.add('d-none');
     }
 
     function filterContacts(q) {
@@ -318,7 +349,9 @@
 
     function getBillDiscountPercent() {
         if (ownerDiscountActive) return 100;
-        return posShowDiscount ? Number($('#rpBillDiscount')?.value || 0) : 0;
+        if (posShowDiscount) return Number($('#rpBillDiscount')?.value || 0);
+        if (resumeOwnerDiscount) return 100;
+        return resumeBillDiscount;
     }
 
     function updateOwnerDiscountButton() {
@@ -338,6 +371,10 @@
     }
 
     function applyOwnerDiscount() {
+        if (!canPosDiscountCredit) {
+            alert('Discount sirf manager de sakta hai.');
+            return;
+        }
         if (!cart.length) {
             alert('Pehle item add karein.');
             return;
@@ -359,7 +396,9 @@
         }
         renderTotals();
         updateOwnerDiscountButton();
-        openPayModal();
+        if (canPosPay) {
+            openPayModal();
+        }
     }
 
     function calcCartTotals() {
@@ -372,7 +411,7 @@
         });
         subtotal = Math.round(subtotal * 100) / 100;
         const billDiscPct = getBillDiscountPercent();
-        let discount = posShowDiscount && billDiscPct > 0 ? Math.round(subtotal * billDiscPct / 100 * 100) / 100 : 0;
+        let discount = billDiscPct > 0 ? Math.round(subtotal * billDiscPct / 100 * 100) / 100 : 0;
         const tax = 0;
         const grand = Math.round((subtotal - discount) * 100) / 100;
         return { subtotal, discount, tax, grand, lineSubs, billDiscPct };
@@ -1004,6 +1043,17 @@
             }
         }
 
+        if (mode === 'checkout') {
+            if (isCreditMode && !canPosDiscountCredit) {
+                alert('Credit sirf manager de sakta hai.');
+                return false;
+            }
+            if (!isCreditMode && !canPosPay) {
+                alert('Pay sirf cashier kar sakta hai.');
+                return false;
+            }
+        }
+
         applySaleModePricing();
         const form = $('#rpSubmitForm');
         if (!form) return false;
@@ -1040,8 +1090,8 @@
                 : (isCreditMode ? [] : payments)
         );
         form.querySelector('[name="bill_tax_percent"]').value = '0';
-        form.querySelector('[name="bill_discount_percent"]').value = posShowDiscount ? String(getBillDiscountPercent()) : '0';
-        form.querySelector('[name="is_owner_discount"]').value = ownerDiscountActive ? '1' : '0';
+        form.querySelector('[name="bill_discount_percent"]').value = String(getBillDiscountPercent());
+        form.querySelector('[name="is_owner_discount"]').value = (ownerDiscountActive || resumeOwnerDiscount) ? '1' : '0';
         form.querySelector('[name="resume_order_id"]').value = resumeOrderId ? String(resumeOrderId) : '';
         const kitchenVoidsInput = form.querySelector('[name="kitchen_voids"]');
         if (kitchenVoidsInput) {
@@ -1787,7 +1837,13 @@
             renderTotals();
         });
 
-        $('#rpCreditToggle')?.addEventListener('change', (e) => setCreditMode(e.target.checked));
+        $('#rpCreditToggle')?.addEventListener('change', (e) => {
+            if (!canPosDiscountCredit) {
+                e.target.checked = false;
+                return;
+            }
+            setCreditMode(e.target.checked);
+        });
 
         const contactSearch = $('#rpContactSearch');
         const contactDrop = $('#rpContactDropdown');
@@ -1874,23 +1930,26 @@
         } else {
             syncServiceDetailPanels();
         }
-        if (posShowCustomerSection && settings.resume_is_credit) {
+        if (posShowCustomerSection && canPosDiscountCredit && settings.resume_is_credit) {
             setCreditMode(true);
         }
         restoreResumeContact();
         loadResumeItems();
         if (settings.resume_is_owner_discount) {
             ownerDiscountActive = true;
-            const discInput = $('#rpBillDiscount');
-            if (discInput) {
-                discInput.value = '100';
-                discInput.readOnly = true;
+            if (canPosDiscountCredit) {
+                const discInput = $('#rpBillDiscount');
+                if (discInput) {
+                    discInput.value = '100';
+                    discInput.readOnly = true;
+                }
             }
         }
         bindEvents();
         applyTableBoard(boot.tableBoard || []);
         updateOrderTabCounts();
         updateOwnerDiscountButton();
+        updateCheckoutActions();
         renderAll();
         payments = [{ method: 'cash', amount: 0 }];
         setInterval(pollSync, 20000);

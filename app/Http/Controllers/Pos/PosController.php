@@ -90,10 +90,12 @@ class PosController extends Controller
         $rawEnableTables = Setting::get('pos_enable_tables', '1');
         $enableTables = (string) $rawEnableTables !== '0';
 
-        $heldOrders = $this->heldOrdersForSession($session);
+        $heldOrders = $this->heldOrdersForSession($session, $user);
+
+        $billSessionIds = $this->resolvePosBillSessionIds($session, $user);
 
         $paidOrders = PosOrder::query()
-            ->where('session_id', $session->id)
+            ->whereIn('session_id', $billSessionIds)
             ->where('status', 'paid')
             ->with(['table:id,name', 'payments:id,order_id,method,amount', 'items.product:id,name'])
             ->withCount('items')
@@ -119,6 +121,10 @@ class PosController extends Controller
                 $resumedOrder->load('items');
             }
             if ($resumedOrder && $hasOrderTakerColumns && $resumedOrder->isReadyForPosPickup()) {
+                $resumedOrder->update(['session_id' => $session->id]);
+                $resumedOrder->refresh();
+            }
+            if ($resumedOrder !== null && (int) $resumedOrder->session_id !== (int) $session->id) {
                 $resumedOrder->update(['session_id' => $session->id]);
                 $resumedOrder->refresh();
             }
@@ -219,6 +225,9 @@ class PosController extends Controller
         $sessionPosStats = $this->sessionPosStats($session);
         $checkedInRooms = $this->checkedInRoomsForPos();
         $canReopenPaidBill = $this->userCanReopenPaidPosBill($user);
+        $posStaffCaps = $this->posStaffCapabilities($user);
+        $canPosPay = $posStaffCaps['can_pay'];
+        $canPosDiscountCredit = $posStaffCaps['can_discount_credit'];
         $recentDailyClosings = PosSession::query()
             ->where('user_id', $user->id)
             ->where('status', 'closed')
@@ -235,7 +244,7 @@ class PosController extends Controller
                 'note',
             ]);
 
-        return compact('session', 'products', 'heldOrders', 'paidOrders', 'paidBillsDetail', 'pendingBillsDetail', 'resumedOrder', 'contacts', 'posSettings', 'sessionCashExpected', 'sessionPosStats', 'tables', 'tableBoard', 'checkedInRooms', 'waiters', 'recentDailyClosings', 'canReopenPaidBill');
+        return compact('session', 'products', 'heldOrders', 'paidOrders', 'paidBillsDetail', 'pendingBillsDetail', 'resumedOrder', 'contacts', 'posSettings', 'sessionCashExpected', 'sessionPosStats', 'tables', 'tableBoard', 'checkedInRooms', 'waiters', 'recentDailyClosings', 'canReopenPaidBill', 'canPosPay', 'canPosDiscountCredit');
     }
 
     private function userCanReopenPaidPosBill(?User $user): bool
@@ -257,6 +266,129 @@ class PosController extends Controller
         $designation = mb_strtolower(trim((string) ($employee->designation?->name ?? '')), 'UTF-8');
 
         return $designation !== '' && (str_contains($designation, 'manager') || str_contains($designation, 'owner'));
+    }
+
+    /**
+     * @return array{
+     *   can_pay: bool,
+     *   can_discount_credit: bool,
+     *   is_manager: bool,
+     *   is_cashier: bool
+     * }
+     */
+    private function posStaffCapabilities(?User $user): array
+    {
+        if ($user === null) {
+            return [
+                'can_pay' => false,
+                'can_discount_credit' => false,
+                'is_manager' => false,
+                'is_cashier' => false,
+            ];
+        }
+
+        if ($user->bypassesModulePermissions()) {
+            return [
+                'can_pay' => true,
+                'can_discount_credit' => true,
+                'is_manager' => true,
+                'is_cashier' => true,
+            ];
+        }
+
+        $employee = $user->employee;
+        if ($employee === null) {
+            return [
+                'can_pay' => false,
+                'can_discount_credit' => false,
+                'is_manager' => false,
+                'is_cashier' => false,
+            ];
+        }
+
+        $employee->loadMissing('designation:id,name');
+        $designation = mb_strtolower(trim((string) ($employee->designation?->name ?? '')), 'UTF-8');
+        $isManager = $designation !== '' && (str_contains($designation, 'manager') || str_contains($designation, 'owner'));
+        $isCashier = $designation !== '' && str_contains($designation, 'cashier');
+
+        return [
+            'can_pay' => $isCashier,
+            'can_discount_credit' => $isManager,
+            'is_manager' => $isManager,
+            'is_cashier' => $isCashier,
+        ];
+    }
+
+    private function posUsesSharedBills(?User $user): bool
+    {
+        if ($user?->bypassesModulePermissions()) {
+            return true;
+        }
+
+        $caps = $this->posStaffCapabilities($user);
+
+        return $caps['is_manager'] || $caps['is_cashier'];
+    }
+
+    private function todayBusinessDate(): string
+    {
+        return now()->toDateString();
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function sessionIdsForBusinessDate(?string $date = null): array
+    {
+        $date = $date ?? $this->todayBusinessDate();
+
+        return PosSession::query()
+            ->where(function ($q) use ($date) {
+                $q->where('business_date', $date)
+                    ->orWhereDate('opened_at', $date);
+            })
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function resolvePosBillSessionIds(PosSession $session, ?User $user): array
+    {
+        if ($this->posUsesSharedBills($user)) {
+            $date = $session->business_date instanceof \Illuminate\Support\Carbon
+                ? $session->business_date->toDateString()
+                : (string) ($session->business_date ?: $this->todayBusinessDate());
+
+            return $this->sessionIdsForBusinessDate($date);
+        }
+
+        return [(int) $session->id];
+    }
+
+    private function assertPosCheckoutPermissions(User $user, PosCheckoutRequest $request, bool $isCredit, bool $isCheckout): void
+    {
+        $caps = $this->posStaffCapabilities($user);
+
+        if ($isCheckout) {
+            if ($isCredit) {
+                abort_unless($caps['can_discount_credit'], 403, 'Credit sirf manager de sakta hai.');
+            } else {
+                abort_unless($caps['can_pay'], 403, 'Pay sirf cashier kar sakta hai.');
+            }
+        }
+
+        if (! $caps['can_discount_credit']) {
+            if ($request->boolean('is_owner_discount')) {
+                abort(403, 'Discount sirf manager de sakta hai.');
+            }
+
+            if (round((float) $request->input('bill_discount_percent', 0), 3) > 0) {
+                abort(403, 'Discount sirf manager de sakta hai.');
+            }
+        }
     }
 
     public function sync(Request $request): JsonResponse
@@ -305,32 +437,34 @@ class PosController extends Controller
     /**
      * @return \Illuminate\Support\Collection<int, PosOrder>
      */
-    private function heldOrdersForSession(PosSession $session): \Illuminate\Support\Collection
+    private function heldOrdersForSession(PosSession $session, ?User $user = null): \Illuminate\Support\Collection
     {
+        $user = $user ?? Auth::user();
+        $billSessionIds = $this->resolvePosBillSessionIds($session, $user);
         $hasOrderTakerColumns = Schema::hasColumn('pos_orders', 'order_source')
             && Schema::hasColumn('pos_orders', 'ready_for_pos_at');
 
         $heldOrders = PosOrder::query()
             ->where('status', 'draft')
-            ->when($hasOrderTakerColumns, function ($q) use ($session) {
-                $q->where(function ($outer) use ($session) {
-                    $outer->where(function ($w) use ($session) {
-                        $w->where('session_id', $session->id)
+            ->when($hasOrderTakerColumns, function ($q) use ($billSessionIds) {
+                $q->where(function ($outer) use ($billSessionIds) {
+                    $outer->where(function ($w) use ($billSessionIds) {
+                        $w->whereIn('session_id', $billSessionIds)
                             ->where(function ($inner) {
                                 $inner->whereNull('order_source')
                                     ->orWhere('order_source', 'pos');
                             });
-                    })->orWhere(function ($w) use ($session) {
+                    })->orWhere(function ($w) use ($billSessionIds) {
                         $w->where('order_source', OrderTakerService::SOURCE_ORDER_TAKER)
                             ->whereNotNull('ready_for_pos_at')
-                            ->where(function ($inner) use ($session) {
+                            ->where(function ($inner) use ($billSessionIds) {
                                 $inner->whereNull('session_id')
-                                    ->orWhere('session_id', $session->id);
+                                    ->orWhereIn('session_id', $billSessionIds);
                             });
                     });
                 });
-            }, function ($q) use ($session) {
-                $q->where('session_id', $session->id);
+            }, function ($q) use ($billSessionIds) {
+                $q->whereIn('session_id', $billSessionIds);
             })
             ->with(['items.product:id,name', 'table:id,name'])
             ->withCount('items')
@@ -349,20 +483,22 @@ class PosController extends Controller
             ->values();
     }
 
-    private function findDraftOrderForSession(PosSession $session, int $orderId): ?PosOrder
+    private function findDraftOrderForSession(PosSession $session, int $orderId, ?User $user = null): ?PosOrder
     {
         if ($orderId <= 0) {
             return null;
         }
 
+        $user = $user ?? Auth::user();
+        $billSessionIds = $this->resolvePosBillSessionIds($session, $user);
         $hasOrderTakerColumns = Schema::hasColumn('pos_orders', 'order_source')
             && Schema::hasColumn('pos_orders', 'ready_for_pos_at');
 
         return PosOrder::query()
             ->where('id', $orderId)
             ->where('status', 'draft')
-            ->where(function ($q) use ($session, $hasOrderTakerColumns) {
-                $q->where('session_id', $session->id);
+            ->where(function ($q) use ($billSessionIds, $hasOrderTakerColumns) {
+                $q->whereIn('session_id', $billSessionIds);
                 if ($hasOrderTakerColumns) {
                     $q->orWhere(function ($w) {
                         $w->where('order_source', OrderTakerService::SOURCE_ORDER_TAKER)
@@ -643,6 +779,7 @@ class PosController extends Controller
 
         $session = $this->ensureOpenSessionForUser(Auth::user());
         $wantsJson = $request->expectsJson() && $this->isRestaurantPosRequest($request);
+        $checkoutUser = $request->user();
 
         $serviceType = null;
         $restaurantTableId = null;
@@ -668,6 +805,7 @@ class PosController extends Controller
             $serveDate = $restaurantMeta['serve_date'];
             $orderNotes = $restaurantMeta['order_notes'];
             $restaurantTableId = $restaurantMeta['table_id'];
+            $this->assertPosCheckoutPermissions($checkoutUser, $request, $isCredit, true);
         } else {
             // Detect credit sale
             $customerType = $this->normalizeCustomerType($request->input('customer_type'));
@@ -706,11 +844,7 @@ class PosController extends Controller
         $this->assertKitchenVoidPermission($request);
 
         if ($resumeOrderId) {
-            $resumeDraft = PosOrder::query()
-                ->where('id', $resumeOrderId)
-                ->where('status', 'draft')
-                ->where('session_id', $session->id)
-                ->first();
+            $resumeDraft = $this->findDraftOrderForSession($session, $resumeOrderId, $checkoutUser);
             if ($resumeDraft) {
                 $this->assertKitchenLockedQuantitiesPreserved(
                     $resumeDraft->items()->get()->all(),
@@ -761,7 +895,7 @@ class PosController extends Controller
         }
 
         try {
-            $order = DB::connection('tenant')->transaction(function () use ($request, $session, $isCredit, $contactId, $itemsNormalized, $guestName, $roomNo, $waiterName, $serveTime, $serveDate, $orderNotes, $resumeOrderId, $customerType, $saleMode, $serviceType, $restaurantTableId) {
+            $order = DB::connection('tenant')->transaction(function () use ($request, $session, $isCredit, $contactId, $itemsNormalized, $guestName, $roomNo, $waiterName, $serveTime, $serveDate, $orderNotes, $resumeOrderId, $customerType, $saleMode, $serviceType, $restaurantTableId, $checkoutUser) {
             $enableTables = (string) Setting::get('pos_enable_tables', '1') !== '0';
             if ($this->isRestaurantPosRequest($request)) {
                 $tableId = $restaurantTableId;
@@ -834,10 +968,11 @@ class PosController extends Controller
 
             $existingDraft = null;
             if ($resumeOrderId) {
+                $billSessionIds = $this->resolvePosBillSessionIds($session, $checkoutUser);
                 $existingDraft = PosOrder::query()
                     ->where('id', $resumeOrderId)
                     ->where('status', 'draft')
-                    ->where('session_id', $session->id)
+                    ->whereIn('session_id', $billSessionIds)
                     ->lockForUpdate()
                     ->first();
             }
@@ -845,10 +980,11 @@ class PosController extends Controller
             $kitchen = app(KitchenService::class);
             $oldKitchenItems = $existingDraft ? $existingDraft->items()->get()->all() : [];
             if ($oldKitchenItems === [] && $resumeOrderId) {
+                $billSessionIds = $billSessionIds ?? $this->resolvePosBillSessionIds($session, $checkoutUser);
                 $draftForKitchen = PosOrder::query()
                     ->where('id', $resumeOrderId)
                     ->where('status', 'draft')
-                    ->where('session_id', $session->id)
+                    ->whereIn('session_id', $billSessionIds)
                     ->first();
                 if ($draftForKitchen) {
                     $oldKitchenItems = $draftForKitchen->items()->get()->all();
@@ -858,7 +994,10 @@ class PosController extends Controller
             $itemsWithKitchenFlags = $kitchen->applyKitchenPendingFlags($oldKitchenItems, $itemsData);
 
             if ($existingDraft) {
-                $existingDraft->update($orderPayload);
+                $existingDraft->update($orderPayload + [
+                    'session_id' => $session->id,
+                    'user_id' => Auth::id(),
+                ]);
                 $order = $existingDraft;
                 $order->items()->delete();
             } else {
@@ -970,6 +1109,7 @@ class PosController extends Controller
         $customerType = $this->normalizeCustomerType($request->input('customer_type'));
 
         $session = $this->ensureOpenSessionForUser(Auth::user());
+        $holdUser = $request->user();
 
         $serviceType = null;
         $restaurantTableId = null;
@@ -986,6 +1126,7 @@ class PosController extends Controller
             $serveDate = $restaurantMeta['serve_date'];
             $orderNotes = $restaurantMeta['order_notes'];
             $restaurantTableId = $restaurantMeta['table_id'];
+            $this->assertPosCheckoutPermissions($holdUser, $request, false, false);
         } else {
             $saleMode = $request->input('sale_mode') === 'staff' ? 'staff' : 'customer';
             if ($customerType === 'ast_offr') {
@@ -1010,11 +1151,7 @@ class PosController extends Controller
         $this->assertKitchenVoidPermission($request);
 
         if ($resumeOrderId) {
-            $resumeDraft = PosOrder::query()
-                ->where('id', $resumeOrderId)
-                ->where('status', 'draft')
-                ->where('session_id', $session->id)
-                ->first();
+            $resumeDraft = $this->findDraftOrderForSession($session, $resumeOrderId, $holdUser);
             if ($resumeDraft) {
                 $this->assertKitchenLockedQuantitiesPreserved(
                     $resumeDraft->items()->get()->all(),
@@ -1077,7 +1214,7 @@ class PosController extends Controller
             : true;
 
         try {
-            $order = DB::connection('tenant')->transaction(function () use ($request, $session, $itemsNormalized, $guestName, $roomNo, $waiterName, $serveTime, $serveDate, $orderNotes, $customerType, $saleMode, $serviceType, $restaurantTableId, $resumeOrderId, $clientTotals, $sendToKitchen, &$updatedExisting) {
+            $order = DB::connection('tenant')->transaction(function () use ($request, $session, $itemsNormalized, $guestName, $roomNo, $waiterName, $serveTime, $serveDate, $orderNotes, $customerType, $saleMode, $serviceType, $restaurantTableId, $resumeOrderId, $clientTotals, $sendToKitchen, &$updatedExisting, $holdUser) {
             $enableTables = (string) Setting::get('pos_enable_tables', '1') !== '0';
             if ($this->isRestaurantPosRequest($request)) {
                 $tableId = $restaurantTableId;
@@ -1141,11 +1278,11 @@ class PosController extends Controller
             ];
 
             if ($resumeOrderId) {
+                $billSessionIds = $this->resolvePosBillSessionIds($session, $holdUser);
                 $existing = PosOrder::query()
                     ->where('id', $resumeOrderId)
                     ->where('status', 'draft')
-                    ->where('session_id', $session->id)
-                    ->where('user_id', Auth::id())
+                    ->whereIn('session_id', $billSessionIds)
                     ->lockForUpdate()
                     ->first();
 
@@ -1177,7 +1314,10 @@ class PosController extends Controller
                         $kitchenPayload['kitchen_status'] = null;
                     }
 
-                    $existing->update($orderPayload + $kitchenPayload);
+                    $existing->update($orderPayload + $kitchenPayload + [
+                        'session_id' => $session->id,
+                        'user_id' => Auth::id(),
+                    ]);
                     $existing->items()->delete();
                     foreach ($itemsWithKitchenFlags as $item) {
                         PosOrderItem::create(['order_id' => $existing->id] + $item);
@@ -1249,8 +1389,13 @@ class PosController extends Controller
             return redirect()->route($uiRoute, ['resume_order' => $order->id]);
         }
 
-        if ($order->session === null || (int) $order->session->user_id !== (int) Auth::id()) {
+        $session = $this->ensureOpenSessionForUser(Auth::user());
+        if ($this->findDraftOrderForSession($session, (int) $order->id) === null) {
             abort(403);
+        }
+
+        if ((int) $order->session_id !== (int) $session->id) {
+            $order->update(['session_id' => $session->id]);
         }
 
         return redirect()->route($uiRoute, ['resume_order' => $order->id]);
@@ -1340,7 +1485,7 @@ class PosController extends Controller
             return back()->with('warning', 'Order pehle se khatam ho chuki hai.');
         }
 
-        if ($order->status !== 'draft' || (int) $order->session_id !== (int) $session->id) {
+        if ($order->status !== 'draft') {
             if (request()->expectsJson()) {
                 return response()->json([
                     'message' => 'Is order ko discard nahi kar sakte.',
@@ -1350,7 +1495,7 @@ class PosController extends Controller
             abort(403);
         }
 
-        if ($order->session->user_id !== Auth::id()) {
+        if ($this->findDraftOrderForSession($session, (int) $order->id) === null) {
             if (request()->expectsJson()) {
                 return response()->json([
                     'message' => 'Is order ko discard nahi kar sakte.',
