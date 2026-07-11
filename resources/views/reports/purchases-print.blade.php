@@ -145,44 +145,6 @@
         @endif
     </table>
 
-    <h2>Purchase Orders</h2>
-    <table>
-        <thead>
-        <tr>
-            <th>PO #</th>
-            <th>Date</th>
-            <th>Vendor</th>
-            <th>Status</th>
-            <th class="num">Subtotal</th>
-            <th class="num">Tax</th>
-            <th class="num">Total</th>
-        </tr>
-        </thead>
-        <tbody>
-        @forelse($orders as $o)
-            <tr>
-                <td>{{ $o->number }}</td>
-                <td>{{ optional($o->order_date)->format('d M Y') }}</td>
-                <td>{{ optional($o->vendor)->name }}</td>
-                <td>{{ ucfirst($o->status) }}</td>
-                <td class="num">{{ $currency }} {{ fmt_num($o->subtotal, 2) }}</td>
-                <td class="num">{{ $currency }} {{ fmt_num($o->tax_total, 2) }}</td>
-                <td class="num">{{ $currency }} {{ fmt_num($o->grand_total, 2) }}</td>
-            </tr>
-        @empty
-            <tr><td colspan="7" style="text-align:center;">No orders</td></tr>
-        @endforelse
-        </tbody>
-        @if($orders->isNotEmpty())
-        <tfoot>
-        <tr>
-            <th colspan="6" class="num">Grand Total</th>
-            <th class="num">{{ $currency }} {{ fmt_num($totalAmount, 2) }}</th>
-        </tr>
-        </tfoot>
-        @endif
-    </table>
-
     @if(request()->boolean('print'))
     <script>window.addEventListener('load', () => window.print());</script>
     @endif

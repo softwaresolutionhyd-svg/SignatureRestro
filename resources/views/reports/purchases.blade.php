@@ -201,39 +201,6 @@
         </table>
     </div>
 </div>
-
-{{-- Orders table --}}
-<div class="card shadow-sm border-0">
-    <div class="card-header bg-white fw-semibold d-flex justify-content-between">
-        Purchase Orders <span class="badge bg-success">{{ $orders->count() }}</span>
-    </div>
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
-                <tr><th>PO #</th><th>Date</th><th>Vendor</th><th>Status</th><th class="text-end">Subtotal</th><th class="text-end">Tax</th><th class="text-end">Total</th></tr>
-            </thead>
-            <tbody>
-            @forelse($orders as $o)
-            <tr>
-                <td class="fw-semibold small">{{ $o->number }}</td>
-                <td class="small">{{ optional($o->order_date)->format('d M Y') }}</td>
-                <td class="small">{{ optional($o->vendor)->name }}</td>
-                <td>
-                    <span class="badge bg-{{ ['rfq'=>'secondary','confirmed'=>'primary','received'=>'success','cancelled'=>'danger'][$o->status] ?? 'secondary' }}">
-                        {{ ucfirst($o->status) }}
-                    </span>
-                </td>
-                <td class="text-end small">{{ $currency }} {{ fmt_num($o->subtotal,2) }}</td>
-                <td class="text-end small">{{ $currency }} {{ fmt_num($o->tax_total,2) }}</td>
-                <td class="text-end fw-bold small">{{ $currency }} {{ fmt_num($o->grand_total,2) }}</td>
-            </tr>
-            @empty
-            <tr><td colspan="7" class="text-center py-4 text-secondary">No purchase orders found</td></tr>
-            @endforelse
-            </tbody>
-        </table>
-    </div>
-</div>
 @endsection
 
 @section('scripts')
