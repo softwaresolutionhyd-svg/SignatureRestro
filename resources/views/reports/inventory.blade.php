@@ -71,8 +71,15 @@
     </div>
     <div class="col-12 col-md-8">
         <div class="card shadow-sm border-0 h-100">
-            <div class="card-header bg-white fw-semibold d-flex justify-content-between">
-                Products <span class="badge bg-info text-dark">{{ $products->count() }}</span>
+            <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+                <span>Products</span>
+                <div class="d-flex align-items-center gap-2">
+                    <a href="{{ route('reports.inventory.print', array_merge(request()->only(['filter', 'department_id']), ['print' => 1])) }}"
+                       target="_blank" class="btn btn-outline-danger btn-sm">
+                        <i class="bi bi-printer me-1"></i> Print
+                    </a>
+                    <span class="badge bg-info text-dark">{{ $products->count() }}</span>
+                </div>
             </div>
             <div class="table-responsive" style="max-height:340px; overflow-y:auto;">
                 <table class="table table-sm table-hover mb-0 align-middle">

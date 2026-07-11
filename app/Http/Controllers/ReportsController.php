@@ -484,6 +484,44 @@ class ReportsController extends Controller
         ));
     }
 
+    public function inventoryProductsPrint(Request $request)
+    {
+        $filter       = $request->input('filter', 'all');
+        $departmentId = (int) $request->input('department_id', 0);
+        $departmentId = $departmentId > 0 ? $departmentId : null;
+        $currency     = Setting::get('currency_symbol', 'Rs.');
+
+        $query = InventoryProduct::with('category')->where('active', true);
+
+        if ($departmentId !== null) {
+            $query->whereHas(
+                'departments',
+                fn ($dep) => $dep->where('inventory_departments.id', $departmentId)
+            );
+        }
+
+        if ($filter === 'low') {
+            $query->where('qty_on_hand', '>', 0)->where('qty_on_hand', '<=', 10)->excludingActiveBomFinishedProducts();
+        } elseif ($filter === 'zero') {
+            $query->where('qty_on_hand', '<=', 0)->excludingActiveBomFinishedProducts();
+        }
+
+        $products   = $query->orderBy('name')->get();
+        $department = $departmentId ? InventoryDepartment::find($departmentId) : null;
+
+        $filterLabel = match ($filter) {
+            'low'  => 'Low Stock (≤10)',
+            'zero' => 'Out of Stock',
+            default => 'All Products',
+        };
+
+        $totalValue = round((float) $products->sum(fn (InventoryProduct $p) => (float) $p->qty_on_hand * (float) $p->cost), 2);
+
+        return view('reports.inventory-products-print', compact(
+            'products', 'filter', 'filterLabel', 'department', 'currency', 'totalValue'
+        ));
+    }
+
     /* ──────────────────────────────────────────
      |  Report Builder (UI)
      ─────────────────────────────────────────── */
