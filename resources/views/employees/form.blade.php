@@ -4,7 +4,8 @@
     <div class="col-12 col-md-4">
         <label class="form-label">Employee No</label>
         <input type="text" name="employee_no" value="{{ old('employee_no', $employee->employee_no ?? '') }}"
-               class="form-control @error('employee_no') is-invalid @enderror" required maxlength="40">
+               class="form-control @error('employee_no') is-invalid @enderror" maxlength="40"
+               placeholder="Auto-generated if left blank">
         @error('employee_no')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
 

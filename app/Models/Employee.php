@@ -73,4 +73,20 @@ class Employee extends Model
             $designationQuery->whereRaw('LOWER(TRIM(name)) = ?', ['waiter']);
         });
     }
+
+    public static function generateNextEmployeeNo(int $companyId): string
+    {
+        $max = 0;
+
+        static::query()
+            ->where('company_id', $companyId)
+            ->pluck('employee_no')
+            ->each(function (string $no) use (&$max) {
+                if (preg_match('/^EMP-(\d+)$/i', trim($no), $matches)) {
+                    $max = max($max, (int) $matches[1]);
+                }
+            });
+
+        return sprintf('EMP-%05d', $max + 1);
+    }
 }

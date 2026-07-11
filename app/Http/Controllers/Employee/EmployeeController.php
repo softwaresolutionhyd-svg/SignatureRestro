@@ -48,7 +48,7 @@ class EmployeeController extends Controller
 
         $departments = EmployeeDepartment::query()->where('active', true)->orderBy('name')->get(['id', 'name']);
         $designations = EmployeeDesignation::query()->where('active', true)->orderBy('name')->get(['id', 'name']);
-        $employee = new Employee();
+        $employee = new Employee(['employee_no' => Employee::generateNextEmployeeNo($cid)]);
         return view('employees.create', compact('departments', 'designations', 'employee'));
     }
 
@@ -59,7 +59,7 @@ class EmployeeController extends Controller
 
         $data = $request->validate([
             'employee_no' => [
-                'required',
+                'nullable',
                 'string',
                 'max:40',
                 Rule::unique('tenant.employees', 'employee_no')->where(fn ($q) => $q->where('company_id', $cid)),
@@ -83,6 +83,9 @@ class EmployeeController extends Controller
         $data['salary'] = $data['salary'] ?? 0;
         $data['department_id'] = isset($data['department_id']) && $data['department_id'] !== '' ? (int) $data['department_id'] : null;
         $data['designation_id'] = isset($data['designation_id']) && $data['designation_id'] !== '' ? (int) $data['designation_id'] : null;
+        $data['employee_no'] = trim((string) ($data['employee_no'] ?? '')) !== ''
+            ? trim((string) $data['employee_no'])
+            : Employee::generateNextEmployeeNo($cid);
 
         $userId = null;
         $createdUser = null;
