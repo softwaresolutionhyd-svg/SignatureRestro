@@ -382,6 +382,23 @@ class ReportsController extends Controller
      ─────────────────────────────────────────── */
     public function purchases(Request $request)
     {
+        $data = $this->purchaseReportData($request);
+
+        return view('reports.purchases', $data);
+    }
+
+    public function purchasesPrint(Request $request)
+    {
+        $data = $this->purchaseReportData($request);
+
+        return view('reports.purchases-print', $data);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function purchaseReportData(Request $request): array
+    {
         $from     = $request->input('from', now()->startOfMonth()->format('Y-m-d'));
         $to       = $request->input('to', now()->format('Y-m-d'));
         $vendor   = $request->input('vendor');
@@ -391,8 +408,12 @@ class ReportsController extends Controller
         $query = PurchaseOrder::with(['vendor', 'creator', 'lines.product'])
             ->whereBetween('order_date', [$from, $to]);
 
-        if ($vendor) $query->where('vendor_id', $vendor);
-        if ($status) $query->where('status', $status);
+        if ($vendor) {
+            $query->where('vendor_id', $vendor);
+        }
+        if ($status) {
+            $query->where('status', $status);
+        }
 
         $orders = $query->orderByDesc('order_date')->get();
 
@@ -427,27 +448,30 @@ class ReportsController extends Controller
             ->sortByDesc('total')
             ->values();
 
-        $lineCount = $purchaseLines->count();
+        $lineCount    = $purchaseLines->count();
         $productCount = $byProduct->count();
 
-        // By vendor breakdown
-        $byVendor = $orders->groupBy('vendor_id')->map(fn($group) => [
+        $byVendor = $orders->groupBy('vendor_id')->map(fn ($group) => [
             'name'  => optional($group->first()->vendor)->name ?? 'Unknown',
             'count' => $group->count(),
             'total' => $group->sum('grand_total'),
         ])->sortByDesc('total');
 
-        $vendors  = PurchaseVendor::orderBy('name')->get(['id', 'name']);
+        $vendors = PurchaseVendor::orderBy('name')->get(['id', 'name']);
 
         $chartLabels = $byVendor->pluck('name');
-        $chartData   = $byVendor->pluck('total')->map(fn($v) => (float) $v);
+        $chartData   = $byVendor->pluck('total')->map(fn ($v) => (float) $v);
 
-        return view('reports.purchases', compact(
+        $selectedVendor = $vendor ? $vendors->firstWhere('id', (int) $vendor) : null;
+        $statusLabel    = $status ? ucfirst($status) : null;
+
+        return compact(
             'orders', 'from', 'to', 'vendor', 'status', 'currency',
             'totalAmount', 'totalTax', 'orderCount',
             'byVendor', 'vendors', 'chartLabels', 'chartData',
-            'purchaseLines', 'byProduct', 'lineCount', 'productCount'
-        ));
+            'purchaseLines', 'byProduct', 'lineCount', 'productCount',
+            'selectedVendor', 'statusLabel'
+        );
     }
 
     /* ──────────────────────────────────────────

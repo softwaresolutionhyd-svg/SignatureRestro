@@ -8,7 +8,10 @@
         <div class="text-secondary small">Purchase orders, vendors & spend analysis</div>
     </div>
     <div class="d-flex gap-2">
-        <button onclick="window.print()" class="btn btn-outline-danger btn-sm">Print / PDF</button>
+        <a href="{{ route('reports.purchases.print', array_merge(request()->only(['from', 'to', 'vendor', 'status']), ['print' => 1])) }}"
+           target="_blank" class="btn btn-outline-danger btn-sm">
+            <i class="bi bi-printer me-1"></i> Print Report
+        </a>
         <a href="{{ route('reports.index') }}" class="btn btn-outline-secondary btn-sm">← All Reports</a>
     </div>
 </div>
