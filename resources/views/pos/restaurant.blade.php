@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=34">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=37">
 @endpush
 
 @section('content')
@@ -180,14 +180,14 @@
             </div>
         </div>
 
-        <div class="rp-order-line-wrap d-none" id="rpOrderLinePanel">
+        <div class="rp-order-line-wrap d-none" id="rpOrderLinePanel" hidden aria-hidden="true">
             <div class="rp-order-line" id="rpOrderLine"></div>
         </div>
     </div>
 
     <div class="rp-body">
         <div class="rp-menu-panel">
-            <div class="rp-menu-head">
+            <div class="rp-menu-head" id="rpMenuHead">
                 <div class="rp-menu-cats" id="rpMenuCats" role="tablist" aria-label="Menu categories"></div>
             </div>
             <div class="rp-menu-grid" id="rpMenuGrid"></div>
@@ -383,5 +383,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=36"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=37"></script>
 @endsection

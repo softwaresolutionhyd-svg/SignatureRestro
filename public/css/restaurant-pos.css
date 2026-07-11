@@ -616,13 +616,86 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     line-height: 1.2;
 }
 
-.restaurant-pos-app .rp-order-card.rp-order-card-paid {
-    cursor: default;
-}
-
 .restaurant-pos-app .rp-order-card .rp-oc-pay {
     font-size: 0.68rem;
     color: var(--rp-sage);
+}
+
+.restaurant-pos-app .rp-order-card.rp-order-card-paid {
+    cursor: pointer;
+}
+
+.restaurant-pos-app .rp-bills-head {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.35rem 0.5rem 0.65rem;
+    text-align: center;
+}
+
+.restaurant-pos-app .rp-bills-head-main {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.restaurant-pos-app .rp-bills-head-title {
+    font-family: var(--rp-font);
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #1c1917;
+    letter-spacing: -0.02em;
+}
+
+.restaurant-pos-app .rp-bills-head-count {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #92400e;
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-radius: 999px;
+    padding: 0.12rem 0.55rem;
+}
+
+.restaurant-pos-app .rp-bills-head-hint {
+    font-size: 0.68rem;
+    color: #78716c;
+}
+
+.restaurant-pos-app .rp-menu-grid.rp-bills-grid {
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 0.75rem;
+    align-content: start;
+}
+
+.restaurant-pos-app .rp-order-card.rp-order-card--grid {
+    min-width: 0;
+    flex: unset;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-height: 118px;
+    padding: 0.85rem 0.95rem;
+    background: linear-gradient(145deg, rgba(28, 34, 44, 0.96) 0%, rgba(18, 22, 30, 0.98) 100%);
+}
+
+.restaurant-pos-app .rp-order-card.rp-order-card--grid .rp-oc-no {
+    font-size: 0.95rem;
+}
+
+.restaurant-pos-app .rp-order-card.rp-order-card--grid .rp-oc-meta {
+    font-size: 0.74rem;
+}
+
+.restaurant-pos-app .rp-order-card .rp-oc-open {
+    margin-top: auto;
+    padding-top: 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #fcd98a;
 }
 
 /* —— Main body —— */

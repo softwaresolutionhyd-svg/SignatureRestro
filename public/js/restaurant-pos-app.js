@@ -521,6 +521,11 @@
     }
 
     function renderMenuCategories() {
+        if (orderListMode) {
+            updateBillsMenuHead();
+            return;
+        }
+        clearBillsMenuHead();
         const wrap = $('#rpMenuCats');
         if (!wrap) return;
 
@@ -557,7 +562,12 @@
     }
 
     function renderMenuGrid() {
+        if (orderListMode) {
+            renderOrderCards();
+            return;
+        }
         const grid = $('#rpMenuGrid');
+        grid?.classList.remove('rp-bills-grid');
         const q = ($('#rpProductSearch')?.value || '').trim().toLowerCase();
         if (!grid) return;
         const list = products.filter((p) => isProductVisible(p) && productMatchesMenuCategory(p) && (
@@ -656,7 +666,7 @@
         if (view === 'menu') app.classList.add('rp-view-menu');
         if (view === 'cart') app.classList.add('rp-view-cart');
         if (view === 'cart' && orderListMode) {
-            setOrderListMode(orderListMode);
+            showMenuPanel();
         }
 
         $('#rpTabMenu')?.classList.toggle('is-active', view === 'menu');
@@ -685,62 +695,137 @@
         if (paidEl) paidEl.textContent = String(paidCount);
     }
 
+    function updateBillsMenuHead() {
+        const head = $('#rpMenuHead');
+        const cats = $('#rpMenuCats');
+        if (!head || !orderListMode) return;
+
+        cats?.classList.add('d-none');
+        let billsHead = $('#rpBillsHead');
+        if (!billsHead) {
+            billsHead = document.createElement('div');
+            billsHead.id = 'rpBillsHead';
+            billsHead.className = 'rp-bills-head';
+            head.appendChild(billsHead);
+        }
+
+        const isPending = orderListMode === 'pending';
+        const orders = isPending ? (boot.pendingBillsDetail || []) : (boot.paidBillsDetail || []);
+        billsHead.innerHTML = `
+            <div class="rp-bills-head-main">
+                <span class="rp-bills-head-title">${isPending ? 'Pending Bills' : 'Paid Bills'}</span>
+                <span class="rp-bills-head-count">${orders.length} bill${orders.length === 1 ? '' : 's'}</span>
+            </div>
+            <span class="rp-bills-head-hint">${isPending ? 'Bill kholne ke liye card par click karein.' : 'Receipt ke liye card par click karein.'}</span>
+        `;
+    }
+
+    function clearBillsMenuHead() {
+        $('#rpBillsHead')?.remove();
+        $('#rpMenuCats')?.classList.remove('d-none');
+    }
+
+    function showMenuPanel() {
+        orderListMode = null;
+        $('#rpTabPending')?.classList.remove('is-active');
+        $('#rpTabPaid')?.classList.remove('is-active');
+        clearBillsMenuHead();
+        const search = $('#rpProductSearch');
+        if (search) search.placeholder = 'Search menu…';
+        renderAll();
+    }
+
+    function filterOrdersForSearch(orders) {
+        const q = ($('#rpProductSearch')?.value || '').trim().toLowerCase();
+        if (!q) return orders;
+        return orders.filter((o) => {
+            const hay = [
+                o.order_no,
+                orderMetaLabel(o),
+                orderMetaDetail(o),
+                o.payment_label,
+                o.paid_at,
+                o.paid_at_full,
+            ].join(' ').toLowerCase();
+            return hay.includes(q);
+        });
+    }
+
     function setOrderListMode(mode) {
-        const panel = $('#rpOrderLinePanel');
         const tabPending = $('#rpTabPending');
         const tabPaid = $('#rpTabPaid');
+
         if (orderListMode === mode) {
-            orderListMode = null;
-            panel?.classList.add('d-none');
-            tabPending?.classList.remove('is-active');
-            tabPaid?.classList.remove('is-active');
+            showMenuPanel();
             return;
         }
+
         orderListMode = mode;
-        panel?.classList.remove('d-none');
+        $('#rpOrderLinePanel')?.classList.add('d-none');
+
         tabPending?.classList.toggle('is-active', mode === 'pending');
         tabPaid?.classList.toggle('is-active', mode === 'paid');
+        $('#rpTabMenu')?.classList.remove('is-active');
+
+        if (panelView === 'cart') {
+            setPanelView('split');
+        }
+
+        const search = $('#rpProductSearch');
+        if (search) {
+            search.placeholder = mode === 'pending' ? 'Search pending bill…' : 'Search paid bill…';
+            search.value = '';
+        }
+
+        updateBillsMenuHead();
         renderOrderCards();
     }
 
     function renderOrderCards() {
-        const wrap = $('#rpOrderLine');
-        if (!wrap || !orderListMode) return;
+        const grid = $('#rpMenuGrid');
+        if (!grid || !orderListMode) return;
+
+        updateBillsMenuHead();
+        grid.classList.add('rp-bills-grid');
 
         if (orderListMode === 'pending') {
-            const orders = boot.pendingBillsDetail || [];
+            const orders = filterOrdersForSearch(boot.pendingBillsDetail || []);
             if (!orders.length) {
-                wrap.innerHTML = `<div class="rp-empty" style="min-height:0;padding:0.5rem;">
-                    <span class="text-secondary small">Koi pending order nahi.</span>
+                grid.innerHTML = `<div class="rp-empty rp-empty--menu">
+                    <span class="rp-empty-icon"><i class="bi bi-hourglass-split"></i></span>
+                    <span>${(boot.pendingBillsDetail || []).length ? 'Is search se koi pending bill nahi mili.' : 'Koi pending order nahi.'}</span>
                 </div>`;
                 return;
             }
-            wrap.innerHTML = orders.map((o) => {
+            grid.innerHTML = orders.map((o) => {
                 const resumeUrl = (routes.resume || '').replace('__ID__', String(o.id));
-                return `<a class="rp-order-card" href="${escHtml(resumeUrl)}">
+                return `<a class="rp-order-card rp-order-card--grid" href="${escHtml(resumeUrl)}">
                     <div class="rp-oc-no">${escHtml(o.order_no)}</div>
                     <div class="rp-oc-meta">${escHtml(orderMetaLabel(o))} · ${escHtml(orderMetaDetail(o))}</div>
                     <div class="rp-oc-meta">${escHtml(fmtMoney(o.grand_total))} · ${o.items_count || 0} items</div>
+                    <div class="rp-oc-open">Open bill <i class="bi bi-arrow-right-short"></i></div>
                 </a>`;
             }).join('');
             return;
         }
 
-        const paid = boot.paidBillsDetail || [];
+        const paid = filterOrdersForSearch(boot.paidBillsDetail || []);
         if (!paid.length) {
-            wrap.innerHTML = `<div class="rp-empty" style="min-height:0;padding:0.5rem;">
-                <span class="text-secondary small">Aaj koi paid order nahi.</span>
+            grid.innerHTML = `<div class="rp-empty rp-empty--menu">
+                <span class="rp-empty-icon"><i class="bi bi-check-circle"></i></span>
+                <span>${(boot.paidBillsDetail || []).length ? 'Is search se koi paid bill nahi mili.' : 'Aaj koi paid order nahi.'}</span>
             </div>`;
             return;
         }
-        wrap.innerHTML = paid.map((o) => {
+        grid.innerHTML = paid.map((o) => {
             const receiptUrl = (routes.receipt || '').replace('__ID__', String(o.id));
             const paidAt = o.paid_at_full || o.paid_at || '';
-            return `<a class="rp-order-card rp-order-card-paid" href="${escHtml(receiptUrl)}" target="_blank" rel="noopener">
+            return `<a class="rp-order-card rp-order-card-paid rp-order-card--grid" href="${escHtml(receiptUrl)}" target="_blank" rel="noopener">
                 <div class="rp-oc-no">${escHtml(o.order_no)}</div>
                 <div class="rp-oc-meta">${escHtml(orderMetaLabel(o))} · ${escHtml(orderMetaDetail(o))}</div>
                 <div class="rp-oc-meta">${escHtml(fmtMoney(o.grand_total))} · ${o.payment_label || 'Paid'}</div>
                 ${paidAt ? `<div class="rp-oc-pay">${escHtml(paidAt)}</div>` : ''}
+                <div class="rp-oc-open">View receipt <i class="bi bi-box-arrow-up-right"></i></div>
             </a>`;
         }).join('');
     }
@@ -1525,7 +1610,10 @@
     }
 
     function bindEvents() {
-        $('#rpProductSearch')?.addEventListener('input', renderMenuGrid);
+        $('#rpProductSearch')?.addEventListener('input', () => {
+            if (orderListMode) renderOrderCards();
+            else renderMenuGrid();
+        });
         $('#rpMenuCats')?.addEventListener('click', (e) => {
             const btn = e.target.closest('.rp-menu-cat');
             if (!btn) return;
@@ -1579,7 +1667,10 @@
         });
         $('#rpTabPending')?.addEventListener('click', () => setOrderListMode('pending'));
         $('#rpTabPaid')?.addEventListener('click', () => setOrderListMode('paid'));
-        $('#rpTabMenu')?.addEventListener('click', () => togglePanelView('menu'));
+        $('#rpTabMenu')?.addEventListener('click', () => {
+            if (orderListMode) showMenuPanel();
+            togglePanelView('menu');
+        });
         $('#rpTabCart')?.addEventListener('click', () => togglePanelView('cart'));
         $('#rpToggleCartView')?.addEventListener('click', () => togglePanelView('cart'));
         $('#rpBillDiscount')?.addEventListener('input', renderTotals);
