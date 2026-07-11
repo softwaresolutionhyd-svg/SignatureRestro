@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
 use App\Models\InventoryCategory;
+use App\Models\InventoryDepartment;
 use App\Models\InventoryMove;
 use App\Models\InventoryProduct;
 use App\Models\Setting;
@@ -36,12 +37,29 @@ class InventoryController extends Controller
         $currency   = Setting::get('currency_symbol', 'Rs.');
         $filter     = $request->input('filter', 'low'); // low | zero | all
         $category   = $request->input('category_id', '');
-        $categories = InventoryCategory::orderBy('name')->get(['id','name']);
+        $departmentId = (int) $request->input('department_id', 0);
+        $departmentId = $departmentId > 0 ? $departmentId : null;
+        $categories = InventoryCategory::orderBy('name')->get(['id', 'name']);
+        $departments = InventoryDepartment::query()
+            ->where('active', true)
+            ->orderByDesc('is_warehouse')
+            ->orderBy('name')
+            ->get(['id', 'name', 'is_warehouse']);
 
-        $q = InventoryProduct::with('category')->where('active', true)->where('for_purchase', true)->excludingActiveBomFinishedProducts();
+        $q = InventoryProduct::with(['category', 'departments:id,name'])
+            ->where('active', true)
+            ->where('for_purchase', true)
+            ->excludingActiveBomFinishedProducts();
 
         if ($category) {
             $q->where('category_id', $category);
+        }
+
+        if ($departmentId !== null) {
+            $q->whereHas(
+                'departments',
+                fn ($dep) => $dep->where('inventory_departments.id', $departmentId)
+            );
         }
 
         switch ($filter) {
@@ -71,6 +89,7 @@ class InventoryController extends Controller
 
         return view('inventory.low-stock', compact(
             'products', 'filter', 'category', 'categories', 'currency',
+            'departmentId', 'departments',
             'kpiLow', 'kpiZero', 'kpiCritical', 'kpiOk'
         ));
     }

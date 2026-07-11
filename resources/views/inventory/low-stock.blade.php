@@ -71,7 +71,7 @@
             <label class="form-label small fw-semibold mb-1">Status Filter</label>
             <div class="d-flex gap-1">
                 @foreach(['low'=>'Low & Out of Stock','zero'=>'Out of Stock Only','all'=>'All Products'] as $val => $lbl)
-                <a href="{{ route('inventory.low-stock', array_merge(request()->query(), ['filter'=>$val, 'category_id'=>$category])) }}"
+                <a href="{{ route('inventory.low-stock', array_merge(request()->query(), ['filter' => $val])) }}"
                    class="btn btn-sm {{ $filter === $val ? 'btn-primary' : 'btn-outline-secondary' }}" style="font-size:11px;">
                     {{ $lbl }}
                 </a>
@@ -83,11 +83,22 @@
             <select name="category_id" class="form-select form-select-sm" style="min-width:160px;" onchange="this.form.submit()">
                 <option value="">All Categories</option>
                 @foreach($categories as $cat)
-                <option value="{{ $cat->id }}" @selected($category == $cat->id)>{{ $cat->name }}</option>
+                <option value="{{ $cat->id }}" @selected((string) $category === (string) $cat->id)>{{ $cat->name }}</option>
                 @endforeach
             </select>
-            <input type="hidden" name="filter" value="{{ $filter }}">
         </div>
+        <div>
+            <label class="form-label small fw-semibold mb-1">Department</label>
+            <select name="department_id" class="form-select form-select-sm" style="min-width:160px;" onchange="this.form.submit()">
+                <option value="">All Departments</option>
+                @foreach($departments as $dep)
+                    <option value="{{ $dep->id }}" @selected($departmentId === (int) $dep->id)>
+                        {{ $dep->name }}{{ $dep->is_warehouse ? ' (Warehouse)' : '' }}
+                    </option>
+                @endforeach
+            </select>
+        </div>
+        <input type="hidden" name="filter" value="{{ $filter }}">
         <div class="ms-auto d-flex align-items-center gap-1 text-secondary small">
             <svg width="14" height="14" fill="none" viewBox="0 0 20 20"><path d="M10 2L2 17h16L10 2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 8v4M10 14h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             {{ $products->count() }} products shown
