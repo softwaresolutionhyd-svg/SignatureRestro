@@ -31,7 +31,7 @@
                         <i class="bi bi-calendar-check me-1"></i> Attendance
                     </a>
                 @endif
-                @if($u->bypassesModulePermissions())
+                @if($u->canManagePayroll())
                     <a href="{{ route('employees.payroll.index') }}" class="btn btn-outline-secondary">
                         <i class="bi bi-cash-stack me-1"></i> Payroll
                     </a>

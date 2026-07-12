@@ -23,6 +23,7 @@ class PayrollController extends Controller
 
     public function index(Request $request)
     {
+        abort_unless($request->user()?->canManagePayroll(), 403);
         $this->ensurePayrollSchema();
 
         $period = $request->query('period', now()->format('Y-m'));
@@ -47,6 +48,7 @@ class PayrollController extends Controller
 
     public function generate(Request $request)
     {
+        abort_unless($request->user()?->canManagePayroll(), 403);
         $this->ensurePayrollSchema();
 
         $data = $request->validate([
@@ -70,6 +72,7 @@ class PayrollController extends Controller
 
     public function printSalaryRecord(Request $request)
     {
+        abort_unless($request->user()?->canManagePayroll(), 403);
         $this->ensurePayrollSchema();
 
         $period = $request->query('period', now()->format('Y-m'));
@@ -86,6 +89,7 @@ class PayrollController extends Controller
 
     public function update(Request $request, PayrollEntry $payrollEntry)
     {
+        abort_unless($request->user()?->canManagePayroll(), 403);
         if ($payrollEntry->status === 'paid') {
             return redirect()->back()->withErrors('Paid payroll cannot be edited.');
         }
@@ -113,6 +117,7 @@ class PayrollController extends Controller
 
     public function markPaid(PayrollEntry $payrollEntry)
     {
+        abort_unless(auth()->user()?->canManagePayroll(), 403);
         if ($payrollEntry->status === 'paid') {
             return redirect()->back()->withErrors('Already marked paid.');
         }

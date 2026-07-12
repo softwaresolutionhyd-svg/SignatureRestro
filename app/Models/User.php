@@ -180,6 +180,17 @@ class User extends Authenticatable
     /** Manager / owner designation — team attendance mark / change. */
     public function canManageTeamAttendance(): bool
     {
+        return $this->hasManagerDesignationAccess();
+    }
+
+    /** Payroll view / print / mark paid — owner, admin, or manager designation. */
+    public function canManagePayroll(): bool
+    {
+        return $this->hasManagerDesignationAccess();
+    }
+
+    private function hasManagerDesignationAccess(): bool
+    {
         if ($this->bypassesModulePermissions()) {
             return true;
         }

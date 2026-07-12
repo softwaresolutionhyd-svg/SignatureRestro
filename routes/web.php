@@ -296,15 +296,16 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
             Route::get('/{employee}/edit', [EmployeeController::class, 'edit'])->name('edit');
             Route::put('/{employee}', [EmployeeController::class, 'update'])->name('update');
             Route::delete('/{employee}', [EmployeeController::class, 'destroy'])->name('destroy');
-        });
 
-        Route::middleware('role:company_admin,super_admin')->group(function () {
-            Route::post('/{employee}/reset-password', [EmployeeController::class, 'resetPassword'])->name('reset-password');
             Route::get('/payroll', [PayrollController::class, 'index'])->name('payroll.index');
             Route::get('/payroll/print', [PayrollController::class, 'printSalaryRecord'])->name('payroll.print');
             Route::post('/payroll/generate', [PayrollController::class, 'generate'])->name('payroll.generate');
             Route::put('/payroll/{payrollEntry}', [PayrollController::class, 'update'])->name('payroll.update');
             Route::post('/payroll/{payrollEntry}/paid', [PayrollController::class, 'markPaid'])->name('payroll.paid');
+        });
+
+        Route::middleware('role:company_admin,super_admin')->group(function () {
+            Route::post('/{employee}/reset-password', [EmployeeController::class, 'resetPassword'])->name('reset-password');
         });
     });
 
