@@ -32,8 +32,8 @@
         <div class="card-body text-center py-5">
             <i class="bi bi-cash-stack display-4 text-secondary mb-3 d-block"></i>
             <h5 class="fw-semibold">Koi open POS session nahi hai</h5>
-            <p class="text-secondary mb-4">Nayi shift shuru karne ke liye Restaurant POS kholein — session auto open ho jayegi.</p>
-            <a href="{{ route('restaurant-pos.index') }}" class="btn btn-primary">Restaurant POS kholein</a>
+            <p class="text-secondary mb-4">Cashier subah shift shuru karte waqt Restaurant POS par <strong>Open POS Session</strong> dabaye.</p>
+            <a href="{{ route('restaurant-pos.index') }}" class="btn btn-primary">Restaurant POS</a>
         </div>
     </div>
 @else

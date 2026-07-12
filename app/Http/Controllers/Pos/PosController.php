@@ -36,6 +36,7 @@ use App\Services\AutoJournalService;
 use App\Services\OrderTakerService;
 use App\Services\PosSessionSummaryService;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -57,8 +58,17 @@ class PosController extends Controller
 
     public function restaurant(Request $request): View|RedirectResponse
     {
+        $user = Auth::user();
+        $this->ensurePosSessionDailyClosingSchema();
+
+        $session = $this->getOpenPosSessionForUser($user);
+
         if ($request->filled('resume_order')) {
-            $session = $this->ensureOpenSessionForUser(Auth::user());
+            if ($session === null) {
+                return redirect()
+                    ->route('restaurant-pos.index')
+                    ->with('warning', 'Pehle POS session open karein.');
+            }
             $draft = $this->findDraftOrderForSession($session, $request->integer('resume_order'));
             if ($draft === null) {
                 return redirect()
@@ -67,20 +77,26 @@ class PosController extends Controller
             }
         }
 
-        return view('pos.restaurant', $this->posIndexViewData($request));
+        if ($session === null) {
+            return view('pos.open-session', [
+                'canOpen' => $this->userCanOpenPosSession($user),
+                'currency' => Setting::get('currency_symbol', 'Rs.'),
+            ]);
+        }
+
+        return view('pos.restaurant', $this->posIndexViewData($request, $session));
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function posIndexViewData(Request $request): array
+    private function posIndexViewData(Request $request, PosSession $session): array
     {
         $this->ensurePosTablesSchema();
         $this->ensurePosOrderSchemaForCheckout();
         $this->ensurePosOrderItemsSchema();
         $this->ensurePosSessionDailyClosingSchema();
         $user = Auth::user();
-        $session = $this->ensureOpenSessionForUser($user);
 
         $heldOrders = collect();
         $paidOrders = collect();
@@ -409,7 +425,7 @@ class PosController extends Controller
     public function sync(Request $request): JsonResponse
     {
         $this->ensurePosSessionDailyClosingSchema();
-        $session = $this->ensureOpenSessionForUser(Auth::user());
+        $session = $this->requireOpenSessionForUser(Auth::user());
 
         $heldOrders = $this->heldOrdersForSession($session);
         $pending = $heldOrders
@@ -630,9 +646,23 @@ class PosController extends Controller
 
     public function openSession(PosOpenSessionRequest $request): RedirectResponse
     {
-        $this->ensureOpenSessionForUser(Auth::user());
+        $user = Auth::user();
+        abort_unless($this->userCanOpenPosSession($user), 403, 'POS session sirf cashier open kar sakta hai.');
 
-        return redirect()->route('restaurant-pos.index')->with('success', 'POS ready.');
+        $this->ensurePosSessionDailyClosingSchema();
+
+        if ($this->getOpenPosSessionForUser($user) !== null) {
+            return redirect()->route('restaurant-pos.index')->with('success', 'POS session pehle se open hai.');
+        }
+
+        $session = $this->createDailySession(
+            $user,
+            (float) $request->input('opening_cash', 0),
+            $request->input('note')
+        );
+        $this->rolloverStaleOpenSessionsForUser($user, $session);
+
+        return redirect()->route('restaurant-pos.index')->with('success', 'POS session open ho gayi.');
     }
 
     public function closeSession(PosCloseSessionRequest $request): RedirectResponse
@@ -689,11 +719,11 @@ class PosController extends Controller
         ]);
     }
 
-    private function ensureOpenSessionForUser(User $user): PosSession
+    private function getOpenPosSessionForUser(User $user): ?PosSession
     {
         $today = now()->toDateString();
 
-        $session = PosSession::query()
+        $own = PosSession::query()
             ->where('user_id', $user->id)
             ->where('status', 'open')
             ->where(function ($q) use ($today) {
@@ -703,23 +733,68 @@ class PosController extends Controller
             ->latest('id')
             ->first();
 
-        if ($session !== null) {
-            return $session;
+        if ($own !== null) {
+            return $own;
         }
+
+        if ($this->posUsesSharedBills($user) && ! $this->userIsPosCashier($user)) {
+            return PosSession::query()
+                ->where('status', 'open')
+                ->where(function ($q) use ($today) {
+                    $q->where('business_date', $today)
+                        ->orWhereDate('opened_at', $today);
+                })
+                ->latest('id')
+                ->first();
+        }
+
+        return null;
+    }
+
+    private function requireOpenSessionForUser(User $user): PosSession
+    {
+        $session = $this->getOpenPosSessionForUser($user);
+        if ($session === null) {
+            throw new HttpResponseException(
+                redirect()->route('restaurant-pos.index')
+                    ->with('warning', 'Pehle POS session open karein.')
+            );
+        }
+
+        return $session;
+    }
+
+    private function userIsPosCashier(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        return $this->posStaffCapabilities($user)['is_cashier'];
+    }
+
+    private function userCanOpenPosSession(?User $user): bool
+    {
+        if ($user === null || $user->bypassesModulePermissions()) {
+            return false;
+        }
+
+        return $this->userIsPosCashier($user);
+    }
+
+    private function rolloverStaleOpenSessionsForUser(User $user, PosSession $newSession): void
+    {
+        $today = now()->toDateString();
 
         $staleOpen = PosSession::query()
             ->where('user_id', $user->id)
             ->where('status', 'open')
+            ->where('id', '!=', $newSession->id)
             ->whereDate('opened_at', '<', $today)
             ->orderBy('id')
             ->get();
 
-        $newSession = null;
         foreach ($staleOpen as $stale) {
-            if ($newSession === null) {
-                $newSession = $this->createDailySession($user);
-            }
-
             PosOrder::query()
                 ->where('session_id', $stale->id)
                 ->where('status', 'draft')
@@ -727,23 +802,18 @@ class PosController extends Controller
 
             $this->finalizeSessionClose($stale, 'Auto day rollover');
         }
-
-        if ($newSession !== null) {
-            return $newSession;
-        }
-
-        return $this->createDailySession($user);
     }
 
-    private function createDailySession(User $user): PosSession
+    private function createDailySession(User $user, float $openingCash = 0, ?string $note = null): PosSession
     {
         return PosSession::create([
             'session_no' => $this->nextDailySessionNo($user),
             'business_date' => now()->toDateString(),
             'user_id' => $user->id,
             'status' => 'open',
-            'opening_cash' => 0,
+            'opening_cash' => round(max(0, $openingCash), 2),
             'opened_at' => now(),
+            'note' => $note,
         ]);
     }
 
@@ -773,7 +843,7 @@ class PosController extends Controller
     public function addCashMovement(PosCashMovementRequest $request): RedirectResponse
     {
         $this->ensurePosSessionDailyClosingSchema();
-        $session = $this->ensureOpenSessionForUser(Auth::user());
+        $session = $this->requireOpenSessionForUser(Auth::user());
 
         PosCashMovement::create([
             'session_id' => $session->id,
@@ -793,7 +863,7 @@ class PosController extends Controller
         $this->ensurePosOrderItemsSchema();
         $this->ensurePosSessionDailyClosingSchema();
 
-        $session = $this->ensureOpenSessionForUser(Auth::user());
+        $session = $this->requireOpenSessionForUser(Auth::user());
         $wantsJson = $request->expectsJson() && $this->isRestaurantPosRequest($request);
         $checkoutUser = $request->user();
 
@@ -1127,7 +1197,7 @@ class PosController extends Controller
 
         $customerType = $this->normalizeCustomerType($request->input('customer_type'));
 
-        $session = $this->ensureOpenSessionForUser(Auth::user());
+        $session = $this->requireOpenSessionForUser(Auth::user());
         $holdUser = $request->user();
 
         $serviceType = null;
@@ -1405,13 +1475,13 @@ class PosController extends Controller
         $uiRoute = 'restaurant-pos.index';
 
         if ($order->isReadyForPosPickup()) {
-            $session = $this->ensureOpenSessionForUser(Auth::user());
+            $session = $this->requireOpenSessionForUser(Auth::user());
             $order->update(['session_id' => $session->id]);
 
             return redirect()->route($uiRoute, ['resume_order' => $order->id]);
         }
 
-        $session = $this->ensureOpenSessionForUser(Auth::user());
+        $session = $this->requireOpenSessionForUser(Auth::user());
         if ($this->findDraftOrderForSession($session, (int) $order->id) === null) {
             abort(403);
         }
@@ -1433,7 +1503,7 @@ class PosController extends Controller
             return back()->with('error', 'Is bill ki refund entry maujood hai — pehle refund hataen.');
         }
 
-        $session = $this->ensureOpenSessionForUser(Auth::user());
+        $session = $this->requireOpenSessionForUser(Auth::user());
 
         try {
             DB::connection('tenant')->transaction(function () use ($order, $session) {
@@ -1492,7 +1562,7 @@ class PosController extends Controller
     /** Delete a draft held order for the current open register session (items cascade). */
     public function discardHeld(int $orderId): RedirectResponse|JsonResponse
     {
-        $session = $this->ensureOpenSessionForUser(Auth::user());
+        $session = $this->requireOpenSessionForUser(Auth::user());
         $order = PosOrder::query()->find($orderId);
 
         if ($order === null) {
