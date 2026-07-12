@@ -94,6 +94,9 @@
                                 </form>
                                 <input type="text" name="notes" form="{{ $pf }}" value="{{ $entry->notes }}" class="form-control form-control-sm mb-1" placeholder="Notes">
                                 <div class="d-flex gap-1 justify-content-end flex-wrap">
+                                    <a class="btn btn-sm btn-outline-secondary" href="{{ route('employees.payroll.slip', $entry) }}" target="_blank" rel="noopener" title="Print individual salary slip">
+                                        <i class="bi bi-receipt"></i> Slip
+                                    </a>
                                     <button class="btn btn-sm btn-outline-primary" type="submit" form="{{ $pf }}">Save</button>
                                     <form method="POST" action="{{ route('employees.payroll.paid', $entry) }}" class="d-inline" onsubmit="return confirm('Mark this row as paid?');">
                                         @csrf
@@ -119,8 +122,13 @@
                                 <span class="badge text-bg-success">Paid</span>
                                 <div class="small text-secondary">{{ $entry->paid_at?->format('Y-m-d H:i') }}</div>
                             </td>
-                            <td class="text-end small text-secondary">
-                                @if($entry->notes){{ $entry->notes }}@else — @endif
+                            <td class="text-end">
+                                <a class="btn btn-sm btn-outline-secondary" href="{{ route('employees.payroll.slip', $entry) }}" target="_blank" rel="noopener" title="Print individual salary slip">
+                                    <i class="bi bi-receipt"></i> Slip
+                                </a>
+                                @if($entry->notes)
+                                    <div class="small text-secondary mt-1">{{ $entry->notes }}</div>
+                                @endif
                             </td>
                         </tr>
                     @endif

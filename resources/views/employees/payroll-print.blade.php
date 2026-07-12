@@ -21,15 +21,6 @@
         td.num, th.num { text-align: right; white-space: nowrap; }
         .status-paid { color: #166534; font-weight: 700; }
         .status-unpaid { color: #b45309; font-weight: 700; }
-        .slip-section { page-break-before: always; margin-top: 24px; }
-        .slip-section:first-of-type { page-break-before: auto; }
-        .slip-box {
-            border: 2px solid #111; padding: 16px; max-width: 520px; margin: 0 auto 20px;
-        }
-        .slip-title { text-align: center; font-size: 16px; font-weight: 700; margin-bottom: 12px; }
-        .slip-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed #ddd; }
-        .slip-row:last-child { border-bottom: none; font-weight: 700; font-size: 14px; padding-top: 10px; }
-        .slip-label { color: #555; }
         @media print {
             body { padding: 0; }
             .noprint { display: none !important; }
@@ -87,31 +78,6 @@
         </tr>
         </tfoot>
     </table>
-
-    <h2 style="margin-top: 28px; margin-bottom: 12px;">Individual Salary Slips</h2>
-
-    @foreach($rows as $row)
-        <div class="slip-section">
-            <div class="slip-box">
-                <div class="slip-title">{{ $companyName }}</div>
-                <div class="slip-title" style="font-size: 13px; margin-bottom: 16px;">Salary Slip — {{ $periodLabel }}</div>
-
-                <div class="slip-row"><span class="slip-label">Employee ID</span><span>{{ $row['employee_no'] }}</span></div>
-                <div class="slip-row"><span class="slip-label">Employee Name</span><span>{{ $row['name'] }}</span></div>
-                <div class="slip-row"><span class="slip-label">Designation</span><span>{{ $row['designation'] }}</span></div>
-                <div class="slip-row"><span class="slip-label">Basic Salary</span><span>{{ number_format($row['basic_salary'], 2) }}</span></div>
-                <div class="slip-row"><span class="slip-label">Working Days</span><span>{{ $row['working_days'] }}</span></div>
-                <div class="slip-row"><span class="slip-label">Attendance Deduction</span><span>{{ number_format($row['deduction'], 2) }}</span></div>
-                <div class="slip-row"><span class="slip-label">Food Bill (Credit)</span><span>{{ number_format($row['food_bill'], 2) }}</span></div>
-                <div class="slip-row"><span class="slip-label">Loan</span><span>{{ number_format($row['loan'], 2) }}</span></div>
-                @if($row['bonus'] > 0)
-                <div class="slip-row"><span class="slip-label">Bonus</span><span>{{ number_format($row['bonus'], 2) }}</span></div>
-                @endif
-                <div class="slip-row"><span class="slip-label">Final Salary</span><span>{{ number_format($row['final_salary'], 2) }}</span></div>
-                <div class="slip-row"><span class="slip-label">Status</span><span class="{{ $row['status_key'] === 'paid' ? 'status-paid' : 'status-unpaid' }}">{{ $row['status'] }}</span></div>
-            </div>
-        </div>
-    @endforeach
 
     <script>
         window.addEventListener('load', () => {

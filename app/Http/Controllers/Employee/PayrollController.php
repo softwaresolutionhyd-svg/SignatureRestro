@@ -87,6 +87,25 @@ class PayrollController extends Controller
         return view('employees.payroll-print', compact('rows', 'period', 'periodLabel', 'companyName'));
     }
 
+    public function printSlip(Request $request, PayrollEntry $payrollEntry)
+    {
+        abort_unless($request->user()?->canManagePayroll(), 403);
+        $this->ensurePayrollSchema();
+
+        $payrollEntry->load(['employee.designation:id,name']);
+        $employee = $payrollEntry->employee;
+        if ($employee === null) {
+            abort(404);
+        }
+
+        $period = $payrollEntry->period;
+        $row = $this->payrollSalary->rowFromEntry($employee, $payrollEntry, $period);
+        $periodLabel = $this->payrollSalary->periodLabel($period);
+        $companyName = config('app.name');
+
+        return view('employees.payroll-slip', compact('row', 'period', 'periodLabel', 'companyName'));
+    }
+
     public function update(Request $request, PayrollEntry $payrollEntry)
     {
         abort_unless($request->user()?->canManagePayroll(), 403);

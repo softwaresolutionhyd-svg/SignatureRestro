@@ -299,6 +299,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
 
             Route::get('/payroll', [PayrollController::class, 'index'])->name('payroll.index');
             Route::get('/payroll/print', [PayrollController::class, 'printSalaryRecord'])->name('payroll.print');
+            Route::get('/payroll/{payrollEntry}/slip', [PayrollController::class, 'printSlip'])->name('payroll.slip');
             Route::post('/payroll/generate', [PayrollController::class, 'generate'])->name('payroll.generate');
             Route::put('/payroll/{payrollEntry}', [PayrollController::class, 'update'])->name('payroll.update');
             Route::post('/payroll/{payrollEntry}/paid', [PayrollController::class, 'markPaid'])->name('payroll.paid');
