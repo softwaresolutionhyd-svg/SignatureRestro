@@ -12,10 +12,9 @@ final class PosSessionSummaryService
 {
     public function heldCount(PosSession $session): int
     {
-        return (int) PosOrder::query()
-            ->where('session_id', $session->id)
-            ->where('status', 'draft')
-            ->count();
+        $pending = app(PosPendingBillsService::class);
+
+        return $pending->countHeldDrafts($pending->billSessionIdsForSession($session));
     }
 
     /**

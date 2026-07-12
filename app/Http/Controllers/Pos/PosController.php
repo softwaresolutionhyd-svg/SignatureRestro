@@ -34,6 +34,7 @@ use App\Services\KitchenService;
 use App\Services\ManufacturingStockService;
 use App\Services\AutoJournalService;
 use App\Services\OrderTakerService;
+use App\Services\PosPendingBillsService;
 use App\Services\PosSessionSummaryService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -539,37 +540,11 @@ class PosController extends Controller
     {
         $user = $user ?? Auth::user();
         $billSessionIds = $this->resolvePosBillSessionIds($session, $user);
-        $hasOrderTakerColumns = Schema::hasColumn('pos_orders', 'order_source')
-            && Schema::hasColumn('pos_orders', 'ready_for_pos_at');
-
-        $heldOrders = PosOrder::query()
-            ->where('status', 'draft')
-            ->when($hasOrderTakerColumns, function ($q) use ($billSessionIds) {
-                $q->where(function ($outer) use ($billSessionIds) {
-                    $outer->where(function ($w) use ($billSessionIds) {
-                        $w->whereIn('session_id', $billSessionIds)
-                            ->where(function ($inner) {
-                                $inner->whereNull('order_source')
-                                    ->orWhere('order_source', 'pos');
-                            });
-                    })->orWhere(function ($w) use ($billSessionIds) {
-                        $w->where('order_source', OrderTakerService::SOURCE_ORDER_TAKER)
-                            ->whereNotNull('ready_for_pos_at')
-                            ->where(function ($inner) use ($billSessionIds) {
-                                $inner->whereNull('session_id')
-                                    ->orWhereIn('session_id', $billSessionIds);
-                            });
-                    });
-                });
-            }, function ($q) use ($billSessionIds) {
-                $q->whereIn('session_id', $billSessionIds);
-            })
-            ->with(['items.product:id,name', 'table:id,name'])
-            ->withCount('items')
-            ->latest('id')
-            ->get();
+        $heldOrders = app(PosPendingBillsService::class)->queryHeldDrafts($billSessionIds, false);
 
         foreach ($heldOrders as $draft) {
+            $draft->loadMissing(['items.product:id,name', 'table:id,name']);
+            $draft->loadCount('items');
             if ($this->repairDraftOrderIfNeeded($draft)) {
                 $draft->refresh();
                 $draft->loadMissing(['items.product:id,name', 'table:id,name']);
@@ -578,6 +553,7 @@ class PosController extends Controller
 
         return $heldOrders
             ->filter(fn (PosOrder $order) => $order->isDueForServeDay())
+            ->sortByDesc('id')
             ->values();
     }
 
@@ -662,15 +638,20 @@ class PosController extends Controller
         }
 
         $summary = app(PosSessionSummaryService::class)->summaryPayload($session);
+        $pendingCount = $this->heldOrdersForSession($session, $user)->count();
+        $stats = array_merge($summary['stats'], [
+            'held_count' => $pendingCount,
+            'can_close_session' => $pendingCount === 0,
+        ]);
 
         return view('pos.closing.index', [
             'session' => $session,
-            'stats' => $summary['stats'],
+            'stats' => $stats,
             'cash' => $summary['cash'],
             'amountToCollect' => $summary['amount_to_collect'],
             'currency' => $currency,
             'companyName' => $companyName,
-            'canClose' => $summary['stats']['can_close_session'],
+            'canClose' => $pendingCount === 0,
             'noOpenSession' => false,
         ]);
     }
@@ -755,14 +736,11 @@ class PosController extends Controller
         $session = $this->getOpenPosSessionForUser($user);
         abort_if($session === null, 404, 'Koi open POS session nahi hai.');
 
-        $heldDraft = (int) PosOrder::query()
-            ->where('session_id', $session->id)
-            ->where('status', 'draft')
-            ->count();
+        $heldDraft = $this->heldOrdersForSession($session, $user)->count();
         if ($heldDraft > 0) {
             return back()->with(
                 'error',
-                "Day close nahi ho sakta: {$heldDraft} pending bill(s) abhi bhi maujood hain. Pehle Resume kar ke complete karein ya Discard karein."
+                "Session close nahi ho sakti: {$heldDraft} pending bill(s) abhi bhi maujood hain. Pehle Restaurant POS par ja kar pay ya discard karein."
             );
         }
 

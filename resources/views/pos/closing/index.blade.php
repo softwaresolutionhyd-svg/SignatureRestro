@@ -175,7 +175,7 @@
                 </a>
             </div>
 
-            <form method="POST" action="{{ route('restaurant-pos.session.close') }}" class="row g-3 align-items-end" onsubmit="return confirm('Kya aap is POS session ko close karna chahte hain?');">
+            <form method="POST" action="{{ route('restaurant-pos.session.close') }}" class="row g-3 align-items-end" @if($canClose) onsubmit="return confirm('Kya aap is POS session ko close karna chahte hain?');" @endif>
                 @csrf
                 <div class="col-md-3">
                     <label class="form-label" for="counted_cash">Counted cash (drawer)</label>
