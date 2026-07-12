@@ -297,20 +297,20 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rp-pay-modal">
             <div class="modal-header border-0 pb-0">
-                <h5 class="modal-title fw-bold" id="rpRemoveReasonModalLabel">Item remove karein</h5>
+                <h5 class="modal-title fw-bold" id="rpRemoveReasonModalLabel">Item change</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body pt-2">
-                <p class="small text-secondary mb-2">Ye item kitchen ko bhej diya gaya hai. Hataane ka reason likhein:</p>
+                <p class="small text-secondary mb-2" id="rpRemoveReasonHint">Item kam ya khatam karne ka reason likhein:</p>
                 <p class="fw-semibold mb-2" id="rpRemoveItemName"></p>
                 <label for="rpRemoveReason" class="form-label fw-semibold mb-1">Reason</label>
-                <textarea class="form-control" id="rpRemoveReason" rows="3" maxlength="500" placeholder="Masalan: galat item select ho gaya"></textarea>
+                <textarea class="form-control" id="rpRemoveReason" rows="3" maxlength="500" placeholder="Masalan: customer ne cancel kiya"></textarea>
                 <p class="text-danger small mb-0 mt-2 d-none" id="rpRemoveReasonError">Kam az kam 3 characters ka reason likhein.</p>
             </div>
             <div class="modal-footer border-0 pt-0">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-danger" id="rpRemoveConfirm">
-                    <i class="bi bi-trash"></i> Remove
+                    <i class="bi bi-check-lg"></i> Confirm
                 </button>
             </div>
         </div>
@@ -374,6 +374,7 @@
     <input type="hidden" name="cash_tendered" value="">
     <input type="hidden" name="cash_change" value="">
     <input type="hidden" name="kitchen_voids" value="">
+    <input type="hidden" name="item_reductions" value="">
 </form>
 @endsection
 
@@ -398,7 +399,8 @@
         'tablesEnabled' => (bool) ($posSettings['enable_tables'] ?? false),
         'tableBoard' => $tableBoard ?? [],
         'restaurantName' => config('app.name'),
-        'canVoidKitchenItems' => auth()->user()?->bypassesModulePermissions() ?? false,
+        'canVoidKitchenItems' => (bool) (($canPosDiscountCredit ?? false) || auth()->user()?->bypassesModulePermissions()),
+        'requireItemChangeReason' => (bool) ($canPosDiscountCredit ?? false),
         'canReopenPaidBill' => (bool) ($canReopenPaidBill ?? false),
         'canPosPay' => (bool) ($canPosPay ?? false),
         'canPosDiscountCredit' => (bool) ($canPosDiscountCredit ?? false),
@@ -418,5 +420,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=46"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=48"></script>
 @endsection

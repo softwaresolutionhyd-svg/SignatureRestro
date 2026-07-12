@@ -1030,6 +1030,7 @@ class PosController extends Controller
         }
 
         $this->assertKitchenVoidPermission($request);
+        $this->assertItemReductionPermission($request);
 
         if ($resumeOrderId) {
             $resumeDraft = $this->findDraftOrderForSession($session, $resumeOrderId, $checkoutUser);
@@ -1257,6 +1258,7 @@ class PosController extends Controller
         }
 
         $this->logKitchenVoids($order, $this->normalizedKitchenVoids($request));
+        $this->logItemReductions($order, $this->normalizedItemReductions($request));
         $this->autoJournal->postPosSale($order);
 
         $openReceipt = Setting::get('pos_open_receipt_after_sale', '1') === '1';
@@ -1340,6 +1342,7 @@ class PosController extends Controller
         }
 
         $this->assertKitchenVoidPermission($request);
+        $this->assertItemReductionPermission($request);
 
         if ($resumeOrderId) {
             $resumeDraft = $this->findDraftOrderForSession($session, $resumeOrderId, $holdUser);
@@ -1552,6 +1555,7 @@ class PosController extends Controller
         }
 
         $this->logKitchenVoids($order, $this->normalizedKitchenVoids($request));
+        $this->logItemReductions($order, $this->normalizedItemReductions($request));
 
         $message = $updatedExisting ? 'Held order updated.' : 'Order held successfully.';
 
@@ -3138,11 +3142,24 @@ class PosController extends Controller
         }
 
         $user = Auth::user();
-        if (! $user || ! $user->bypassesModulePermissions()) {
+        if (! $user || ! $this->userCanKitchenVoid($user)) {
             throw ValidationException::withMessages([
-                'kitchen_voids' => 'Kitchen items sirf admin remove kar sakta hai.',
+                'kitchen_voids' => 'Kitchen items sirf manager/admin remove kar sakta hai.',
             ]);
         }
+    }
+
+    private function userCanKitchenVoid(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->bypassesModulePermissions()) {
+            return true;
+        }
+
+        return $this->posStaffCapabilities($user)['is_manager'];
     }
 
     /**
@@ -3173,6 +3190,61 @@ class PosController extends Controller
     }
 
     /**
+     * @return list<array{product_id: int, uom: string, qty: float, reason: string, notes?: string}>
+     */
+    private function normalizedItemReductions(PosCheckoutRequest $request): array
+    {
+        $rows = [];
+        foreach ((array) $request->input('item_reductions', []) as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $reason = trim((string) ($row['reason'] ?? ''));
+            $qty = (float) ($row['qty'] ?? 0);
+            if ($reason === '' || $qty <= 0) {
+                continue;
+            }
+            $rows[] = [
+                'product_id' => (int) ($row['product_id'] ?? 0),
+                'uom' => (string) ($row['uom'] ?? ''),
+                'qty' => $qty,
+                'reason' => $reason,
+                'notes' => trim((string) ($row['notes'] ?? '')),
+                'name' => trim((string) ($row['name'] ?? '')),
+            ];
+        }
+
+        return $rows;
+    }
+
+    private function assertItemReductionPermission(PosCheckoutRequest $request): void
+    {
+        if ($this->normalizedItemReductions($request) === []) {
+            return;
+        }
+
+        $user = Auth::user();
+        if (! $user || (! $this->userCanLogItemReduction($user))) {
+            throw ValidationException::withMessages([
+                'item_reductions' => 'Item kam karne ka reason sirf manager de sakta hai.',
+            ]);
+        }
+    }
+
+    private function userCanLogItemReduction(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ($user->bypassesModulePermissions()) {
+            return true;
+        }
+
+        return $this->posStaffCapabilities($user)['is_manager'];
+    }
+
+    /**
      * @param  list<array{product_id: int, uom: string, qty: float, reason: string, notes?: string, name?: string}>  $kitchenVoids
      */
     private function logKitchenVoids(PosOrder $order, array $kitchenVoids): void
@@ -3197,6 +3269,35 @@ class PosController extends Controller
                 ),
                 $order,
                 ['void' => $void]
+            );
+        }
+    }
+
+    /**
+     * @param  list<array{product_id: int, uom: string, qty: float, reason: string, notes?: string, name?: string}>  $reductions
+     */
+    private function logItemReductions(PosOrder $order, array $reductions): void
+    {
+        if ($reductions === []) {
+            return;
+        }
+
+        foreach ($reductions as $row) {
+            $label = trim((string) ($row['name'] ?? ''));
+            if ($label === '') {
+                $label = 'Product #'.(int) ($row['product_id'] ?? 0);
+            }
+            ActivityLogger::log(
+                'pos.item_reduction',
+                sprintf(
+                    'Item reduced on %s: %s × %s — %s',
+                    $order->order_no,
+                    $label,
+                    (float) ($row['qty'] ?? 0),
+                    (string) ($row['reason'] ?? '')
+                ),
+                $order,
+                ['reduction' => $row]
             );
         }
     }

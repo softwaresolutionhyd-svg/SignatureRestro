@@ -23,11 +23,13 @@
     const posTablesEnabled = boot.tablesEnabled !== undefined ? !!boot.tablesEnabled : !!settings.enable_tables;
     const posShowCustomerSection = settings.show_customer_section !== false;
     const canVoidKitchenItems = boot.canVoidKitchenItems === true;
+    const requireItemChangeReason = boot.requireItemChangeReason === true;
     const canReopenPaidBill = boot.canReopenPaidBill === true;
 
     let cart = [];
     let kitchenVoids = [];
-    let pendingRemoveIndex = null;
+    let itemReductions = [];
+    let pendingChangeAction = null;
     let removeReasonModalInstance = null;
     let resumeSaveLock = Promise.resolve();
     let payments = [{ method: 'cash', amount: 0 }];
@@ -477,30 +479,47 @@
         renderAll();
     }
 
+    function buildReductionEntry(row, qty, reason) {
+        return {
+            product_id: row.product_id,
+            uom: row.uom,
+            qty: Math.round(Number(qty) * 1000) / 1000,
+            reason: String(reason || '').trim(),
+            notes: String(row.notes || '').trim(),
+            name: row.name,
+        };
+    }
+
+    function findCartRowForProduct(productId) {
+        return cart.find((r) => Number(r.product_id) === Number(productId)) || null;
+    }
+
     async function removeCartLine(index, reason) {
         const row = cart[index];
         if (!row) return;
 
         const locked = Number(row.kitchen_locked_qty) || 0;
         if (locked > 0 && !canVoidKitchenItems) {
-            alert('Kitchen print ke baad item sirf admin remove kar sakta hai.');
+            alert('Kitchen print ke baad item sirf manager/admin remove kar sakta hai.');
             return;
         }
+
+        const needsReason = (requireItemChangeReason || locked > 0) && !String(reason || '').trim();
+        if (needsReason) {
+            openItemChangeReasonModal({ type: 'remove', index });
+            return;
+        }
+
         const voidsBefore = kitchenVoids.length;
-        if (locked > 0) {
-            const reasonText = String(reason || '').trim();
-            if (!reasonText) {
-                openRemoveReasonModal(index);
-                return;
-            }
-            kitchenVoids.push({
-                product_id: row.product_id,
-                uom: row.uom,
-                qty: locked,
-                reason: reasonText,
-                notes: String(row.notes || '').trim(),
-                name: row.name,
-            });
+        const reductionsBefore = itemReductions.length;
+        const reasonText = String(reason || '').trim();
+
+        if (locked > 0 && reasonText) {
+            kitchenVoids.push(buildReductionEntry(row, locked, reasonText));
+        }
+        const regularQty = Math.max(0, Number(row.qty) - locked);
+        if (regularQty > 0 && requireItemChangeReason && reasonText) {
+            itemReductions.push(buildReductionEntry(row, regularQty, reasonText));
         }
 
         cart.splice(index, 1);
@@ -515,6 +534,7 @@
         } catch (e) {
             cart.splice(index, 0, row);
             kitchenVoids.length = voidsBefore;
+            itemReductions.length = reductionsBefore;
             renderAll();
             throw e;
         }
@@ -529,17 +549,40 @@
         return removeReasonModalInstance;
     }
 
-    function openRemoveReasonModal(index) {
-        pendingRemoveIndex = index;
-        const row = cart[index];
-        const label = $('#rpRemoveItemName');
-        if (label) {
-            label.textContent = row ? `${fmtQty(row.qty)}× ${row.name}` : '';
+    function openItemChangeReasonModal(action) {
+        pendingChangeAction = action;
+        const title = $('#rpRemoveReasonModalLabel');
+        const hint = $('#rpRemoveReasonHint');
+        const confirmBtn = $('#rpRemoveConfirm');
+
+        let label = '';
+        if (action.type === 'remove') {
+            const row = cart[action.index];
+            label = row ? `${fmtQty(row.qty)}× ${row.name}` : '';
+            if (title) title.textContent = 'Item hataein';
+            if (hint) {
+                hint.textContent = Number(row?.kitchen_locked_qty) > 0
+                    ? 'Kitchen item hataane ka reason likhein:'
+                    : 'Item hataane ka reason likhein:';
+            }
+            if (confirmBtn) confirmBtn.innerHTML = '<i class="bi bi-trash"></i> Remove';
+        } else {
+            const p = products.find((x) => Number(x.id) === Number(action.productId));
+            label = p ? p.name : 'Item';
+            if (title) title.textContent = 'Quantity kam karein';
+            if (hint) {
+                hint.textContent = action.voidKitchen
+                    ? 'Kitchen quantity kam karne ka reason likhein:'
+                    : 'Quantity kam karne ka reason likhein:';
+            }
+            if (confirmBtn) confirmBtn.innerHTML = '<i class="bi bi-check-lg"></i> Confirm';
         }
+
+        const nameEl = $('#rpRemoveItemName');
+        if (nameEl) nameEl.textContent = label;
+
         const input = $('#rpRemoveReason');
-        if (input) {
-            input.value = '';
-        }
+        if (input) input.value = '';
         $('#rpRemoveReasonError')?.classList.add('d-none');
         getRemoveReasonModal()?.show();
         setTimeout(() => input?.focus(), 280);
@@ -551,40 +594,78 @@
             $('#rpRemoveReasonError')?.classList.remove('d-none');
             return;
         }
-        if (pendingRemoveIndex === null) return;
-        const idx = pendingRemoveIndex;
-        pendingRemoveIndex = null;
+
+        const action = pendingChangeAction;
+        pendingChangeAction = null;
         getRemoveReasonModal()?.hide();
+
+        if (!action) return;
+
         try {
-            await removeCartLine(idx, reason);
+            if (action.type === 'remove') {
+                await removeCartLine(action.index, reason);
+            } else if (action.type === 'dec') {
+                changeCartQty(action.productId, -1, reason);
+            }
         } catch (e) {
-            alert(e.message || 'Item remove save nahi ho saki.');
+            alert(e.message || 'Change save nahi ho saki.');
         }
     }
 
     function cancelRemoveReasonModal() {
-        pendingRemoveIndex = null;
+        pendingChangeAction = null;
         getRemoveReasonModal()?.hide();
     }
 
-    function changeCartQty(productId, delta) {
+    function changeCartQty(productId, delta, reason) {
         const p = products.find((x) => Number(x.id) === Number(productId));
         if (delta > 0) {
             addOrIncrementProduct(productId);
             return;
         }
+
+        if (requireItemChangeReason && !String(reason || '').trim()) {
+            openItemChangeReasonModal({ type: 'dec', productId });
+            return;
+        }
+
         const locked = cartLockedQtyForProduct(productId);
         const totalQty = cartQtyForProduct(productId);
         const next = Math.round((totalQty + delta) * 1000) / 1000;
+        const reasonText = String(reason || '').trim();
+
         if (next < locked) {
-            alert('Kitchen me bheji hui quantity kam nahi ho sakti.');
-            return;
+            if (!canVoidKitchenItems) {
+                alert('Kitchen me bheji hui quantity kam nahi ho sakti.');
+                return;
+            }
+            if (!reasonText) {
+                openItemChangeReasonModal({ type: 'dec', productId, voidKitchen: true });
+                return;
+            }
+            const voidQty = Math.round((locked - next) * 1000) / 1000;
+            const sample = findCartRowForProduct(productId);
+            if (voidQty > 0 && sample) {
+                kitchenVoids.push(buildReductionEntry(sample, voidQty, reasonText));
+            }
+        } else if (requireItemChangeReason && reasonText) {
+            const sample = findCartRowForProduct(productId);
+            const reducible = Math.max(0, totalQty - locked);
+            const decQty = Math.min(1, reducible);
+            if (sample && decQty > 0) {
+                itemReductions.push(buildReductionEntry(sample, decQty, reasonText));
+            }
         }
+
         if (next <= 0) {
             cart = cart.filter((r) => Number(r.product_id) !== Number(productId));
             renderAll();
+            if (resumeOrderId) {
+                saveResumedDraftChanges().catch((e) => alert(e.message || 'Order save nahi ho saki.'));
+            }
             return;
         }
+
         let remaining = Math.abs(delta);
         for (let i = cart.length - 1; i >= 0 && remaining > 0; i--) {
             const row = cart[i];
@@ -599,6 +680,9 @@
         }
         cart = cart.filter((r) => Number(r.qty) > 0.0005);
         renderAll();
+        if (resumeOrderId) {
+            saveResumedDraftChanges().catch((e) => alert(e.message || 'Order save nahi ho saki.'));
+        }
     }
 
     function applySaleModePricing() {
@@ -676,7 +760,7 @@
         grid.innerHTML = list.map((p) => {
             const qty = cartQtyForProduct(p.id);
             const locked = cartLockedQtyForProduct(p.id);
-            const canDec = qty > locked;
+            const canDec = qty > 0 && (qty > locked || canVoidKitchenItems);
             const price = unitPriceForProduct(p, p.uom);
             const label = displayProductName(p.name);
             const img = p.image_url
@@ -709,13 +793,16 @@
         wrap.innerHTML = cart.map((r, i) => {
             const total = lineRowTotal(r, totals, i);
             const locked = Number(r.kitchen_locked_qty) || 0;
-            const showRemove = locked === 0 || canVoidKitchenItems;
+            const showRemove = locked === 0 || canVoidKitchenItems || requireItemChangeReason;
             const kitchenBadge = locked > 0
                 ? `<span class="rp-kitchen-pill ${r.kitchen_served ? 'rp-kitchen-pill--served' : 'rp-kitchen-pill--pending'}" title="Kitchen me bheja hua">
                     <i class="bi ${r.kitchen_served ? 'bi-check-circle-fill' : 'bi-fire'}"></i>
                     ${r.kitchen_served ? 'Served' : 'Kitchen'}
                    </span>`
                 : '';
+            const removeTitle = requireItemChangeReason
+                ? 'Reason required'
+                : (locked > 0 ? 'Kitchen item — reason required' : 'Remove item');
             return `<div class="rp-cart-line${locked > 0 ? ' is-kitchen-locked' : ''}" data-cart-index="${i}">
                 <div class="rp-cl-main">
                     <span class="rp-cl-qty">${fmtQty(r.qty)}×</span>
@@ -724,7 +811,7 @@
                 </div>
                 <div class="rp-cl-actions">
                     <div class="rp-cl-total">${fmtMoney(total)}</div>
-                    ${showRemove ? `<button type="button" class="rp-cl-remove" data-action="remove-line" data-index="${i}" aria-label="Remove item" title="${locked > 0 ? 'Kitchen item — reason required' : 'Remove item'}">
+                    ${showRemove ? `<button type="button" class="rp-cl-remove" data-action="remove-line" data-index="${i}" aria-label="Remove item" title="${removeTitle}">
                         <i class="bi bi-x-lg"></i>
                     </button>` : ''}
                 </div>
@@ -1113,6 +1200,10 @@
         if (kitchenVoidsInput) {
             kitchenVoidsInput.value = JSON.stringify(kitchenVoids);
         }
+        const itemReductionsInput = form.querySelector('[name="item_reductions"]');
+        if (itemReductionsInput) {
+            itemReductionsInput.value = JSON.stringify(itemReductions);
+        }
         const cashTenderedInput = form.querySelector('[name="cash_tendered"]');
         const cashChangeInput = form.querySelector('[name="cash_change"]');
         if (cashTenderedInput) cashTenderedInput.value = '';
@@ -1275,6 +1366,7 @@
     function resetForNewBill() {
         cart.length = 0;
         kitchenVoids = [];
+        itemReductions = [];
         pendingRemoveIndex = null;
         resumeOrderId = null;
         payments = [{ method: $('#rpPayMethod')?.value || 'cash', amount: 0 }];
@@ -1325,6 +1417,7 @@
         const formData = new FormData(form);
         formData.set('items', JSON.stringify(cartItemsForSubmit()));
         formData.set('kitchen_voids', JSON.stringify(kitchenVoids));
+        formData.set('item_reductions', JSON.stringify(itemReductions));
         formData.set('send_to_kitchen', sendToKitchen ? '1' : '0');
         formData.set('client_grand_total', String(totals.grand));
         formData.set('client_subtotal', String(totals.subtotal));
@@ -1442,6 +1535,7 @@
             }
         }
         kitchenVoids = [];
+        itemReductions = [];
         resetForNewBill();
         if (message) {
             alert(message);
@@ -1511,6 +1605,7 @@
             renderOrderCards();
         }
         kitchenVoids = [];
+        itemReductions = [];
         resetForNewBill();
     }
 
@@ -1562,6 +1657,7 @@
                     }
                 }
                 kitchenVoids = [];
+                itemReductions = [];
                 return data.order || null;
             } finally {
                 setCartSaving(false);
@@ -1898,7 +1994,7 @@
             }
         });
         $('#rpRemoveReasonModal')?.addEventListener('hidden.bs.modal', () => {
-            pendingRemoveIndex = null;
+            pendingChangeAction = null;
         });
     }
 
