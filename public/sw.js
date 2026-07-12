@@ -1,5 +1,5 @@
 /* Minimal service worker for installability/offline shell */
-const CACHE_NAME = 'stair-shell-v2';
+const CACHE_NAME = 'stair-shell-v3';
 const URLS_TO_CACHE = [
   './',
   './favicon.svg',
@@ -24,6 +24,12 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
+
+  const url = new URL(req.url);
+  if (req.mode === 'navigate') {
+    event.respondWith(fetch(req));
+    return;
+  }
 
   event.respondWith(
     fetch(req)

@@ -4,7 +4,16 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
     <title>@yield('title', __('Login')) — {{ config('app.name', 'Stair') }}</title>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then((regs) => {
+                regs.forEach((r) => r.unregister());
+            }).catch(() => {});
+        }
+    </script>
     <meta name="theme-color" content="#1a1410">
     <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.bunny.net">
@@ -518,12 +527,5 @@
 </head>
 <body class="auth-body">
     @yield('content')
-    <script>
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then((regs) => {
-                regs.forEach((r) => r.unregister());
-            }).catch(() => {});
-        }
-    </script>
 </body>
 </html>

@@ -82,6 +82,16 @@ Route::get('/', function () {
 
 Auth::routes(['register' => false, 'reset' => false]);
 
+Route::get('/logout', function () {
+    if (auth()->check()) {
+        auth()->logout();
+        request()->session()->invalidate();
+        request()->session()->regenerateToken();
+    }
+
+    return redirect()->route('login');
+})->name('logout.get');
+
 Route::middleware('guest')->group(function () {
     Route::get('/login/verify-totp', [TotpVerificationController::class, 'show'])->name('login.verify-totp');
     Route::post('/login/verify-totp', [TotpVerificationController::class, 'verify'])->name('login.verify-totp.submit');

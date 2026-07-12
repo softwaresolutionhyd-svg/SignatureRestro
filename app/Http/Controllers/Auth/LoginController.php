@@ -32,9 +32,18 @@ class LoginController extends Controller
         $this->middleware('auth')->only('logout');
     }
 
-    public function showLoginForm()
+    public function showLoginForm(Request $request)
     {
-        return view('auth.login');
+        // Stale session cookies (old host, SW cache, expired tab) cause CSRF mismatch on POST.
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerate(true);
+        }
+
+        return response()
+            ->view('auth.login')
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache');
     }
 
     public function login(Request $request)

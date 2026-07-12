@@ -345,7 +345,7 @@
                             <li><h6 class="dropdown-header">{{ auth()->user()->email }}</h6></li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
-                                <a class="dropdown-item" href="{{ route('logout') }}"
+                                <a class="dropdown-item" href="#"
                                    onclick="event.preventDefault();document.getElementById('logout-form').submit();">
                                     <i class="bi bi-box-arrow-right me-2"></i> Logout
                                 </a>

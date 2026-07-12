@@ -346,7 +346,7 @@
                     <li><a class="dropdown-item odoo-dropdown-item" href="#"><i class="bi bi-gear me-2"></i> Settings</a></li>
                     <li><hr class="dropdown-divider" style="border-color: #444444;"></li>
                     <li>
-                        <a class="dropdown-item odoo-dropdown-item" href="{{ route('logout') }}"
+                        <a class="dropdown-item odoo-dropdown-item" href="#"
                            onclick="event.preventDefault();document.getElementById('logout-form').submit();">
                             <i class="bi bi-box-arrow-right me-2"></i> Logout
                         </a>

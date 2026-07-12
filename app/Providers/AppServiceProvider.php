@@ -65,6 +65,11 @@ class AppServiceProvider extends ServiceProvider
             return;
         }
 
+        config([
+            'session.secure' => false,
+            'session.domain' => null,
+        ]);
+
         $this->app->booted(function () {
             if ($this->app->runningInConsole()) {
                 return;

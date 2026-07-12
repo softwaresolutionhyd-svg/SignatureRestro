@@ -62,7 +62,7 @@
                                 </a>
 
                                 <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
-                                    <a class="dropdown-item" href="{{ route('logout') }}"
+                                    <a class="dropdown-item" href="#"
                                        onclick="event.preventDefault();
                                                      document.getElementById('logout-form').submit();">
                                         {{ __('Logout') }}
@@ -86,9 +86,9 @@
 
     <script>
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('{{ asset('sw.js') }}').catch(() => {});
-            });
+            navigator.serviceWorker.getRegistrations().then((regs) => {
+                regs.forEach((r) => r.unregister());
+            }).catch(() => {});
         }
     </script>
 </body>
