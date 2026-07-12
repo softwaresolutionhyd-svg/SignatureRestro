@@ -21,7 +21,7 @@
         <a href="{{ route('hr.leave.index') }}" class="btn btn-outline-primary {{ request()->routeIs('hr.leave.*') ? 'active' : '' }}">
             <i class="bi bi-calendar2-week me-1"></i> Leave
         </a>
-        @if($u->isSuperAdmin())
+        @if($u->bypassesModulePermissions())
             <a href="{{ route('employees.payroll.index') }}" class="btn btn-outline-primary {{ request()->routeIs('employees.payroll.*') ? 'active' : '' }}">
                 <i class="bi bi-cash-stack me-1"></i> Payroll
             </a>

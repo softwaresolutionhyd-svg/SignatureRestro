@@ -5,10 +5,13 @@ namespace App\Services;
 use App\Models\CreditLedger;
 use App\Models\Employee;
 use App\Models\PayrollEntry;
+use App\Support\EnsuresPayrollSchema;
 use Carbon\Carbon;
 
 class PayrollSalaryService
 {
+    use EnsuresPayrollSchema;
+
     public function __construct(
         private readonly AttendancePayrollService $attendancePayroll,
         private readonly EmployeeContactSyncService $contactSync,
@@ -88,6 +91,7 @@ class PayrollSalaryService
 
     public function syncPayrollPeriod(string $period, ?int $createdBy = null, bool $activeOnly = true): void
     {
+        $this->ensurePayrollSchema();
         $this->contactSync->syncAllEmployees();
 
         $query = Employee::query()->orderBy('name');

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PayrollEntry;
 use App\Models\Setting;
 use App\Support\ActivityLogger;
+use App\Support\EnsuresPayrollSchema;
 use App\Services\AutoJournalService;
 use App\Services\PayrollSalaryService;
 use Illuminate\Http\Request;
@@ -13,6 +14,8 @@ use Illuminate\Support\Facades\DB;
 
 class PayrollController extends Controller
 {
+    use EnsuresPayrollSchema;
+
     public function __construct(
         private readonly AutoJournalService $autoJournal,
         private readonly PayrollSalaryService $payrollSalary,
@@ -20,6 +23,8 @@ class PayrollController extends Controller
 
     public function index(Request $request)
     {
+        $this->ensurePayrollSchema();
+
         $period = $request->query('period', now()->format('Y-m'));
         if (! preg_match('/^\d{4}-\d{2}$/', $period)) {
             $period = now()->format('Y-m');
@@ -42,6 +47,8 @@ class PayrollController extends Controller
 
     public function generate(Request $request)
     {
+        $this->ensurePayrollSchema();
+
         $data = $request->validate([
             'period' => ['required', 'regex:/^\d{4}-\d{2}$/'],
         ]);
@@ -63,6 +70,8 @@ class PayrollController extends Controller
 
     public function printSalaryRecord(Request $request)
     {
+        $this->ensurePayrollSchema();
+
         $period = $request->query('period', now()->format('Y-m'));
         if (! preg_match('/^\d{4}-\d{2}$/', $period)) {
             $period = now()->format('Y-m');

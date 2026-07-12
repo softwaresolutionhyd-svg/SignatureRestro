@@ -4,11 +4,16 @@ namespace App\Services;
 
 use App\Models\Contact;
 use App\Models\Employee;
+use App\Support\EnsuresPayrollSchema;
 
 class EmployeeContactSyncService
 {
+    use EnsuresPayrollSchema;
+
     public function ensureContactForEmployee(Employee $employee): ?Contact
     {
+        $this->ensurePayrollSchema();
+
         $employee->loadMissing('contact');
 
         if ($employee->contact_id && $employee->contact) {
