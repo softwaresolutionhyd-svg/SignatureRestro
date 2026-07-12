@@ -2,6 +2,8 @@
 
 namespace App\Services\Sync;
 
+use App\Models\Employee;
+use App\Models\EmployeeStaffCategory;
 use App\Models\InventoryUnit;
 use App\Models\InventoryUnitConversion;
 use App\Models\SyncQueueItem;
@@ -109,6 +111,16 @@ class SyncOutboxRecorder
                 $to = InventoryUnit::query()->find($payload['to_unit_id'] ?? 0);
                 $payload['from_unit_code'] = $from?->code;
                 $payload['to_unit_code'] = $to?->code;
+            }
+        }
+
+        if ($table === 'employees' && ! empty($payload['staff_category_id'])) {
+            if ($model instanceof Employee) {
+                $model->loadMissing('staffCategory:id,slug');
+                $payload['staff_category_slug'] = $model->staffCategory?->slug;
+            } else {
+                $cat = EmployeeStaffCategory::query()->find($payload['staff_category_id']);
+                $payload['staff_category_slug'] = $cat?->slug;
             }
         }
 

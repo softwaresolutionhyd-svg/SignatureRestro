@@ -289,6 +289,14 @@ class CloudSyncService
                             $this->upsertInventoryUnitByCode($connection, $payload);
                         } elseif ($table === 'inventory_unit_conversions') {
                             $this->upsertInventoryUnitConversionByCode($connection, $payload);
+                        } elseif ($table === 'employee_staff_categories') {
+                            $this->upsertEmployeeStaffCategoryBySlug($connection, $payload);
+                        } elseif ($table === 'employees') {
+                            unset($payload['id']);
+                            $payload = $this->resolveEmployeeStaffCategoryId($connection, $payload);
+                            $payload = $this->filterPayloadForTable($connection, $table, $payload);
+                            unset($payload['staff_category_slug']);
+                            $connection->table($table)->updateOrInsert(['id' => $key], $payload);
                         } else {
                             unset($payload['id']);
                             $payload = $this->filterPayloadForTable($connection, $table, $payload);
@@ -452,6 +460,57 @@ class CloudSyncService
         $row = DB::table('sync_meta')->where('meta_key', $key)->first();
 
         return $row?->meta_value;
+    }
+
+    /**
+     * Staff categories sync by slug — local/cloud row IDs may differ.
+     *
+     * @param  \Illuminate\Database\Connection  $connection
+     * @param  array<string, mixed>  $payload
+     */
+    protected function upsertEmployeeStaffCategoryBySlug($connection, array $payload): void
+    {
+        $slug = (string) ($payload['slug'] ?? '');
+        if ($slug === '') {
+            throw new \InvalidArgumentException('Staff category slug missing.');
+        }
+
+        $companyId = $payload['company_id'] ?? null;
+        unset($payload['id']);
+
+        $match = ['slug' => $slug];
+        if ($companyId !== null) {
+            $match['company_id'] = $companyId;
+        }
+
+        $connection->table('employee_staff_categories')->updateOrInsert($match, $payload);
+    }
+
+    /**
+     * @param  \Illuminate\Database\Connection  $connection
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    protected function resolveEmployeeStaffCategoryId($connection, array $payload): array
+    {
+        $slug = (string) ($payload['staff_category_slug'] ?? '');
+        if ($slug === '') {
+            return $payload;
+        }
+
+        $query = $connection->table('employee_staff_categories')->where('slug', $slug);
+        if (isset($payload['company_id'])) {
+            $query->where('company_id', $payload['company_id']);
+        }
+
+        $hostingId = (int) $query->value('id');
+        if ($hostingId > 0) {
+            $payload['staff_category_id'] = $hostingId;
+        } else {
+            $payload['staff_category_id'] = null;
+        }
+
+        return $payload;
     }
 
     /**

@@ -47,13 +47,15 @@ class EmployeeStaffCategoryController extends Controller
 
         Employee::query()
             ->where('staff_category_id', $staffCategory->id)
-            ->whereNotIn('id', $ids)
-            ->update(['staff_category_id' => null]);
+            ->when($ids->isNotEmpty(), fn ($q) => $q->whereNotIn('id', $ids))
+            ->get()
+            ->each(fn (Employee $employee) => $employee->update(['staff_category_id' => null]));
 
         if ($ids->isNotEmpty()) {
             Employee::query()
                 ->whereIn('id', $ids)
-                ->update(['staff_category_id' => $staffCategory->id]);
+                ->get()
+                ->each(fn (Employee $employee) => $employee->update(['staff_category_id' => $staffCategory->id]));
         }
 
         ActivityLogger::log('staff_category.assigned', 'Employees assigned to staff category', $staffCategory, [
