@@ -25,6 +25,7 @@ class Employee extends Model
         'phone',
         'department_id',
         'designation_id',
+        'staff_category_id',
         'contact_id',
         'join_date',
         'salary',
@@ -51,6 +52,11 @@ class Employee extends Model
     public function designation(): BelongsTo
     {
         return $this->belongsTo(EmployeeDesignation::class, 'designation_id');
+    }
+
+    public function staffCategory(): BelongsTo
+    {
+        return $this->belongsTo(EmployeeStaffCategory::class, 'staff_category_id');
     }
 
     public function contact(): BelongsTo

@@ -27,7 +27,7 @@ use App\Http\Controllers\Employee\DepartmentController;
 use App\Http\Controllers\Employee\DesignationController;
 use App\Http\Controllers\Employee\EmployeeController;
 use App\Http\Controllers\Employee\EmployeeLoanController;
-use App\Http\Controllers\Employee\PayrollController;
+use App\Http\Controllers\Employee\EmployeeStaffCategoryController;
 use App\Http\Controllers\Hr\HrController;
 use App\Http\Controllers\Hr\LeaveRequestController;
 use App\Http\Controllers\Expense\ExpenseController;
@@ -293,6 +293,10 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
             Route::get('/designations/{designation}/edit', [DesignationController::class, 'edit'])->name('designations.edit');
             Route::put('/designations/{designation}', [DesignationController::class, 'update'])->name('designations.update');
             Route::delete('/designations/{designation}', [DesignationController::class, 'destroy'])->name('designations.destroy');
+
+            Route::get('/staff-categories', [EmployeeStaffCategoryController::class, 'index'])->name('staff-categories.index');
+            Route::post('/staff-categories/{staffCategory}/assign', [EmployeeStaffCategoryController::class, 'assign'])->name('staff-categories.assign');
+            Route::delete('/staff-categories/{staffCategory}/employees/{employee}', [EmployeeStaffCategoryController::class, 'removeEmployee'])->name('staff-categories.remove-employee');
 
             Route::get('/loans', [EmployeeLoanController::class, 'index'])->name('loans.index');
             Route::get('/loans/create', [EmployeeLoanController::class, 'create'])->name('loans.create');

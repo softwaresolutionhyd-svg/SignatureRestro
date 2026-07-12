@@ -13,6 +13,9 @@
         <a href="{{ route('employees.designations.index') }}" class="btn btn-outline-primary {{ request()->routeIs('employees.designations.*') ? 'active' : '' }}">
             <i class="bi bi-briefcase me-1"></i> Designations
         </a>
+        <a href="{{ route('employees.staff-categories.index') }}" class="btn btn-outline-primary {{ request()->routeIs('employees.staff-categories.*') ? 'active' : '' }}">
+            <i class="bi bi-collection me-1"></i> Staff Categories
+        </a>
         @if($u->canManageTeamAttendance())
         <a href="{{ route('employees.attendance.index') }}" class="btn btn-outline-primary {{ request()->routeIs('employees.attendance.*') ? 'active' : '' }}">
             <i class="bi bi-calendar-check me-1"></i> Attendance
