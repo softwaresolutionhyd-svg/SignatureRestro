@@ -12,12 +12,16 @@ use App\Support\ActivityLogger;
 use App\Support\AppPasswordRules;
 use App\Support\LoginUsername;
 use App\Support\ModuleAccess;
+use App\Services\EmployeeContactSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class EmployeeController extends Controller
 {
+    public function __construct(
+        private readonly EmployeeContactSyncService $contactSync,
+    ) {}
     public function index(Request $request)
     {
         $q = trim((string) $request->query('q', ''));
@@ -122,6 +126,7 @@ class EmployeeController extends Controller
                     'address' => $data['address'] ?? null,
                     'active' => $data['active'],
                 ]);
+                $this->contactSync->ensureContactForEmployee($emp);
                 ActivityLogger::log('employee.created', 'Employee created', $emp);
             });
         } catch (\Throwable $e) {
@@ -224,6 +229,7 @@ class EmployeeController extends Controller
             'active' => $data['active'],
             'user_id' => $employee->user_id,
         ]);
+        $this->contactSync->ensureContactForEmployee($employee->fresh());
         ActivityLogger::log('employee.updated', 'Employee updated', $employee->fresh());
         return redirect()->route('employees.index')->with('status', 'Employee updated.');
     }

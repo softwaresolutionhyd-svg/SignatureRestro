@@ -19,6 +19,8 @@ class PayrollEntry extends Model
         'base_salary',
         'bonus',
         'deduction',
+        'food_bill',
+        'loan',
         'net_pay',
         'status',
         'paid_at',
@@ -30,6 +32,8 @@ class PayrollEntry extends Model
         'base_salary' => 'decimal:2',
         'bonus' => 'decimal:2',
         'deduction' => 'decimal:2',
+        'food_bill' => 'decimal:2',
+        'loan' => 'decimal:2',
         'net_pay' => 'decimal:2',
         'paid_at' => 'datetime',
     ];
@@ -46,6 +50,13 @@ class PayrollEntry extends Model
 
     public function recalculateNet(): void
     {
-        $this->net_pay = (float) $this->base_salary + (float) $this->bonus - (float) $this->deduction;
+        $this->net_pay = round(
+            (float) $this->base_salary
+            + (float) $this->bonus
+            - (float) $this->deduction
+            - (float) ($this->food_bill ?? 0)
+            - (float) ($this->loan ?? 0),
+            2
+        );
     }
 }

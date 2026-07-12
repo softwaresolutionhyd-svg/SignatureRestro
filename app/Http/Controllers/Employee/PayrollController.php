@@ -3,12 +3,11 @@
 namespace App\Http\Controllers\Employee;
 
 use App\Http\Controllers\Controller;
-use App\Models\Employee;
 use App\Models\PayrollEntry;
 use App\Models\Setting;
 use App\Support\ActivityLogger;
-use App\Services\AttendancePayrollService;
 use App\Services\AutoJournalService;
+use App\Services\PayrollSalaryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -16,18 +15,20 @@ class PayrollController extends Controller
 {
     public function __construct(
         private readonly AutoJournalService $autoJournal,
-        private readonly AttendancePayrollService $attendancePayroll,
+        private readonly PayrollSalaryService $payrollSalary,
     ) {}
 
     public function index(Request $request)
     {
         $period = $request->query('period', now()->format('Y-m'));
-        if (!preg_match('/^\d{4}-\d{2}$/', $period)) {
+        if (! preg_match('/^\d{4}-\d{2}$/', $period)) {
             $period = now()->format('Y-m');
         }
 
+        $this->payrollSalary->syncPayrollPeriod($period, $request->user()?->id, true);
+
         $entries = PayrollEntry::query()
-            ->with(['employee:id,name,employee_no,salary'])
+            ->with(['employee:id,name,employee_no,salary,designation_id', 'employee.designation:id,name'])
             ->where('period', $period)
             ->orderBy('employee_id')
             ->paginate(Setting::pageSize('employees_per_page', 30))
@@ -46,34 +47,10 @@ class PayrollController extends Controller
         ]);
         $period = $data['period'];
 
-        $created = 0;
-        DB::connection('tenant')->transaction(function () use ($period, $request, &$created) {
-            $employees = Employee::query()->where('active', true)->get(['id', 'salary']);
-            foreach ($employees as $emp) {
-                $exists = PayrollEntry::query()
-                    ->where('employee_id', $emp->id)
-                    ->where('period', $period)
-                    ->exists();
-                if ($exists) {
-                    continue;
-                }
-                $base = (float) ($emp->salary ?? 0);
-                $absentDays = $this->attendancePayroll->countAbsentDays($emp->id, $period);
-                $deduction = $this->attendancePayroll->absentDeductionAmount($base, $absentDays);
-                $entry = new PayrollEntry([
-                    'employee_id' => $emp->id,
-                    'period' => $period,
-                    'base_salary' => $base,
-                    'bonus' => 0,
-                    'deduction' => $deduction,
-                    'status' => 'draft',
-                    'created_by' => $request->user()->id,
-                ]);
-                $entry->recalculateNet();
-                $entry->save();
-                $created++;
-            }
-        });
+        $before = PayrollEntry::query()->where('period', $period)->count();
+        $this->payrollSalary->syncPayrollPeriod($period, $request->user()->id, true);
+        $after = PayrollEntry::query()->where('period', $period)->count();
+        $created = max(0, $after - $before);
 
         ActivityLogger::log('payroll.generated', 'Payroll draft rows generated', null, [
             'period' => $period,
@@ -81,7 +58,21 @@ class PayrollController extends Controller
         ]);
 
         return redirect()->route('employees.payroll.index', ['period' => $period])
-            ->with('status', $created > 0 ? "{$created} payroll row(s) created." : 'No new rows (already exist for all active employees).');
+            ->with('status', $created > 0 ? "{$created} payroll row(s) created." : 'Payroll rows updated / already exist for active employees.');
+    }
+
+    public function printSalaryRecord(Request $request)
+    {
+        $period = $request->query('period', now()->format('Y-m'));
+        if (! preg_match('/^\d{4}-\d{2}$/', $period)) {
+            $period = now()->format('Y-m');
+        }
+
+        $rows = $this->payrollSalary->salaryRowsForPeriod($period, true);
+        $periodLabel = $this->payrollSalary->periodLabel($period);
+        $companyName = config('app.name');
+
+        return view('employees.payroll-print', compact('rows', 'period', 'periodLabel', 'companyName'));
     }
 
     public function update(Request $request, PayrollEntry $payrollEntry)
@@ -93,11 +84,15 @@ class PayrollController extends Controller
         $data = $request->validate([
             'bonus' => ['required', 'numeric', 'min:0'],
             'deduction' => ['required', 'numeric', 'min:0'],
+            'food_bill' => ['required', 'numeric', 'min:0'],
+            'loan' => ['required', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
         $payrollEntry->bonus = $data['bonus'];
         $payrollEntry->deduction = $data['deduction'];
+        $payrollEntry->food_bill = $data['food_bill'];
+        $payrollEntry->loan = $data['loan'];
         $payrollEntry->notes = $data['notes'] ?? null;
         $payrollEntry->recalculateNet();
         $payrollEntry->save();

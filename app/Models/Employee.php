@@ -25,6 +25,7 @@ class Employee extends Model
         'phone',
         'department_id',
         'designation_id',
+        'contact_id',
         'join_date',
         'salary',
         'address',
@@ -50,6 +51,11 @@ class Employee extends Model
     public function designation(): BelongsTo
     {
         return $this->belongsTo(EmployeeDesignation::class, 'designation_id');
+    }
+
+    public function contact(): BelongsTo
+    {
+        return $this->belongsTo(Contact::class);
     }
 
     public function attendances(): HasMany
