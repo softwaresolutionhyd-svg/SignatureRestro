@@ -1,7 +1,7 @@
 {{-- Expects: $currentPerms (array) from old() or user permissions --}}
 @php
     use App\Support\ModuleAccess;
-    $permModules = ModuleAccess::DEFINITIONS;
+    $permModules = ModuleAccess::matrixDefinitions();
     $permActions = ['view' => 'View', 'create' => 'Add', 'edit' => 'Edit', 'delete' => 'Delete'];
 @endphp
 <div class="table-responsive">

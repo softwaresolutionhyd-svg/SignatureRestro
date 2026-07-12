@@ -26,6 +26,11 @@ final class ModuleAccess
         'calendar' => 'Calendar',
     ];
 
+    /** Only company / platform admins — not assignable in employee permission matrix. */
+    public const ADMIN_ONLY_MODULES = [
+        'pos-closing',
+    ];
+
     /** Legacy permission keys merged when checking HR access. */
     private const HR_PERMISSION_ALIASES = ['hr', 'employees'];
 
@@ -38,6 +43,17 @@ final class ModuleAccess
     public static function moduleKeys(): array
     {
         return array_keys(self::DEFINITIONS);
+    }
+
+    /** Modules shown in employee / user permission matrix. */
+    public static function matrixDefinitions(): array
+    {
+        return array_diff_key(self::DEFINITIONS, array_flip(self::ADMIN_ONLY_MODULES));
+    }
+
+    public static function isAdminOnlyModule(string $module): bool
+    {
+        return in_array($module, self::ADMIN_ONLY_MODULES, true);
     }
 
     /** Map route module prefix to permission matrix key. */
@@ -85,11 +101,6 @@ final class ModuleAccess
             $merged['restaurant-pos'] = $merged['pos'];
         }
 
-        // Existing Restaurant POS users keep Closing access until explicitly changed.
-        if (! isset($merged['pos-closing']) && isset($merged['restaurant-pos'])) {
-            $merged['pos-closing'] = $merged['restaurant-pos'];
-        }
-
         $out = [];
         foreach (self::DEFINITIONS as $m => $_label) {
             $allRaw = data_get($merged, $m.'.all');
@@ -115,6 +126,16 @@ final class ModuleAccess
 
             $out[$m]['all'] = $allOn
                 || ($out[$m]['view'] && $out[$m]['create'] && $out[$m]['edit'] && $out[$m]['delete']);
+        }
+
+        foreach (self::ADMIN_ONLY_MODULES as $adminModule) {
+            $out[$adminModule] = [
+                'view' => false,
+                'create' => false,
+                'edit' => false,
+                'delete' => false,
+                'all' => false,
+            ];
         }
 
         return $out;

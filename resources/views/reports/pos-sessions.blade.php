@@ -8,7 +8,9 @@
         <div class="text-secondary small">Closed POS sessions — sales, discount, service charges, cash / bank / card</div>
     </div>
     <div class="d-flex gap-2">
+        @if(auth()->user()?->bypassesModulePermissions())
         <a href="{{ route('restaurant-pos.closing') }}" class="btn btn-outline-primary btn-sm">POS Closing</a>
+        @endif
         <a href="{{ route('reports.index') }}" class="btn btn-outline-secondary btn-sm">← All Reports</a>
     </div>
 </div>
@@ -102,7 +104,9 @@
                         <tr>
                             <td colspan="11" class="text-center text-secondary py-5">
                                 Is date range mein koi closed session nahi mili.
+                                @if(auth()->user()?->bypassesModulePermissions())
                                 <a href="{{ route('restaurant-pos.closing') }}" class="d-block mt-2">POS Closing →</a>
+                                @endif
                             </td>
                         </tr>
                     @endforelse

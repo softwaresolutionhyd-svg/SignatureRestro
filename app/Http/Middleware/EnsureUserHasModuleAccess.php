@@ -55,6 +55,10 @@ class EnsureUserHasModuleAccess
             return $next($request);
         }
 
+        if (ModuleAccess::isAdminOnlyModule($module)) {
+            abort(403);
+        }
+
         $permissions = (array) ($user->permissions ?? []);
 
         // Non-admin users must have at least one allowed action somewhere
