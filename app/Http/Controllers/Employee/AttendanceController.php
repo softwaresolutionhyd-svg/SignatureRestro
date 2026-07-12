@@ -13,106 +13,10 @@ use Illuminate\Validation\Rule;
 
 class AttendanceController extends Controller
 {
-    public function self()
-    {
-        $employee = Employee::query()
-            ->where('user_id', auth()->id())
-            ->where('active', true)
-            ->first();
-
-        if (!$employee) {
-            return redirect()->route('dashboard')
-                ->withErrors('No active employee profile is linked to your account.');
-        }
-
-        $month = request()->query('month', now()->format('Y-m'));
-        if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
-            $month = now()->format('Y-m');
-        }
-
-        $start = Carbon::createFromFormat('Y-m-d', $month.'-01')->startOfMonth();
-        $end = (clone $start)->endOfMonth();
-
-        $rows = EmployeeAttendance::query()
-            ->where('employee_id', $employee->id)
-            ->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()])
-            ->orderBy('attendance_date')
-            ->get();
-
-        $today = now()->toDateString();
-        $todayRow = EmployeeAttendance::query()
-            ->where('employee_id', $employee->id)
-            ->whereDate('attendance_date', $today)
-            ->first();
-
-        return view('employees.attendance-self', compact('employee', 'month', 'rows', 'todayRow', 'today'));
-    }
-
-    public function clockIn(Request $request)
-    {
-        $employee = Employee::query()
-            ->where('user_id', $request->user()->id)
-            ->where('active', true)
-            ->firstOrFail();
-
-        $today = now()->toDateString();
-        $row = EmployeeAttendance::query()->firstOrCreate(
-            [
-                'employee_id' => $employee->id,
-                'attendance_date' => $today,
-            ],
-            [
-                'user_id' => $request->user()->id,
-                'status' => 'present',
-                'source' => 'self',
-            ],
-        );
-
-        if ($row->clock_in) {
-            return redirect()->route('my-attendance')->withErrors('Already clocked in today.');
-        }
-
-        $row->clock_in = now();
-        $row->user_id = $request->user()->id;
-        $row->source = 'self';
-        $row->status = 'present';
-        $row->save();
-
-        ActivityLogger::log('attendance.clock_in', 'Clock in', $row, ['employee_id' => $employee->id]);
-
-        return redirect()->route('my-attendance')->with('status', 'Clocked in.');
-    }
-
-    public function clockOut(Request $request)
-    {
-        $employee = Employee::query()
-            ->where('user_id', $request->user()->id)
-            ->where('active', true)
-            ->firstOrFail();
-
-        $today = now()->toDateString();
-        $row = EmployeeAttendance::query()
-            ->where('employee_id', $employee->id)
-            ->whereDate('attendance_date', $today)
-            ->first();
-
-        if (!$row || !$row->clock_in) {
-            return redirect()->route('my-attendance')->withErrors('Clock in first.');
-        }
-        if ($row->clock_out) {
-            return redirect()->route('my-attendance')->withErrors('Already clocked out today.');
-        }
-
-        $row->clock_out = now();
-        $row->save();
-
-        ActivityLogger::log('attendance.clock_out', 'Clock out', $row, ['employee_id' => $employee->id]);
-
-        return redirect()->route('my-attendance')->with('status', 'Clocked out.');
-    }
-
     public function index(Request $request)
     {
+        abort_unless($request->user()?->canManageTeamAttendance(), 403);
+
         $month = $request->query('month', now()->format('Y-m'));
         if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
             $month = now()->format('Y-m');
@@ -125,11 +29,11 @@ class AttendanceController extends Controller
         $startStr = $start->toDateString();
         $endStr = $end->toDateString();
 
-        $staffQuery = Employee::query()->orderBy('name')->orderBy('employee_no');
+        $staffQuery = Employee::query()->orderBy('name');
         if ($activeOnly) {
             $staffQuery->where('active', true);
         }
-        $employees = $staffQuery->get(['id', 'name', 'employee_no', 'active']);
+        $employees = $staffQuery->get(['id', 'name', 'active']);
 
         $statsByEmployee = [];
         foreach ($employees as $emp) {
@@ -158,7 +62,7 @@ class AttendanceController extends Controller
         }
 
         $rows = EmployeeAttendance::query()
-            ->with(['employee:id,name,employee_no,active'])
+            ->with(['employee:id,name,active'])
             ->when($employeeId, fn ($q) => $q->where('employee_id', (int) $employeeId))
             ->whereBetween('attendance_date', [$startStr, $endStr])
             ->orderByDesc('attendance_date')

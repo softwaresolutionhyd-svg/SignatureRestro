@@ -26,7 +26,7 @@
             </form>
 
             <div class="d-flex flex-wrap gap-2">
-                @if($u->canViewModule('hr'))
+                @if($u->canManageTeamAttendance())
                     <a href="{{ route('employees.attendance.index') }}" class="btn btn-outline-secondary">
                         <i class="bi bi-calendar-check me-1"></i> Attendance
                     </a>

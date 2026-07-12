@@ -13,9 +13,11 @@
         <a href="{{ route('employees.designations.index') }}" class="btn btn-outline-primary {{ request()->routeIs('employees.designations.*') ? 'active' : '' }}">
             <i class="bi bi-briefcase me-1"></i> Designations
         </a>
+        @if($u->canManageTeamAttendance())
         <a href="{{ route('employees.attendance.index') }}" class="btn btn-outline-primary {{ request()->routeIs('employees.attendance.*') ? 'active' : '' }}">
             <i class="bi bi-calendar-check me-1"></i> Attendance
         </a>
+        @endif
         <a href="{{ route('hr.leave.index') }}" class="btn btn-outline-primary {{ request()->routeIs('hr.leave.*') ? 'active' : '' }}">
             <i class="bi bi-calendar2-week me-1"></i> Leave
         </a>

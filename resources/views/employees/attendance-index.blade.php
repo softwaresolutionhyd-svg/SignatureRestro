@@ -2,8 +2,6 @@
 
 @section('title', 'Attendance — ' . config('app.name'))
 
-@php($canManage = auth()->user()->canManageTeamAttendance())
-
 @section('content')
 @include('hr.partials.subnav')
 
@@ -14,12 +12,9 @@
         <div class="alert alert-danger">{{ $errors->first() }}</div>
     @endif
 
-    @if(!$canManage)
-        <div class="alert alert-info small mb-3">
-            Aap <strong>sab employees</strong> ki attendance dekh sakte ho. Record lagane / edit / delete ke liye
-            <strong>Admin</strong> hona zaroori hai, ya user ko <strong>Employees → Add / Edit / Delete</strong> mein se koi ijazat di ho.
-        </div>
-    @endif
+    <div class="alert alert-info small mb-3">
+        Attendance sirf <strong>Manager</strong> lagayein / edit karein. Employees khud mark nahi kar sakte.
+    </div>
 
     <div class="card shadow-sm mb-3">
         <div class="card-header bg-white d-flex flex-wrap gap-2 align-items-center justify-content-between">
@@ -57,10 +52,7 @@
                 @forelse($employees as $e)
                     @php($s = $statsByEmployee[$e->id] ?? ['present'=>0,'absent'=>0,'leave'=>0,'half_day'=>0,'total'=>0])
                     <tr>
-                        <td>
-                            <span class="fw-semibold">{{ $e->name }}</span>
-                            <div class="small text-secondary">{{ $e->employee_no }}</div>
-                        </td>
+                        <td class="fw-semibold">{{ $e->name }}</td>
                         <td>
                             @if($e->active)
                                 <span class="badge text-bg-success">Active</span>
@@ -86,12 +78,10 @@
     </div>
 
     <div class="row g-3">
-        @if($canManage)
         <div class="col-12 col-lg-4">
             <div class="card shadow-sm h-100">
-                <div class="card-header bg-white fw-semibold">Attendance lagayein (manual)</div>
+                <div class="card-header bg-white fw-semibold">Attendance lagayein</div>
                 <div class="card-body">
-                    <div class="small text-secondary mb-2">Kisi bhi employee ke liye — neeche se sab employees chun sakte ho.</div>
                     <form method="POST" action="{{ route('employees.attendance.store') }}">
                         @csrf
                         <div class="mb-2">
@@ -100,7 +90,7 @@
                                 <option value="">—</option>
                                 @foreach($employees as $e)
                                     <option value="{{ $e->id }}" @selected((string)old('employee_id') === (string)$e->id)>
-                                        {{ $e->name }} ({{ $e->employee_no }})@if(!$e->active) — inactive @endif
+                                        {{ $e->name }}@if(!$e->active) (inactive) @endif
                                     </option>
                                 @endforeach
                             </select>
@@ -138,8 +128,7 @@
                 </div>
             </div>
         </div>
-        @endif
-        <div class="col-12 {{ $canManage ? 'col-lg-8' : '' }}">
+        <div class="col-12 col-lg-8">
             <div class="card shadow-sm">
                 <div class="card-header bg-white d-flex flex-wrap gap-2 align-items-center justify-content-between">
                     <div class="fw-semibold">Detail log</div>
@@ -166,23 +155,17 @@
                             <th>In</th>
                             <th>Out</th>
                             <th>Status</th>
-                            <th>Source</th>
-                            @if($canManage)<th class="text-end">Actions</th>@endif
+                            <th class="text-end">Actions</th>
                         </tr>
                         </thead>
                         <tbody>
                         @forelse($rows as $row)
                             <tr>
                                 <td class="text-nowrap">{{ $row->attendance_date?->format('Y-m-d') }}</td>
-                                <td>
-                                    <span class="fw-semibold">{{ $row->employee?->name }}</span>
-                                    <div class="small text-secondary">{{ $row->employee?->employee_no }}</div>
-                                </td>
+                                <td class="fw-semibold">{{ $row->employee?->name }}</td>
                                 <td class="small text-secondary">{{ $row->clock_in?->format('Y-m-d H:i') ?? '—' }}</td>
                                 <td class="small text-secondary">{{ $row->clock_out?->format('Y-m-d H:i') ?? '—' }}</td>
                                 <td><span class="badge text-bg-light border">{{ $row->status }}</span></td>
-                                <td class="small">{{ $row->source }}</td>
-                                @if($canManage)
                                 <td class="text-end">
                                     <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-{{ $row->id }}">Edit</button>
                                     <form class="d-inline" method="POST" action="{{ route('employees.attendance.destroy', $row) }}" onsubmit="return confirm('Remove this row?');">
@@ -191,11 +174,9 @@
                                         <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
                                     </form>
                                 </td>
-                                @endif
                             </tr>
-                            @if($canManage)
                             <tr class="collapse bg-light" id="edit-{{ $row->id }}">
-                                <td colspan="7" class="p-3">
+                                <td colspan="6" class="p-3">
                                     <form method="POST" action="{{ route('employees.attendance.update', $row) }}" class="row g-2 align-items-end">
                                         @csrf
                                         @method('PUT')
@@ -225,9 +206,8 @@
                                     </form>
                                 </td>
                             </tr>
-                            @endif
                         @empty
-                            <tr><td colspan="{{ $canManage ? 7 : 6 }}" class="text-center text-secondary py-4">Is filter ke liye koi row nahi.</td></tr>
+                            <tr><td colspan="6" class="text-center text-secondary py-4">Is filter ke liye koi row nahi.</td></tr>
                         @endforelse
                         </tbody>
                     </table>

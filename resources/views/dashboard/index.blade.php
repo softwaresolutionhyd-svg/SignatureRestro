@@ -163,20 +163,6 @@
         </a>
         @endif
 
-        @if($linkedEmployee)
-        <a class="odoo-app" href="{{ route('my-attendance') }}">
-            <div class="odoo-icon" style="--icon-color:#10b981;">
-                <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="6" y="9" width="28" height="24" rx="3" stroke="currentColor" stroke-width="2.5"/>
-                    <path d="M6 16h28" stroke="currentColor" stroke-width="2"/>
-                    <path d="M14 6v6M26 6v6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-                    <circle cx="20" cy="24" r="3" fill="currentColor" opacity="0.85"/>
-                </svg>
-            </div>
-            <span class="odoo-label">My attendance</span>
-        </a>
-        @endif
-
         @if($u->canViewModule('contacts'))
         <a class="odoo-app" href="{{ route('contacts.index') }}">
             <div class="odoo-icon" style="--icon-color:#0ea5e9;">

@@ -258,9 +258,8 @@
     <div class="col-lg-7">
         @if($employee)
         <div class="card profile-card mb-4">
-            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <div class="card-header py-3">
                 <span><i class="bi bi-calendar-check me-1"></i> Attendance — {{ $monthLabel }}</span>
-                <a href="{{ route('my-attendance') }}" class="btn btn-sm btn-outline-primary">Full history</a>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover table-sm mb-0 align-middle">

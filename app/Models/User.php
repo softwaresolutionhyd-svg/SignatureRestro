@@ -140,7 +140,7 @@ class User extends Authenticatable
         return $this->moduleAllows($module, 'view');
     }
 
-    /** True if at least one launcher tile should appear (besides My attendance / Settings). */
+    /** True if at least one launcher tile should appear (besides Settings). */
     public function hasAnyModuleLauncherAccess(): bool
     {
         if ($this->bypassesModulePermissions()) {
@@ -177,11 +177,21 @@ class User extends Authenticatable
         return false;
     }
 
-    /** HR create/edit/delete — team attendance mark / change. */
+    /** Manager / owner designation — team attendance mark / change. */
     public function canManageTeamAttendance(): bool
     {
-        return $this->moduleAllows('hr', 'create')
-            || $this->moduleAllows('hr', 'edit')
-            || $this->moduleAllows('hr', 'delete');
+        if ($this->bypassesModulePermissions()) {
+            return true;
+        }
+
+        $employee = $this->employee;
+        if ($employee === null) {
+            return false;
+        }
+
+        $employee->loadMissing('designation:id,name');
+        $designation = mb_strtolower(trim((string) ($employee->designation?->name ?? '')), 'UTF-8');
+
+        return $designation !== '' && (str_contains($designation, 'manager') || str_contains($designation, 'owner'));
     }
 }

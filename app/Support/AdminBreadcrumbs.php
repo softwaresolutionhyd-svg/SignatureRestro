@@ -37,7 +37,6 @@ final class AdminBreadcrumbs
         }
 
         return match (true) {
-            str_starts_with($name, 'my-attendance') => [$dash, ['label' => 'My attendance', 'url' => null]],
             str_starts_with($name, 'activity-logs.') => [$dash, ['label' => 'Activity logs', 'url' => null]],
             str_starts_with($name, 'admin.') => self::admin($name, $dash),
             $name === 'admin' => [$dash, ['label' => 'Admin', 'url' => null]],

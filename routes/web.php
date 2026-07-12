@@ -116,10 +116,6 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics')->middleware('moduleAccess');
 
-    Route::get('/my-attendance', [AttendanceController::class, 'self'])->name('my-attendance');
-    Route::post('/my-attendance/clock-in', [AttendanceController::class, 'clockIn'])->name('my-attendance.clock-in');
-    Route::post('/my-attendance/clock-out', [AttendanceController::class, 'clockOut'])->name('my-attendance.clock-out');
-
     Route::get('/activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs.index')->middleware('role:company_admin,super_admin');
 
     Route::prefix('admin')->name('admin.')->middleware('role:company_admin,super_admin')->group(function () {
