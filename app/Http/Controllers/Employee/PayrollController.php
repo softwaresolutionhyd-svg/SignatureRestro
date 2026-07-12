@@ -19,6 +19,7 @@ class PayrollController extends Controller
     public function __construct(
         private readonly AutoJournalService $autoJournal,
         private readonly PayrollSalaryService $payrollSalary,
+        private readonly PayrollFoodBillSettlementService $foodBillSettlement,
     ) {}
 
     public function index(Request $request)
@@ -154,6 +155,7 @@ class PayrollController extends Controller
         $payrollEntry->paid_at = now();
         $payrollEntry->save();
 
+        $this->foodBillSettlement->settle($payrollEntry, auth()->id());
         $this->autoJournal->postPayrollPaid($payrollEntry);
 
         ActivityLogger::log('payroll.paid', 'Payroll marked paid', $payrollEntry);
