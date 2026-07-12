@@ -929,6 +929,7 @@ class PosController extends Controller
                 'bill_tax_percent' => $billTax,
                 'bill_discount_percent' => $billDiscount,
                 'allow_discount' => $pricing['allow_discount'],
+                'service_type' => $serviceType,
             ]);
 
             if (!$isCredit) {
@@ -1250,6 +1251,7 @@ class PosController extends Controller
                 'bill_tax_percent' => $billTax,
                 'bill_discount_percent' => $billDiscount,
                 'allow_discount' => $pricing['allow_discount'],
+                'service_type' => $serviceType,
             ]);
             if ($clientTotals !== null) {
                 if ($clientTotals['subtotal'] !== null) {
@@ -1889,7 +1891,8 @@ class PosController extends Controller
      *   tax_mode?: 'off'|'line'|'bill',
      *   bill_tax_percent?: float,
      *   bill_discount_percent?: float,
-     *   allow_discount?: bool
+     *   allow_discount?: bool,
+     *   service_type?: ?string
      * }  $opts
      * @return array{0: float, 1: float, 2: float, 3: float, 4: float, 5: list<array<string, mixed>>}
      */
@@ -2008,7 +2011,7 @@ class PosController extends Controller
         }
 
         $net = round($subtotal - $discountTotal, 2);
-        $serviceTotal = PosServiceCharge::amountOnNet($net);
+        $serviceTotal = PosServiceCharge::amountOnNet($net, $opts['service_type'] ?? null);
         $grandTotal = round($net + $taxTotal + $serviceTotal, 2);
 
         return [$subtotal, $discountTotal, $taxTotal, $serviceTotal, $grandTotal, $lines];
@@ -2716,6 +2719,7 @@ class PosController extends Controller
                 'bill_tax_percent' => $pricing['tax_mode'] === 'bill' ? $billTax : 0.0,
                 'bill_discount_percent' => $billDiscount,
                 'allow_discount' => $pricing['allow_discount'],
+                'service_type' => $order->serviceTypeKey(),
             ]);
 
             $delta = abs($storedGrand - $grandTotal);

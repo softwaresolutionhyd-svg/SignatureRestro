@@ -47,6 +47,10 @@
         return $('#otServiceType')?.value || 'dine_in';
     }
 
+    function serviceChargeApplies() {
+        return posServiceChargeEnabled && selectedServiceType() === 'dine_in';
+    }
+
     function serviceTypeLabel(type) {
         return serviceTypeLabels[type] || serviceTypeLabels.dine_in || 'Dine-in';
     }
@@ -61,6 +65,7 @@
         });
         syncServiceDetailPanels();
         updateOrderHeader();
+        renderTotals();
     }
 
     function syncServiceDetailPanels() {
@@ -124,7 +129,7 @@
         }
         subtotal = Math.round(subtotal * 100) / 100;
         tax = Math.round(tax * 100) / 100;
-        const serviceCharge = posServiceChargePercent > 0
+        const serviceCharge = serviceChargeApplies() && posServiceChargePercent > 0
             ? Math.round(subtotal * posServiceChargePercent / 100 * 100) / 100
             : 0;
         const grand = Math.round((subtotal + tax + serviceCharge) * 100) / 100;

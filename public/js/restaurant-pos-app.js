@@ -143,6 +143,10 @@
         return $('#rpServiceType')?.value || 'dine_in';
     }
 
+    function serviceChargeApplies() {
+        return posServiceChargeEnabled && selectedServiceType() === 'dine_in';
+    }
+
     function serviceTypeLabel(type) {
         return serviceTypeLabels[type] || serviceTypeLabels.dine_in || 'Dine-in';
     }
@@ -157,6 +161,7 @@
         });
         syncServiceDetailPanels();
         syncWhatsappButton();
+        renderTotals();
     }
 
     function syncServiceDetailPanels() {
@@ -416,7 +421,7 @@
         let discount = billDiscPct > 0 ? Math.round(subtotal * billDiscPct / 100 * 100) / 100 : 0;
         const tax = 0;
         const net = Math.round((subtotal - discount) * 100) / 100;
-        const serviceCharge = posServiceChargePercent > 0
+        const serviceCharge = serviceChargeApplies() && posServiceChargePercent > 0
             ? Math.round(net * posServiceChargePercent / 100 * 100) / 100
             : 0;
         const grand = Math.round((net + tax + serviceCharge) * 100) / 100;
@@ -737,7 +742,7 @@
         el('#rpSumGrand', grand);
         const serviceRow = $('#rpServiceChargeRow');
         if (serviceRow) {
-            serviceRow.style.display = serviceCharge > 0 ? '' : 'none';
+            serviceRow.style.display = serviceChargeApplies() && serviceCharge > 0 ? '' : 'none';
         }
         el('#rpSumServiceCharge', serviceCharge);
         const countEl = $('#rpCartCount');

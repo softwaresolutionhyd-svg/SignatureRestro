@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\PosOrder;
 use App\Models\Setting;
 
 final class PosServiceCharge
@@ -15,8 +16,17 @@ final class PosServiceCharge
         return max(0.0, min(100.0, (float) Setting::get('pos_service_charge_percent', 0)));
     }
 
-    public static function amountOnNet(float $netAfterDiscount): float
+    public static function appliesTo(?string $serviceType): bool
     {
+        return $serviceType === PosOrder::SERVICE_DINE_IN;
+    }
+
+    public static function amountOnNet(float $netAfterDiscount, ?string $serviceType = null): float
+    {
+        if (! self::appliesTo($serviceType)) {
+            return 0.0;
+        }
+
         $pct = self::percent();
         if ($pct <= 0) {
             return 0.0;

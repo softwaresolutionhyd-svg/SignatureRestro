@@ -31,8 +31,11 @@ final class OrderTakerService
             throw new RuntimeException('Kam az kam aik product add karein.');
         }
 
-        [$subtotal, $discountTotal, $taxTotal, $serviceTotal, $grandTotal, $lines] = $this->buildLines($items);
         $guest = $this->resolveGuestMeta($meta);
+        [$subtotal, $discountTotal, $taxTotal, $serviceTotal, $grandTotal, $lines] = $this->buildLines(
+            $items,
+            $guest['service_type'] ?? PosOrder::SERVICE_DINE_IN
+        );
         $this->validateProductsForCustomerType($lines, $guest['customer_type']);
         if (($guest['service_type'] ?? PosOrder::SERVICE_DINE_IN) === PosOrder::SERVICE_DINE_IN) {
             $this->assertTableAvailable($guest['table_id'], null, true);
@@ -298,8 +301,10 @@ final class OrderTakerService
             throw new RuntimeException('Kam az kam aik product rehna chahiye.');
         }
 
-        [$subtotal, $discountTotal, $taxTotal, $serviceTotal, $grandTotal, $lines] = $this->buildLines($items);
-        $this->validateProductsForCustomerType($lines, $order->customerTypeKey());
+        [$subtotal, $discountTotal, $taxTotal, $serviceTotal, $grandTotal, $lines] = $this->buildLines(
+            $items,
+            $order->serviceTypeKey()
+        );
 
         $kitchen = app(KitchenService::class);
         $oldItems = $order->items()->get()->all();
@@ -476,7 +481,7 @@ final class OrderTakerService
      * @param  list<array{product_id:int,uom:string,qty:float,notes?:?string}>  $items
      * @return array{0: float, 1: float, 2: float, 3: float, 4: float, 5: list<array<string, mixed>>}
      */
-    public function buildLines(array $items): array
+    public function buildLines(array $items, ?string $serviceType = null): array
     {
         $taxMode = Setting::get('pos_tax_mode', 'line');
         if (! in_array($taxMode, ['off', 'line', 'bill'], true)) {
@@ -551,7 +556,7 @@ final class OrderTakerService
         }
 
         $net = round($subtotal - $discountTotal, 2);
-        $serviceTotal = PosServiceCharge::amountOnNet($net);
+        $serviceTotal = PosServiceCharge::amountOnNet($net, $serviceType);
         $grandTotal = round($net + $taxTotal + $serviceTotal, 2);
 
         return [$subtotal, $discountTotal, $taxTotal, $serviceTotal, $grandTotal, $lines];

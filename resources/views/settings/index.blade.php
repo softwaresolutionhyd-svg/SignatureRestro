@@ -624,7 +624,7 @@
                         <div class="form-check mb-2">
                             <input type="hidden" name="pos_service_charge_enabled" value="0">
                             <input class="form-check-input" type="checkbox" name="pos_service_charge_enabled" value="1" id="pos_service_charge_enabled" @checked($posChecked('pos_service_charge_enabled'))>
-                            <label class="form-check-label" for="pos_service_charge_enabled">Service Charges (har bill par)</label>
+                            <label class="form-check-label" for="pos_service_charge_enabled">Service Charges (sirf Dine-in)</label>
                         </div>
                         <div class="ms-4 mb-3" id="posServiceChargePercentWrap" style="{{ $posChecked('pos_service_charge_enabled') ? '' : 'display:none;' }}">
                             <label class="form-label" for="pos_service_charge_percent">Service charge %</label>
@@ -639,7 +639,7 @@
                                        value="{{ old('pos_service_charge_percent', $settings['pos_service_charge_percent'] ?? '0') }}">
                                 <span class="input-group-text">%</span>
                             </div>
-                            <div class="form-text">Discount ke baad net amount par yeh % har POS bill mein add hoga.</div>
+                            <div class="form-text">Sirf <strong>Dine-in</strong> bills par apply hoga. Takeaway aur Delivery par nahi.</div>
                         </div>
                     </div>
                 </div>
