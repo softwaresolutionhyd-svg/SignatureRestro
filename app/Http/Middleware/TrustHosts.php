@@ -17,6 +17,8 @@ class TrustHosts extends Middleware
             $this->allSubdomainsOfApplicationUrl(),
             'signature.test',
             'www.signature.test',
+            'signature.restro',
+            'www.signature.restro',
             'localhost',
             '127.0.0.1',
             '192.168.*.*',

@@ -78,7 +78,10 @@ class AppServiceProvider extends ServiceProvider
             $host = $request->getHost();
             $isSignatureHost = $host === 'signature.test'
                 || $host === 'www.signature.test'
-                || str_ends_with($host, '.signature.test');
+                || str_ends_with($host, '.signature.test')
+                || $host === 'signature.restro'
+                || $host === 'www.signature.restro'
+                || str_ends_with($host, '.signature.restro');
 
             if (! $isSignatureHost && ! $this->isLocalNetworkHost($host)) {
                 return;

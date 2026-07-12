@@ -2,6 +2,7 @@
 title Restart Apache for Signature
 echo.
 echo Signature URLs:
+echo   http://signature.restro/
 echo   http://signature.test/
 echo   http://127.0.0.1:8080/
 echo.
