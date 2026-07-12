@@ -22,17 +22,19 @@
         td.num, th.num { text-align: right; white-space: nowrap; }
         .status-paid { color: #166534; font-weight: 700; }
         .status-unpaid { color: #b45309; font-weight: 700; }
-        .category-block { margin-bottom: 28px; page-break-inside: avoid; }
-        .category-block + .category-block { margin-top: 32px; padding-top: 8px; border-top: 3px double #ccc; }
+        .category-block { margin-bottom: 14px; }
+        .category-block + .category-block { margin-top: 18px; }
         .category-heading {
             background: #111;
             color: #fff;
-            padding: 8px 12px;
-            font-size: 13px;
+            padding: 6px 10px;
+            font-size: 12px;
             font-weight: 700;
             letter-spacing: 0.6px;
             text-transform: uppercase;
-            margin-bottom: 8px;
+            margin: 0 0 6px;
+            page-break-after: avoid;
+            break-after: avoid;
         }
         .category-subtotal td { font-weight: 700; background: #f9fafb; }
         .grand-total-row th {
@@ -42,12 +44,15 @@
             font-size: 12px;
             text-transform: uppercase;
         }
-        .grand-total-wrap { margin-top: 24px; page-break-inside: avoid; }
+        .grand-total-wrap { margin-top: 16px; }
+        tr { page-break-inside: avoid; break-inside: avoid; }
         @media print {
             body { padding: 0; }
             .noprint { display: none !important; }
-            .category-block + .category-block { margin-top: 24px; }
-            @page { size: A4 portrait; margin: 12mm; }
+            .report-head { margin-bottom: 12px; page-break-after: avoid; break-after: avoid; }
+            .category-block { page-break-before: auto; break-before: auto; }
+            .category-block + .category-block { margin-top: 16px; }
+            @page { size: A4 portrait; margin: 10mm; }
         }
     </style>
 </head>
