@@ -728,13 +728,31 @@ class PosController extends Controller
     private function createDailySession(User $user): PosSession
     {
         return PosSession::create([
-            'session_no' => 'DAY-' . now()->format('dmy') . '-' . $user->id,
+            'session_no' => $this->nextDailySessionNo($user),
             'business_date' => now()->toDateString(),
             'user_id' => $user->id,
             'status' => 'open',
             'opening_cash' => 0,
             'opened_at' => now(),
         ]);
+    }
+
+    private function nextDailySessionNo(User $user): string
+    {
+        $prefix = 'DAY-'.now()->format('dmy').'-'.$user->id;
+
+        if (! PosSession::query()->where('session_no', $prefix)->exists()) {
+            return $prefix;
+        }
+
+        for ($suffix = 2; $suffix <= 99; $suffix++) {
+            $candidate = $prefix.'-'.$suffix;
+            if (! PosSession::query()->where('session_no', $candidate)->exists()) {
+                return $candidate;
+            }
+        }
+
+        return $prefix.'-'.now()->format('His');
     }
 
     private function ensurePosSessionDailyClosingSchema(): void
