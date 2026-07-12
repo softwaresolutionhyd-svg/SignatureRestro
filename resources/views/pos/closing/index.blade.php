@@ -76,74 +76,79 @@
     </div>
 
     <div class="card shadow-sm border-0 mb-4">
-        <div class="card-header bg-white fw-semibold">Sales &amp; payments summary</div>
+        <div class="card-header bg-white fw-semibold">Session summary</div>
         <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-sm mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th class="ps-3">Sales</th>
-                            <th class="text-end">Amount</th>
-                            <th>Payment</th>
-                            <th class="text-end pe-3">Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td class="ps-3">Gross sales</td>
-                            <td class="text-end fw-semibold">{{ $currency }} {{ fmt_num($stats['sales_total'], 2) }}</td>
-                            <td><i class="bi bi-cash-coin me-1 text-success"></i> Cash</td>
-                            <td class="text-end pe-3 fw-semibold">{{ $currency }} {{ fmt_num($stats['payments_cash'], 2) }}</td>
-                        </tr>
-                        @if((float) $stats['refunds_total'] > 0)
-                        <tr>
-                            <td class="ps-3 text-danger">Refunds</td>
-                            <td class="text-end pe-3 text-danger">− {{ $currency }} {{ fmt_num($stats['refunds_total'], 2) }}</td>
-                            <td colspan="2"></td>
-                        </tr>
-                        @endif
-                        <tr>
-                            <td class="ps-3">Discount</td>
-                            <td class="text-end text-danger">− {{ $currency }} {{ fmt_num($stats['discount_total'], 2) }}</td>
-                            <td><i class="bi bi-bank me-1 text-primary"></i> Bank</td>
-                            <td class="text-end pe-3 fw-semibold">{{ $currency }} {{ fmt_num($stats['payments_bank'], 2) }}</td>
-                        </tr>
-                        <tr>
-                            <td class="ps-3">Service charges</td>
-                            <td class="text-end">{{ $currency }} {{ fmt_num($stats['service_charge_total'], 2) }}</td>
-                            <td><i class="bi bi-credit-card me-1 text-info"></i> Card</td>
-                            <td class="text-end pe-3 fw-semibold">{{ $currency }} {{ fmt_num($stats['payments_card'], 2) }}</td>
-                        </tr>
-                        @if((float) $stats['tax_total'] > 0)
-                        <tr>
-                            <td class="ps-3">Tax</td>
-                            <td class="text-end">{{ $currency }} {{ fmt_num($stats['tax_total'], 2) }}</td>
-                            <td colspan="2"></td>
-                        </tr>
-                        @endif
-                        @if($stats['credit_sales_count'] > 0)
-                        <tr>
-                            <td class="ps-3">Credit sales ({{ $stats['credit_sales_count'] }})</td>
-                            <td class="text-end">{{ $currency }} {{ fmt_num($stats['credit_sales_total'], 2) }}</td>
-                            <td colspan="2"></td>
-                        </tr>
-                        @endif
-                        @if((float) $cash['cash_in'] > 0 || (float) $cash['cash_out'] > 0)
-                        <tr>
-                            <td colspan="2"></td>
-                            <td class="text-secondary small">Cash in / out</td>
-                            <td class="text-end pe-3 small text-secondary">+{{ fmt_num($cash['cash_in'], 2) }} / −{{ fmt_num($cash['cash_out'], 2) }}</td>
-                        </tr>
-                        @endif
-                        <tr class="table-light">
-                            <td class="ps-3 fw-bold">Net sales</td>
-                            <td class="text-end fw-bold">{{ $currency }} {{ fmt_num($stats['net_sales_total'], 2) }}</td>
-                            <td class="fw-bold">Total payments</td>
-                            <td class="text-end pe-3 fw-bold">{{ $currency }} {{ fmt_num($stats['payments_cash'] + $stats['payments_bank'] + $stats['payments_card'], 2) }}</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            <table class="table table-sm mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-3">Description</th>
+                        <th class="text-end pe-3">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="ps-3">Gross sales ({{ $stats['sales_count'] }} bills)</td>
+                        <td class="text-end pe-3 fw-semibold">{{ $currency }} {{ fmt_num($stats['sales_total'], 2) }}</td>
+                    </tr>
+                    @if((float) $stats['refunds_total'] > 0)
+                    <tr>
+                        <td class="ps-3 text-danger">Refunds</td>
+                        <td class="text-end pe-3 text-danger">− {{ $currency }} {{ fmt_num($stats['refunds_total'], 2) }}</td>
+                    </tr>
+                    @endif
+                    <tr>
+                        <td class="ps-3">Discount</td>
+                        <td class="text-end pe-3 text-danger">− {{ $currency }} {{ fmt_num($stats['discount_total'], 2) }}</td>
+                    </tr>
+                    <tr>
+                        <td class="ps-3">Service charges</td>
+                        <td class="text-end pe-3">{{ $currency }} {{ fmt_num($stats['service_charge_total'], 2) }}</td>
+                    </tr>
+                    @if((float) $stats['tax_total'] > 0)
+                    <tr>
+                        <td class="ps-3">Tax</td>
+                        <td class="text-end pe-3">{{ $currency }} {{ fmt_num($stats['tax_total'], 2) }}</td>
+                    </tr>
+                    @endif
+                    @if($stats['credit_sales_count'] > 0)
+                    <tr>
+                        <td class="ps-3">Credit sales ({{ $stats['credit_sales_count'] }})</td>
+                        <td class="text-end pe-3">{{ $currency }} {{ fmt_num($stats['credit_sales_total'], 2) }}</td>
+                    </tr>
+                    @endif
+                    <tr class="table-light">
+                        <td class="ps-3 fw-bold">Net sales</td>
+                        <td class="text-end pe-3 fw-bold">{{ $currency }} {{ fmt_num($stats['net_sales_total'], 2) }}</td>
+                    </tr>
+                    <tr><td colspan="2" class="py-1"></td></tr>
+                    <tr>
+                        <td class="ps-3"><i class="bi bi-cash-coin me-1 text-success"></i> Cash</td>
+                        <td class="text-end pe-3 fw-semibold">{{ $currency }} {{ fmt_num($stats['payments_cash'], 2) }}</td>
+                    </tr>
+                    <tr>
+                        <td class="ps-3"><i class="bi bi-bank me-1 text-primary"></i> Bank</td>
+                        <td class="text-end pe-3 fw-semibold">{{ $currency }} {{ fmt_num($stats['payments_bank'], 2) }}</td>
+                    </tr>
+                    <tr>
+                        <td class="ps-3"><i class="bi bi-credit-card me-1 text-info"></i> Card</td>
+                        <td class="text-end pe-3 fw-semibold">{{ $currency }} {{ fmt_num($stats['payments_card'], 2) }}</td>
+                    </tr>
+                    @if((float) $cash['cash_in'] > 0 || (float) $cash['cash_out'] > 0)
+                    <tr>
+                        <td class="ps-3 text-secondary small">Cash in / out</td>
+                        <td class="text-end pe-3 small text-secondary">+{{ fmt_num($cash['cash_in'], 2) }} / −{{ fmt_num($cash['cash_out'], 2) }}</td>
+                    </tr>
+                    @endif
+                    <tr class="table-light">
+                        <td class="ps-3 fw-bold">Total payments</td>
+                        <td class="text-end pe-3 fw-bold">{{ $currency }} {{ fmt_num($stats['payments_cash'] + $stats['payments_bank'] + $stats['payments_card'], 2) }}</td>
+                    </tr>
+                    <tr>
+                        <td class="ps-3 fw-bold">Cash in drawer (expected)</td>
+                        <td class="text-end pe-3 fw-bold text-success">{{ $currency }} {{ fmt_num($amountToCollect, 2) }}</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
