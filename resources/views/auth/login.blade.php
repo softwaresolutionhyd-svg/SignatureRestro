@@ -69,6 +69,10 @@
 
                 <p class="auth-heading">{{ __('Sign in to your account') }}</p>
 
+                @if (session('warning'))
+                    <div class="alert alert-warning py-2 small">{{ session('warning') }}</div>
+                @endif
+
                 <form method="POST" action="{{ route('login') }}" novalidate autocomplete="off" class="auth-form">
                     @csrf
 
