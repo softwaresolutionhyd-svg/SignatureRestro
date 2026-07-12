@@ -96,9 +96,10 @@ class PayrollController extends Controller
             $rows = array_values(array_filter($rows, fn ($row) => str_contains(mb_strtolower((string) ($row['employee_no'] ?? ''), 'UTF-8'), $needle)));
         }
         $periodLabel = $this->payrollSalary->periodLabel($period);
-        $companyName = config('app.name');
+        $companyName = $this->payrollSalary->brandName();
+        $categoryGroups = $this->payrollSalary->groupRowsByStaffCategory($rows);
 
-        return view('employees.payroll-print', compact('rows', 'period', 'periodLabel', 'companyName', 'employeeNo'));
+        return view('employees.payroll-print', compact('rows', 'categoryGroups', 'period', 'periodLabel', 'companyName', 'employeeNo'));
     }
 
     public function printSlip(Request $request, PayrollEntry $payrollEntry)
@@ -106,7 +107,7 @@ class PayrollController extends Controller
         abort_unless($request->user()?->canManagePayroll(), 403);
         $this->ensurePayrollSchema();
 
-        $payrollEntry->load(['employee.designation:id,name']);
+        $payrollEntry->load(['employee.designation:id,name', 'employee.staffCategory:id,name']);
         $employee = $payrollEntry->employee;
         if ($employee === null) {
             abort(404);
@@ -115,7 +116,7 @@ class PayrollController extends Controller
         $period = $payrollEntry->period;
         $row = $this->payrollSalary->rowFromEntry($employee, $payrollEntry, $period);
         $periodLabel = $this->payrollSalary->periodLabel($period);
-        $companyName = config('app.name');
+        $companyName = $this->payrollSalary->brandName();
 
         return view('employees.payroll-slip', compact('row', 'period', 'periodLabel', 'companyName'));
     }

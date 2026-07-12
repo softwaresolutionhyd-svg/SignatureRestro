@@ -117,7 +117,11 @@ class PayrollSalaryService
         $this->syncPayrollPeriod($period, null, $activeOnly);
 
         $query = Employee::query()
-            ->with(['designation:id,name', 'payrollEntries' => fn ($q) => $q->where('period', $period)])
+            ->with([
+                'designation:id,name',
+                'staffCategory:id,name,sort_order',
+                'payrollEntries' => fn ($q) => $q->where('period', $period),
+            ])
             ->orderBy('employee_no');
         if ($activeOnly) {
             $query->where('active', true);
@@ -136,6 +140,49 @@ class PayrollSalaryService
         return $rows;
     }
 
+    public function brandName(): string
+    {
+        return 'Signature Restro';
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @return list<array{name: string, rows: list<array<string, mixed>>}>
+     */
+    public function groupRowsByStaffCategory(array $rows): array
+    {
+        $categories = \App\Models\EmployeeStaffCategory::query()
+            ->orderBy('sort_order')
+            ->get(['id', 'name', 'sort_order']);
+
+        $groups = [];
+
+        foreach ($categories as $category) {
+            $catRows = array_values(array_filter(
+                $rows,
+                fn (array $row) => (int) ($row['staff_category_id'] ?? 0) === (int) $category->id
+            ));
+            if ($catRows === []) {
+                continue;
+            }
+            $groups[] = ['name' => $category->name, 'rows' => $catRows];
+        }
+
+        $unassigned = array_values(array_filter(
+            $rows,
+            fn (array $row) => empty($row['staff_category_id'])
+        ));
+        if ($unassigned !== []) {
+            $groups[] = ['name' => 'UNASSIGNED', 'rows' => $unassigned];
+        }
+
+        if ($groups === [] && $rows !== []) {
+            $groups[] = ['name' => 'ALL EMPLOYEES', 'rows' => $rows];
+        }
+
+        return $groups;
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -146,6 +193,9 @@ class PayrollSalaryService
             'employee_no' => $employee->employee_no,
             'name' => $employee->name,
             'designation' => $employee->designation?->name ?? '—',
+            'staff_category_id' => $employee->staff_category_id,
+            'staff_category' => $employee->staffCategory?->name,
+            'staff_category_sort' => (int) ($employee->staffCategory?->sort_order ?? 999),
             'basic_salary' => (float) $entry->base_salary,
             'working_days' => $this->workingDaysForEmployee($employee->id, $period),
             'deduction' => (float) $entry->deduction,

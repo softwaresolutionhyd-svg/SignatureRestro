@@ -13,28 +13,40 @@
             display: inline-block; padding: 8px 14px; margin-right: 8px;
             border: 1px solid #666; border-radius: 6px; background: #fff; cursor: pointer; text-decoration: none; color: #111;
         }
-        .report-head { margin-bottom: 16px; border-bottom: 2px solid #111; padding-bottom: 10px; }
+        .report-head { margin-bottom: 16px; border-bottom: 2px solid #111; padding-bottom: 10px; text-align: center; }
+        .report-head h1 { font-size: 22px; letter-spacing: 0.5px; }
         .meta { color: #444; font-size: 11px; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
         th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; }
         th { background: #f3f4f6; font-size: 11px; text-transform: uppercase; }
         td.num, th.num { text-align: right; white-space: nowrap; }
         .status-paid { color: #166534; font-weight: 700; }
         .status-unpaid { color: #b45309; font-weight: 700; }
+        .category-block { margin-bottom: 28px; page-break-inside: avoid; }
+        .category-block + .category-block { margin-top: 32px; padding-top: 8px; border-top: 3px double #ccc; }
+        .category-heading {
+            background: #111;
+            color: #fff;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        .category-subtotal td { font-weight: 700; background: #f9fafb; }
         .grand-total-row th {
             background: #f3f4f6;
             border: 1px solid #ccc;
-            padding: 6px 8px;
-            font-size: 11px;
+            padding: 8px;
+            font-size: 12px;
             text-transform: uppercase;
         }
-        .grand-total-row {
-            page-break-inside: avoid;
-            break-inside: avoid;
-        }
+        .grand-total-wrap { margin-top: 24px; page-break-inside: avoid; }
         @media print {
             body { padding: 0; }
             .noprint { display: none !important; }
+            .category-block + .category-block { margin-top: 24px; }
             @page { size: A4 portrait; margin: 12mm; }
         }
     </style>
@@ -54,47 +66,65 @@
     </div>
 
     <div class="report-head">
-        <h1>{{ $companyName }} — Salary Record</h1>
+        <h1>{{ $companyName }}</h1>
+        <h2 style="font-size: 16px; font-weight: 600; margin-top: 4px;">Salary Record</h2>
         <div class="meta">Period: <strong>{{ $periodLabel }}</strong> ({{ $period }}) · Printed {{ now()->timezone(config('app.timezone'))->format('d M Y, H:i') }}@if(!empty($employeeNo)) · Filter: <strong>{{ $employeeNo }}</strong>@endif</div>
     </div>
 
-    <table>
-        <thead>
-        <tr>
-            <th>Employee ID</th>
-            <th>Employee Name</th>
-            <th>Designation</th>
-            <th class="num">Basic Salary</th>
-            <th class="num">Working Days</th>
-            <th class="num">Deduction</th>
-            <th class="num">Food Bill</th>
-            <th class="num">Loan</th>
-            <th class="num">Final Salary</th>
-            <th>Status</th>
-        </tr>
-        </thead>
-        <tbody>
-        @foreach($rows as $row)
-            <tr>
-                <td>{{ $row['employee_no'] }}</td>
-                <td>{{ $row['name'] }}</td>
-                <td>{{ $row['designation'] }}</td>
-                <td class="num">{{ number_format($row['basic_salary'], 2) }}</td>
-                <td class="num">{{ $row['working_days'] }}</td>
-                <td class="num">{{ number_format($row['deduction'], 2) }}</td>
-                <td class="num">{{ number_format($row['food_bill'], 2) }}</td>
-                <td class="num">{{ number_format($row['loan'], 2) }}</td>
-                <td class="num">{{ number_format($row['final_salary'], 2) }}</td>
-                <td class="{{ $row['status_key'] === 'paid' ? 'status-paid' : 'status-unpaid' }}">{{ $row['status'] }}</td>
+    @foreach($categoryGroups as $group)
+        <div class="category-block">
+            <div class="category-heading">{{ $group['name'] }} — Employee Salaries</div>
+            <table>
+                <thead>
+                <tr>
+                    <th>Employee ID</th>
+                    <th>Employee Name</th>
+                    <th>Designation</th>
+                    <th class="num">Basic Salary</th>
+                    <th class="num">Working Days</th>
+                    <th class="num">Deduction</th>
+                    <th class="num">Food Bill</th>
+                    <th class="num">Loan</th>
+                    <th class="num">Final Salary</th>
+                    <th>Status</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach($group['rows'] as $row)
+                    <tr>
+                        <td>{{ $row['employee_no'] }}</td>
+                        <td>{{ $row['name'] }}</td>
+                        <td>{{ $row['designation'] }}</td>
+                        <td class="num">{{ number_format($row['basic_salary'], 2) }}</td>
+                        <td class="num">{{ $row['working_days'] }}</td>
+                        <td class="num">{{ number_format($row['deduction'], 2) }}</td>
+                        <td class="num">{{ number_format($row['food_bill'], 2) }}</td>
+                        <td class="num">{{ number_format($row['loan'], 2) }}</td>
+                        <td class="num">{{ number_format($row['final_salary'], 2) }}</td>
+                        <td class="{{ $row['status_key'] === 'paid' ? 'status-paid' : 'status-unpaid' }}">{{ $row['status'] }}</td>
+                    </tr>
+                @endforeach
+                <tr class="category-subtotal">
+                    <td colspan="8" class="num">{{ $group['name'] }} Subtotal</td>
+                    <td class="num">{{ number_format(collect($group['rows'])->sum('final_salary'), 2) }}</td>
+                    <td></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    @endforeach
+
+    <div class="grand-total-wrap">
+        <table>
+            <tbody>
+            <tr class="grand-total-row">
+                <th colspan="8" class="num" style="width:100%">Grand Total (Final Salary)</th>
+                <th class="num">{{ number_format(collect($rows)->sum('final_salary'), 2) }}</th>
+                <th></th>
             </tr>
-        @endforeach
-        <tr class="grand-total-row">
-            <th colspan="8" class="num">Grand Total (Final Salary)</th>
-            <th class="num">{{ number_format(collect($rows)->sum('final_salary'), 2) }}</th>
-            <th></th>
-        </tr>
-        </tbody>
-    </table>
+            </tbody>
+        </table>
+    </div>
 
     <script>
         window.addEventListener('load', () => {

@@ -37,9 +37,18 @@
         }
         .slip-title {
             text-align: center;
-            font-size: 17px;
+            font-size: 20px;
             font-weight: 700;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
+            letter-spacing: 0.4px;
+        }
+        .slip-brand-sub {
+            text-align: center;
+            font-size: 11px;
+            color: #555;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
         .slip-subtitle {
             text-align: center;
@@ -84,7 +93,8 @@
     <div class="slip-page">
         <div class="slip-box">
             <div class="slip-title">{{ $companyName }}</div>
-            <div class="slip-subtitle">Salary Slip — {{ $periodLabel }}</div>
+            <div class="slip-brand-sub">Salary Slip</div>
+            <div class="slip-subtitle">{{ $periodLabel }}@if(!empty($row['staff_category'])) · {{ $row['staff_category'] }}@endif</div>
 
             <div class="slip-row"><span class="slip-label">Employee ID</span><span class="slip-value">{{ $row['employee_no'] }}</span></div>
             <div class="slip-row"><span class="slip-label">Employee Name</span><span class="slip-value">{{ $row['name'] }}</span></div>
