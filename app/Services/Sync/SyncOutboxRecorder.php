@@ -73,6 +73,8 @@ class SyncOutboxRecorder
                 'last_error' => null,
             ])->save();
 
+            app(SyncPushScheduler::class)->schedule();
+
             return;
         }
 
@@ -82,6 +84,8 @@ class SyncOutboxRecorder
             'action' => $action,
             'payload' => $payload,
         ]);
+
+        app(SyncPushScheduler::class)->schedule();
     }
 
     public function isExcluded(string $table): bool

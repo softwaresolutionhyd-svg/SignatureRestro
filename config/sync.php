@@ -28,7 +28,7 @@ return [
     'batch_size' => (int) env('SYNC_BATCH_SIZE', 100),
 
     // Seconds between automatic push attempts (web heartbeat)
-    'heartbeat_seconds' => (int) env('SYNC_HEARTBEAT_SECONDS', 30),
+    'heartbeat_seconds' => (int) env('SYNC_HEARTBEAT_SECONDS', 15),
 
     // Tables never synced (local-only / framework)
     'exclude_tables' => [

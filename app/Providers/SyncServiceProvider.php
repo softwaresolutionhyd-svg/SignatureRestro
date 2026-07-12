@@ -12,6 +12,7 @@ class SyncServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(SyncOutboxRecorder::class);
+        $this->app->singleton(SyncPushScheduler::class);
     }
 
     public function boot(): void

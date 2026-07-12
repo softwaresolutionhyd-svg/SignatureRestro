@@ -4,7 +4,7 @@
     const statusUrl = @json(route('sync.status'));
     const pushUrl = @json(route('sync.push'));
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-    const heartbeatMs = {{ max(10, (int) config('sync.heartbeat_seconds', 30)) * 1000 }};
+    const heartbeatMs = {{ max(10, (int) config('sync.heartbeat_seconds', 15)) * 1000 }};
     const badge = document.getElementById('sync-status-badge');
     const dot = document.getElementById('sync-status-dot');
     const label = document.getElementById('sync-status-label');
@@ -24,6 +24,11 @@
             label.textContent = pending > 0 ? ('No net · ' + pending) : 'No net';
             return;
         }
+        if (syncing) {
+            dot.style.background = '#3b82f6';
+            label.textContent = 'Syncing…';
+            return;
+        }
         if (pending > 0) {
             dot.style.background = '#3b82f6';
             label.textContent = 'Sync ' + pending;
@@ -40,7 +45,11 @@
                 credentials: 'same-origin'
             });
             if (!res.ok) return;
-            paint(await res.json());
+            const data = await res.json();
+            paint(data);
+            if (navigator.onLine && Number(data.pending || 0) > 0 && !syncing) {
+                pushNow();
+            }
         } catch (e) {
             paint({ online: false, pending: 0 });
         }
@@ -49,7 +58,7 @@
     async function pushNow() {
         if (syncing || !navigator.onLine) return;
         syncing = true;
-        if (label) label.textContent = 'Syncing…';
+        paint({ online: true, pending: 0 });
         try {
             const res = await fetch(pushUrl, {
                 method: 'POST',
@@ -62,7 +71,7 @@
             });
             const data = await res.json().catch(() => ({}));
             paint({
-                online: !!data.ok || res.ok,
+                online: data.online !== false,
                 pending: data.pending ?? 0
             });
         } catch (e) {
@@ -80,6 +89,11 @@
         paint({ online: false, pending: 0 });
         refreshStatus();
     });
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible' && navigator.onLine) {
+            pushNow();
+        }
+    });
 
     if (badge) {
         badge.addEventListener('click', function () {
@@ -88,6 +102,9 @@
     }
 
     refreshStatus();
+    if (navigator.onLine) {
+        pushNow();
+    }
     setInterval(function () {
         if (navigator.onLine) {
             pushNow();

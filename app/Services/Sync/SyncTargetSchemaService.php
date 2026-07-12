@@ -3,6 +3,7 @@
 namespace App\Services\Sync;
 
 use App\Support\EnsuresEmployeeLoanSchema;
+use App\Support\EnsuresEmployeeStaffCategorySchema;
 use App\Support\EnsuresPayrollSchema;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -10,6 +11,7 @@ use Illuminate\Support\Facades\Schema;
 class SyncTargetSchemaService
 {
     use EnsuresEmployeeLoanSchema;
+    use EnsuresEmployeeStaffCategorySchema;
     use EnsuresPayrollSchema;
 
     public function ensureAll(): void
@@ -18,6 +20,7 @@ class SyncTargetSchemaService
             try {
                 $this->ensurePayrollSchema($connection);
                 $this->ensureEmployeeLoanSchema($connection);
+                $this->ensureEmployeeStaffCategorySchema($connection);
                 $this->ensureCreditLedgerPayrollColumn($connection);
             } catch (\Throwable $e) {
                 Log::warning('sync.schema_ensure_failed', [

@@ -8,9 +8,9 @@ use Illuminate\Support\Facades\Schema;
 
 trait EnsuresEmployeeStaffCategorySchema
 {
-    protected function ensureEmployeeStaffCategorySchema(): void
+    protected function ensureEmployeeStaffCategorySchema(?string $connection = null): void
     {
-        $schema = Schema::connection('tenant');
+        $schema = Schema::connection($connection ?? 'tenant');
 
         if (! $schema->hasTable('employee_staff_categories')) {
             $schema->create('employee_staff_categories', function (Blueprint $table) {
