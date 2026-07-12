@@ -28,6 +28,7 @@ use App\Http\Controllers\Employee\DesignationController;
 use App\Http\Controllers\Employee\EmployeeController;
 use App\Http\Controllers\Employee\EmployeeLoanController;
 use App\Http\Controllers\Employee\EmployeeStaffCategoryController;
+use App\Http\Controllers\Employee\PayrollController;
 use App\Http\Controllers\Hr\HrController;
 use App\Http\Controllers\Hr\LeaveRequestController;
 use App\Http\Controllers\Expense\ExpenseController;
