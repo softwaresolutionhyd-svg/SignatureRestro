@@ -60,7 +60,7 @@ final class PosSessionSummaryService
             ->where('type', 'sale');
 
         $discountTotal = (float) (clone $saleOrders)->sum('discount_total');
-        $serviceChargeTotal = (float) (clone $saleOrders)->sum('service_charge_total');
+        $serviceChargeTotal = $this->sumOrderColumn($saleOrders, 'service_charge_total');
         $taxTotal = (float) (clone $saleOrders)->sum('tax_total');
 
         $salePayTotals = PosPayment::query()
@@ -158,5 +158,21 @@ final class PosSessionSummaryService
             'cash' => $cash,
             'amount_to_collect' => $amountToCollect,
         ];
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<\App\Models\PosOrder>  $query
+     */
+    private function sumOrderColumn($query, string $column): float
+    {
+        if (! PosRuntimeSchema::ordersHasColumn($column)) {
+            PosRuntimeSchema::ensureServiceChargeColumns();
+        }
+
+        if (! PosRuntimeSchema::ordersHasColumn($column)) {
+            return 0.0;
+        }
+
+        return (float) (clone $query)->sum($column);
     }
 }

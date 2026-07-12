@@ -10,8 +10,78 @@ final class PosRuntimeSchema
 {
     public static function ensureForSessionSummary(?string $connection = null): void
     {
-        self::ensureOrdersTable($connection);
+        self::ensureServiceChargeColumns($connection);
         self::ensureSessionsDailyClosing($connection);
+    }
+
+    public static function ordersHasColumn(string $column, ?string $connection = null): bool
+    {
+        $schema = Schema::connection($connection ?? (new \App\Models\PosOrder)->getConnectionName());
+
+        return $schema->hasTable('pos_orders') && $schema->hasColumn('pos_orders', $column);
+    }
+
+    public static function ensureServiceChargeColumns(?string $connection = null): void
+    {
+        foreach (self::resolveConnections($connection) as $conn) {
+            $schema = Schema::connection($conn);
+            if (! $schema->hasTable('pos_orders')) {
+                continue;
+            }
+
+            if (! $schema->hasColumn('pos_orders', 'service_charge_percent')) {
+                try {
+                    $schema->table('pos_orders', function (Blueprint $table) {
+                        $table->decimal('service_charge_percent', 8, 3)->nullable();
+                    });
+                } catch (\Throwable $e) {
+                    report($e);
+                    self::rawAddColumn($conn, 'pos_orders', 'service_charge_percent', 'DECIMAL(8,3) NULL');
+                }
+            }
+
+            if (! $schema->hasColumn('pos_orders', 'service_charge_total')) {
+                try {
+                    $schema->table('pos_orders', function (Blueprint $table) {
+                        $table->decimal('service_charge_total', 12, 2)->default(0);
+                    });
+                } catch (\Throwable $e) {
+                    report($e);
+                    self::rawAddColumn($conn, 'pos_orders', 'service_charge_total', 'DECIMAL(12,2) NOT NULL DEFAULT 0');
+                }
+            }
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function resolveConnections(?string $preferred): array
+    {
+        $names = array_filter([
+            $preferred,
+            (new \App\Models\PosOrder)->getConnectionName(),
+            'tenant',
+            'mysql',
+        ]);
+
+        return array_values(array_unique($names));
+    }
+
+    private static function rawAddColumn(string $connection, string $table, string $column, string $sqlType): void
+    {
+        $schema = Schema::connection($connection);
+        if ($schema->hasColumn($table, $column)) {
+            return;
+        }
+
+        try {
+            $schema->getConnection()->statement(
+                sprintf('ALTER TABLE `%s` ADD COLUMN `%s` %s', $table, $column, $sqlType)
+            );
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     public static function ensureOrdersTable(?string $connection = null): void
@@ -124,14 +194,22 @@ final class PosRuntimeSchema
                 });
             }
             if (! $schema->hasColumn('pos_orders', 'service_charge_percent')) {
-                $schema->table('pos_orders', function (Blueprint $table) {
-                    $table->decimal('service_charge_percent', 8, 3)->nullable()->after('tax_total');
-                });
+                try {
+                    $schema->table('pos_orders', function (Blueprint $table) {
+                        $table->decimal('service_charge_percent', 8, 3)->nullable()->after('tax_total');
+                    });
+                } catch (\Throwable) {
+                    self::ensureServiceChargeColumns($connection);
+                }
             }
             if (! $schema->hasColumn('pos_orders', 'service_charge_total')) {
-                $schema->table('pos_orders', function (Blueprint $table) {
-                    $table->decimal('service_charge_total', 12, 2)->default(0)->after('service_charge_percent');
-                });
+                try {
+                    $schema->table('pos_orders', function (Blueprint $table) {
+                        $table->decimal('service_charge_total', 12, 2)->default(0)->after('service_charge_percent');
+                    });
+                } catch (\Throwable) {
+                    self::ensureServiceChargeColumns($connection);
+                }
             }
         } catch (\Throwable $e) {
             report($e);
