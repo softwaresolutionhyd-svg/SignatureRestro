@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Support\ModuleAccess;
 use App\Support\LoginUsername;
 use Illuminate\Database\Eloquent\Casts\AsEncryptedArrayObject;
+use Illuminate\Support\Facades\Schema;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -195,14 +196,94 @@ class User extends Authenticatable
             return true;
         }
 
-        $employee = $this->employee;
+        if ($this->hasExplicitPayrollPermission()) {
+            return true;
+        }
+
+        $employee = $this->resolveEmployeeForAccess();
         if ($employee === null) {
             return false;
         }
 
+        return $this->designationGrantsManagerAccess($employee);
+    }
+
+    private function hasExplicitPayrollPermission(): bool
+    {
+        foreach (['hr', 'employees'] as $key) {
+            $p = (array) data_get($this->permissions ?? [], $key, []);
+            if (! empty($p['all']) || ! empty($p['payroll']) || ! empty($p['manage_payroll'])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function resolveEmployeeForAccess(): ?Employee
+    {
+        $employee = $this->relationLoaded('employee') ? $this->getRelation('employee') : null;
+        if ($employee !== null) {
+            return $employee;
+        }
+
+        $query = Employee::withoutGlobalScope('company')
+            ->where('user_id', $this->id)
+            ->where('active', true);
+
+        if ($this->company_id) {
+            $query->where('company_id', $this->company_id);
+        }
+
+        $employee = $query->first();
+        if ($employee !== null) {
+            return $employee;
+        }
+
+        $login = mb_strtolower(trim((string) $this->loginUsername()), 'UTF-8');
+        if ($login === '') {
+            return null;
+        }
+
+        $fallback = Employee::withoutGlobalScope('company')
+            ->where('active', true)
+            ->when($this->company_id, fn ($q) => $q->where('company_id', $this->company_id))
+            ->where(function ($q) use ($login) {
+                $q->whereRaw('LOWER(email) = ?', [$login])
+                    ->orWhereRaw('LOWER(name) = ?', [mb_strtolower(trim((string) $this->name), 'UTF-8')]);
+            })
+            ->first();
+
+        return $fallback;
+    }
+
+    private function designationGrantsManagerAccess(Employee $employee): bool
+    {
         $employee->loadMissing('designation:id,name');
         $designation = mb_strtolower(trim((string) ($employee->designation?->name ?? '')), 'UTF-8');
 
-        return $designation !== '' && (str_contains($designation, 'manager') || str_contains($designation, 'owner'));
+        if ($designation !== '' && $this->designationNameGrantsManagerAccess($designation)) {
+            return true;
+        }
+
+        if (Schema::connection('tenant')->hasColumn('employees', 'designation')) {
+            $legacy = mb_strtolower(trim((string) $employee->getAttribute('designation')), 'UTF-8');
+            if ($legacy !== '' && $this->designationNameGrantsManagerAccess($legacy)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function designationNameGrantsManagerAccess(string $designation): bool
+    {
+        foreach (['manager', 'owner', 'supervis', 'proprietor', 'director'] as $keyword) {
+            if (str_contains($designation, $keyword)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
