@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\LoginRateLimitService;
 use App\Services\LoginTotpService;
 use App\Support\LoginUsername;
+use App\Support\WebAuthSession;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,20 +30,25 @@ class LoginController extends Controller
         private readonly LoginTotpService $loginTotp,
         private readonly LoginRateLimitService $rateLimit
     ) {
-        $this->middleware('guest')->except('logout');
+        // Allow login page + POST while already signed in (switch account).
+        $this->middleware('guest')->except(['logout', 'showLoginForm', 'login']);
         $this->middleware('auth')->only('logout');
     }
 
     public function showLoginForm(Request $request)
     {
-        // Stale session cookies (old host, SW cache, expired tab) cause CSRF mismatch on POST.
-        if ($request->hasSession()) {
+        $currentUser = Auth::user();
+
+        if ($currentUser === null && $request->hasSession()) {
+            // Stale session cookies cause CSRF mismatch on POST.
             $request->session()->invalidate();
             $request->session()->regenerate(true);
         }
 
         return response()
-            ->view('auth.login')
+            ->view('auth.login', [
+                'currentUser' => $currentUser,
+            ])
             ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
             ->header('Pragma', 'no-cache');
     }
@@ -67,15 +73,11 @@ class LoginController extends Controller
             return $this->sendFailedLoginResponse($request);
         }
 
-        if (Auth::check() && (int) Auth::id() !== (int) $user->id) {
-            Auth::logout();
-            $request->session()->invalidate();
-            $request->session()->regenerate(true);
-        }
-
         if ($user->hasTwoFactorEnabled()) {
+            WebAuthSession::destroy($request);
             $token = $this->loginTotp->startChallenge($user, false);
             $request->session()->put('login_totp_token', $token);
+            $request->session()->put('login_totp_user_id', (int) $user->id);
             $this->clearLoginAttempts($request);
 
             return redirect()->route('login.verify-totp');
@@ -89,12 +91,7 @@ class LoginController extends Controller
 
     private function completeWebLogin(Request $request, User $user): void
     {
-        Auth::login($user, false);
-        if ($user->remember_token) {
-            $user->forceFill(['remember_token' => null])->save();
-        }
-        $request->session()->forget(['active_company_id', 'login_totp_token']);
-        $request->session()->regenerate(true);
+        WebAuthSession::establish($request, $user);
         $this->authenticated($request, $user);
 
         $username = $user->loginUsername() ?? $user->email;
@@ -103,9 +100,7 @@ class LoginController extends Controller
 
     public function logout(Request $request)
     {
-        Auth::logout();
-        $request->session()->invalidate();
-        $request->session()->regenerate(true);
+        WebAuthSession::destroy($request);
 
         return redirect()->route('login');
     }
@@ -120,36 +115,26 @@ class LoginController extends Controller
         }
     }
 
-    /**
-     * After logout go straight to login (no marketing / welcome page).
-     */
     protected function loggedOut(Request $request)
     {
         return redirect()->route('login');
     }
 
-    /**
-     * Login field name used by throttling / trait.
-     */
     public function username(): string
     {
         return 'login';
     }
 
-    /**
-     * Validate simple username + password.
-     */
     protected function validateLogin(Request $request): void
     {
         $request->validate([
-            'login' => ['required', 'string', 'max:120'],
+            'login' => LoginUsername::loginInputRules(),
             'password' => ['required', 'string'],
+        ], [
+            'login.regex' => 'Sirf username likhein (employee name nahi). Masalan: ordertaker',
         ]);
     }
 
-    /**
-     * @deprecated Used only by AuthenticatesUsers trait; web login uses LoginUsername::resolveUser().
-     */
     protected function credentials(Request $request): array
     {
         $login = trim((string) $request->input('login', ''));

@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Services\LoginRateLimitService;
 use App\Services\LoginTotpService;
+use App\Support\WebAuthSession;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class TotpVerificationController extends Controller
 {
@@ -58,18 +58,26 @@ class TotpVerificationController extends Controller
             ]);
         }
 
-        $this->rateLimit->clear($rateKey);
-        $request->session()->forget('login_totp_token');
-        Auth::login($result['user'], false);
-        if ($result['user']->remember_token) {
-            $result['user']->forceFill(['remember_token' => null])->save();
+        $expectedUserId = (int) $request->session()->get('login_totp_user_id', 0);
+        if ($expectedUserId > 0 && $expectedUserId !== (int) $result['user']->id) {
+            $request->session()->forget(['login_totp_token', 'login_totp_user_id']);
+
+            return redirect()->route('login')->withErrors([
+                'login' => '2FA session invalid. Dobara login karein.',
+            ]);
         }
-        $request->session()->forget('active_company_id');
-        $request->session()->regenerate(true);
+
+        $this->rateLimit->clear($rateKey);
+        $request->session()->forget(['login_totp_token', 'login_totp_user_id']);
+
+        WebAuthSession::establish($request, $result['user']);
 
         if ($result['user']->must_change_password ?? false) {
             session()->flash('warning', 'Security: pehle naya password set karein.');
         }
+
+        $username = $result['user']->loginUsername() ?? $result['user']->email;
+        session()->flash('success', "Signed in as {$username} ({$result['user']->name}).");
 
         return redirect()->intended('/dashboard');
     }

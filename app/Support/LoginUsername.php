@@ -10,6 +10,23 @@ final class LoginUsername
     /** Characters allowed in login username. */
     public const PATTERN = '/^[a-zA-Z0-9._-]{3,40}$/';
 
+    /** Login form input (username or email — no spaces / employee names). */
+    public const INPUT_PATTERN = '/^[a-zA-Z0-9._@-]{3,120}$/';
+
+    /**
+     * @return list<\Illuminate\Contracts\Validation\ValidationRule|string>
+     */
+    public static function loginInputRules(): array
+    {
+        return [
+            'required',
+            'string',
+            'min:3',
+            'max:120',
+            'regex:'.self::INPUT_PATTERN,
+        ];
+    }
+
     /**
      * Normalize input for storage: plain username only (strip @domain if pasted).
      */
@@ -79,36 +96,28 @@ final class LoginUsername
 
     /**
      * Resolve login input to exactly one user, or null if unknown/ambiguous.
+     * Only exact stored username / email matches — never fuzzy or name matching.
      */
     public static function resolveUser(string $login): ?User
     {
-        $login = mb_strtolower(trim($login), 'UTF-8');
-        if ($login === '') {
+        $raw = mb_strtolower(trim($login), 'UTF-8');
+        if ($raw === '') {
             return null;
         }
 
-        if (filter_var($login, FILTER_VALIDATE_EMAIL)) {
-            return User::query()
-                ->whereRaw('LOWER(email) = ?', [$login])
-                ->first();
-        }
+        $candidates = array_values(array_unique(array_filter([
+            $raw,
+            self::toStoredValue($login),
+        ])));
 
-        $exact = User::query()
-            ->whereRaw('LOWER(email) = ?', [$login])
+        $matches = User::query()
+            ->where(function ($q) use ($candidates) {
+                foreach ($candidates as $candidate) {
+                    $q->orWhereRaw('LOWER(email) = ?', [$candidate]);
+                }
+            })
             ->get();
 
-        if ($exact->count() === 1) {
-            return $exact->first();
-        }
-
-        if ($exact->count() > 1) {
-            return null;
-        }
-
-        $byPrefix = User::query()
-            ->whereRaw("LOWER(SUBSTRING_INDEX(email, '@', 1)) = ?", [$login])
-            ->get();
-
-        return $byPrefix->count() === 1 ? $byPrefix->first() : null;
+        return $matches->count() === 1 ? $matches->first() : null;
     }
 }
