@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\CreditLedger;
 use App\Models\Employee;
 use App\Models\PayrollEntry;
+use App\Services\Sync\CloudSyncService;
 use App\Support\EnsuresPayrollSchema;
 use Carbon\Carbon;
 
@@ -91,6 +92,10 @@ class PayrollSalaryService
 
         app(PayrollFoodBillSettlementService::class)->settle($entry, $createdBy);
 
+        if (config('sync.enabled') && config('sync.role') === 'local') {
+            app(\App\Services\Sync\SyncPushScheduler::class)->schedule();
+        }
+
         return $entry;
     }
 
@@ -112,9 +117,12 @@ class PayrollSalaryService
     /**
      * @return list<array<string, mixed>>
      */
-    public function salaryRowsForPeriod(string $period, bool $activeOnly = true): array
+    public function salaryRowsForPeriod(string $period, bool $activeOnly = true, ?bool $refresh = null): array
     {
-        $this->syncPayrollPeriod($period, null, $activeOnly);
+        $refresh = $refresh ?? ! app(CloudSyncService::class)->isCloudRole();
+        if ($refresh) {
+            $this->syncPayrollPeriod($period, null, $activeOnly);
+        }
 
         $query = Employee::query()
             ->with([

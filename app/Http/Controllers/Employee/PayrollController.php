@@ -11,6 +11,9 @@ use App\Services\AutoJournalService;
 use App\Services\EmployeeLoanService;
 use App\Services\PayrollFoodBillSettlementService;
 use App\Services\PayrollSalaryService;
+use App\Services\Sync\CloudSyncService;
+use App\Services\Sync\SyncPayrollQueueService;
+use App\Services\Sync\SyncPushScheduler;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -23,7 +26,14 @@ class PayrollController extends Controller
         private readonly PayrollSalaryService $payrollSalary,
         private readonly PayrollFoodBillSettlementService $foodBillSettlement,
         private readonly EmployeeLoanService $loanService,
+        private readonly CloudSyncService $cloudSync,
+        private readonly SyncPayrollQueueService $syncPayrollQueue,
     ) {}
+
+    private function autoSyncPayrollOnView(): bool
+    {
+        return ! $this->cloudSync->isCloudRole();
+    }
 
     public function index(Request $request)
     {
@@ -36,8 +46,10 @@ class PayrollController extends Controller
         }
         $employeeNo = trim((string) $request->query('employee_no', ''));
 
-        $this->payrollSalary->syncPayrollPeriod($period, $request->user()?->id, true);
-        $this->foodBillSettlement->syncUnsettledForPeriod($period, $request->user()?->id);
+        if ($this->autoSyncPayrollOnView()) {
+            $this->payrollSalary->syncPayrollPeriod($period, $request->user()?->id, true);
+            $this->foodBillSettlement->syncUnsettledForPeriod($period, $request->user()?->id);
+        }
 
         $entries = PayrollEntry::query()
             ->with(['employee:id,name,employee_no,salary,designation_id', 'employee.designation:id,name'])
@@ -65,8 +77,16 @@ class PayrollController extends Controller
         ]);
         $period = $data['period'];
 
+        if ($this->cloudSync->isCloudRole()) {
+            return redirect()
+                ->route('employees.payroll.index', ['period' => $period])
+                ->with('warning', 'Payroll local PC (signature.restro) se generate karein — yahan synced data dikhegi.');
+        }
+
         $before = PayrollEntry::query()->where('period', $period)->count();
         $this->payrollSalary->syncPayrollPeriod($period, $request->user()->id, true);
+        $this->syncPayrollQueue->queuePayrollData($period);
+        app(SyncPushScheduler::class)->schedule();
         $after = PayrollEntry::query()->where('period', $period)->count();
         $created = max(0, $after - $before);
 
@@ -147,6 +167,9 @@ class PayrollController extends Controller
         $payrollEntry->save();
 
         $this->foodBillSettlement->settle($payrollEntry, $request->user()->id);
+        if ($this->cloudSync->isLocalRole()) {
+            $this->syncPayrollQueue->queuePayrollData($payrollEntry->period);
+        }
 
         ActivityLogger::log('payroll.updated', 'Payroll entry updated', $payrollEntry);
 
@@ -167,6 +190,10 @@ class PayrollController extends Controller
         $this->foodBillSettlement->settle($payrollEntry, auth()->id());
         $this->loanService->recordPaymentOnPaid($payrollEntry, auth()->id());
         $this->autoJournal->postPayrollPaid($payrollEntry);
+
+        if ($this->cloudSync->isLocalRole()) {
+            $this->syncPayrollQueue->queuePayrollData($payrollEntry->period);
+        }
 
         ActivityLogger::log('payroll.paid', 'Payroll marked paid', $payrollEntry);
 

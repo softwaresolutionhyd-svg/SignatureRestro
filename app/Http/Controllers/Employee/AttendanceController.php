@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\EmployeeAttendance;
 use App\Services\AttendancePayrollService;
 use App\Services\PayrollSalaryService;
+use App\Services\Sync\SyncPayrollQueueService;
 use App\Support\ActivityLogger;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -165,6 +166,10 @@ class AttendanceController extends Controller
             if ($employee) {
                 app(PayrollSalaryService::class)->syncPayrollEntryForEmployee($employee, $month, $request->user()->id);
             }
+        }
+
+        if (config('sync.enabled') && config('sync.role') === 'local') {
+            app(SyncPayrollQueueService::class)->queuePayrollData($month);
         }
 
         ActivityLogger::log('attendance.grid_saved', 'Monthly attendance grid saved', null, [

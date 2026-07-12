@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Services\Sync\SyncOutboxRecorder;
+use App\Services\Sync\SyncPayrollQueueService;
+use App\Services\Sync\SyncPushScheduler;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
@@ -13,6 +15,7 @@ class SyncServiceProvider extends ServiceProvider
     {
         $this->app->singleton(SyncOutboxRecorder::class);
         $this->app->singleton(SyncPushScheduler::class);
+        $this->app->singleton(SyncPayrollQueueService::class);
     }
 
     public function boot(): void

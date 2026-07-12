@@ -2,10 +2,17 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Contact;
+use App\Models\CreditLedger;
 use App\Models\Employee;
+use App\Models\EmployeeAttendance;
+use App\Models\EmployeeLoan;
+use App\Models\EmployeeLoanPayment;
 use App\Models\EmployeeStaffCategory;
+use App\Models\PayrollEntry;
 use App\Services\Sync\CloudSyncService;
 use App\Services\Sync\SyncOutboxRecorder;
+use App\Services\Sync\SyncPayrollQueueService;
 use App\Services\Sync\SyncTargetSchemaService;
 use Illuminate\Console\Command;
 
@@ -13,12 +20,18 @@ class SyncRepairCommand extends Command
 {
     protected $signature = 'sync:repair
                             {--push : Push pending changes to hosting after schema repair}
-                            {--queue-staff-categories : Re-queue all employees + staff categories for sync}';
+                            {--queue-staff-categories : Re-queue all employees + staff categories for sync}
+                            {--queue-payroll : Re-queue payroll, loans, attendance, credit ledger for sync}
+                            {--period= : Limit payroll queue to YYYY-MM period}';
 
     protected $description = 'Ensure sync target DB schema (mysql + tenant) and optionally push pending queue.';
 
-    public function handle(SyncTargetSchemaService $schema, CloudSyncService $sync, SyncOutboxRecorder $recorder): int
-    {
+    public function handle(
+        SyncTargetSchemaService $schema,
+        CloudSyncService $sync,
+        SyncOutboxRecorder $recorder,
+        SyncPayrollQueueService $payrollQueue,
+    ): int {
         $this->info('Ensuring payroll / loan / credit ledger schema on all DB connections…');
         $schema->ensureAll();
         $this->info('Schema check done.');
@@ -40,6 +53,12 @@ class SyncRepairCommand extends Command
                 });
 
             $this->info("Queued {$queued} staff category / employee row(s) for sync.");
+        }
+
+        if ($this->option('queue-payroll') && $sync->isLocalRole()) {
+            $period = $this->option('period');
+            $queued = $payrollQueue->queuePayrollData(is_string($period) && $period !== '' ? $period : null);
+            $this->info('Queued '.$queued.' payroll-related row(s) for sync'.($period ? " ({$period})" : '').'.');
         }
 
         if (! $this->option('push')) {
