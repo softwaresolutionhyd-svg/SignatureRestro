@@ -113,6 +113,12 @@ class User extends Authenticatable
         return $this->isPlatformSuperAdmin() || $this->isCompanyAdmin();
     }
 
+    /** POS session closing — company admin or manager / owner designation. */
+    public function canAccessPosClosing(): bool
+    {
+        return $this->hasManagerDesignationAccess();
+    }
+
     public function moduleAllows(string $module, string $action): bool
     {
         if ($this->bypassesModulePermissions()) {
@@ -124,7 +130,7 @@ class User extends Authenticatable
         }
 
         if (ModuleAccess::isAdminOnlyModule($module)) {
-            return false;
+            return $this->canAccessPosClosing();
         }
 
         foreach (ModuleAccess::permissionKeysFor($module) as $key) {

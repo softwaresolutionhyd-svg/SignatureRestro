@@ -56,7 +56,11 @@ class EnsureUserHasModuleAccess
         }
 
         if (ModuleAccess::isAdminOnlyModule($module)) {
-            abort(403);
+            if (! $user instanceof User || ! $user->canAccessPosClosing()) {
+                abort(403);
+            }
+
+            return $next($request);
         }
 
         $permissions = (array) ($user->permissions ?? []);

@@ -26,7 +26,7 @@ final class ModuleAccess
         'calendar' => 'Calendar',
     ];
 
-    /** Only company / platform admins — not assignable in employee permission matrix. */
+    /** Only company admin / manager designation — not assignable in employee permission matrix. */
     public const ADMIN_ONLY_MODULES = [
         'pos-closing',
     ];

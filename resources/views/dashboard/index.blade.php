@@ -59,7 +59,7 @@
         </a>
         @endif
 
-        @if($u->bypassesModulePermissions())
+        @if($u->canAccessPosClosing())
         <a class="odoo-app" href="{{ route('restaurant-pos.closing') }}">
             <div class="odoo-icon" style="--icon-color:#b45309;">
                 <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
