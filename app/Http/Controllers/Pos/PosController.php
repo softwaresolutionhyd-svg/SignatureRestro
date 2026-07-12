@@ -654,12 +654,12 @@ class PosController extends Controller
     public function closing(): \Illuminate\View\View
     {
         PosRuntimeSchema::ensureForSessionSummary();
+        $this->ensurePosSessionDailyClosingSchema();
         $user = Auth::user();
-        $session = PosSession::query()
-            ->where('user_id', $user->id)
-            ->where('status', 'open')
-            ->latest('id')
-            ->first();
+        $session = $this->getOpenPosSessionForUser($user);
+        if ($session !== null) {
+            $session->loadMissing('user:id,name');
+        }
 
         $currency = Setting::get('currency_symbol', 'Rs.');
         $companyName = Setting::get('company_name', config('app.name'));
@@ -695,11 +695,8 @@ class PosController extends Controller
     {
         $this->ensurePosSessionDailyClosingSchema();
         $user = Auth::user();
-        $session = PosSession::query()
-            ->where('user_id', $user->id)
-            ->where('status', 'open')
-            ->latest('id')
-            ->firstOrFail();
+        $session = $this->getOpenPosSessionForUser($user);
+        abort_if($session === null, 404, 'Koi open POS session nahi hai.');
 
         return $this->closingPrintView($session);
     }
@@ -774,11 +771,8 @@ class PosController extends Controller
     {
         $this->ensurePosSessionDailyClosingSchema();
         $user = Auth::user();
-        $session = PosSession::query()
-            ->where('user_id', $user->id)
-            ->where('status', 'open')
-            ->latest('id')
-            ->firstOrFail();
+        $session = $this->getOpenPosSessionForUser($user);
+        abort_if($session === null, 404, 'Koi open POS session nahi hai.');
 
         $heldDraft = (int) PosOrder::query()
             ->where('session_id', $session->id)

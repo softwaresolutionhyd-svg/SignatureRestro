@@ -50,6 +50,9 @@
                     <div class="fw-bold fs-5">{{ $bizDate }}</div>
                     <div class="text-secondary small mt-2">Session opened: {{ $openedAt }}</div>
                     <div class="text-secondary small">Session #{{ $session->session_no ?? $session->id }}</div>
+                    @if($session->user)
+                        <div class="text-secondary small mt-1">Cashier: <strong>{{ $session->user->name }}</strong></div>
+                    @endif
                 </div>
             </div>
         </div>
