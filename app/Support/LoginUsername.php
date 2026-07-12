@@ -96,7 +96,6 @@ final class LoginUsername
 
     /**
      * Resolve login input to exactly one user, or null if unknown/ambiguous.
-     * Only exact stored username / email matches — never fuzzy or name matching.
      */
     public static function resolveUser(string $login): ?User
     {
@@ -118,6 +117,24 @@ final class LoginUsername
             })
             ->get();
 
-        return $matches->count() === 1 ? $matches->first() : null;
+        if ($matches->count() === 1) {
+            return $matches->first();
+        }
+
+        if ($matches->count() > 1) {
+            return null;
+        }
+
+        // Legacy emails stored as user@domain — allow username part only when unique.
+        $username = self::toStoredValue($login);
+        if ($username === '' || str_contains($raw, '@')) {
+            return null;
+        }
+
+        $byPrefix = User::query()
+            ->whereRaw("LOWER(SUBSTRING_INDEX(email, '@', 1)) = ?", [$username])
+            ->get();
+
+        return $byPrefix->count() === 1 ? $byPrefix->first() : null;
     }
 }

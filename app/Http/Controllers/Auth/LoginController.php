@@ -67,7 +67,15 @@ class LoginController extends Controller
         $login = trim((string) $request->input('login', ''));
         $user = LoginUsername::resolveUser($login);
 
-        if (! $user || ! Hash::check((string) $request->input('password'), $user->password)) {
+        if ($user === null) {
+            $this->incrementLoginAttempts($request);
+
+            throw ValidationException::withMessages([
+                $this->username() => ['Username maujood nahi. Employee name nahi — login username likhein (masalan: rana_shahid, chef_ad).'],
+            ]);
+        }
+
+        if (! Hash::check((string) $request->input('password'), $user->password)) {
             $this->incrementLoginAttempts($request);
 
             return $this->sendFailedLoginResponse($request);
@@ -127,11 +135,18 @@ class LoginController extends Controller
 
     protected function validateLogin(Request $request): void
     {
+        $login = trim((string) $request->input('login', ''));
+
+        $loginRules = str_contains($login, '@')
+            ? ['required', 'string', 'email', 'max:120']
+            : LoginUsername::loginInputRules();
+
         $request->validate([
-            'login' => LoginUsername::loginInputRules(),
+            'login' => $loginRules,
             'password' => ['required', 'string'],
         ], [
-            'login.regex' => 'Sirf username likhein (employee name nahi). Masalan: ordertaker',
+            'login.regex' => 'Sirf username likhein (employee name nahi). Masalan: ordertaker, rana_shahid',
+            'login.email' => 'Valid email/username likhein.',
         ]);
     }
 

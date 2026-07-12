@@ -16,8 +16,11 @@ final class WebAuthSession
     public static function establish(Request $request, User $user): void
     {
         Auth::logout();
-        $request->session()->invalidate();
-        $request->session()->regenerate(true);
+
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerate(true);
+        }
 
         Auth::login($user, false);
 
@@ -25,10 +28,9 @@ final class WebAuthSession
             $user->forceFill(['remember_token' => null])->save();
         }
 
-        $request->session()->forget(['active_company_id', 'login_totp_token']);
+        $request->session()->forget(['active_company_id', 'login_totp_token', 'login_totp_user_id']);
         $request->session()->put(self::BOUND_USER_ID, (int) $user->id);
         $request->session()->put(self::BOUND_USERNAME, $user->loginUsername() ?? $user->email);
-        $request->session()->regenerate(true);
     }
 
     public static function destroy(Request $request): void

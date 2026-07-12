@@ -89,7 +89,7 @@
                         <i class="bi bi-person input-icon" aria-hidden="true"></i>
                         <input id="login" type="text" name="login" value="{{ old('login') }}"
                                class="form-control auth-no-autofill @error('login') is-invalid @enderror"
-                               placeholder="ordertaker"
+                               placeholder="ordertaker, rana_shahid, admin"
                                required
                                autocomplete="username" autocorrect="off" autocapitalize="off" spellcheck="false"
                                autofocus>

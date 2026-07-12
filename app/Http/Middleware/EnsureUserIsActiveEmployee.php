@@ -30,9 +30,10 @@ class EnsureUserIsActiveEmployee
             return $next($request);
         }
 
-        $ok = Employee::query()
+        $ok = Employee::withoutGlobalScope('company')
             ->where('user_id', $user->id)
             ->where('active', true)
+            ->when($user->company_id, fn ($q) => $q->where('company_id', $user->company_id))
             ->exists();
 
         if (!$ok) {
