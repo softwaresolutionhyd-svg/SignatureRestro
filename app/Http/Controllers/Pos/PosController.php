@@ -95,11 +95,15 @@ class PosController extends Controller
 
         $heldOrders = $this->heldOrdersForSession($session, $user);
 
-        $billSessionIds = $this->resolvePosPaidBillSessionIds($session, $user);
-
         $paidOrders = PosOrder::query()
-            ->whereIn('session_id', $billSessionIds)
+            ->where('session_id', $session->id)
             ->where('status', 'paid')
+            ->when($session->opened_at, function ($q) use ($session) {
+                $q->where(function ($sub) use ($session) {
+                    $sub->where('paid_at', '>=', $session->opened_at)
+                        ->orWhereNull('paid_at');
+                });
+            })
             ->with(['table:id,name', 'payments:id,order_id,method,amount', 'items.product:id,name'])
             ->withCount('items')
             ->orderByDesc('paid_at')
@@ -361,27 +365,6 @@ class PosController extends Controller
             ->pluck('id')
             ->map(fn ($id) => (int) $id)
             ->all();
-    }
-
-    /**
-     * Paid bills in POS UI — current open shift only (closed sessions → Session Reports).
-     *
-     * @return list<int>
-     */
-    private function resolvePosPaidBillSessionIds(PosSession $session, ?User $user): array
-    {
-        if ($this->posUsesSharedBills($user)) {
-            $date = $session->business_date instanceof \Illuminate\Support\Carbon
-                ? $session->business_date->toDateString()
-                : (string) ($session->business_date ?: $this->todayBusinessDate());
-
-            $openIds = $this->sessionIdsForBusinessDate($date, openOnly: true);
-            if ($openIds !== []) {
-                return $openIds;
-            }
-        }
-
-        return [(int) $session->id];
     }
 
     /**
