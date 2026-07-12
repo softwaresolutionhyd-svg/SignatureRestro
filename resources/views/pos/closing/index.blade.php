@@ -168,10 +168,10 @@
             </p>
             <div class="d-flex flex-wrap gap-2 mb-4">
                 <a href="{{ route('restaurant-pos.closing.print') }}" target="_blank" class="btn btn-outline-primary">
-                    <i class="bi bi-printer me-1"></i> Print Session Summary
+                    <i class="bi bi-file-earmark-pdf me-1"></i> Session Report (PDF)
                 </a>
                 <a href="{{ route('restaurant-pos.closing.print', ['auto' => 1]) }}" target="_blank" class="btn btn-outline-secondary btn-sm">
-                    Print (auto dialog)
+                    <i class="bi bi-printer me-1"></i> Print auto
                 </a>
             </div>
 

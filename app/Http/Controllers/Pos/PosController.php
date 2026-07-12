@@ -704,6 +704,7 @@ class PosController extends Controller
             'amountToCollect' => $summary['amount_to_collect'],
             'currency' => Setting::get('currency_symbol', 'Rs.'),
             'companyName' => Setting::get('company_name', config('app.name')),
+            'printedBy' => Auth::user()?->name,
             'autoPrint' => request()->boolean('auto'),
         ]);
     }
