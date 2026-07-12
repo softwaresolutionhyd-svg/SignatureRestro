@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\User;
 use App\Services\LoginRateLimitService;
+use App\Support\LoginUsername;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -19,12 +20,18 @@ class AuthController extends Controller
 
     public function login(Request $request): JsonResponse
     {
-        $credentials = $request->validate([
-            'email' => ['required', 'email'],
+        $login = trim((string) ($request->input('login') ?? $request->input('email', '')));
+        $request->validate([
             'password' => ['required', 'string'],
         ]);
 
-        $rateKey = 'api-login|'.$request->ip().'|'.mb_strtolower($credentials['email']);
+        if ($login === '') {
+            throw ValidationException::withMessages([
+                'email' => ['Username required.'],
+            ]);
+        }
+
+        $rateKey = 'api-login|'.$request->ip().'|'.mb_strtolower($login);
 
         if ($this->rateLimit->tooManyAttempts($rateKey)) {
             throw ValidationException::withMessages([
@@ -32,9 +39,9 @@ class AuthController extends Controller
             ]);
         }
 
-        $user = User::query()->where('email', $credentials['email'])->first();
+        $user = LoginUsername::resolveUser($login);
 
-        if (! $user || ! Hash::check($credentials['password'], $user->password)) {
+        if (! $user || ! Hash::check((string) $request->input('password'), $user->password)) {
             $this->rateLimit->hit($rateKey);
 
             throw ValidationException::withMessages([

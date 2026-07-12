@@ -17,9 +17,19 @@
         <span class="odoo-meta-greeting">
             Good <span id="greetWord">{{ date('H') < 12 ? 'morning' : (date('H') < 18 ? 'afternoon' : 'evening') }}</span>,
             <strong>{{ $u->name }}</strong>
+            @if($u->loginUsername())
+                <span class="text-secondary fw-normal">({{ $u->loginUsername() }})</span>
+            @endif
         </span>
         <span class="odoo-meta-badge">{{ $u->role }}</span>
+        @if($linkedEmployee?->designation?->name)
+            <span class="odoo-meta-badge">{{ $linkedEmployee->designation->name }}</span>
+        @endif
     </div>
+
+    @if(session('success'))
+        <div class="alert alert-success shadow-sm mb-3 mx-auto" style="max-width: 520px;">{{ session('success') }}</div>
+    @endif
 
     @if(!$u->isSuperAdmin() && !$u->hasAnyModuleLauncherAccess() && !$linkedEmployee)
         <div class="alert alert-warning shadow-sm mb-3" style="max-width: 520px; margin-left: auto; margin-right: auto;">

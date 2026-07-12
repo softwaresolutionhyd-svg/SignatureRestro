@@ -17,6 +17,7 @@ use App\Services\EmployeeContactSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class EmployeeController extends Controller
 {
@@ -112,6 +113,7 @@ class EmployeeController extends Controller
                 'must_change_password' => false,
             ]);
             $userId = $createdUser->id;
+            $this->assertEmployeeUserAccountAvailable($cid, $userId);
         }
 
         try {
@@ -206,6 +208,7 @@ class EmployeeController extends Controller
                 ]);
                 $employee->user_id = $user->id;
             } else {
+                $this->assertEmployeeUserAccountAvailable($cid, $user->id, $employee->id);
                 $user->update([
                     'name' => $data['name'],
                     'email' => $loginUsername,
@@ -288,6 +291,23 @@ class EmployeeController extends Controller
     private function normalizePermissions(array $permissions): array
     {
         return ModuleAccess::normalize($permissions);
+    }
+
+    private function assertEmployeeUserAccountAvailable(int $companyId, int $userId, ?int $ignoreEmployeeId = null): void
+    {
+        $query = Employee::query()
+            ->where('company_id', $companyId)
+            ->where('user_id', $userId);
+
+        if ($ignoreEmployeeId !== null) {
+            $query->where('id', '!=', $ignoreEmployeeId);
+        }
+
+        if ($query->exists()) {
+            throw ValidationException::withMessages([
+                'account_username' => ['Ye login account pehle se kisi aur employee se linked hai.'],
+            ]);
+        }
     }
 
     /**

@@ -39,7 +39,11 @@
             </button>
             @endif
             <span class="badge admin-topbar-badge d-none d-sm-inline">
-                Role: <span class="fw-semibold">{{ auth()->user()?->role }}</span>
+                @if(auth()->user()?->loginUsername())
+                    User: <span class="fw-semibold">{{ auth()->user()->loginUsername() }}</span>
+                @else
+                    Role: <span class="fw-semibold">{{ auth()->user()?->role }}</span>
+                @endif
             </span>
 
             @php

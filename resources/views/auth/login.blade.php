@@ -73,7 +73,7 @@
                     <div class="alert alert-warning py-2 small">{{ session('warning') }}</div>
                 @endif
 
-                <form method="POST" action="{{ route('login') }}" novalidate autocomplete="off" class="auth-form">
+                <form method="POST" action="{{ route('login') }}" novalidate class="auth-form" autocomplete="off">
                     @csrf
 
                     <label class="auth-label" for="login">{{ __('Username') }}</label>
@@ -82,9 +82,7 @@
                         <input id="login" type="text" name="login" value="{{ old('login') }}"
                                class="form-control auth-no-autofill @error('login') is-invalid @enderror"
                                placeholder="{{ __('Enter your username') }}" required
-                               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-                               readonly
-                               onfocus="this.removeAttribute('readonly')"
+                               autocomplete="username" autocorrect="off" autocapitalize="off" spellcheck="false"
                                autofocus>
                         @error('login')
                             <div class="invalid-feedback d-block small mt-1">{{ $message }}</div>
@@ -97,9 +95,7 @@
                         <input id="password" type="password" name="password"
                                class="form-control auth-no-autofill @error('password') is-invalid @enderror"
                                placeholder="{{ __('Enter your password') }}" required
-                               autocomplete="off" autocorrect="off" spellcheck="false"
-                               readonly
-                               onfocus="this.removeAttribute('readonly')">
+                               autocomplete="current-password" autocorrect="off" spellcheck="false">
                         @error('password')
                             <div class="invalid-feedback d-block small mt-1">{{ $message }}</div>
                         @enderror

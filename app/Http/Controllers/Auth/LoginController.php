@@ -67,6 +67,12 @@ class LoginController extends Controller
             return $this->sendFailedLoginResponse($request);
         }
 
+        if (Auth::check() && (int) Auth::id() !== (int) $user->id) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerate(true);
+        }
+
         if ($user->hasTwoFactorEnabled()) {
             $token = $this->loginTotp->startChallenge($user, false);
             $request->session()->put('login_totp_token', $token);
@@ -90,6 +96,18 @@ class LoginController extends Controller
         $request->session()->forget(['active_company_id', 'login_totp_token']);
         $request->session()->regenerate(true);
         $this->authenticated($request, $user);
+
+        $username = $user->loginUsername() ?? $user->email;
+        session()->flash('success', "Signed in as {$username} ({$user->name}).");
+    }
+
+    public function logout(Request $request)
+    {
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerate(true);
+
+        return redirect()->route('login');
     }
 
     /**
