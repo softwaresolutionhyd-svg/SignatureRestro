@@ -6,6 +6,7 @@ use App\Models\PosCashMovement;
 use App\Models\PosOrder;
 use App\Models\PosPayment;
 use App\Models\PosSession;
+use App\Support\PosRuntimeSchema;
 
 final class PosSessionSummaryService
 {
@@ -38,6 +39,8 @@ final class PosSessionSummaryService
      */
     public function stats(PosSession $session): array
     {
+        PosRuntimeSchema::ensureForSessionSummary();
+
         $heldCount = $this->heldCount($session);
         $sessionId = $session->id;
         $paid = PosOrder::query()->where('session_id', $sessionId)->where('status', 'paid');

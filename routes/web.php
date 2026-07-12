@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\DeployHookController;
 use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\Inventory\InventoryController;
@@ -79,6 +80,10 @@ Route::get('/', function () {
         ? redirect()->route('dashboard')
         : redirect()->route('login');
 });
+
+Route::post('/deploy/hooks/migrate', [DeployHookController::class, 'migrate'])
+    ->middleware('throttle:10,1')
+    ->name('deploy.hooks.migrate');
 
 Auth::routes(['register' => false, 'reset' => false]);
 

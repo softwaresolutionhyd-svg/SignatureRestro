@@ -35,3 +35,10 @@ jobs:
             **/storage/logs/**
             **/storage/framework/sessions/**
             **/storage/framework/cache/**
+
+      - name: Run migrations on server
+        if: ${{ secrets.DEPLOY_KEY != '' && secrets.DEPLOY_MIGRATE_URL != '' }}
+        run: |
+          curl -sfS -X POST \
+            -H "X-Deploy-Key: ${{ secrets.DEPLOY_KEY }}" \
+            "${{ secrets.DEPLOY_MIGRATE_URL }}"

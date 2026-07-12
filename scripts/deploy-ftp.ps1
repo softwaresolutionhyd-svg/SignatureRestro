@@ -138,4 +138,29 @@ foreach ($file in $files) {
 
 Write-Host ''
 Write-Host "[OK] FTP deploy complete. Uploaded: $uploaded, skipped: $skipped" -ForegroundColor Green
+
+$deployKey = $config['DEPLOY_KEY']
+$deployUrl = $config['DEPLOY_MIGRATE_URL']
+if ($deployKey -and $deployUrl) {
+    Write-Host 'Running remote migrate...' -ForegroundColor Cyan
+    try {
+        $req = [System.Net.HttpWebRequest]::Create($deployUrl)
+        $req.Method = 'POST'
+        $req.Headers.Add('X-Deploy-Key', $deployKey)
+        $req.ContentLength = 0
+        $req.Timeout = 120000
+        $resp = $req.GetResponse()
+        $reader = New-Object System.IO.StreamReader($resp.GetResponseStream())
+        $body = $reader.ReadToEnd()
+        $reader.Close()
+        $resp.Close()
+        Write-Host "[OK] Remote migrate: $body" -ForegroundColor Green
+    } catch {
+        Write-Host "[WARN] Remote migrate failed: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host 'Hosting .env mein DEPLOY_KEY set karein aur dubara try karein.' -ForegroundColor Yellow
+    }
+} else {
+    Write-Host 'Tip: .env.deploy mein DEPLOY_KEY + DEPLOY_MIGRATE_URL add karein for auto-migrate.' -ForegroundColor DarkYellow
+}
+
 Write-Host 'Check: https://signature.softwaresolutions.pk' -ForegroundColor Green

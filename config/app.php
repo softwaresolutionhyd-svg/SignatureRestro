@@ -203,4 +203,9 @@ return [
         'media' => 100,
     ],
 
+    /*
+    | Secret for POST /deploy/hooks/migrate after FTP deploy (header: X-Deploy-Key).
+    */
+    'deploy_key' => env('DEPLOY_KEY'),
+
 ];
