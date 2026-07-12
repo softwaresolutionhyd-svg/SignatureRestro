@@ -8,6 +8,7 @@ use App\Models\Setting;
 use App\Support\ActivityLogger;
 use App\Support\EnsuresPayrollSchema;
 use App\Services\AutoJournalService;
+use App\Services\PayrollFoodBillSettlementService;
 use App\Services\PayrollSalaryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +35,7 @@ class PayrollController extends Controller
         $employeeNo = trim((string) $request->query('employee_no', ''));
 
         $this->payrollSalary->syncPayrollPeriod($period, $request->user()?->id, true);
+        $this->foodBillSettlement->syncUnsettledForPeriod($period, $request->user()?->id);
 
         $entries = PayrollEntry::query()
             ->with(['employee:id,name,employee_no,salary,designation_id', 'employee.designation:id,name'])
@@ -138,6 +140,8 @@ class PayrollController extends Controller
         $payrollEntry->notes = $data['notes'] ?? null;
         $payrollEntry->recalculateNet();
         $payrollEntry->save();
+
+        $this->foodBillSettlement->settle($payrollEntry, $request->user()->id);
 
         ActivityLogger::log('payroll.updated', 'Payroll entry updated', $payrollEntry);
 

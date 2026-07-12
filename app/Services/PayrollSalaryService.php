@@ -63,6 +63,8 @@ class PayrollSalaryService
             ->first();
 
         if ($entry !== null && $entry->status === 'paid') {
+            app(PayrollFoodBillSettlementService::class)->settle($entry, $createdBy);
+
             return $entry;
         }
 
@@ -85,6 +87,8 @@ class PayrollSalaryService
         $entry->bonus = (float) ($entry->bonus ?? 0);
         $entry->recalculateNet();
         $entry->save();
+
+        app(PayrollFoodBillSettlementService::class)->settle($entry, $createdBy);
 
         return $entry;
     }
