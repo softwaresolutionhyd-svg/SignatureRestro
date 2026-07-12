@@ -48,21 +48,32 @@
         line-height: 1.5;
     }
     .pos-open-form .form-label {
-        color: #cbd5e1;
+        color: #e2e8f0;
         text-align: left;
         font-size: 0.9rem;
+        font-weight: 500;
+    }
+    .pos-open-form .input-group-text {
+        background: #f1f5f9;
+        border-color: #cbd5e1;
+        color: #0f172a;
+        font-weight: 600;
     }
     .pos-open-form .form-control {
-        background: rgba(15, 23, 42, 0.8);
-        border-color: rgba(148, 163, 184, 0.35);
-        color: #f8fafc;
+        background: #ffffff;
+        border-color: #cbd5e1;
+        color: #000000;
         padding: 0.75rem 1rem;
+        font-weight: 600;
+    }
+    .pos-open-form .form-control::placeholder {
+        color: #94a3b8;
     }
     .pos-open-form .form-control:focus {
-        background: rgba(15, 23, 42, 0.95);
+        background: #ffffff;
         border-color: #f59e0b;
-        color: #fff;
-        box-shadow: 0 0 0 0.2rem rgba(245, 158, 11, 0.2);
+        color: #000000;
+        box-shadow: 0 0 0 0.2rem rgba(245, 158, 11, 0.25);
     }
     .btn-open-session {
         width: 100%;
