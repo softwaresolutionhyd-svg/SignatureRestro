@@ -13,6 +13,8 @@
     };
     const posTaxMode = settings.tax_mode || 'line';
     const posDefaultLineTax = Number(settings.default_tax_rate || 0);
+    const posServiceChargeEnabled = settings.service_charge_enabled === true;
+    const posServiceChargePercent = posServiceChargeEnabled ? Number(settings.service_charge_percent || 0) : 0;
     const canPosPay = boot.canPosPay === true;
     const canPosDiscountCredit = boot.canPosDiscountCredit === true;
     const posShowDiscount = canPosDiscountCredit && settings.show_discount !== false;
@@ -413,8 +415,12 @@
         const billDiscPct = getBillDiscountPercent();
         let discount = billDiscPct > 0 ? Math.round(subtotal * billDiscPct / 100 * 100) / 100 : 0;
         const tax = 0;
-        const grand = Math.round((subtotal - discount) * 100) / 100;
-        return { subtotal, discount, tax, grand, lineSubs, billDiscPct };
+        const net = Math.round((subtotal - discount) * 100) / 100;
+        const serviceCharge = posServiceChargePercent > 0
+            ? Math.round(net * posServiceChargePercent / 100 * 100) / 100
+            : 0;
+        const grand = Math.round((net + tax + serviceCharge) * 100) / 100;
+        return { subtotal, discount, tax, serviceCharge, grand, lineSubs, billDiscPct };
     }
 
     function lineRowTotal(r, totals, idx) {
@@ -722,13 +728,18 @@
     }
 
     function renderTotals() {
-        const { subtotal, discount, tax, grand } = calcCartTotals();
+        const { subtotal, discount, tax, serviceCharge, grand } = calcCartTotals();
         const el = (id, v) => { const n = $(id); if (n) n.textContent = typeof v === 'number' ? fmtMoney(v) : String(v); };
         const itemQty = cart.reduce((s, r) => s + Number(r.qty), 0);
         el('#rpSumItems', cart.length ? `${fmtQty(itemQty)} (${cart.length})` : '0');
         el('#rpSumSubtotal', subtotal);
         el('#rpSumDiscount', discount);
         el('#rpSumGrand', grand);
+        const serviceRow = $('#rpServiceChargeRow');
+        if (serviceRow) {
+            serviceRow.style.display = serviceCharge > 0 ? '' : 'none';
+        }
+        el('#rpSumServiceCharge', serviceCharge);
         const countEl = $('#rpCartCount');
         if (countEl) countEl.textContent = String(cart.length);
         if (autoPaymentAmount && payments.length === 1) {
@@ -1314,6 +1325,7 @@
         formData.set('client_subtotal', String(totals.subtotal));
         formData.set('client_discount_total', String(totals.discount));
         formData.set('client_tax_total', String(totals.tax));
+        formData.set('client_service_charge_total', String(totals.serviceCharge || 0));
         return formData;
     }
 

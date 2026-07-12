@@ -621,6 +621,26 @@
                             </select>
                             <div class="form-text">Line mode is per product/line. Bill mode applies one rate to subtotal − discounts. Default percentages use <strong>Finance &amp; Tax</strong> → Default Tax Rate unless changed on the register.</div>
                         </div>
+                        <div class="form-check mb-2">
+                            <input type="hidden" name="pos_service_charge_enabled" value="0">
+                            <input class="form-check-input" type="checkbox" name="pos_service_charge_enabled" value="1" id="pos_service_charge_enabled" @checked($posChecked('pos_service_charge_enabled'))>
+                            <label class="form-check-label" for="pos_service_charge_enabled">Service Charges (har bill par)</label>
+                        </div>
+                        <div class="ms-4 mb-3" id="posServiceChargePercentWrap" style="{{ $posChecked('pos_service_charge_enabled') ? '' : 'display:none;' }}">
+                            <label class="form-label" for="pos_service_charge_percent">Service charge %</label>
+                            <div class="input-group" style="max-width: 10rem;">
+                                <input type="number"
+                                       name="pos_service_charge_percent"
+                                       id="pos_service_charge_percent"
+                                       class="form-control"
+                                       min="0"
+                                       max="100"
+                                       step="0.01"
+                                       value="{{ old('pos_service_charge_percent', $settings['pos_service_charge_percent'] ?? '0') }}">
+                                <span class="input-group-text">%</span>
+                            </div>
+                            <div class="form-text">Discount ke baad net amount par yeh % har POS bill mein add hoga.</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -894,6 +914,19 @@ document.querySelector('[name="invoice_prefix"]')?.addEventListener('input', e =
             bootstrap.Tab.getOrCreateInstance(btn).show();
         }
     }
+})();
+
+(function () {
+    const enabled = document.getElementById('pos_service_charge_enabled');
+    const wrap = document.getElementById('posServiceChargePercentWrap');
+    if (!enabled || !wrap) return;
+
+    function syncServiceChargeField() {
+        wrap.style.display = enabled.checked ? '' : 'none';
+    }
+
+    enabled.addEventListener('change', syncServiceChargeField);
+    syncServiceChargeField();
 })();
 
 </script>

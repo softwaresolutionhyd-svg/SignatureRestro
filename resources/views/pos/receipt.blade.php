@@ -116,6 +116,12 @@
         @if((float) $order->discount_total > 0)
             <div class="tot-row"><span class="muted">Discount <span style="font-size:9px;">(on profit)</span></span><span>-{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $order->discount_total, 2) }}</span></div>
         @endif
+        @if((float) ($order->service_charge_total ?? 0) > 0)
+            <div class="tot-row">
+                <span class="muted">Service Charges@if($order->service_charge_percent !== null) ({{ fmt_num((float) $order->service_charge_percent, 2) }}%)@endif</span>
+                <span>{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $order->service_charge_total, 2) }}</span>
+            </div>
+        @endif
         @if((float) $order->tax_total > 0)
             <div class="tot-row"><span class="muted">Tax</span><span>{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $order->tax_total, 2) }}</span></div>
         @endif

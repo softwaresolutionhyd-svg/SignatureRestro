@@ -141,6 +141,8 @@ class OrderTakerController extends Controller
         return compact('session', 'tableBoard', 'pendingBills', 'resumedOrder', 'products', 'currency', 'tables', 'enableTables') + [
             'taxMode' => $taxMode,
             'defaultTaxRate' => (float) Setting::get('tax_rate', 0),
+            'serviceChargeEnabled' => Setting::get('pos_service_charge_enabled', '0') === '1',
+            'serviceChargePercent' => (float) Setting::get('pos_service_charge_percent', 0),
             'startTableId' => $request->filled('order_id') ? null : ($request->filled('table_id') ? $request->integer('table_id') : null),
             'startServiceType' => $request->input('service_type'),
         ];

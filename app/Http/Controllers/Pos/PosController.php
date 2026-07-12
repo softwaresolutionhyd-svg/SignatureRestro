@@ -27,6 +27,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\StockUpdated;
 use App\Support\DailyOrderNumber;
+use App\Support\PosServiceCharge;
 use App\Support\ActivityLogger;
 use App\Services\KitchenService;
 use App\Services\ManufacturingStockService;
@@ -187,6 +188,8 @@ class PosController extends Controller
             'enable_tables' => $enableTables,
             'tax_mode' => $taxMode,
             'default_tax_rate' => $defaultTaxRate,
+            'service_charge_enabled' => Setting::get('pos_service_charge_enabled', '0') === '1',
+            'service_charge_percent' => (float) Setting::get('pos_service_charge_percent', 0),
             'resume_bill_tax_percent' => null,
             'resume_bill_discount_percent' => null,
             'resume_table_id' => $resumedOrder?->table_id ? (int) $resumedOrder->table_id : null,
@@ -916,7 +919,7 @@ class PosController extends Controller
                 : 0.0;
             $ownerDiscount = $this->isOwnerDiscountRequest($request, $pricing['allow_discount'], $saleMode);
             $billDiscount = $this->resolveBillDiscountPercent($request, $pricing['allow_discount'], $saleMode);
-            [$subtotal, $discountTotal, $taxTotal, $grandTotal, $itemsData] = $this->buildLines($itemsNormalized, [
+            [$subtotal, $discountTotal, $taxTotal, $serviceTotal, $grandTotal, $itemsData] = $this->buildLines($itemsNormalized, [
                 'tax_mode' => $pricing['tax_mode'],
                 'bill_tax_percent' => $billTax,
                 'bill_discount_percent' => $billDiscount,
@@ -957,6 +960,8 @@ class PosController extends Controller
                 'subtotal'           => $subtotal,
                 'discount_total'     => $discountTotal,
                 'tax_total'          => $taxTotal,
+                'service_charge_percent' => $serviceTotal > 0 ? PosServiceCharge::percent() : null,
+                'service_charge_total' => $serviceTotal,
                 'bill_tax_percent'   => $pricing['tax_mode'] === 'bill' ? $billTax : null,
                 'bill_discount_percent' => $pricing['allow_discount'] ? $billDiscount : null,
                 'is_owner_discount'  => $ownerDiscount,
@@ -1235,7 +1240,7 @@ class PosController extends Controller
                 : 0.0;
             $ownerDiscount = $this->isOwnerDiscountRequest($request, $pricing['allow_discount'], $saleMode);
             $billDiscount = $this->resolveBillDiscountPercent($request, $pricing['allow_discount'], $saleMode);
-            [$subtotal, $discountTotal, $taxTotal, $grandTotal, $itemsData] = $this->buildLines($itemsNormalized, [
+            [$subtotal, $discountTotal, $taxTotal, $serviceTotal, $grandTotal, $itemsData] = $this->buildLines($itemsNormalized, [
                 'tax_mode' => $pricing['tax_mode'],
                 'bill_tax_percent' => $billTax,
                 'bill_discount_percent' => $billDiscount,
@@ -1271,6 +1276,8 @@ class PosController extends Controller
                 'subtotal' => $subtotal,
                 'discount_total' => $discountTotal,
                 'tax_total' => $taxTotal,
+                'service_charge_percent' => $serviceTotal > 0 ? PosServiceCharge::percent() : null,
+                'service_charge_total' => $serviceTotal,
                 'bill_tax_percent' => $pricing['tax_mode'] === 'bill' ? $billTax : null,
                 'bill_discount_percent' => $pricing['allow_discount'] ? $billDiscount : null,
                 'is_owner_discount' => $ownerDiscount,
@@ -1879,7 +1886,7 @@ class PosController extends Controller
      *   bill_discount_percent?: float,
      *   allow_discount?: bool
      * }  $opts
-     * @return array{0: float, 1: float, 2: float, 3: float, 4: list<array<string, mixed>>}
+     * @return array{0: float, 1: float, 2: float, 3: float, 4: float, 5: list<array<string, mixed>>}
      */
     private function buildLines(array $items, array $opts = []): array
     {
@@ -1995,9 +2002,11 @@ class PosController extends Controller
             $taxTotal = round($taxTotal, 2);
         }
 
-        $grandTotal = round($subtotal - $discountTotal + $taxTotal, 2);
+        $net = round($subtotal - $discountTotal, 2);
+        $serviceTotal = PosServiceCharge::amountOnNet($net);
+        $grandTotal = round($net + $taxTotal + $serviceTotal, 2);
 
-        return [$subtotal, $discountTotal, $taxTotal, $grandTotal, $lines];
+        return [$subtotal, $discountTotal, $taxTotal, $serviceTotal, $grandTotal, $lines];
     }
 
     private function isOwnerDiscountRequest(PosCheckoutRequest $request, bool $allowDiscount, string $saleMode): bool
@@ -2394,6 +2403,16 @@ class PosController extends Controller
                     $table->string('service_type', 20)->nullable()->after('customer_type');
                 });
             }
+            if (! Schema::hasColumn('pos_orders', 'service_charge_percent')) {
+                Schema::table('pos_orders', function (Blueprint $table) {
+                    $table->decimal('service_charge_percent', 8, 3)->nullable()->after('tax_total');
+                });
+            }
+            if (! Schema::hasColumn('pos_orders', 'service_charge_total')) {
+                Schema::table('pos_orders', function (Blueprint $table) {
+                    $table->decimal('service_charge_total', 12, 2)->default(0)->after('service_charge_percent');
+                });
+            }
         } catch (\Throwable $e) {
             report($e);
         }
@@ -2687,7 +2706,7 @@ class PosController extends Controller
                 false
             );
 
-            [$subtotal, $discountTotal, $taxTotal, $grandTotal, $itemsData] = $this->buildLines($itemsNormalized, [
+            [$subtotal, $discountTotal, $taxTotal, $serviceTotal, $grandTotal, $itemsData] = $this->buildLines($itemsNormalized, [
                 'tax_mode' => $pricing['tax_mode'],
                 'bill_tax_percent' => $pricing['tax_mode'] === 'bill' ? $billTax : 0.0,
                 'bill_discount_percent' => $billDiscount,
@@ -2702,6 +2721,7 @@ class PosController extends Controller
                     'subtotal' => $subtotal,
                     'discount' => $discountTotal,
                     'tax' => $taxTotal,
+                    'service' => $serviceTotal,
                     'grand' => $grandTotal,
                     'itemsData' => $itemsData,
                 ];
@@ -2718,6 +2738,8 @@ class PosController extends Controller
                 'subtotal' => $best['subtotal'],
                 'discount_total' => $best['discount'],
                 'tax_total' => $best['tax'],
+                'service_charge_total' => $best['service'],
+                'service_charge_percent' => ($best['service'] ?? 0) > 0 ? PosServiceCharge::percent() : null,
                 'grand_total' => $best['grand'],
             ]);
             $order->items()->delete();

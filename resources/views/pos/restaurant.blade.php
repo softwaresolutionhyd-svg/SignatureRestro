@@ -246,6 +246,12 @@
                         <span id="rpSumDiscount">0.00</span>
                     </div>
                 @endif
+                @if($posSettings['service_charge_enabled'] ?? false)
+                    <div class="rp-total-row rp-total-row-adjust" id="rpServiceChargeRow" style="display:none;">
+                        <span class="rp-adjust-label">Service Charges ({{ fmt_num((float) ($posSettings['service_charge_percent'] ?? 0), 2) }}%)</span>
+                        <span id="rpSumServiceCharge">0.00</span>
+                    </div>
+                @endif
                 <div class="rp-total-row grand"><span>Total</span><span id="rpSumGrand">0.00</span></div>
             </div>
 
@@ -412,5 +418,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=44"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=45"></script>
 @endsection

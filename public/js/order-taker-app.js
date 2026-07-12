@@ -11,6 +11,8 @@
     };
     const posTaxMode = settings.tax_mode || 'line';
     const posDefaultLineTax = Number(settings.default_tax_rate || 0);
+    const posServiceChargeEnabled = settings.service_charge_enabled === true;
+    const posServiceChargePercent = posServiceChargeEnabled ? Number(settings.service_charge_percent || 0) : 0;
     const posTablesEnabled = settings.enable_tables !== false;
     const canVoidKitchenItems = boot.canVoidKitchenItems === true;
 
@@ -122,8 +124,11 @@
         }
         subtotal = Math.round(subtotal * 100) / 100;
         tax = Math.round(tax * 100) / 100;
-        const grand = Math.round((subtotal + tax) * 100) / 100;
-        return { subtotal, tax, grand };
+        const serviceCharge = posServiceChargePercent > 0
+            ? Math.round(subtotal * posServiceChargePercent / 100 * 100) / 100
+            : 0;
+        const grand = Math.round((subtotal + tax + serviceCharge) * 100) / 100;
+        return { subtotal, tax, serviceCharge, grand };
     }
 
     function lineRowTotal(r) {

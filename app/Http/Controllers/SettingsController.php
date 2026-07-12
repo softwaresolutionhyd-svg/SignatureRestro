@@ -49,6 +49,8 @@ class SettingsController extends Controller
         'pos_allow_bill_print'        => '1',
         'pos_enable_tables'           => '1',
         'pos_tax_mode'                => 'line', // off | line | bill
+        'pos_service_charge_enabled'  => '0',
+        'pos_service_charge_percent'  => '0',
         'pos_receipt_footer_note'     => '',
         // Modules — list sizes & behaviour
         'inventory_products_per_page'       => '20',
@@ -107,6 +109,7 @@ class SettingsController extends Controller
             'company_logo'      => ['nullable', 'image', 'mimes:png,jpg,jpeg,svg,webp', 'max:1024'],
             'pos_receipt_footer_note' => ['nullable', 'string', 'max:240'],
             'pos_tax_mode' => ['required', 'in:off,line,bill'],
+            'pos_service_charge_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'inventory_products_per_page' => ['required', 'integer', 'min:5', 'max:100'],
             'inventory_moves_per_page' => ['required', 'integer', 'min:5', 'max:100'],
             'inventory_categories_per_page' => ['required', 'integer', 'min:5', 'max:100'],
@@ -145,6 +148,7 @@ class SettingsController extends Controller
             'pos_show_discount',
             'pos_allow_bill_print',
             'pos_enable_tables',
+            'pos_service_charge_enabled',
             'inventory_show_low_stock_banner',
             'expenses_require_receipt_on_submit',
             'accounts_auto_journal',

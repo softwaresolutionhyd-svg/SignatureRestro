@@ -17,7 +17,7 @@ class PosCheckoutRequest extends FormRequest
             'payments' => is_string($payments) ? (json_decode($payments, true) ?: []) : ($payments ?? []),
         ]);
 
-        foreach (['cash_tendered', 'cash_change', 'bill_tax_percent', 'bill_discount_percent', 'client_grand_total', 'client_subtotal', 'client_discount_total', 'client_tax_total'] as $key) {
+        foreach (['cash_tendered', 'cash_change', 'bill_tax_percent', 'bill_discount_percent', 'client_grand_total', 'client_subtotal', 'client_discount_total', 'client_tax_total', 'client_service_charge_total'] as $key) {
             $v = $this->input($key);
             if ($v !== null && $v !== '' && is_string($v)) {
                 $this->merge([$key => str_replace([',', ' '], '', $v)]);
@@ -134,6 +134,7 @@ class PosCheckoutRequest extends FormRequest
                 'client_subtotal' => ['nullable', 'numeric', 'min:0'],
                 'client_discount_total' => ['nullable', 'numeric', 'min:0'],
                 'client_tax_total' => ['nullable', 'numeric', 'min:0'],
+                'client_service_charge_total' => ['nullable', 'numeric', 'min:0'],
                 'payments' => $paymentsRule,
                 'payments.*.method' => $payMethodRule,
                 'payments.*.amount' => $payAmountRule,
@@ -185,6 +186,7 @@ class PosCheckoutRequest extends FormRequest
             'client_subtotal' => ['nullable', 'numeric', 'min:0'],
             'client_discount_total' => ['nullable', 'numeric', 'min:0'],
             'client_tax_total' => ['nullable', 'numeric', 'min:0'],
+            'client_service_charge_total' => ['nullable', 'numeric', 'min:0'],
             'payments' => $paymentsRule,
             'payments.*.method' => $payMethodRule,
             'payments.*.amount' => $payAmountRule,

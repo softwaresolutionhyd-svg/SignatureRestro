@@ -9,6 +9,7 @@ use App\Models\PosSession;
 use App\Models\PosTable;
 use App\Models\RoomBooking;
 use App\Models\Setting;
+use App\Support\PosServiceCharge;
 use App\Support\ServeMealSchedule;
 use App\Support\DailyOrderNumber;
 use App\Services\KitchenService;
@@ -30,7 +31,7 @@ final class OrderTakerService
             throw new RuntimeException('Kam az kam aik product add karein.');
         }
 
-        [$subtotal, $discountTotal, $taxTotal, $grandTotal, $lines] = $this->buildLines($items);
+        [$subtotal, $discountTotal, $taxTotal, $serviceTotal, $grandTotal, $lines] = $this->buildLines($items);
         $guest = $this->resolveGuestMeta($meta);
         $this->validateProductsForCustomerType($lines, $guest['customer_type']);
         if (($guest['service_type'] ?? PosOrder::SERVICE_DINE_IN) === PosOrder::SERVICE_DINE_IN) {
@@ -59,6 +60,8 @@ final class OrderTakerService
             'subtotal' => $subtotal,
             'discount_total' => $discountTotal,
             'tax_total' => $taxTotal,
+            'service_charge_percent' => $serviceTotal > 0 ? PosServiceCharge::percent() : null,
+            'service_charge_total' => $serviceTotal,
             'grand_total' => $grandTotal,
             'ready_for_pos_at' => now(),
         ]);
@@ -295,7 +298,7 @@ final class OrderTakerService
             throw new RuntimeException('Kam az kam aik product rehna chahiye.');
         }
 
-        [$subtotal, $discountTotal, $taxTotal, $grandTotal, $lines] = $this->buildLines($items);
+        [$subtotal, $discountTotal, $taxTotal, $serviceTotal, $grandTotal, $lines] = $this->buildLines($items);
         $this->validateProductsForCustomerType($lines, $order->customerTypeKey());
 
         $kitchen = app(KitchenService::class);
@@ -328,6 +331,8 @@ final class OrderTakerService
             'subtotal' => $subtotal,
             'discount_total' => $discountTotal,
             'tax_total' => $taxTotal,
+            'service_charge_percent' => $serviceTotal > 0 ? PosServiceCharge::percent() : null,
+            'service_charge_total' => $serviceTotal,
             'grand_total' => $grandTotal,
         ] + $kitchenPayload);
         $order->save();
@@ -469,7 +474,7 @@ final class OrderTakerService
 
     /**
      * @param  list<array{product_id:int,uom:string,qty:float,notes?:?string}>  $items
-     * @return array{0: float, 1: float, 2: float, 3: float, 4: list<array<string, mixed>>}
+     * @return array{0: float, 1: float, 2: float, 3: float, 4: float, 5: list<array<string, mixed>>}
      */
     public function buildLines(array $items): array
     {
@@ -544,9 +549,12 @@ final class OrderTakerService
         } else {
             $taxTotal = round($taxTotal, 2);
         }
-        $grandTotal = round($subtotal - $discountTotal + $taxTotal, 2);
 
-        return [$subtotal, $discountTotal, $taxTotal, $grandTotal, $lines];
+        $net = round($subtotal - $discountTotal, 2);
+        $serviceTotal = PosServiceCharge::amountOnNet($net);
+        $grandTotal = round($net + $taxTotal + $serviceTotal, 2);
+
+        return [$subtotal, $discountTotal, $taxTotal, $serviceTotal, $grandTotal, $lines];
     }
 
     /**

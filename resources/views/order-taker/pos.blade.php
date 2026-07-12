@@ -272,6 +272,8 @@
             'tax_mode' => $taxMode,
             'default_tax_rate' => $defaultTaxRate,
             'enable_tables' => $enableTables,
+            'service_charge_enabled' => $serviceChargeEnabled ?? false,
+            'service_charge_percent' => (float) ($serviceChargePercent ?? 0),
         ],
         'serviceTypeLabels' => \App\Models\PosOrder::serviceTypeLabels(),
         'defaultServiceType' => $defaultServiceType,
