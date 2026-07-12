@@ -59,6 +59,20 @@
         </a>
         @endif
 
+        @if($u->canViewModule('restaurant-pos'))
+        <a class="odoo-app" href="{{ route('restaurant-pos.closing') }}">
+            <div class="odoo-icon" style="--icon-color:#b45309;">
+                <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="6" y="8" width="28" height="24" rx="3" stroke="currentColor" stroke-width="2.5"/>
+                    <path d="M12 16h16M12 22h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <circle cx="28" cy="26" r="6" fill="currentColor" opacity="0.85"/>
+                    <path d="M26 26h4M28 24v4" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <span class="odoo-label">Closing</span>
+        </a>
+        @endif
+
         @if($u->canViewModule('order-taker'))
         <a class="odoo-app" href="{{ route('order-taker.index') }}">
             <div class="odoo-icon" style="--icon-color:#14b8a6;">

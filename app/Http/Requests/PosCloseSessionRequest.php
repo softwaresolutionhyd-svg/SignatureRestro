@@ -20,6 +20,7 @@ class PosCloseSessionRequest extends FormRequest
     {
         return [
             'note' => ['nullable', 'string', 'max:255'],
+            'counted_cash' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 }

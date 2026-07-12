@@ -15,11 +15,13 @@ use App\Models\InventoryMove;
 use App\Models\InventoryProduct;
 use App\Models\PosOrder;
 use App\Models\PosOrderItem;
+use App\Models\PosSession;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderLine;
 use App\Models\PurchaseVendor;
 use App\Models\Setting;
 use App\Support\PosOrderMetrics;
+use App\Services\PosSessionSummaryService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -285,6 +287,46 @@ class ReportsController extends Controller
             'totalGrossProfit',
             'billCount'
         ));
+    }
+
+    public function posSessions(Request $request)
+    {
+        $from = $request->input('from', now()->startOfMonth()->format('Y-m-d'));
+        $to = $request->input('to', now()->format('Y-m-d'));
+        $currency = Setting::get('currency_symbol', 'Rs.');
+        $summaryService = app(PosSessionSummaryService::class);
+
+        $sessions = PosSession::query()
+            ->with('user:id,name')
+            ->where('status', 'closed')
+            ->where(function ($q) use ($from, $to) {
+                $q->whereBetween('business_date', [$from, $to])
+                    ->orWhereBetween('closed_at', [$from.' 00:00:00', $to.' 23:59:59']);
+            })
+            ->orderByDesc('closed_at')
+            ->get();
+
+        $rows = $sessions->map(function (PosSession $session) use ($summaryService) {
+            $payload = $summaryService->summaryPayload($session);
+
+            return [
+                'session' => $session,
+                'stats' => $payload['stats'],
+                'amount_to_collect' => $payload['amount_to_collect'],
+            ];
+        });
+
+        $totals = [
+            'sessions' => $rows->count(),
+            'net_sales' => round($rows->sum(fn ($r) => $r['stats']['net_sales_total']), 2),
+            'discount' => round($rows->sum(fn ($r) => $r['stats']['discount_total']), 2),
+            'service_charge' => round($rows->sum(fn ($r) => $r['stats']['service_charge_total']), 2),
+            'cash' => round($rows->sum(fn ($r) => $r['stats']['payments_cash']), 2),
+            'bank' => round($rows->sum(fn ($r) => $r['stats']['payments_bank']), 2),
+            'card' => round($rows->sum(fn ($r) => $r['stats']['payments_card']), 2),
+        ];
+
+        return view('reports.pos-sessions', compact('rows', 'from', 'to', 'currency', 'totals'));
     }
 
     /* ──────────────────────────────────────────

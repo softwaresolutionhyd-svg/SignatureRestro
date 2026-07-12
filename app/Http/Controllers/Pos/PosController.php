@@ -33,6 +33,7 @@ use App\Services\KitchenService;
 use App\Services\ManufacturingStockService;
 use App\Services\AutoJournalService;
 use App\Services\OrderTakerService;
+use App\Services\PosSessionSummaryService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -529,55 +530,7 @@ class PosController extends Controller
      */
     private function sessionPosStats(PosSession $session): array
     {
-        $heldCount = $this->heldOrdersForSession($session)->count();
-
-        $sessionId = $session->id;
-        $paid = PosOrder::query()->where('session_id', $sessionId)->where('status', 'paid');
-
-        $salesCount = (int) (clone $paid)->where('type', 'sale')->count();
-        $salesTotal = (float) (clone $paid)->where('type', 'sale')->sum('grand_total');
-
-        $refundsCount = (int) (clone $paid)->where('type', 'refund')->count();
-        $refundsTotal = (float) (clone $paid)->where('type', 'refund')->sum('grand_total');
-
-        $creditCount = (int) (clone $paid)->where('type', 'sale')->where('is_credit', true)->count();
-        $creditTotal = (float) (clone $paid)->where('type', 'sale')->where('is_credit', true)->sum('grand_total');
-
-        $salePayTotals = PosPayment::query()
-            ->join('pos_orders', 'pos_orders.id', '=', 'pos_payments.order_id')
-            ->where('pos_orders.session_id', $sessionId)
-            ->where('pos_orders.status', 'paid')
-            ->where('pos_orders.type', 'sale')
-            ->selectRaw('pos_payments.method as payment_method, SUM(pos_payments.amount) as total')
-            ->groupBy('pos_payments.method')
-            ->pluck('total', 'payment_method');
-
-        $refundPayTotals = PosPayment::query()
-            ->join('pos_orders', 'pos_orders.id', '=', 'pos_payments.order_id')
-            ->where('pos_orders.session_id', $sessionId)
-            ->where('pos_orders.status', 'paid')
-            ->where('pos_orders.type', 'refund')
-            ->selectRaw('pos_payments.method as payment_method, SUM(pos_payments.amount) as total')
-            ->groupBy('pos_payments.method')
-            ->pluck('total', 'payment_method');
-
-        $net = static function (string $m) use ($salePayTotals, $refundPayTotals): float {
-            return (float) (($salePayTotals[$m] ?? 0) - ($refundPayTotals[$m] ?? 0));
-        };
-
-        return [
-            'held_count' => $heldCount,
-            'can_close_session' => $heldCount === 0,
-            'sales_count' => $salesCount,
-            'sales_total' => $salesTotal,
-            'refunds_count' => $refundsCount,
-            'refunds_total' => $refundsTotal,
-            'credit_sales_count' => $creditCount,
-            'credit_sales_total' => $creditTotal,
-            'payments_cash' => $net('cash'),
-            'payments_card' => $net('card'),
-            'payments_bank' => $net('bank'),
-        ];
+        return app(PosSessionSummaryService::class)->stats($session);
     }
 
     /**
@@ -585,36 +538,83 @@ class PosController extends Controller
      */
     private function sessionCashBreakdown(PosSession $session): array
     {
-        $cashFromSales = (float) PosPayment::query()
-            ->join('pos_orders', 'pos_orders.id', '=', 'pos_payments.order_id')
-            ->where('pos_orders.session_id', $session->id)
-            ->where('pos_orders.status', 'paid')
-            ->where('pos_orders.type', 'sale')
-            ->where('pos_payments.method', 'cash')
-            ->sum('pos_payments.amount');
+        return app(PosSessionSummaryService::class)->cashBreakdown($session);
+    }
 
-        $cashRefundsPaid = (float) PosPayment::query()
-            ->join('pos_orders', 'pos_orders.id', '=', 'pos_payments.order_id')
-            ->where('pos_orders.session_id', $session->id)
-            ->where('pos_orders.status', 'paid')
-            ->where('pos_orders.type', 'refund')
-            ->where('pos_payments.method', 'cash')
-            ->sum('pos_payments.amount');
+    public function closing(): \Illuminate\View\View
+    {
+        $this->ensurePosSessionDailyClosingSchema();
+        $user = Auth::user();
+        $session = PosSession::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'open')
+            ->latest('id')
+            ->first();
 
-        $cashIn = (float) PosCashMovement::query()->where('session_id', $session->id)->where('type', 'in')->sum('amount');
-        $cashOut = (float) PosCashMovement::query()->where('session_id', $session->id)->where('type', 'out')->sum('amount');
+        $currency = Setting::get('currency_symbol', 'Rs.');
+        $companyName = Setting::get('company_name', config('app.name'));
 
-        $opening = (float) $session->opening_cash;
-        $expected = round($opening + $cashFromSales - $cashRefundsPaid + $cashIn - $cashOut, 2);
+        if ($session === null) {
+            return view('pos.closing.index', [
+                'session' => null,
+                'stats' => null,
+                'cash' => null,
+                'amountToCollect' => 0,
+                'currency' => $currency,
+                'companyName' => $companyName,
+                'canClose' => false,
+                'noOpenSession' => true,
+            ]);
+        }
 
-        return [
-            'opening_cash' => $opening,
-            'cash_from_sales' => $cashFromSales,
-            'cash_refunds_paid' => $cashRefundsPaid,
-            'cash_in' => $cashIn,
-            'cash_out' => $cashOut,
-            'expected_closing' => $expected,
-        ];
+        $summary = app(PosSessionSummaryService::class)->summaryPayload($session);
+
+        return view('pos.closing.index', [
+            'session' => $session,
+            'stats' => $summary['stats'],
+            'cash' => $summary['cash'],
+            'amountToCollect' => $summary['amount_to_collect'],
+            'currency' => $currency,
+            'companyName' => $companyName,
+            'canClose' => $summary['stats']['can_close_session'],
+            'noOpenSession' => false,
+        ]);
+    }
+
+    public function closingPrint(): \Illuminate\View\View
+    {
+        $this->ensurePosSessionDailyClosingSchema();
+        $user = Auth::user();
+        $session = PosSession::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'open')
+            ->latest('id')
+            ->firstOrFail();
+
+        return $this->closingPrintView($session);
+    }
+
+    public function closingPrintSession(PosSession $session): \Illuminate\View\View
+    {
+        $this->ensurePosSessionDailyClosingSchema();
+        abort_unless($session->status === 'closed', 404);
+
+        return $this->closingPrintView($session);
+    }
+
+    private function closingPrintView(PosSession $session): \Illuminate\View\View
+    {
+        $summary = app(PosSessionSummaryService::class)->summaryPayload($session);
+
+        return view('pos.closing.print', [
+            'session' => $session->loadMissing('user:id,name'),
+            'stats' => $summary['stats'],
+            'cash' => $summary['cash'],
+            'amountToCollect' => $summary['amount_to_collect'],
+            'currency' => Setting::get('currency_symbol', 'Rs.'),
+            'companyName' => Setting::get('company_name', config('app.name')),
+            'autoPrint' => request()->boolean('auto'),
+        ]);
     }
 
     public function openSession(PosOpenSessionRequest $request): RedirectResponse
@@ -645,12 +645,16 @@ class PosController extends Controller
             );
         }
 
-        $this->finalizeSessionClose($session, $request->note);
+        $this->finalizeSessionClose(
+            $session,
+            $request->note,
+            $request->filled('counted_cash') ? round((float) $request->input('counted_cash'), 2) : null
+        );
 
-        return redirect()->route('restaurant-pos.index')->with('success', 'Aaj ki daily closing save ho gayi.');
+        return redirect()->route('reports.pos-sessions')->with('success', 'POS session close ho gayi aur save ho gayi.');
     }
 
-    private function finalizeSessionClose(PosSession $session, ?string $note = null): void
+    private function finalizeSessionClose(PosSession $session, ?string $note = null, ?float $countedCash = null): void
     {
         $stats = $this->sessionPosStats($session);
         $cashBreakdown = $this->sessionCashBreakdown($session);
@@ -658,6 +662,7 @@ class PosController extends Controller
             $stats['payments_cash'] + $cashBreakdown['cash_in'] - $cashBreakdown['cash_out'],
             2
         );
+        $counted = $countedCash ?? $amountToCollect;
 
         $session->update([
             'status' => 'closed',
@@ -666,7 +671,7 @@ class PosController extends Controller
             'closing_card' => $stats['payments_card'],
             'amount_to_collect' => $amountToCollect,
             'expected_cash' => $amountToCollect,
-            'cash_difference' => 0.0,
+            'cash_difference' => round($counted - $amountToCollect, 2),
             'closed_at' => now(),
             'note' => $note ?: $session->note,
             'business_date' => $session->business_date ?? now()->toDateString(),

@@ -81,6 +81,13 @@
                     <div><div class="fw-semibold">POS Bills</div><div class="text-secondary small">Per bill: date, time, discount, tax, profit</div></div>
                     <i class="bi bi-chevron-right ms-auto text-secondary"></i>
                 </a>
+                <a href="{{ route('reports.pos-sessions') }}" class="d-flex align-items-center gap-3 px-4 py-3 border-bottom text-decoration-none text-dark hover-bg-light">
+                    <span class="rounded-circle d-flex align-items-center justify-content-center" style="width:38px;height:38px;background:rgba(180,83,9,.12);">
+                        <i class="bi bi-cash-stack" style="color:#b45309;"></i>
+                    </span>
+                    <div><div class="fw-semibold">Session Reports</div><div class="text-secondary small">Closed POS sessions — sales, cash, card, bank by date</div></div>
+                    <i class="bi bi-chevron-right ms-auto text-secondary"></i>
+                </a>
                 <a href="{{ route('reports.sales') }}" class="d-flex align-items-center gap-3 px-4 py-3 border-bottom text-decoration-none text-dark hover-bg-light">
                     <span class="rounded-circle d-flex align-items-center justify-content-center" style="width:38px;height:38px;background:rgba(124,58,237,.1);">
                         <i class="bi bi-bar-chart-fill" style="color:#7c3aed;"></i>

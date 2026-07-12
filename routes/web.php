@@ -230,6 +230,8 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
     Route::prefix('restaurant-pos')->name('restaurant-pos.')->group(function () {
         Route::middleware('moduleAccess')->group(function () {
             Route::get('/', [PosController::class, 'restaurant'])->name('index');
+            Route::get('/closing', [PosController::class, 'closing'])->name('closing');
+            Route::get('/closing/print', [PosController::class, 'closingPrint'])->name('closing.print');
             Route::get('/sync', [PosController::class, 'sync'])->name('sync');
             Route::post('/session/open', [PosController::class, 'openSession'])->name('session.open');
             Route::post('/session/close', [PosController::class, 'closeSession'])->name('session.close');
@@ -340,6 +342,8 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
     Route::prefix('reports')->name('reports.')->middleware('moduleAccess')->group(function () {
         Route::get('/',          [ReportsController::class, 'index'])     ->name('index');
         Route::get('/pos-bills', [ReportsController::class, 'posBills'])   ->name('pos-bills');
+        Route::get('/pos-sessions', [ReportsController::class, 'posSessions'])->name('pos-sessions');
+        Route::get('/pos-sessions/{session}/print', [PosController::class, 'closingPrintSession'])->name('pos-sessions.print');
         Route::delete('/pos-bills/{order}', [PosController::class, 'destroyPaidBill'])
             ->middleware('role:super_admin')
             ->name('pos-bills.destroy');
