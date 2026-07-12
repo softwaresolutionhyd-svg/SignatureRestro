@@ -274,6 +274,11 @@ final class PosRuntimeSchema
                     $table->decimal('amount_to_collect', 14, 2)->nullable()->after('closing_card');
                 });
             }
+            if (! $schema->hasColumn('pos_sessions', 'shift_started')) {
+                $schema->table('pos_sessions', function (Blueprint $table) {
+                    $table->boolean('shift_started')->default(false)->after('status');
+                });
+            }
         } catch (\Throwable $e) {
             report($e);
         }

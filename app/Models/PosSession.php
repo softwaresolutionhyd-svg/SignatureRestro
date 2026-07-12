@@ -21,6 +21,7 @@ class PosSession extends Model
         'business_date',
         'user_id',
         'status',
+        'shift_started',
         'opening_cash',
         'closing_cash',
         'closing_bank',
@@ -34,6 +35,7 @@ class PosSession extends Model
     ];
 
     protected $casts = [
+        'shift_started' => 'boolean',
         'business_date' => 'date',
         'opening_cash' => 'decimal:2',
         'closing_cash' => 'decimal:2',

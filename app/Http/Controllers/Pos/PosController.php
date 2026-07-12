@@ -738,6 +738,28 @@ class PosController extends Controller
             return redirect()->route('restaurant-pos.index')->with('success', 'POS session pehle se open hai.');
         }
 
+        $today = now()->toDateString();
+        $pending = PosSession::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'open')
+            ->where(function ($q) use ($today) {
+                $q->whereDate('opened_at', $today)
+                    ->orWhere('business_date', $today);
+            })
+            ->latest('id')
+            ->first();
+
+        if ($pending !== null) {
+            $pending->update([
+                'shift_started' => true,
+                'opening_cash' => round(max(0, (float) $request->input('opening_cash', 0)), 2),
+                'note' => $request->input('note') ?: $pending->note,
+            ]);
+            $this->rolloverStaleOpenSessionsForUser($user, $pending);
+
+            return redirect()->route('restaurant-pos.index')->with('success', 'POS session open ho gayi.');
+        }
+
         $session = $this->createDailySession(
             $user,
             (float) $request->input('opening_cash', 0),
@@ -817,21 +839,44 @@ class PosController extends Controller
             ->first();
 
         if ($own !== null) {
+            if ($this->userIsPosCashier($user) && ! $this->posSessionShiftStarted($own)) {
+                return null;
+            }
+
             return $own;
         }
 
         if ($this->posUsesSharedBills($user) && ! $this->userIsPosCashier($user)) {
-            return PosSession::query()
+            $query = PosSession::query()
                 ->where('status', 'open')
                 ->where(function ($q) use ($today) {
                     $q->where('business_date', $today)
                         ->orWhereDate('opened_at', $today);
-                })
-                ->latest('id')
-                ->first();
+                });
+
+            if ($this->posSessionsHaveShiftStartedColumn()) {
+                $query->where('shift_started', true);
+            }
+
+            return $query->latest('id')->first();
         }
 
         return null;
+    }
+
+    private function posSessionsHaveShiftStartedColumn(): bool
+    {
+        return \Illuminate\Support\Facades\Schema::connection('tenant')
+            ->hasColumn('pos_sessions', 'shift_started');
+    }
+
+    private function posSessionShiftStarted(PosSession $session): bool
+    {
+        if (! $this->posSessionsHaveShiftStartedColumn()) {
+            return false;
+        }
+
+        return (bool) $session->shift_started;
     }
 
     private function requireOpenSessionForUser(User $user): PosSession
@@ -892,6 +937,7 @@ class PosController extends Controller
             'business_date' => now()->toDateString(),
             'user_id' => $user->id,
             'status' => 'open',
+            'shift_started' => true,
             'opening_cash' => round(max(0, $openingCash), 2),
             'opened_at' => now(),
             'note' => $note,
