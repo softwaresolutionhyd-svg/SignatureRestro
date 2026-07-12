@@ -113,7 +113,7 @@ class PayrollSalaryService
 
         $query = Employee::query()
             ->with(['designation:id,name', 'payrollEntries' => fn ($q) => $q->where('period', $period)])
-            ->orderBy('name');
+            ->orderBy('employee_no');
         if ($activeOnly) {
             $query->where('active', true);
         }

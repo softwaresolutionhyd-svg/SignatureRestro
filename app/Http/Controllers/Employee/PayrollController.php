@@ -36,9 +36,11 @@ class PayrollController extends Controller
 
         $entries = PayrollEntry::query()
             ->with(['employee:id,name,employee_no,salary,designation_id', 'employee.designation:id,name'])
-            ->where('period', $period)
-            ->when($employeeNo !== '', fn ($q) => $q->whereHas('employee', fn ($eq) => $eq->where('employee_no', 'like', '%'.$employeeNo.'%')))
-            ->orderBy('employee_id')
+            ->join('employees', 'payroll_entries.employee_id', '=', 'employees.id')
+            ->where('payroll_entries.period', $period)
+            ->when($employeeNo !== '', fn ($q) => $q->where('employees.employee_no', 'like', '%'.$employeeNo.'%'))
+            ->orderBy('employees.employee_no')
+            ->select('payroll_entries.*')
             ->paginate(Setting::pageSize('employees_per_page', 30))
             ->withQueryString();
 
