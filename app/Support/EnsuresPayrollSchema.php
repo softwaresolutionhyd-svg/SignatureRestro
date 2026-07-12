@@ -7,9 +7,9 @@ use Illuminate\Support\Facades\Schema;
 
 trait EnsuresPayrollSchema
 {
-    protected function ensurePayrollSchema(): void
+    protected function ensurePayrollSchema(?string $connection = null): void
     {
-        $schema = Schema::connection('tenant');
+        $schema = Schema::connection($connection ?? 'tenant');
 
         if (! $schema->hasTable('employees')) {
             return;

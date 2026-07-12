@@ -4,13 +4,18 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Services\Sync\CloudSyncService;
+use App\Services\Sync\SyncTargetSchemaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class CloudSyncController extends Controller
 {
-    public function ping(): JsonResponse
+    public function ping(CloudSyncService $sync, SyncTargetSchemaService $schema): JsonResponse
     {
+        if ($sync->isCloudRole()) {
+            $schema->ensureAll();
+        }
+
         return response()->json([
             'ok' => true,
             'role' => config('sync.role'),

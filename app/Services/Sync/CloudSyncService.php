@@ -13,7 +13,8 @@ use Throwable;
 class CloudSyncService
 {
     public function __construct(
-        protected SyncOutboxRecorder $recorder
+        protected SyncOutboxRecorder $recorder,
+        protected SyncTargetSchemaService $schemaService,
     ) {}
 
     public function isLocalRole(): bool
@@ -77,6 +78,17 @@ class CloudSyncService
         $batchSize = max(1, (int) config('sync.batch_size', 100));
         $pushed = 0;
 
+        $this->schemaService->ensureAll();
+
+        try {
+            Http::timeout(8)
+                ->withToken($token)
+                ->acceptJson()
+                ->get($url.'/api/sync/ping');
+        } catch (Throwable) {
+            // hosting may be on older build; push will still attempt
+        }
+
         while (true) {
             $items = SyncQueueItem::query()
                 ->whereNull('synced_at')
@@ -138,6 +150,7 @@ class CloudSyncService
 
             $applied = collect($response->json('applied', []))->map(fn ($id) => (int) $id)->all();
             $failed = collect($response->json('failed', []))->keyBy(fn ($row) => (int) ($row['id'] ?? 0));
+            $strippedForRetry = false;
 
             foreach ($items as $item) {
                 if (in_array((int) $item->id, $applied, true)) {
@@ -162,26 +175,57 @@ class CloudSyncService
                     continue;
                 }
 
+                if ($this->stripUnknownColumnFromQueueItem($item, $errorText)) {
+                    $strippedForRetry = true;
+
+                    continue;
+                }
+
                 $item->forceFill([
                     'attempts' => min(254, (int) $item->attempts + 1),
                     'last_error' => $errorText,
                 ])->save();
             }
 
-            if ($failed->isNotEmpty()) {
+            if ($failed->isNotEmpty() && ! $strippedForRetry) {
                 break;
             }
         }
 
         $this->setMeta('last_push_at', now()->toIso8601String());
-        $this->setMeta('last_push_ok', '1');
+        $this->setMeta('last_push_ok', $pushed > 0 ? '1' : '0');
+
+        $pending = $this->pendingCount();
 
         return [
-            'ok' => true,
+            'ok' => $pending === 0 || $pushed > 0,
             'pushed' => $pushed,
-            'pending' => $this->pendingCount(),
-            'message' => $pushed > 0 ? "Synced {$pushed} change(s) to hosting." : 'Already up to date.',
+            'pending' => $pending,
+            'message' => $pushed > 0
+                ? "Synced {$pushed} change(s) to hosting."
+                : ($pending > 0 ? "{$pending} change(s) still pending on hosting." : 'Already up to date.'),
         ];
+    }
+
+    protected function stripUnknownColumnFromQueueItem(SyncQueueItem $item, string $errorText): bool
+    {
+        if (! preg_match("/Unknown column '([^']+)'/", $errorText, $matches)) {
+            return false;
+        }
+
+        $column = $matches[1];
+        $payload = $item->payload;
+        if (! is_array($payload) || ! array_key_exists($column, $payload)) {
+            return false;
+        }
+
+        unset($payload[$column]);
+        $item->forceFill([
+            'payload' => $payload,
+            'last_error' => null,
+        ])->save();
+
+        return true;
     }
 
     /**
@@ -194,6 +238,10 @@ class CloudSyncService
     {
         $applied = [];
         $failed = [];
+
+        if ($this->isCloudRole()) {
+            $this->schemaService->ensureAll();
+        }
 
         SyncOutboxRecorder::$applyingRemote = true;
 
@@ -243,6 +291,7 @@ class CloudSyncService
                             $this->upsertInventoryUnitConversionByCode($connection, $payload);
                         } else {
                             unset($payload['id']);
+                            $payload = $this->filterPayloadForTable($connection, $table, $payload);
                             $connection->table($table)->updateOrInsert(['id' => $key], $payload);
                         }
                     } else {
@@ -278,6 +327,20 @@ class CloudSyncService
         $this->setMeta('last_receive_at', now()->toIso8601String());
 
         return compact('applied', 'failed');
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    protected function filterPayloadForTable(\Illuminate\Database\Connection $connection, string $table, array $payload): array
+    {
+        $columns = Schema::connection($connection->getName())->getColumnListing($table);
+        if ($columns === []) {
+            return $payload;
+        }
+
+        return array_intersect_key($payload, array_flip($columns));
     }
 
     /**
