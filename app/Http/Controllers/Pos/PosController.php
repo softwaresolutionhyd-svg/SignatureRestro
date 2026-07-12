@@ -80,7 +80,6 @@ class PosController extends Controller
         if ($session === null) {
             return view('pos.open-session', [
                 'canOpen' => $this->userCanOpenPosSession($user),
-                'currency' => Setting::get('currency_symbol', 'Rs.'),
             ]);
         }
 
@@ -644,7 +643,7 @@ class PosController extends Controller
     }
 
     /**
-     * @return array{opening_cash: float, cash_from_sales: float, cash_refunds_paid: float, cash_in: float, cash_out: float, expected_closing: float}
+     * @return array{cash_from_sales: float, cash_refunds_paid: float, cash_in: float, cash_out: float, expected_closing: float}
      */
     private function sessionCashBreakdown(PosSession $session): array
     {
@@ -749,7 +748,7 @@ class PosController extends Controller
         if ($pending !== null) {
             $pending->update([
                 'shift_started' => true,
-                'opening_cash' => round(max(0, (float) $request->input('opening_cash', 0)), 2),
+                'opening_cash' => 0,
                 'note' => $request->input('note') ?: $pending->note,
             ]);
             $this->rolloverStaleOpenSessionsForUser($user, $pending);
@@ -757,11 +756,7 @@ class PosController extends Controller
             return redirect()->route('restaurant-pos.index')->with('success', 'POS session open ho gayi.');
         }
 
-        $session = $this->createDailySession(
-            $user,
-            (float) $request->input('opening_cash', 0),
-            $request->input('note')
-        );
+        $session = $this->createDailySession($user, $request->input('note'));
         $this->rolloverStaleOpenSessionsForUser($user, $session);
 
         return redirect()->route('restaurant-pos.index')->with('success', 'POS session open ho gayi.');
@@ -924,7 +919,7 @@ class PosController extends Controller
         }
     }
 
-    private function createDailySession(User $user, float $openingCash = 0, ?string $note = null): PosSession
+    private function createDailySession(User $user, ?string $note = null): PosSession
     {
         return PosSession::create([
             'session_no' => $this->nextDailySessionNo($user),
@@ -932,7 +927,7 @@ class PosController extends Controller
             'user_id' => $user->id,
             'status' => 'open',
             'shift_started' => true,
-            'opening_cash' => round(max(0, $openingCash), 2),
+            'opening_cash' => 0,
             'opened_at' => now(),
             'note' => $note,
         ]);

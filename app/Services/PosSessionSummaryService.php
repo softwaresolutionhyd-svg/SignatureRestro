@@ -91,7 +91,7 @@ final class PosSessionSummaryService
     }
 
     /**
-     * @return array{opening_cash: float, cash_from_sales: float, cash_refunds_paid: float, cash_in: float, cash_out: float, expected_closing: float}
+     * @return array{cash_from_sales: float, cash_refunds_paid: float, cash_in: float, cash_out: float, expected_closing: float}
      */
     public function cashBreakdown(PosSession $session): array
     {
@@ -106,11 +106,9 @@ final class PosSessionSummaryService
         $cashIn = (float) PosCashMovement::query()->where('session_id', $session->id)->where('type', 'in')->sum('amount');
         $cashOut = (float) PosCashMovement::query()->where('session_id', $session->id)->where('type', 'out')->sum('amount');
 
-        $opening = (float) $session->opening_cash;
-        $expected = round($opening + $cashFromSales - $cashRefundsPaid + $cashIn - $cashOut, 2);
+        $expected = round($cashFromSales - $cashRefundsPaid + $cashIn - $cashOut, 2);
 
         return [
-            'opening_cash' => $opening,
             'cash_from_sales' => $cashFromSales,
             'cash_refunds_paid' => $cashRefundsPaid,
             'cash_in' => $cashIn,

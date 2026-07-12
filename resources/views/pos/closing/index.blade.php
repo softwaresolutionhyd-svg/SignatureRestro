@@ -70,9 +70,6 @@
                 <div class="card-body">
                     <div class="text-secondary small">Cash in drawer (expected)</div>
                     <div class="fw-bold fs-4 text-success">{{ $currency }} {{ fmt_num($amountToCollect, 2) }}</div>
-                    @if((float) $cash['opening_cash'] > 0)
-                        <div class="text-secondary small mt-1">Opening float: {{ $currency }} {{ fmt_num($cash['opening_cash'], 2) }}</div>
-                    @endif
                 </div>
             </div>
         </div>

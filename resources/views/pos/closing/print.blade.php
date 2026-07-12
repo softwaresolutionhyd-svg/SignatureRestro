@@ -415,12 +415,6 @@
                     <td>Card</td>
                     <td class="num">{{ $currency }} {{ fmt_num($stats['payments_card'], 2) }}</td>
                 </tr>
-                @if((float) $cash['opening_cash'] > 0)
-                <tr>
-                    <td>Opening float</td>
-                    <td class="num">{{ $currency }} {{ fmt_num($cash['opening_cash'], 2) }}</td>
-                </tr>
-                @endif
                 @if((float) $cash['cash_in'] > 0)
                 <tr>
                     <td>Cash in (manual)</td>

@@ -19,7 +19,6 @@ class PosOpenSessionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'opening_cash' => ['nullable', 'numeric', 'min:0'],
             'note' => ['nullable', 'string', 'max:255'],
         ];
     }

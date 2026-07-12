@@ -47,33 +47,8 @@
         margin-bottom: 2rem;
         line-height: 1.5;
     }
-    .pos-open-form .form-label {
-        color: #e2e8f0;
-        text-align: left;
-        font-size: 0.9rem;
-        font-weight: 500;
-    }
-    .pos-open-form .input-group-text {
-        background: #f1f5f9;
-        border-color: #cbd5e1;
-        color: #0f172a;
-        font-weight: 600;
-    }
-    .pos-open-form .form-control {
-        background: #ffffff;
-        border-color: #cbd5e1;
-        color: #000000;
-        padding: 0.75rem 1rem;
-        font-weight: 600;
-    }
-    .pos-open-form .form-control::placeholder {
-        color: #94a3b8;
-    }
-    .pos-open-form .form-control:focus {
-        background: #ffffff;
-        border-color: #f59e0b;
-        color: #000000;
-        box-shadow: 0 0 0 0.2rem rgba(245, 158, 11, 0.25);
+    .pos-open-form {
+        margin-top: 0.5rem;
     }
     .btn-open-session {
         width: 100%;
@@ -84,7 +59,7 @@
         border-radius: 14px;
         background: linear-gradient(135deg, #f59e0b, #d97706);
         color: #111827;
-        margin-top: 1.25rem;
+        margin-top: 0;
     }
     .btn-open-session:hover {
         background: linear-gradient(135deg, #fbbf24, #f59e0b);
@@ -125,17 +100,8 @@
         @if($canOpen)
             <p>Shift shuru karne ke liye pehle apni POS session open karein.<br>
             <span class="text-secondary small">Sirf <strong>CASHIER</strong> designation wale employee.</span></p>
-            <form method="POST" action="{{ route('restaurant-pos.session.open') }}" class="pos-open-form text-start">
+            <form method="POST" action="{{ route('restaurant-pos.session.open') }}" class="pos-open-form">
                 @csrf
-                <label class="form-label" for="opening_cash">Opening cash in drawer (optional)</label>
-                <div class="input-group mb-2">
-                    <span class="input-group-text">{{ $currency }}</span>
-                    <input type="number" step="0.01" min="0" name="opening_cash" id="opening_cash"
-                           class="form-control" value="{{ old('opening_cash', '0') }}" placeholder="0.00">
-                </div>
-                @error('opening_cash')
-                    <div class="text-danger small mb-2">{{ $message }}</div>
-                @enderror
                 <button type="submit" class="btn btn-open-session">
                     <i class="bi bi-play-circle me-2"></i>Open POS Session
                 </button>
