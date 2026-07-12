@@ -21,6 +21,17 @@
         td.num, th.num { text-align: right; white-space: nowrap; }
         .status-paid { color: #166534; font-weight: 700; }
         .status-unpaid { color: #b45309; font-weight: 700; }
+        .grand-total-row th {
+            background: #f3f4f6;
+            border: 1px solid #ccc;
+            padding: 6px 8px;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+        .grand-total-row {
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
         @media print {
             body { padding: 0; }
             .noprint { display: none !important; }
@@ -77,14 +88,12 @@
                 <td class="{{ $row['status_key'] === 'paid' ? 'status-paid' : 'status-unpaid' }}">{{ $row['status'] }}</td>
             </tr>
         @endforeach
-        </tbody>
-        <tfoot>
-        <tr>
+        <tr class="grand-total-row">
             <th colspan="8" class="num">Grand Total (Final Salary)</th>
             <th class="num">{{ number_format(collect($rows)->sum('final_salary'), 2) }}</th>
             <th></th>
         </tr>
-        </tfoot>
+        </tbody>
     </table>
 
     <script>
