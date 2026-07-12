@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\PayrollEntry;
 use App\Models\Setting;
 use App\Support\ActivityLogger;
+use App\Services\AttendancePayrollService;
 use App\Services\AutoJournalService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,7 +15,8 @@ use Illuminate\Support\Facades\DB;
 class PayrollController extends Controller
 {
     public function __construct(
-        private readonly AutoJournalService $autoJournal
+        private readonly AutoJournalService $autoJournal,
+        private readonly AttendancePayrollService $attendancePayroll,
     ) {}
 
     public function index(Request $request)
@@ -56,12 +58,14 @@ class PayrollController extends Controller
                     continue;
                 }
                 $base = (float) ($emp->salary ?? 0);
+                $absentDays = $this->attendancePayroll->countAbsentDays($emp->id, $period);
+                $deduction = $this->attendancePayroll->absentDeductionAmount($base, $absentDays);
                 $entry = new PayrollEntry([
                     'employee_id' => $emp->id,
                     'period' => $period,
                     'base_salary' => $base,
                     'bonus' => 0,
-                    'deduction' => 0,
+                    'deduction' => $deduction,
                     'status' => 'draft',
                     'created_by' => $request->user()->id,
                 ]);

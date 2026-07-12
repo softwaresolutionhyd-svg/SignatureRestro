@@ -2,6 +2,98 @@
 
 @section('title', 'Attendance — ' . config('app.name'))
 
+@push('head')
+<style>
+.attendance-grid-wrap {
+    overflow: auto;
+    max-height: calc(100vh - 220px);
+}
+.attendance-grid {
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.72rem;
+    min-width: max-content;
+}
+.attendance-grid th,
+.attendance-grid td {
+    border: 1px solid #e9ecef;
+    padding: 0.2rem;
+    text-align: center;
+    vertical-align: middle;
+    background: #fff;
+}
+.attendance-grid thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: #f8f9fa;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.attendance-grid .att-sticky-col {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    text-align: left;
+    min-width: 140px;
+    max-width: 180px;
+    background: #fff;
+    box-shadow: 2px 0 0 #e9ecef;
+}
+.attendance-grid thead .att-sticky-col {
+    z-index: 4;
+    background: #f8f9fa;
+}
+.attendance-grid .att-sticky-summary {
+    position: sticky;
+    right: 0;
+    z-index: 2;
+    background: #fffbeb;
+    font-weight: 600;
+    box-shadow: -2px 0 0 #fde68a;
+}
+.attendance-grid thead .att-sticky-summary {
+    background: #fef3c7;
+    z-index: 4;
+}
+.attendance-grid .att-day-head {
+    min-width: 42px;
+    line-height: 1.1;
+}
+.attendance-grid .att-day-head small {
+    display: block;
+    color: #6c757d;
+    font-weight: 500;
+}
+.attendance-grid select.att-cell {
+    width: 44px;
+    min-width: 44px;
+    padding: 0.1rem 0.15rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-align: center;
+    border-radius: 4px;
+    border: 1px solid #ced4da;
+}
+.attendance-grid select.att-cell.att-p { background: #dcfce7; color: #166534; border-color: #86efac; }
+.attendance-grid select.att-cell.att-a { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.attendance-grid select.att-cell.att-h { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+.attendance-grid .att-emp-name {
+    font-weight: 600;
+    font-size: 0.78rem;
+    line-height: 1.2;
+}
+.attendance-grid .att-emp-meta {
+    font-size: 0.65rem;
+    color: #6c757d;
+}
+.attendance-legend .badge {
+    font-size: 0.7rem;
+    padding: 0.35rem 0.55rem;
+}
+</style>
+@endpush
+
 @section('content')
 @include('hr.partials.subnav')
 
@@ -13,209 +105,181 @@
     @endif
 
     <div class="alert alert-info small mb-3">
-        Attendance sirf <strong>Manager</strong> lagayein / edit karein. Employees khud mark nahi kar sakte.
+        Har din <strong>P</strong> (Present), <strong>A</strong> (Absent), ya <strong>H</strong> (Holiday) select karein.
+        Sirf <strong>Absent</strong> par salary kat ti hai: <strong>Basic Salary ÷ 30</strong> per day.
+        Present aur Holiday par koi deduction nahi.
     </div>
 
-    <div class="card shadow-sm mb-3">
-        <div class="card-header bg-white d-flex flex-wrap gap-2 align-items-center justify-content-between">
-            <div>
-                <div class="fw-semibold">Sab employees — {{ $month }} khulasa</div>
-                <div class="small text-secondary">Har employee ka is mahine kitna present / absent / leave.</div>
-            </div>
-            <form class="d-flex flex-wrap gap-2 align-items-center" method="GET" action="{{ route('employees.attendance.index') }}">
-                <input type="hidden" name="month" value="{{ $month }}">
-                @if($employeeId)
-                    <input type="hidden" name="employee_id" value="{{ $employeeId }}">
-                @endif
-                <div class="form-check form-check-inline small mb-0">
-                    <input class="form-check-input" type="checkbox" name="active_only" value="1" id="activeOnly" @checked($activeOnly)>
-                    <label class="form-check-label" for="activeOnly">Sirf active employees</label>
+    <form method="POST" action="{{ route('employees.attendance.grid') }}" id="attendanceGridForm">
+        @csrf
+        <input type="hidden" name="month" value="{{ $month }}">
+        @if($activeOnly)
+            <input type="hidden" name="active_only" value="1">
+        @endif
+        <input type="hidden" name="attendance_json" id="attendanceJson" value="">
+
+        <div class="card shadow-sm mb-3">
+            <div class="card-body d-flex flex-wrap gap-3 align-items-center justify-content-between py-2">
+                <div class="d-flex flex-wrap gap-2 align-items-center attendance-legend">
+                    <span class="badge text-bg-success">P = Present</span>
+                    <span class="badge text-bg-danger">A = Absent</span>
+                    <span class="badge text-bg-primary">H = Holiday</span>
+                    <span class="text-secondary small">— = not marked</span>
                 </div>
-                <button class="btn btn-sm btn-outline-secondary" type="submit">Refresh</button>
-            </form>
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ route('employees.attendance.index', array_filter(['month' => \Carbon\Carbon::createFromFormat('Y-m-d', $month.'-01')->subMonth()->format('Y-m'), 'active_only' => $activeOnly ? 1 : null])) }}">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                    <input type="month" class="form-control form-control-sm" style="max-width: 150px;"
+                           value="{{ $month }}"
+                           onchange="window.location='{{ route('employees.attendance.index') }}?month='+this.value+'&active_only={{ $activeOnly ? 1 : 0 }}'">
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ route('employees.attendance.index', array_filter(['month' => \Carbon\Carbon::createFromFormat('Y-m-d', $month.'-01')->addMonth()->format('Y-m'), 'active_only' => $activeOnly ? 1 : null])) }}">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                    <div class="form-check form-check-inline small mb-0 ms-2">
+                        <input class="form-check-input" type="checkbox" id="activeOnlyToggle"
+                               @checked($activeOnly)
+                               onchange="window.location='{{ route('employees.attendance.index') }}?month={{ $month }}&active_only='+(this.checked?1:0)">
+                        <label class="form-check-label" for="activeOnlyToggle">Sirf active</label>
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-primary">
+                        <i class="bi bi-save me-1"></i> Save attendance
+                    </button>
+                </div>
+            </div>
         </div>
-        <div class="table-responsive">
-            <table class="table table-sm table-hover mb-0 align-middle">
-                <thead class="table-light">
-                <tr>
-                    <th>Employee</th>
-                    <th>Status</th>
-                    <th class="text-center">Present</th>
-                    <th class="text-center">Absent</th>
-                    <th class="text-center">Leave</th>
-                    <th class="text-center">Half day</th>
-                    <th class="text-center">Days marked</th>
-                    <th class="text-end">Filter log</th>
-                </tr>
-                </thead>
-                <tbody>
-                @forelse($employees as $e)
-                    @php($s = $statsByEmployee[$e->id] ?? ['present'=>0,'absent'=>0,'leave'=>0,'half_day'=>0,'total'=>0])
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-white py-2">
+                <div class="fw-semibold">{{ \Carbon\Carbon::createFromFormat('Y-m-d', $month.'-01')->format('F Y') }} — {{ $employees->count() }} employees</div>
+            </div>
+            <div class="attendance-grid-wrap">
+                <table class="attendance-grid mb-0">
+                    <thead>
                     <tr>
-                        <td class="fw-semibold">{{ $e->name }}</td>
-                        <td>
-                            @if($e->active)
-                                <span class="badge text-bg-success">Active</span>
-                            @else
-                                <span class="badge text-bg-secondary">Inactive</span>
-                            @endif
-                        </td>
-                        <td class="text-center">{{ $s['present'] }}</td>
-                        <td class="text-center">{{ $s['absent'] }}</td>
-                        <td class="text-center">{{ $s['leave'] }}</td>
-                        <td class="text-center">{{ $s['half_day'] }}</td>
-                        <td class="text-center fw-semibold">{{ $s['total'] }}</td>
-                        <td class="text-end">
-                            <a class="btn btn-sm btn-outline-primary" href="{{ route('employees.attendance.index', array_filter(['month' => $month, 'employee_id' => $e->id, 'active_only' => $activeOnly ? 1 : null])) }}">Log</a>
-                        </td>
+                        <th class="att-sticky-col">Employee</th>
+                        @foreach($dates as $date)
+                            <th class="att-day-head">
+                                {{ $date->format('d') }}
+                                <small>{{ $date->format('D') }}</small>
+                            </th>
+                        @endforeach
+                        <th class="att-sticky-summary">P</th>
+                        <th class="att-sticky-summary">A</th>
+                        <th class="att-sticky-summary">H</th>
+                        <th class="att-sticky-summary" style="min-width: 90px;">Deduction</th>
                     </tr>
-                @empty
-                    <tr><td colspan="8" class="text-center text-secondary py-4">Koi employee record nahi.</td></tr>
-                @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <div class="row g-3">
-        <div class="col-12 col-lg-4">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-white fw-semibold">Attendance lagayein</div>
-                <div class="card-body">
-                    <form method="POST" action="{{ route('employees.attendance.store') }}">
-                        @csrf
-                        <div class="mb-2">
-                            <label class="form-label small">Employee</label>
-                            <select name="employee_id" class="form-select form-select-sm @error('employee_id') is-invalid @enderror" required>
-                                <option value="">—</option>
-                                @foreach($employees as $e)
-                                    <option value="{{ $e->id }}" @selected((string)old('employee_id') === (string)$e->id)>
-                                        {{ $e->name }}@if(!$e->active) (inactive) @endif
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('employee_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label small">Date</label>
-                            <input type="date" name="attendance_date" value="{{ old('attendance_date', now()->format('Y-m-d')) }}" class="form-control form-control-sm @error('attendance_date') is-invalid @enderror" required>
-                            @error('attendance_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
-                        <div class="row g-2">
-                            <div class="col-6">
-                                <label class="form-label small">Clock in</label>
-                                <input type="datetime-local" name="clock_in" value="{{ old('clock_in') }}" class="form-control form-control-sm">
-                            </div>
-                            <div class="col-6">
-                                <label class="form-label small">Clock out</label>
-                                <input type="datetime-local" name="clock_out" value="{{ old('clock_out') }}" class="form-control form-control-sm">
-                            </div>
-                        </div>
-                        <div class="mb-2 mt-2">
-                            <label class="form-label small">Status</label>
-                            <select name="status" class="form-select form-select-sm">
-                                @foreach(['present'=>'Present','absent'=>'Absent','leave'=>'Leave','half_day'=>'Half day'] as $k=>$v)
-                                    <option value="{{ $k }}" @selected(old('status','present') === $k)>{{ $v }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label small">Notes</label>
-                            <textarea name="notes" rows="2" class="form-control form-control-sm">{{ old('notes') }}</textarea>
-                        </div>
-                        <button class="btn btn-primary btn-sm w-100" type="submit">Save attendance</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-lg-8">
-            <div class="card shadow-sm">
-                <div class="card-header bg-white d-flex flex-wrap gap-2 align-items-center justify-content-between">
-                    <div class="fw-semibold">Detail log</div>
-                    <form class="d-flex flex-wrap gap-2 align-items-center" method="GET" action="{{ route('employees.attendance.index') }}">
-                        <input type="month" name="month" value="{{ $month }}" class="form-control form-control-sm">
-                        <select name="employee_id" class="form-select form-select-sm" style="max-width: 220px;">
-                            <option value="">Sab employees</option>
-                            @foreach($employees as $e)
-                                <option value="{{ $e->id }}" @selected((string)$employeeId === (string)$e->id)>{{ $e->name }}@if(!$e->active) (inactive)@endif</option>
-                            @endforeach
-                        </select>
-                        @if($activeOnly)
-                            <input type="hidden" name="active_only" value="1">
-                        @endif
-                        <button class="btn btn-sm btn-outline-primary" type="submit">Apply</button>
-                    </form>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-hover table-sm mb-0 align-middle">
-                        <thead class="table-light">
+                    </thead>
+                    <tbody>
+                    @forelse($employees as $employee)
+                        @php
+                            $summary = $summaries[$employee->id] ?? ['present'=>0,'absent'=>0,'holiday'=>0,'deduction'=>0,'per_day'=>0];
+                            $rowGrid = $grid[$employee->id] ?? [];
+                        @endphp
                         <tr>
-                            <th>Date</th>
-                            <th>Employee</th>
-                            <th>In</th>
-                            <th>Out</th>
-                            <th>Status</th>
-                            <th class="text-end">Actions</th>
+                            <td class="att-sticky-col">
+                                <div class="att-emp-name">{{ $employee->name }}</div>
+                                <div class="att-emp-meta">
+                                    Rs. {{ number_format((float) $employee->salary, 0) }}
+                                    @if(!$employee->active) · inactive @endif
+                                </div>
+                            </td>
+                            @foreach($dates as $date)
+                                @php
+                                    $dateKey = $date->format('Y-m-d');
+                                    $val = $rowGrid[$dateKey] ?? '';
+                                    $cls = $val === 'P' ? 'att-p' : ($val === 'A' ? 'att-a' : ($val === 'H' ? 'att-h' : ''));
+                                @endphp
+                                <td>
+                                    <select class="form-select form-select-sm att-cell {{ $cls }}"
+                                            data-att-cell
+                                            data-employee-id="{{ $employee->id }}"
+                                            data-date="{{ $dateKey }}">
+                                        <option value="" @selected($val === '')>—</option>
+                                        <option value="P" @selected($val === 'P')>P</option>
+                                        <option value="A" @selected($val === 'A')>A</option>
+                                        <option value="H" @selected($val === 'H')>H</option>
+                                    </select>
+                                </td>
+                            @endforeach
+                            <td class="att-sticky-summary text-success" data-summary-p="{{ $employee->id }}">{{ $summary['present'] }}</td>
+                            <td class="att-sticky-summary text-danger" data-summary-a="{{ $employee->id }}">{{ $summary['absent'] }}</td>
+                            <td class="att-sticky-summary text-primary" data-summary-h="{{ $employee->id }}">{{ $summary['holiday'] }}</td>
+                            <td class="att-sticky-summary text-danger" data-summary-d="{{ $employee->id }}" data-per-day="{{ $summary['per_day'] }}">
+                                {{ number_format($summary['deduction'], 2) }}
+                            </td>
                         </tr>
-                        </thead>
-                        <tbody>
-                        @forelse($rows as $row)
-                            <tr>
-                                <td class="text-nowrap">{{ $row->attendance_date?->format('Y-m-d') }}</td>
-                                <td class="fw-semibold">{{ $row->employee?->name }}</td>
-                                <td class="small text-secondary">{{ $row->clock_in?->format('Y-m-d H:i') ?? '—' }}</td>
-                                <td class="small text-secondary">{{ $row->clock_out?->format('Y-m-d H:i') ?? '—' }}</td>
-                                <td><span class="badge text-bg-light border">{{ $row->status }}</span></td>
-                                <td class="text-end">
-                                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-{{ $row->id }}">Edit</button>
-                                    <form class="d-inline" method="POST" action="{{ route('employees.attendance.destroy', $row) }}" onsubmit="return confirm('Remove this row?');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
-                                    </form>
-                                </td>
-                            </tr>
-                            <tr class="collapse bg-light" id="edit-{{ $row->id }}">
-                                <td colspan="6" class="p-3">
-                                    <form method="POST" action="{{ route('employees.attendance.update', $row) }}" class="row g-2 align-items-end">
-                                        @csrf
-                                        @method('PUT')
-                                        <div class="col-md-3">
-                                            <label class="form-label small">Clock in</label>
-                                            <input type="datetime-local" name="clock_in" value="{{ optional($row->clock_in)->format('Y-m-d\TH:i') }}" class="form-control form-control-sm">
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label small">Clock out</label>
-                                            <input type="datetime-local" name="clock_out" value="{{ optional($row->clock_out)->format('Y-m-d\TH:i') }}" class="form-control form-control-sm">
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label class="form-label small">Status</label>
-                                            <select name="status" class="form-select form-select-sm">
-                                                @foreach(['present','absent','leave','half_day'] as $k)
-                                                    <option value="{{ $k }}" @selected($row->status === $k)>{{ $k }}</option>
-                                                @endforeach
-                                            </select>
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label small">Notes</label>
-                                            <input type="text" name="notes" value="{{ $row->notes }}" class="form-control form-control-sm">
-                                        </div>
-                                        <div class="col-md-1">
-                                            <button class="btn btn-sm btn-primary w-100" type="submit">Save</button>
-                                        </div>
-                                    </form>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr><td colspan="6" class="text-center text-secondary py-4">Is filter ke liye koi row nahi.</td></tr>
-                        @endforelse
-                        </tbody>
-                    </table>
-                </div>
-                <div class="card-footer bg-white">
-                    {{ $rows->links('pagination::bootstrap-5') }}
-                </div>
+                    @empty
+                        <tr>
+                            <td colspan="{{ count($dates) + 5 }}" class="text-center text-secondary py-4">Koi employee nahi.</td>
+                        </tr>
+                    @endforelse
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span class="small text-secondary">Save karne par payroll draft mein absent deduction auto update hogi.</span>
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="bi bi-save me-1"></i> Save attendance
+                </button>
             </div>
         </div>
-    </div>
+    </form>
+@endsection
+
+@section('scripts')
+<script>
+(() => {
+    function paintCell(sel) {
+        sel.classList.remove('att-p', 'att-a', 'att-h');
+        if (sel.value === 'P') sel.classList.add('att-p');
+        if (sel.value === 'A') sel.classList.add('att-a');
+        if (sel.value === 'H') sel.classList.add('att-h');
+    }
+
+    function refreshRowSummary(employeeId) {
+        const selects = document.querySelectorAll(`select[name^="attendance[${employeeId}]"]`);
+        let p = 0, a = 0, h = 0;
+        selects.forEach((s) => {
+            if (s.value === 'P') p++;
+            if (s.value === 'A') a++;
+            if (s.value === 'H') h++;
+        });
+        const pEl = document.querySelector(`[data-summary-p="${employeeId}"]`);
+        const aEl = document.querySelector(`[data-summary-a="${employeeId}"]`);
+        const hEl = document.querySelector(`[data-summary-h="${employeeId}"]`);
+        const dEl = document.querySelector(`[data-summary-d="${employeeId}"]`);
+        if (pEl) pEl.textContent = String(p);
+        if (aEl) aEl.textContent = String(a);
+        if (hEl) hEl.textContent = String(h);
+        if (dEl) {
+            const perDay = Number(dEl.dataset.perDay || 0);
+            dEl.textContent = (perDay * a).toFixed(2);
+        }
+    }
+
+    document.querySelectorAll('[data-att-cell]').forEach((sel) => {
+        paintCell(sel);
+        sel.addEventListener('change', () => {
+            paintCell(sel);
+            const empId = sel.dataset.employeeId;
+            if (empId) refreshRowSummary(empId);
+        });
+    });
+
+    const form = document.getElementById('attendanceGridForm');
+    const jsonInput = document.getElementById('attendanceJson');
+    form?.addEventListener('submit', () => {
+        const payload = {};
+        document.querySelectorAll('[data-att-cell]').forEach((sel) => {
+            const empId = sel.dataset.employeeId;
+            const date = sel.dataset.date;
+            if (!empId || !date) return;
+            if (!payload[empId]) payload[empId] = {};
+            payload[empId][date] = sel.value;
+        });
+        if (jsonInput) jsonInput.value = JSON.stringify(payload);
+    });
+})();
+</script>
 @endsection

@@ -114,6 +114,9 @@
     </div>
 
     @if($entries->count() > 0)
-        <div class="small text-secondary mt-2">After changing bonus or deduction, click Save — net pay recalculates from base + bonus − deduction.</div>
+        <div class="small text-secondary mt-2">
+            Deduction attendance se auto aati hai: <strong>Absent days × (Basic Salary ÷ 30)</strong>.
+            Bonus change karne ke baad Save karein — net = base + bonus − deduction.
+        </div>
     @endif
 @endsection

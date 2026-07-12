@@ -273,9 +273,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
     Route::prefix('employees')->name('employees.')->group(function () {
         Route::middleware('moduleAccess')->group(function () {
             Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance.index');
-            Route::post('/attendance', [AttendanceController::class, 'store'])->name('attendance.store');
-            Route::put('/attendance/{attendance}', [AttendanceController::class, 'update'])->name('attendance.update');
-            Route::delete('/attendance/{attendance}', [AttendanceController::class, 'destroy'])->name('attendance.destroy');
+            Route::post('/attendance/grid', [AttendanceController::class, 'saveGrid'])->name('attendance.grid');
 
             Route::get('/', [EmployeeController::class, 'index'])->name('index');
             Route::get('/create', [EmployeeController::class, 'create'])->name('create');

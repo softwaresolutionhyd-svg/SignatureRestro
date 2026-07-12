@@ -5,158 +5,166 @@ namespace App\Http\Controllers\Employee;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\EmployeeAttendance;
-use App\Models\Setting;
+use App\Services\AttendancePayrollService;
 use App\Support\ActivityLogger;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 
 class AttendanceController extends Controller
 {
+    public function __construct(
+        private readonly AttendancePayrollService $attendancePayroll
+    ) {}
+
     public function index(Request $request)
     {
         abort_unless($request->user()?->canManageTeamAttendance(), 403);
 
         $month = $request->query('month', now()->format('Y-m'));
-        if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
+        if (! preg_match('/^\d{4}-\d{2}$/', $month)) {
             $month = now()->format('Y-m');
         }
 
-        $employeeId = $request->query('employee_id');
-        $activeOnly = $request->boolean('active_only');
-        $start = Carbon::createFromFormat('Y-m-d', $month.'-01')->startOfMonth();
-        $end = (clone $start)->endOfMonth();
-        $startStr = $start->toDateString();
-        $endStr = $end->toDateString();
+        $activeOnly = $request->boolean('active_only', true);
+        $dates = $this->attendancePayroll->datesInMonth($month);
+        [$startStr, $endStr] = $this->attendancePayroll->monthBounds($month);
 
         $staffQuery = Employee::query()->orderBy('name');
         if ($activeOnly) {
             $staffQuery->where('active', true);
         }
-        $employees = $staffQuery->get(['id', 'name', 'active']);
+        $employees = $staffQuery->get(['id', 'name', 'active', 'salary']);
 
-        $statsByEmployee = [];
-        foreach ($employees as $emp) {
-            $statsByEmployee[$emp->id] = [
+        $grid = [];
+        $summaries = [];
+        foreach ($employees as $employee) {
+            $grid[$employee->id] = [];
+            $summaries[$employee->id] = [
                 'present' => 0,
                 'absent' => 0,
-                'leave' => 0,
-                'half_day' => 0,
-                'total' => 0,
+                'holiday' => 0,
+                'deduction' => 0.0,
+                'per_day' => $this->attendancePayroll->perDaySalary((float) $employee->salary),
             ];
         }
 
-        $monthRowsForStats = EmployeeAttendance::query()
+        $records = EmployeeAttendance::query()
             ->whereBetween('attendance_date', [$startStr, $endStr])
-            ->get(['employee_id', 'status']);
+            ->whereIn('employee_id', $employees->pluck('id'))
+            ->get(['employee_id', 'attendance_date', 'status']);
 
-        foreach ($monthRowsForStats as $r) {
-            if (!isset($statsByEmployee[$r->employee_id])) {
+        foreach ($records as $record) {
+            $empId = (int) $record->employee_id;
+            $dateKey = $record->attendance_date->format('Y-m-d');
+            $code = AttendancePayrollService::codeFromStatus($record->status);
+            if ($code === '' || ! isset($grid[$empId])) {
                 continue;
             }
-            $key = $r->status;
-            if (isset($statsByEmployee[$r->employee_id][$key])) {
-                $statsByEmployee[$r->employee_id][$key]++;
-            }
-            $statsByEmployee[$r->employee_id]['total']++;
+            $grid[$empId][$dateKey] = $code;
         }
 
-        $rows = EmployeeAttendance::query()
-            ->with(['employee:id,name,active'])
-            ->when($employeeId, fn ($q) => $q->where('employee_id', (int) $employeeId))
-            ->whereBetween('attendance_date', [$startStr, $endStr])
-            ->orderByDesc('attendance_date')
-            ->orderBy('employee_id')
-            ->paginate(Setting::pageSize('employees_per_page', 30))
-            ->withQueryString();
+        foreach ($employees as $employee) {
+            $counts = $this->attendancePayroll->monthCountsForEmployee($employee->id, $month);
+            $summaries[$employee->id]['present'] = $counts['present'];
+            $summaries[$employee->id]['absent'] = $counts['absent'];
+            $summaries[$employee->id]['holiday'] = $counts['holiday'];
+            $summaries[$employee->id]['deduction'] = $this->attendancePayroll->absentDeductionAmount(
+                (float) $employee->salary,
+                $counts['absent']
+            );
+        }
 
         return view('employees.attendance-index', compact(
-            'rows',
             'employees',
             'month',
-            'employeeId',
             'activeOnly',
-            'statsByEmployee',
+            'dates',
+            'grid',
+            'summaries',
         ));
     }
 
-    public function store(Request $request)
+    public function saveGrid(Request $request)
     {
-        if (!$request->user()->canManageTeamAttendance()) {
-            abort(403);
-        }
+        abort_unless($request->user()->canManageTeamAttendance(), 403);
 
         $data = $request->validate([
-            'employee_id' => ['required', 'integer', 'exists:tenant.employees,id'],
-            'attendance_date' => ['required', 'date'],
-            'clock_in' => ['nullable', 'date'],
-            'clock_out' => ['nullable', 'date', 'after_or_equal:clock_in'],
-            'status' => ['required', Rule::in(['present', 'absent', 'leave', 'half_day'])],
-            'notes' => ['nullable', 'string', 'max:500'],
+            'month' => ['required', 'regex:/^\d{4}-\d{2}$/'],
+            'active_only' => ['nullable', 'boolean'],
+            'attendance_json' => ['nullable', 'string'],
         ]);
 
-        $exists = EmployeeAttendance::query()
-            ->where('employee_id', $data['employee_id'])
-            ->whereDate('attendance_date', $data['attendance_date'])
-            ->exists();
-        if ($exists) {
-            return redirect()->back()->withInput()->withErrors('Attendance for this employee on that date already exists.');
+        $month = $data['month'];
+        [$startStr, $endStr] = $this->attendancePayroll->monthBounds($month);
+        $start = Carbon::parse($startStr);
+        $end = Carbon::parse($endStr);
+        $payload = json_decode($data['attendance_json'] ?? '{}', true);
+        if (! is_array($payload)) {
+            return redirect()->back()->withErrors('Attendance data invalid.');
         }
+        $touchedEmployeeIds = [];
 
-        $row = EmployeeAttendance::create([
-            'employee_id' => (int) $data['employee_id'],
-            'user_id' => $request->user()->id,
-            'attendance_date' => $data['attendance_date'],
-            'clock_in' => $data['clock_in'] ?? null,
-            'clock_out' => $data['clock_out'] ?? null,
-            'status' => $data['status'],
-            'source' => 'manual',
-            'notes' => $data['notes'] ?? null,
+        DB::connection('tenant')->transaction(function () use ($request, $payload, $start, $end, &$touchedEmployeeIds) {
+            foreach ($payload as $employeeId => $days) {
+                $employeeId = (int) $employeeId;
+                if ($employeeId <= 0 || ! is_array($days)) {
+                    continue;
+                }
+
+                $touchedEmployeeIds[] = $employeeId;
+
+                foreach ($days as $date => $code) {
+                    $date = (string) $date;
+                    $day = Carbon::parse($date);
+                    if ($day->lt($start) || $day->gt($end)) {
+                        continue;
+                    }
+
+                    $status = AttendancePayrollService::statusFromCode(is_string($code) ? $code : null);
+                    $existing = EmployeeAttendance::query()
+                        ->where('employee_id', $employeeId)
+                        ->whereDate('attendance_date', $date)
+                        ->first();
+
+                    if ($status === null) {
+                        if ($existing) {
+                            $existing->delete();
+                        }
+
+                        continue;
+                    }
+
+                    EmployeeAttendance::query()->updateOrCreate(
+                        [
+                            'employee_id' => $employeeId,
+                            'attendance_date' => $date,
+                        ],
+                        [
+                            'user_id' => $request->user()->id,
+                            'status' => $status,
+                            'source' => 'manual',
+                            'clock_in' => null,
+                            'clock_out' => null,
+                            'notes' => null,
+                        ]
+                    );
+                }
+            }
+        });
+
+        $this->attendancePayroll->syncPayrollDeductionsForPeriod($month, $touchedEmployeeIds);
+
+        ActivityLogger::log('attendance.grid_saved', 'Monthly attendance grid saved', null, [
+            'month' => $month,
+            'employees' => count(array_unique($touchedEmployeeIds)),
         ]);
 
-        ActivityLogger::log('attendance.manual_create', 'Attendance recorded (manual)', $row);
-
-        return redirect()->route('employees.attendance.index', ['month' => substr($data['attendance_date'], 0, 7)])
-            ->with('status', 'Attendance saved.');
-    }
-
-    public function update(Request $request, EmployeeAttendance $attendance)
-    {
-        if (!$request->user()->canManageTeamAttendance()) {
-            abort(403);
-        }
-
-        $data = $request->validate([
-            'clock_in' => ['nullable', 'date'],
-            'clock_out' => ['nullable', 'date', 'after_or_equal:clock_in'],
-            'status' => ['required', Rule::in(['present', 'absent', 'leave', 'half_day'])],
-            'notes' => ['nullable', 'string', 'max:500'],
-        ]);
-
-        $attendance->update([
-            'clock_in' => $data['clock_in'] ?? null,
-            'clock_out' => $data['clock_out'] ?? null,
-            'status' => $data['status'],
-            'notes' => $data['notes'] ?? null,
-        ]);
-
-        ActivityLogger::log('attendance.updated', 'Attendance updated', $attendance);
-
-        return redirect()->back()->with('status', 'Attendance updated.');
-    }
-
-    public function destroy(Request $request, EmployeeAttendance $attendance)
-    {
-        if (!$request->user()->canManageTeamAttendance()) {
-            abort(403);
-        }
-
-        $month = $attendance->attendance_date?->format('Y-m');
-        $id = $attendance->id;
-        ActivityLogger::log('attendance.deleted', 'Attendance deleted', null, ['attendance_id' => $id]);
-        $attendance->delete();
-
-        return redirect()->route('employees.attendance.index', array_filter(['month' => $month]))
-            ->with('status', 'Attendance removed.');
+        return redirect()
+            ->route('employees.attendance.index', [
+                'month' => $month,
+                'active_only' => $request->boolean('active_only', true) ? 1 : 0,
+            ])
+            ->with('status', 'Attendance save ho gayi — absent days ki salary payroll deduction mein update ho gayi.');
     }
 }
