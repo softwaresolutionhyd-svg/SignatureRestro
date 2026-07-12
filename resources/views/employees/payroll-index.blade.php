@@ -41,7 +41,7 @@
 
     <div class="alert alert-info small py-2">
         Employees auto <strong>Contacts</strong> mein link hain — is month ki <strong>credit sale</strong> Food Bill mein deduct hoti hai.
-        <strong>Loan</strong> active employee loan se auto monthly instalment deduct hoti hai.
+        <strong>Loan</strong> active employee loan se auto monthly instalment deduct hoti hai (loan month se nahi, agle month se).
         Final = Basic + Bonus − Deduction − Food Bill − Loan
     </div>
 

@@ -31,7 +31,7 @@
     </div>
 
     <div class="alert alert-info small py-2">
-        Har month payroll sync par <strong>monthly installment</strong> auto Loan column mein aati hai.
+        Har month payroll sync par <strong>monthly installment</strong> auto Loan column mein aati hai (loan lene wale month mein nahi — <strong>agle month</strong> se).
         <strong>Mark paid</strong> par balance update hota hai aur payment history save hoti hai.
     </div>
 

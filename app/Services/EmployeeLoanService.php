@@ -7,6 +7,7 @@ use App\Models\EmployeeLoan;
 use App\Models\EmployeeLoanPayment;
 use App\Models\PayrollEntry;
 use App\Support\EnsuresEmployeeLoanSchema;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 
 class EmployeeLoanService
@@ -36,6 +37,10 @@ class EmployeeLoanService
                 ->where('employee_loan_id', $loan->id)
                 ->where('period', $period)
                 ->value('amount');
+        }
+
+        if (! $this->deductionAppliesInPeriod($loan, $period)) {
+            return 0.0;
         }
 
         return round(min((float) $loan->monthly_installment, (float) $loan->balance), 2);
@@ -101,5 +106,18 @@ class EmployeeLoanService
             ->where('employee_loan_id', $loan->id)
             ->where('period', $period)
             ->exists();
+    }
+
+    /** Loan lene wale month mein koi deduction nahi — agle month se shuru. */
+    private function deductionAppliesInPeriod(EmployeeLoan $loan, string $period): bool
+    {
+        $start = $loan->start_date ?? $loan->created_at;
+        if ($start === null) {
+            return true;
+        }
+
+        $firstDeductionPeriod = Carbon::parse($start)->startOfMonth()->addMonth()->format('Y-m');
+
+        return $period >= $firstDeductionPeriod;
     }
 }
