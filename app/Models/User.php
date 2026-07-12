@@ -123,6 +123,11 @@ class User extends Authenticatable
             return false;
         }
 
+        $permissions = (array) ($this->permissions ?? []);
+        if ($module === 'pos-closing' && ! array_key_exists('pos-closing', $permissions)) {
+            return $this->moduleAllows('restaurant-pos', $action);
+        }
+
         foreach (ModuleAccess::permissionKeysFor($module) as $key) {
             $p = (array) data_get($this->permissions ?? [], $key, []);
             if (! empty($p['all'])) {

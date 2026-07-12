@@ -46,7 +46,7 @@ class EnsureUserHasModuleAccess
 
         $module = (string) $request->route()->parameter('module', '');
         if ($module === '') {
-            $module = Str::before($routeName, '.');
+            $module = $this->resolveRouteModuleKey($routeName);
         }
 
         $module = ModuleAccess::permissionModuleKey($module);
@@ -128,12 +128,29 @@ class EnsureUserHasModuleAccess
             if (Str::endsWith($routeName, '.checkout') || Str::endsWith($routeName, '.hold')) {
                 return 'create';
             }
-            if (Str::endsWith($routeName, '.cash-movement') || Str::endsWith($routeName, '.session.open') || Str::endsWith($routeName, '.session.close')) {
+            if (Str::endsWith($routeName, '.cash-movement') || Str::endsWith($routeName, '.session.open')) {
                 return 'edit';
             }
         }
 
+        if ($routeName === 'restaurant-pos.session.close') {
+            return 'edit';
+        }
+
         return 'edit';
+    }
+
+    private function resolveRouteModuleKey(string $routeName): string
+    {
+        if (in_array($routeName, [
+            'restaurant-pos.closing',
+            'restaurant-pos.closing.print',
+            'restaurant-pos.session.close',
+        ], true)) {
+            return 'pos-closing';
+        }
+
+        return Str::before($routeName, '.');
     }
 
     private function permissionsHasAnyAllowed(array $permissions): bool

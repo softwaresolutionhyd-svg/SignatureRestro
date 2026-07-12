@@ -48,7 +48,10 @@
                 </div>
 
                 @php
-                    $currentPerms = old('permissions', $user->permissions ?? []);
+                    use App\Support\ModuleAccess;
+                    $currentPerms = old('permissions') !== null
+                        ? (array) old('permissions')
+                        : ModuleAccess::normalize((array) ($user->permissions ?? []));
                 @endphp
 
                 <div class="border rounded-3 p-3 bg-light mt-4" id="permMatrix" style="{{ in_array(old('role', $user->role), ['company_admin', 'admin'], true) ? 'display:none' : '' }}">

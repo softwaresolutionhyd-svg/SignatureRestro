@@ -9,6 +9,7 @@ final class ModuleAccess
         'inventory' => 'Inventory',
         'purchase' => 'Purchase',
         'restaurant-pos' => 'Restaurant POS',
+        'pos-closing' => 'Closing',
         'order-taker' => 'Order Taker',
         'kitchen' => 'Kitchen',
         'order-status' => 'Order Status',
@@ -82,6 +83,11 @@ final class ModuleAccess
         // Migrate legacy POS Restaurant permissions into Restaurant POS.
         if (! isset($merged['restaurant-pos']) && isset($merged['pos'])) {
             $merged['restaurant-pos'] = $merged['pos'];
+        }
+
+        // Existing Restaurant POS users keep Closing access until explicitly changed.
+        if (! isset($merged['pos-closing']) && isset($merged['restaurant-pos'])) {
+            $merged['pos-closing'] = $merged['restaurant-pos'];
         }
 
         $out = [];

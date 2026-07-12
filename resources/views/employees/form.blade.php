@@ -115,7 +115,10 @@
 
             <hr class="my-3">
             @php
-                $currentPerms = old('permissions', $employee->user?->permissions ?? []);
+                use App\Support\ModuleAccess;
+                $currentPerms = old('permissions') !== null
+                    ? (array) old('permissions')
+                    : ModuleAccess::normalize((array) ($employee->user?->permissions ?? []));
             @endphp
             <div class="fw-semibold mb-2">Module access</div>
             @include('partials.permissions-matrix', ['currentPerms' => $currentPerms])
