@@ -96,7 +96,9 @@
 
 @section('content')
 @include('hr.partials.subnav')
-@php($attEmployeeNoQs = $employeeNo !== '' ? '&employee_no='.urlencode($employeeNo) : '')
+@php
+    $attEmployeeNoQs = $employeeNo !== '' ? '&employee_no='.urlencode($employeeNo) : '';
+@endphp
 
     @if (session('status'))
         <div class="alert alert-success">{{ session('status') }}</div>
@@ -191,7 +193,12 @@
                     </tr>
                     </thead>
                     <tbody>
-                    @forelse($employees as $employee)
+                    @if($employees->isEmpty())
+                        <tr>
+                            <td colspan="{{ count($dates) + 5 }}" class="text-center text-secondary py-4">Koi employee nahi.</td>
+                        </tr>
+                    @else
+                        @foreach($employees as $employee)
                         @php
                             $summary = $summaries[$employee->id] ?? ['present'=>0,'absent'=>0,'holiday'=>0,'deduction'=>0,'per_day'=>0];
                             $rowGrid = $grid[$employee->id] ?? [];
@@ -229,11 +236,8 @@
                                 {{ number_format($summary['deduction'], 2) }}
                             </td>
                         </tr>
-                    @empty
-                        <tr>
-                            <td colspan="{{ count($dates) + 5 }}" class="text-center text-secondary py-4">Koi employee nahi.</td>
-                        </tr>
-                    @endforelse
+                        @endforeach
+                    @endif
                     </tbody>
                 </table>
             </div>
