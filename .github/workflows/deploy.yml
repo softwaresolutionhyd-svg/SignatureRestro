@@ -37,8 +37,15 @@ jobs:
             **/storage/framework/cache/**
 
       - name: Run migrations on server
-        if: ${{ secrets.DEPLOY_KEY != '' && secrets.DEPLOY_MIGRATE_URL != '' }}
+        continue-on-error: true
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          DEPLOY_MIGRATE_URL: ${{ secrets.DEPLOY_MIGRATE_URL }}
         run: |
+          if [ -z "$DEPLOY_KEY" ] || [ -z "$DEPLOY_MIGRATE_URL" ]; then
+            echo "Skip migrate: DEPLOY_KEY / DEPLOY_MIGRATE_URL secrets not set in GitHub."
+            exit 0
+          fi
           curl -sfS -X POST \
-            -H "X-Deploy-Key: ${{ secrets.DEPLOY_KEY }}" \
-            "${{ secrets.DEPLOY_MIGRATE_URL }}"
+            -H "X-Deploy-Key: $DEPLOY_KEY" \
+            "$DEPLOY_MIGRATE_URL"
