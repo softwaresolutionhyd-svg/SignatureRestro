@@ -63,23 +63,9 @@ final class PosSessionSummaryService
         $serviceChargeTotal = $this->sumOrderColumn($saleOrders, 'service_charge_total');
         $taxTotal = (float) (clone $saleOrders)->sum('tax_total');
 
-        $salePayTotals = PosPayment::query()
-            ->join('pos_orders', 'pos_orders.id', '=', 'pos_payments.order_id')
-            ->where('pos_orders.session_id', $sessionId)
-            ->where('pos_orders.status', 'paid')
-            ->where('pos_orders.type', 'sale')
-            ->selectRaw('pos_payments.method as payment_method, SUM(pos_payments.amount) as total')
-            ->groupBy('pos_payments.method')
-            ->pluck('total', 'payment_method');
+        $salePayTotals = $this->paymentTotalsByMethod($sessionId, 'sale');
 
-        $refundPayTotals = PosPayment::query()
-            ->join('pos_orders', 'pos_orders.id', '=', 'pos_payments.order_id')
-            ->where('pos_orders.session_id', $sessionId)
-            ->where('pos_orders.status', 'paid')
-            ->where('pos_orders.type', 'refund')
-            ->selectRaw('pos_payments.method as payment_method, SUM(pos_payments.amount) as total')
-            ->groupBy('pos_payments.method')
-            ->pluck('total', 'payment_method');
+        $refundPayTotals = $this->paymentTotalsByMethod($sessionId, 'refund');
 
         $net = static function (string $m) use ($salePayTotals, $refundPayTotals): float {
             return (float) (($salePayTotals[$m] ?? 0) - ($refundPayTotals[$m] ?? 0));
@@ -109,19 +95,11 @@ final class PosSessionSummaryService
      */
     public function cashBreakdown(PosSession $session): array
     {
-        $cashFromSales = (float) PosPayment::query()
-            ->join('pos_orders', 'pos_orders.id', '=', 'pos_payments.order_id')
-            ->where('pos_orders.session_id', $session->id)
-            ->where('pos_orders.status', 'paid')
-            ->where('pos_orders.type', 'sale')
+        $cashFromSales = (float) $this->paymentJoinQuery($session->id, 'sale')
             ->where('pos_payments.method', 'cash')
             ->sum('pos_payments.amount');
 
-        $cashRefundsPaid = (float) PosPayment::query()
-            ->join('pos_orders', 'pos_orders.id', '=', 'pos_payments.order_id')
-            ->where('pos_orders.session_id', $session->id)
-            ->where('pos_orders.status', 'paid')
-            ->where('pos_orders.type', 'refund')
+        $cashRefundsPaid = (float) $this->paymentJoinQuery($session->id, 'refund')
             ->where('pos_payments.method', 'cash')
             ->sum('pos_payments.amount');
 
@@ -174,5 +152,32 @@ final class PosSessionSummaryService
         }
 
         return (float) (clone $query)->sum($column);
+    }
+
+    /** @return \Illuminate\Support\Collection<string, float|int|string> */
+    private function paymentTotalsByMethod(int $sessionId, string $orderType): \Illuminate\Support\Collection
+    {
+        return $this->paymentJoinQuery($sessionId, $orderType)
+            ->selectRaw('pos_payments.method as payment_method, SUM(pos_payments.amount) as total')
+            ->groupBy('pos_payments.method')
+            ->pluck('total', 'payment_method');
+    }
+
+    private function paymentJoinQuery(int $sessionId, string $orderType): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = PosPayment::query()
+            ->join('pos_orders', 'pos_orders.id', '=', 'pos_payments.order_id')
+            ->where('pos_orders.session_id', $sessionId)
+            ->where('pos_orders.status', 'paid')
+            ->where('pos_orders.type', $orderType);
+
+        if (PosRuntimeSchema::ordersHasColumn('is_credit')) {
+            $query->where(function ($q) {
+                $q->where('pos_orders.is_credit', false)
+                    ->orWhereNull('pos_orders.is_credit');
+            });
+        }
+
+        return $query;
     }
 }

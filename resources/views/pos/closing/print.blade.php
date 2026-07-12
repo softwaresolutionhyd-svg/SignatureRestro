@@ -395,7 +395,7 @@
                 @endif
                 @if($stats['credit_sales_count'] > 0)
                 <tr>
-                    <td>Credit sales ({{ $stats['credit_sales_count'] }} bills)</td>
+                    <td>Credit sales ({{ $stats['credit_sales_count'] }} bills) — Credit Book, not in cash drawer</td>
                     <td class="num">{{ $currency }} {{ fmt_num($stats['credit_sales_total'], 2) }}</td>
                 </tr>
                 @endif
@@ -404,7 +404,7 @@
                     <td class="num">{{ $currency }} {{ fmt_num($stats['net_sales_total'], 2) }}</td>
                 </tr>
                 <tr>
-                    <td><strong>Cash</strong></td>
+                    <td><strong>Cash</strong> <span style="font-weight:normal;font-size:8.5pt;color:#555;">(credit sales excluded)</span></td>
                     <td class="num"><strong>{{ $currency }} {{ fmt_num($stats['payments_cash'], 2) }}</strong></td>
                 </tr>
                 <tr>
