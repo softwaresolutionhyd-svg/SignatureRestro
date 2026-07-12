@@ -358,23 +358,8 @@ class PosController extends Controller
         }
 
         $employee = $query->first();
-        if ($employee !== null) {
-            return $employee;
-        }
 
-        $login = mb_strtolower(trim((string) $user->loginUsername()), 'UTF-8');
-        if ($login === '') {
-            return null;
-        }
-
-        return Employee::withoutGlobalScope('company')
-            ->where('active', true)
-            ->when($user->company_id, fn ($q) => $q->where('company_id', $user->company_id))
-            ->where(function ($q) use ($login, $user) {
-                $q->whereRaw('LOWER(email) = ?', [$login])
-                    ->orWhereRaw('LOWER(name) = ?', [mb_strtolower(trim((string) $user->name), 'UTF-8')]);
-            })
-            ->first();
+        return $employee;
     }
 
     private function employeeDesignationText(Employee $employee): string

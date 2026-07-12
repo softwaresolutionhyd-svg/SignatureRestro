@@ -246,25 +246,8 @@ class User extends Authenticatable
         }
 
         $employee = $query->first();
-        if ($employee !== null) {
-            return $employee;
-        }
 
-        $login = mb_strtolower(trim((string) $this->loginUsername()), 'UTF-8');
-        if ($login === '') {
-            return null;
-        }
-
-        $fallback = Employee::withoutGlobalScope('company')
-            ->where('active', true)
-            ->when($this->company_id, fn ($q) => $q->where('company_id', $this->company_id))
-            ->where(function ($q) use ($login) {
-                $q->whereRaw('LOWER(email) = ?', [$login])
-                    ->orWhereRaw('LOWER(name) = ?', [mb_strtolower(trim((string) $this->name), 'UTF-8')]);
-            })
-            ->first();
-
-        return $fallback;
+        return $employee;
     }
 
     private function designationGrantsManagerAccess(Employee $employee): bool

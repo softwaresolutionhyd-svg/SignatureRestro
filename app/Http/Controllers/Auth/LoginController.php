@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\LoginRateLimitService;
 use App\Services\LoginTotpService;
+use App\Support\LoginUsername;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -57,10 +58,10 @@ class LoginController extends Controller
             return $this->sendLockoutResponse($request);
         }
 
-        $credentials = $this->credentials($request);
-        $user = User::query()->where('email', $credentials['email'])->first();
+        $login = trim((string) $request->input('login', ''));
+        $user = LoginUsername::resolveUser($login);
 
-        if (! $user || ! Hash::check($credentials['password'], $user->password)) {
+        if (! $user || ! Hash::check((string) $request->input('password'), $user->password)) {
             $this->incrementLoginAttempts($request);
 
             return $this->sendFailedLoginResponse($request);
@@ -74,15 +75,21 @@ class LoginController extends Controller
             return redirect()->route('login.verify-totp');
         }
 
+        $this->completeWebLogin($request, $user);
+        $this->clearLoginAttempts($request);
+
+        return redirect()->intended($this->redirectPath());
+    }
+
+    private function completeWebLogin(Request $request, User $user): void
+    {
         Auth::login($user, false);
         if ($user->remember_token) {
             $user->forceFill(['remember_token' => null])->save();
         }
-        $request->session()->regenerate();
-        $this->clearLoginAttempts($request);
+        $request->session()->forget(['active_company_id', 'login_totp_token']);
+        $request->session()->regenerate(true);
         $this->authenticated($request, $user);
-
-        return redirect()->intended($this->redirectPath());
     }
 
     /**
@@ -90,10 +97,6 @@ class LoginController extends Controller
      */
     protected function authenticated(Request $request, $user): void
     {
-        if ($user->isPlatformSuperAdmin()) {
-            $request->session()->forget('active_company_id');
-        }
-
         if ($user->must_change_password ?? false) {
             session()->flash('warning', 'Security: pehle naya password set karein.');
         }
@@ -127,30 +130,13 @@ class LoginController extends Controller
     }
 
     /**
-     * Resolve username to stored email (supports plain username).
-     *
-     * Users can enter:
-     * - full email, or
-     * - username part before @ (e.g. superadmin)
+     * @deprecated Used only by AuthenticatesUsers trait; web login uses LoginUsername::resolveUser().
      */
     protected function credentials(Request $request): array
     {
         $login = trim((string) $request->input('login', ''));
         $password = (string) $request->input('password', '');
-
-        if ($login === '') {
-            return ['email' => '', 'password' => $password];
-        }
-
-        if (filter_var($login, FILTER_VALIDATE_EMAIL)) {
-            return ['email' => $login, 'password' => $password];
-        }
-
-        $user = User::query()
-            ->whereRaw('LOWER(email) = ?', [mb_strtolower($login)])
-            ->orWhereRaw("LOWER(SUBSTRING_INDEX(email, '@', 1)) = ?", [mb_strtolower($login)])
-            ->orWhereRaw('LOWER(name) = ?', [mb_strtolower($login)])
-            ->first();
+        $user = LoginUsername::resolveUser($login);
 
         if (! $user) {
             return ['email' => '__invalid__', 'password' => $password];

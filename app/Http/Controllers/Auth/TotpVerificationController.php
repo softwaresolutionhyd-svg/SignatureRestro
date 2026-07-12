@@ -64,11 +64,8 @@ class TotpVerificationController extends Controller
         if ($result['user']->remember_token) {
             $result['user']->forceFill(['remember_token' => null])->save();
         }
-        $request->session()->regenerate();
-
-        if ($result['user']->isPlatformSuperAdmin()) {
-            $request->session()->forget('active_company_id');
-        }
+        $request->session()->forget('active_company_id');
+        $request->session()->regenerate(true);
 
         if ($result['user']->must_change_password ?? false) {
             session()->flash('warning', 'Security: pehle naya password set karein.');

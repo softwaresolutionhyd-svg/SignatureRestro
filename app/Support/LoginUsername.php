@@ -76,4 +76,39 @@ final class LoginUsername
 
         return $rules;
     }
+
+    /**
+     * Resolve login input to exactly one user, or null if unknown/ambiguous.
+     */
+    public static function resolveUser(string $login): ?User
+    {
+        $login = mb_strtolower(trim($login), 'UTF-8');
+        if ($login === '') {
+            return null;
+        }
+
+        if (filter_var($login, FILTER_VALIDATE_EMAIL)) {
+            return User::query()
+                ->whereRaw('LOWER(email) = ?', [$login])
+                ->first();
+        }
+
+        $exact = User::query()
+            ->whereRaw('LOWER(email) = ?', [$login])
+            ->get();
+
+        if ($exact->count() === 1) {
+            return $exact->first();
+        }
+
+        if ($exact->count() > 1) {
+            return null;
+        }
+
+        $byPrefix = User::query()
+            ->whereRaw("LOWER(SUBSTRING_INDEX(email, '@', 1)) = ?", [$login])
+            ->get();
+
+        return $byPrefix->count() === 1 ? $byPrefix->first() : null;
+    }
 }
