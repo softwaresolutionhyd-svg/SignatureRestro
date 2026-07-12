@@ -96,6 +96,7 @@
 
 @section('content')
 @include('hr.partials.subnav')
+@php($attEmployeeNoQs = $employeeNo !== '' ? '&employee_no='.urlencode($employeeNo) : '')
 
     @if (session('status'))
         <div class="alert alert-success">{{ session('status') }}</div>
@@ -110,48 +111,67 @@
         Present aur Holiday par koi deduction nahi.
     </div>
 
+    <div class="card shadow-sm mb-3">
+        <div class="card-body d-flex flex-wrap gap-3 align-items-center justify-content-between py-2">
+            <div class="d-flex flex-wrap gap-2 align-items-center attendance-legend">
+                <span class="badge text-bg-success">P = Present</span>
+                <span class="badge text-bg-danger">A = Absent</span>
+                <span class="badge text-bg-primary">H = Holiday</span>
+                <span class="text-secondary small">— = not marked</span>
+            </div>
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+                <form class="d-flex gap-2 align-items-center" method="GET" action="{{ route('employees.attendance.index') }}" id="attendanceFilterForm">
+                    <input type="hidden" name="month" value="{{ $month }}">
+                    @if($activeOnly)
+                        <input type="hidden" name="active_only" value="1">
+                    @endif
+                    <input type="text" name="employee_no" value="{{ $employeeNo }}" class="form-control form-control-sm" placeholder="Employee ID" style="max-width: 150px;">
+                    <button class="btn btn-sm btn-outline-primary" type="submit">Filter</button>
+                    @if($employeeNo !== '')
+                        <a class="btn btn-sm btn-outline-secondary" href="{{ route('employees.attendance.index', array_filter(['month' => $month, 'active_only' => $activeOnly ? 1 : null])) }}">Clear</a>
+                    @endif
+                </form>
+                <a class="btn btn-sm btn-outline-secondary" href="{{ route('employees.attendance.index', array_filter(['month' => \Carbon\Carbon::createFromFormat('Y-m-d', $month.'-01')->subMonth()->format('Y-m'), 'active_only' => $activeOnly ? 1 : null, 'employee_no' => $employeeNo ?: null])) }}">
+                    <i class="bi bi-chevron-left"></i>
+                </a>
+                <input type="month" class="form-control form-control-sm" style="max-width: 150px;"
+                       value="{{ $month }}"
+                       onchange="window.location='{{ route('employees.attendance.index') }}?month='+this.value+'&active_only={{ $activeOnly ? 1 : 0 }}{{ $attEmployeeNoQs }}'">
+                <a class="btn btn-sm btn-outline-secondary" href="{{ route('employees.attendance.index', array_filter(['month' => \Carbon\Carbon::createFromFormat('Y-m-d', $month.'-01')->addMonth()->format('Y-m'), 'active_only' => $activeOnly ? 1 : null, 'employee_no' => $employeeNo ?: null])) }}">
+                    <i class="bi bi-chevron-right"></i>
+                </a>
+                <div class="form-check form-check-inline small mb-0 ms-2">
+                    <input class="form-check-input" type="checkbox" id="activeOnlyToggle"
+                           @checked($activeOnly)
+                           onchange="window.location='{{ route('employees.attendance.index') }}?month={{ $month }}&active_only='+(this.checked?1:0)+'{{ $attEmployeeNoQs }}'">
+                    <label class="form-check-label" for="activeOnlyToggle">Sirf active</label>
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary" form="attendanceGridForm">
+                    <i class="bi bi-save me-1"></i> Save attendance
+                </button>
+            </div>
+        </div>
+    </div>
+
     <form method="POST" action="{{ route('employees.attendance.grid') }}" id="attendanceGridForm">
         @csrf
         <input type="hidden" name="month" value="{{ $month }}">
         @if($activeOnly)
             <input type="hidden" name="active_only" value="1">
         @endif
+        @if($employeeNo !== '')
+            <input type="hidden" name="employee_no" value="{{ $employeeNo }}">
+        @endif
         <input type="hidden" name="attendance_json" id="attendanceJson" value="">
-
-        <div class="card shadow-sm mb-3">
-            <div class="card-body d-flex flex-wrap gap-3 align-items-center justify-content-between py-2">
-                <div class="d-flex flex-wrap gap-2 align-items-center attendance-legend">
-                    <span class="badge text-bg-success">P = Present</span>
-                    <span class="badge text-bg-danger">A = Absent</span>
-                    <span class="badge text-bg-primary">H = Holiday</span>
-                    <span class="text-secondary small">— = not marked</span>
-                </div>
-                <div class="d-flex flex-wrap gap-2 align-items-center">
-                    <a class="btn btn-sm btn-outline-secondary" href="{{ route('employees.attendance.index', array_filter(['month' => \Carbon\Carbon::createFromFormat('Y-m-d', $month.'-01')->subMonth()->format('Y-m'), 'active_only' => $activeOnly ? 1 : null])) }}">
-                        <i class="bi bi-chevron-left"></i>
-                    </a>
-                    <input type="month" class="form-control form-control-sm" style="max-width: 150px;"
-                           value="{{ $month }}"
-                           onchange="window.location='{{ route('employees.attendance.index') }}?month='+this.value+'&active_only={{ $activeOnly ? 1 : 0 }}'">
-                    <a class="btn btn-sm btn-outline-secondary" href="{{ route('employees.attendance.index', array_filter(['month' => \Carbon\Carbon::createFromFormat('Y-m-d', $month.'-01')->addMonth()->format('Y-m'), 'active_only' => $activeOnly ? 1 : null])) }}">
-                        <i class="bi bi-chevron-right"></i>
-                    </a>
-                    <div class="form-check form-check-inline small mb-0 ms-2">
-                        <input class="form-check-input" type="checkbox" id="activeOnlyToggle"
-                               @checked($activeOnly)
-                               onchange="window.location='{{ route('employees.attendance.index') }}?month={{ $month }}&active_only='+(this.checked?1:0)">
-                        <label class="form-check-label" for="activeOnlyToggle">Sirf active</label>
-                    </div>
-                    <button type="submit" class="btn btn-sm btn-primary">
-                        <i class="bi bi-save me-1"></i> Save attendance
-                    </button>
-                </div>
-            </div>
-        </div>
 
         <div class="card shadow-sm">
             <div class="card-header bg-white py-2">
-                <div class="fw-semibold">{{ \Carbon\Carbon::createFromFormat('Y-m-d', $month.'-01')->format('F Y') }} — {{ $employees->count() }} employees</div>
+                <div class="fw-semibold">
+                    {{ \Carbon\Carbon::createFromFormat('Y-m-d', $month.'-01')->format('F Y') }} — {{ $employees->count() }} employees
+                    @if($employeeNo !== '')
+                        <span class="text-secondary fw-normal small">· filter: {{ $employeeNo }}</span>
+                    @endif
+                </div>
             </div>
             <div class="attendance-grid-wrap">
                 <table class="attendance-grid mb-0">
@@ -180,7 +200,7 @@
                             <td class="att-sticky-col">
                                 <div class="att-emp-name">{{ $employee->name }}</div>
                                 <div class="att-emp-meta">
-                                    Rs. {{ number_format((float) $employee->salary, 0) }}
+                                    {{ $employee->employee_no }} · Rs. {{ number_format((float) $employee->salary, 0) }}
                                     @if(!$employee->active) · inactive @endif
                                 </div>
                             </td>

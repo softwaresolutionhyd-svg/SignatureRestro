@@ -31,12 +31,20 @@
 <body>
     <div class="noprint">
         <button type="button" onclick="window.print()">Print Salary Record</button>
-        <a href="{{ route('employees.payroll.index', ['period' => $period]) }}">Back to Payroll</a>
+        <a href="{{ route('employees.payroll.index', array_filter(['period' => $period, 'employee_no' => ($employeeNo ?? '') ?: null])) }}">Back to Payroll</a>
+        <form method="GET" action="{{ route('employees.payroll.print') }}" style="display:inline-flex; gap:8px; align-items:center; margin-left:8px;">
+            <input type="hidden" name="period" value="{{ $period }}">
+            <input type="text" name="employee_no" value="{{ $employeeNo ?? '' }}" placeholder="Employee ID" style="padding:6px 8px; border:1px solid #666; border-radius:6px;">
+            <button type="submit">Filter</button>
+            @if(!empty($employeeNo))
+                <a href="{{ route('employees.payroll.print', ['period' => $period]) }}">Clear</a>
+            @endif
+        </form>
     </div>
 
     <div class="report-head">
         <h1>{{ $companyName }} — Salary Record</h1>
-        <div class="meta">Period: <strong>{{ $periodLabel }}</strong> ({{ $period }}) · Printed {{ now()->timezone(config('app.timezone'))->format('d M Y, H:i') }}</div>
+        <div class="meta">Period: <strong>{{ $periodLabel }}</strong> ({{ $period }}) · Printed {{ now()->timezone(config('app.timezone'))->format('d M Y, H:i') }}@if(!empty($employeeNo)) · Filter: <strong>{{ $employeeNo }}</strong>@endif</div>
     </div>
 
     <table>

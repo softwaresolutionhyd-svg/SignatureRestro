@@ -18,8 +18,9 @@
                 <form class="d-flex gap-2 align-items-center flex-wrap" method="GET" action="{{ route('employees.payroll.index') }}">
                     <label class="small mb-0 text-secondary">Period</label>
                     <input type="month" name="period" value="{{ $period }}" class="form-control form-control-sm" style="max-width: 160px;">
+                    <input type="text" name="employee_no" value="{{ $employeeNo ?? '' }}" class="form-control form-control-sm" placeholder="Employee ID" style="max-width: 150px;">
                     <button class="btn btn-sm btn-outline-primary" type="submit">View</button>
-                    <a class="btn btn-sm btn-outline-danger" href="{{ route('employees.payroll.print', ['period' => $period]) }}" target="_blank" rel="noopener">
+                    <a class="btn btn-sm btn-outline-danger" href="{{ route('employees.payroll.print', array_filter(['period' => $period, 'employee_no' => ($employeeNo ?? '') ?: null])) }}" target="_blank" rel="noopener">
                         <i class="bi bi-printer me-1"></i> Print Salary Record
                     </a>
                 </form>

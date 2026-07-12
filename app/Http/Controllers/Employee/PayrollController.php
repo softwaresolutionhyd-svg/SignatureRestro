@@ -30,12 +30,14 @@ class PayrollController extends Controller
         if (! preg_match('/^\d{4}-\d{2}$/', $period)) {
             $period = now()->format('Y-m');
         }
+        $employeeNo = trim((string) $request->query('employee_no', ''));
 
         $this->payrollSalary->syncPayrollPeriod($period, $request->user()?->id, true);
 
         $entries = PayrollEntry::query()
             ->with(['employee:id,name,employee_no,salary,designation_id', 'employee.designation:id,name'])
             ->where('period', $period)
+            ->when($employeeNo !== '', fn ($q) => $q->whereHas('employee', fn ($eq) => $eq->where('employee_no', 'like', '%'.$employeeNo.'%')))
             ->orderBy('employee_id')
             ->paginate(Setting::pageSize('employees_per_page', 30))
             ->withQueryString();
@@ -43,7 +45,7 @@ class PayrollController extends Controller
         $totalNet = (float) PayrollEntry::query()->where('period', $period)->sum('net_pay');
         $paidNet = (float) PayrollEntry::query()->where('period', $period)->where('status', 'paid')->sum('net_pay');
 
-        return view('employees.payroll-index', compact('entries', 'period', 'totalNet', 'paidNet'));
+        return view('employees.payroll-index', compact('entries', 'period', 'employeeNo', 'totalNet', 'paidNet'));
     }
 
     public function generate(Request $request)
@@ -79,12 +81,17 @@ class PayrollController extends Controller
         if (! preg_match('/^\d{4}-\d{2}$/', $period)) {
             $period = now()->format('Y-m');
         }
+        $employeeNo = trim((string) $request->query('employee_no', ''));
 
         $rows = $this->payrollSalary->salaryRowsForPeriod($period, true);
+        if ($employeeNo !== '') {
+            $needle = mb_strtolower($employeeNo, 'UTF-8');
+            $rows = array_values(array_filter($rows, fn ($row) => str_contains(mb_strtolower((string) ($row['employee_no'] ?? ''), 'UTF-8'), $needle)));
+        }
         $periodLabel = $this->payrollSalary->periodLabel($period);
         $companyName = config('app.name');
 
-        return view('employees.payroll-print', compact('rows', 'period', 'periodLabel', 'companyName'));
+        return view('employees.payroll-print', compact('rows', 'period', 'periodLabel', 'companyName', 'employeeNo'));
     }
 
     public function printSlip(Request $request, PayrollEntry $payrollEntry)

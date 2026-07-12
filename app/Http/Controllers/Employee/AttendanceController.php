@@ -28,6 +28,7 @@ class AttendanceController extends Controller
         }
 
         $activeOnly = $request->boolean('active_only', true);
+        $employeeNo = trim((string) $request->query('employee_no', ''));
         $dates = $this->attendancePayroll->datesInMonth($month);
         [$startStr, $endStr] = $this->attendancePayroll->monthBounds($month);
 
@@ -35,7 +36,10 @@ class AttendanceController extends Controller
         if ($activeOnly) {
             $staffQuery->where('active', true);
         }
-        $employees = $staffQuery->get(['id', 'name', 'active', 'salary']);
+        if ($employeeNo !== '') {
+            $staffQuery->where('employee_no', 'like', '%'.$employeeNo.'%');
+        }
+        $employees = $staffQuery->get(['id', 'name', 'employee_no', 'active', 'salary']);
 
         $grid = [];
         $summaries = [];
@@ -80,6 +84,7 @@ class AttendanceController extends Controller
             'employees',
             'month',
             'activeOnly',
+            'employeeNo',
             'dates',
             'grid',
             'summaries',
@@ -93,6 +98,7 @@ class AttendanceController extends Controller
         $data = $request->validate([
             'month' => ['required', 'regex:/^\d{4}-\d{2}$/'],
             'active_only' => ['nullable', 'boolean'],
+            'employee_no' => ['nullable', 'string', 'max:50'],
             'attendance_json' => ['nullable', 'string'],
         ]);
 
@@ -167,10 +173,11 @@ class AttendanceController extends Controller
         ]);
 
         return redirect()
-            ->route('employees.attendance.index', [
+            ->route('employees.attendance.index', array_filter([
                 'month' => $month,
                 'active_only' => $request->boolean('active_only', true) ? 1 : 0,
-            ])
+                'employee_no' => trim((string) ($data['employee_no'] ?? '')),
+            ], fn ($v) => $v !== '' && $v !== null))
             ->with('status', 'Attendance save ho gayi — absent days ki salary payroll deduction mein update ho gayi.');
     }
 }
