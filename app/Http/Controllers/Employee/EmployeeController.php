@@ -6,10 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\EmployeeDepartment;
 use App\Models\EmployeeDesignation;
+use App\Models\EmployeeStaffCategory;
 use App\Models\Setting;
 use App\Models\User;
 use App\Support\ActivityLogger;
 use App\Support\AppPasswordRules;
+use App\Support\EnsuresEmployeeStaffCategorySchema;
 use App\Support\LoginUsername;
 use App\Support\ModuleAccess;
 use App\Services\EmployeeContactSyncService;
@@ -19,6 +21,8 @@ use Illuminate\Validation\Rule;
 
 class EmployeeController extends Controller
 {
+    use EnsuresEmployeeStaffCategorySchema;
+
     public function __construct(
         private readonly EmployeeContactSyncService $contactSync,
     ) {}
@@ -55,8 +59,10 @@ class EmployeeController extends Controller
 
         $departments = EmployeeDepartment::query()->where('active', true)->orderBy('name')->get(['id', 'name']);
         $designations = EmployeeDesignation::query()->where('active', true)->orderBy('name')->get(['id', 'name']);
+        $staffCategories = $this->staffCategoriesForForm($cid);
         $employee = new Employee(['employee_no' => Employee::generateNextEmployeeNo($cid)]);
-        return view('employees.create', compact('departments', 'designations', 'employee'));
+
+        return view('employees.create', compact('departments', 'designations', 'staffCategories', 'employee'));
     }
 
     public function store(Request $request)
@@ -76,6 +82,7 @@ class EmployeeController extends Controller
             'phone' => ['nullable', 'string', 'max:60'],
             'department_id' => ['nullable', 'integer', 'exists:tenant.employee_departments,id'],
             'designation_id' => ['nullable', 'integer', 'exists:tenant.employee_designations,id'],
+            'staff_category_id' => ['nullable', 'integer', 'exists:tenant.employee_staff_categories,id'],
             'join_date' => ['nullable', 'date'],
             'salary' => ['nullable', 'numeric', 'min:0'],
             'address' => ['nullable', 'string', 'max:255'],
@@ -90,6 +97,7 @@ class EmployeeController extends Controller
         $data['salary'] = $data['salary'] ?? 0;
         $data['department_id'] = isset($data['department_id']) && $data['department_id'] !== '' ? (int) $data['department_id'] : null;
         $data['designation_id'] = isset($data['designation_id']) && $data['designation_id'] !== '' ? (int) $data['designation_id'] : null;
+        $data['staff_category_id'] = isset($data['staff_category_id']) && $data['staff_category_id'] !== '' ? (int) $data['staff_category_id'] : null;
         $data['employee_no'] = trim((string) ($data['employee_no'] ?? '')) !== ''
             ? trim((string) $data['employee_no'])
             : Employee::generateNextEmployeeNo($cid);
@@ -121,6 +129,7 @@ class EmployeeController extends Controller
                     'phone' => $data['phone'] ?? null,
                     'department_id' => $data['department_id'],
                     'designation_id' => $data['designation_id'],
+                    'staff_category_id' => $data['staff_category_id'],
                     'join_date' => $data['join_date'] ?? null,
                     'salary' => $data['salary'],
                     'address' => $data['address'] ?? null,
@@ -143,10 +152,12 @@ class EmployeeController extends Controller
         $cid = current_company_id();
         abort_if($cid === null, 403);
 
-        $employee->load(['user', 'department', 'designation']);
+        $employee->load(['user', 'department', 'designation', 'staffCategory']);
         $departments = EmployeeDepartment::query()->where('active', true)->orderBy('name')->get(['id', 'name']);
         $designations = EmployeeDesignation::query()->where('active', true)->orderBy('name')->get(['id', 'name']);
-        return view('employees.edit', compact('employee', 'departments', 'designations'));
+        $staffCategories = $this->staffCategoriesForForm($cid);
+
+        return view('employees.edit', compact('employee', 'departments', 'designations', 'staffCategories'));
     }
 
     public function update(Request $request, Employee $employee)
@@ -168,6 +179,7 @@ class EmployeeController extends Controller
             'phone' => ['nullable', 'string', 'max:60'],
             'department_id' => ['nullable', 'integer', 'exists:tenant.employee_departments,id'],
             'designation_id' => ['nullable', 'integer', 'exists:tenant.employee_designations,id'],
+            'staff_category_id' => ['nullable', 'integer', 'exists:tenant.employee_staff_categories,id'],
             'join_date' => ['nullable', 'date'],
             'salary' => ['nullable', 'numeric', 'min:0'],
             'address' => ['nullable', 'string', 'max:255'],
@@ -182,6 +194,7 @@ class EmployeeController extends Controller
         $data['salary'] = $data['salary'] ?? 0;
         $data['department_id'] = isset($data['department_id']) && $data['department_id'] !== '' ? (int) $data['department_id'] : null;
         $data['designation_id'] = isset($data['designation_id']) && $data['designation_id'] !== '' ? (int) $data['designation_id'] : null;
+        $data['staff_category_id'] = isset($data['staff_category_id']) && $data['staff_category_id'] !== '' ? (int) $data['staff_category_id'] : null;
 
         $employee->load('user');
         $user = $employee->user;
@@ -223,6 +236,7 @@ class EmployeeController extends Controller
             'phone' => $data['phone'] ?? null,
             'department_id' => $data['department_id'],
             'designation_id' => $data['designation_id'],
+            'staff_category_id' => $data['staff_category_id'],
             'join_date' => $data['join_date'] ?? null,
             'salary' => $data['salary'],
             'address' => $data['address'] ?? null,
@@ -283,5 +297,18 @@ class EmployeeController extends Controller
     private function normalizePermissions(array $permissions): array
     {
         return ModuleAccess::normalize($permissions);
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, EmployeeStaffCategory>
+     */
+    private function staffCategoriesForForm(int $companyId)
+    {
+        $this->seedDefaultStaffCategories($companyId);
+
+        return EmployeeStaffCategory::query()
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name']);
     }
 }

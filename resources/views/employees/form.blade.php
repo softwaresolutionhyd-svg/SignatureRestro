@@ -61,6 +61,20 @@
     </div>
 
     <div class="col-12 col-md-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <label class="form-label mb-0">Staff Category</label>
+            <a class="small text-decoration-none" href="{{ route('employees.staff-categories.index') }}" target="_blank">Manage</a>
+        </div>
+        <select name="staff_category_id" class="form-select @error('staff_category_id') is-invalid @enderror">
+            <option value="">—</option>
+            @foreach($staffCategories ?? [] as $cat)
+                <option value="{{ $cat->id }}" @selected((string)old('staff_category_id', $employee->staff_category_id ?? '') === (string)$cat->id)>{{ $cat->name }}</option>
+            @endforeach
+        </select>
+        @error('staff_category_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+    </div>
+
+    <div class="col-12 col-md-4">
         <label class="form-label">Join Date</label>
         <input type="date" name="join_date" value="{{ old('join_date', optional($employee->join_date ?? null)->format('Y-m-d')) }}"
                class="form-control @error('join_date') is-invalid @enderror">
