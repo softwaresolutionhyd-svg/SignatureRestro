@@ -282,15 +282,12 @@ class PosController extends Controller
             return true;
         }
 
-        $employee = $user->employee;
+        $employee = $this->resolvePosEmployee($user);
         if ($employee === null) {
             return false;
         }
 
-        $employee->loadMissing('designation:id,name');
-        $designation = mb_strtolower(trim((string) ($employee->designation?->name ?? '')), 'UTF-8');
-
-        return $designation !== '' && (str_contains($designation, 'manager') || str_contains($designation, 'owner'));
+        return $this->employeeIsPosManager($employee);
     }
 
     /**
@@ -321,7 +318,7 @@ class PosController extends Controller
             ];
         }
 
-        $employee = $user->employee;
+        $employee = $this->resolvePosEmployee($user);
         if ($employee === null) {
             return [
                 'can_pay' => false,
@@ -331,10 +328,8 @@ class PosController extends Controller
             ];
         }
 
-        $employee->loadMissing('designation:id,name');
-        $designation = mb_strtolower(trim((string) ($employee->designation?->name ?? '')), 'UTF-8');
-        $isManager = $designation !== '' && (str_contains($designation, 'manager') || str_contains($designation, 'owner'));
-        $isCashier = $designation !== '' && str_contains($designation, 'cashier');
+        $isManager = $this->employeeIsPosManager($employee);
+        $isCashier = $this->employeeIsPosCashier($employee);
 
         return [
             'can_pay' => $isCashier,
@@ -342,6 +337,94 @@ class PosController extends Controller
             'is_manager' => $isManager,
             'is_cashier' => $isCashier,
         ];
+    }
+
+    private function resolvePosEmployee(?User $user): ?Employee
+    {
+        if ($user === null) {
+            return null;
+        }
+
+        $employee = $user->relationLoaded('employee') ? $user->getRelation('employee') : null;
+        if ($employee !== null) {
+            return $employee->active ? $employee : null;
+        }
+
+        $query = Employee::withoutGlobalScope('company')
+            ->where('user_id', $user->id)
+            ->where('active', true);
+
+        if ($user->company_id) {
+            $query->where('company_id', $user->company_id);
+        }
+
+        $employee = $query->first();
+        if ($employee !== null) {
+            return $employee;
+        }
+
+        $login = mb_strtolower(trim((string) $user->loginUsername()), 'UTF-8');
+        if ($login === '') {
+            return null;
+        }
+
+        return Employee::withoutGlobalScope('company')
+            ->where('active', true)
+            ->when($user->company_id, fn ($q) => $q->where('company_id', $user->company_id))
+            ->where(function ($q) use ($login, $user) {
+                $q->whereRaw('LOWER(email) = ?', [$login])
+                    ->orWhereRaw('LOWER(name) = ?', [mb_strtolower(trim((string) $user->name), 'UTF-8')]);
+            })
+            ->first();
+    }
+
+    private function employeeDesignationText(Employee $employee): string
+    {
+        $employee->loadMissing('designation:id,name');
+
+        $name = trim((string) ($employee->designation?->name ?? ''));
+        if ($name !== '') {
+            return mb_strtolower($name, 'UTF-8');
+        }
+
+        if (Schema::connection('tenant')->hasColumn('employees', 'designation')) {
+            return mb_strtolower(trim((string) $employee->getAttribute('designation')), 'UTF-8');
+        }
+
+        return '';
+    }
+
+    private function employeeStaffCategoryText(Employee $employee): string
+    {
+        $employee->loadMissing('staffCategory:id,name');
+
+        return mb_strtolower(trim((string) ($employee->staffCategory?->name ?? '')), 'UTF-8');
+    }
+
+    private function labelMatchesCashier(string $value): bool
+    {
+        if ($value === '') {
+            return false;
+        }
+
+        return $value === 'cashier' || str_contains($value, 'cashier');
+    }
+
+    private function employeeIsPosCashier(Employee $employee): bool
+    {
+        if ($this->labelMatchesCashier($this->employeeDesignationText($employee))) {
+            return true;
+        }
+
+        return $this->labelMatchesCashier($this->employeeStaffCategoryText($employee));
+    }
+
+    private function employeeIsPosManager(Employee $employee): bool
+    {
+        $designation = $this->employeeDesignationText($employee);
+
+        return $designation !== ''
+            && (str_contains($designation, 'manager') || str_contains($designation, 'owner'));
     }
 
     private function posUsesSharedBills(?User $user): bool
@@ -770,15 +853,13 @@ class PosController extends Controller
             return false;
         }
 
-        return $this->posStaffCapabilities($user)['is_cashier'];
+        $employee = $this->resolvePosEmployee($user);
+
+        return $employee !== null && $this->employeeIsPosCashier($employee);
     }
 
     private function userCanOpenPosSession(?User $user): bool
     {
-        if ($user === null || $user->bypassesModulePermissions()) {
-            return false;
-        }
-
         return $this->userIsPosCashier($user);
     }
 

@@ -112,7 +112,8 @@
         @endif
 
         @if($canOpen)
-            <p>Shift shuru karne ke liye pehle apni POS session open karein.</p>
+            <p>Shift shuru karne ke liye pehle apni POS session open karein.<br>
+            <span class="text-secondary small">Sirf <strong>CASHIER</strong> designation wale employee.</span></p>
             <form method="POST" action="{{ route('restaurant-pos.session.open') }}" class="pos-open-form text-start">
                 @csrf
                 <label class="form-label" for="opening_cash">Opening cash in drawer (optional)</label>
