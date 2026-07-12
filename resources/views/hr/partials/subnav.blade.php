@@ -7,9 +7,6 @@
         <a href="{{ route('employees.index') }}" class="btn btn-outline-primary {{ request()->routeIs('employees.index', 'employees.create', 'employees.edit') ? 'active' : '' }}">
             <i class="bi bi-people me-1"></i> Employees
         </a>
-        <a href="{{ route('employees.departments.index') }}" class="btn btn-outline-primary {{ request()->routeIs('employees.departments.*') ? 'active' : '' }}">
-            <i class="bi bi-diagram-3 me-1"></i> Departments
-        </a>
         <a href="{{ route('employees.designations.index') }}" class="btn btn-outline-primary {{ request()->routeIs('employees.designations.*') ? 'active' : '' }}">
             <i class="bi bi-briefcase me-1"></i> Designations
         </a>
@@ -42,7 +39,7 @@
             <a href="{{ route('employees.loans.create') }}" class="btn btn-success btn-sm">
                 <i class="bi bi-plus-circle me-1"></i> New Loan
             </a>
-        @elseif(request()->routeIs('employees.index', 'employees.departments.*', 'employees.designations.*') && $u->moduleAllows('hr', 'create'))
+        @elseif(request()->routeIs('employees.index', 'employees.designations.*') && $u->moduleAllows('hr', 'create'))
             <a href="{{ route('employees.create') }}" class="btn btn-success btn-sm">
                 <i class="bi bi-plus-circle me-1"></i> New Employee
             </a>

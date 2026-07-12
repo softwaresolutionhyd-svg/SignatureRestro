@@ -50,7 +50,6 @@
                 <tr>
                     <th>Employee #</th>
                     <th>Name</th>
-                    <th>Department</th>
                     <th>Designation</th>
                     <th>Username</th>
                     <th>Phone</th>
@@ -66,7 +65,6 @@
                     <tr>
                         <td class="fw-semibold">{{ $e->employee_no }}</td>
                         <td class="fw-semibold">{{ $e->name }}</td>
-                        <td class="text-secondary">{{ $e->department?->name ?? '—' }}</td>
                         <td class="text-secondary">{{ $e->designation?->name ?? '—' }}</td>
                         <td class="text-secondary">{{ $e->user?->loginUsername() ?: '—' }}</td>
                         <td class="text-secondary">{{ $e->phone ?: '—' }}</td>

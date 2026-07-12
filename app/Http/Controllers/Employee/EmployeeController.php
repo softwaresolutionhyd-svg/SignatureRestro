@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Employee;
 
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
-use App\Models\EmployeeDepartment;
 use App\Models\EmployeeDesignation;
 use App\Models\EmployeeStaffCategory;
 use App\Models\Setting;
@@ -32,7 +31,7 @@ class EmployeeController extends Controller
         $employeeNo = trim((string) $request->query('employee_no', ''));
 
         $employees = Employee::query()
-            ->with(['department:id,name', 'designation:id,name', 'user:id,email'])
+            ->with(['designation:id,name', 'user:id,email'])
             ->when($employeeNo !== '', fn ($query) => $query->where('employee_no', 'like', "%{$employeeNo}%"))
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($sub) use ($q) {
@@ -57,12 +56,11 @@ class EmployeeController extends Controller
         $cid = current_company_id();
         abort_if($cid === null, 403);
 
-        $departments = EmployeeDepartment::query()->where('active', true)->orderBy('name')->get(['id', 'name']);
         $designations = EmployeeDesignation::query()->where('active', true)->orderBy('name')->get(['id', 'name']);
         $staffCategories = $this->staffCategoriesForForm($cid);
         $employee = new Employee(['employee_no' => Employee::generateNextEmployeeNo($cid)]);
 
-        return view('employees.create', compact('departments', 'designations', 'staffCategories', 'employee'));
+        return view('employees.create', compact('designations', 'staffCategories', 'employee'));
     }
 
     public function store(Request $request)
@@ -80,7 +78,6 @@ class EmployeeController extends Controller
             'name' => ['required', 'string', 'max:150'],
             'email' => ['nullable', 'email', 'max:200'],
             'phone' => ['nullable', 'string', 'max:60'],
-            'department_id' => ['nullable', 'integer', 'exists:tenant.employee_departments,id'],
             'designation_id' => ['nullable', 'integer', 'exists:tenant.employee_designations,id'],
             'staff_category_id' => ['nullable', 'integer', 'exists:tenant.employee_staff_categories,id'],
             'join_date' => ['nullable', 'date'],
@@ -95,7 +92,6 @@ class EmployeeController extends Controller
 
         $data['active'] = (bool) ($data['active'] ?? false);
         $data['salary'] = $data['salary'] ?? 0;
-        $data['department_id'] = isset($data['department_id']) && $data['department_id'] !== '' ? (int) $data['department_id'] : null;
         $data['designation_id'] = isset($data['designation_id']) && $data['designation_id'] !== '' ? (int) $data['designation_id'] : null;
         $data['staff_category_id'] = isset($data['staff_category_id']) && $data['staff_category_id'] !== '' ? (int) $data['staff_category_id'] : null;
         $data['employee_no'] = trim((string) ($data['employee_no'] ?? '')) !== ''
@@ -127,7 +123,6 @@ class EmployeeController extends Controller
                     'name' => $data['name'],
                     'email' => $data['email'] ?? null,
                     'phone' => $data['phone'] ?? null,
-                    'department_id' => $data['department_id'],
                     'designation_id' => $data['designation_id'],
                     'staff_category_id' => $data['staff_category_id'],
                     'join_date' => $data['join_date'] ?? null,
@@ -152,12 +147,11 @@ class EmployeeController extends Controller
         $cid = current_company_id();
         abort_if($cid === null, 403);
 
-        $employee->load(['user', 'department', 'designation', 'staffCategory']);
-        $departments = EmployeeDepartment::query()->where('active', true)->orderBy('name')->get(['id', 'name']);
+        $employee->load(['user', 'designation', 'staffCategory']);
         $designations = EmployeeDesignation::query()->where('active', true)->orderBy('name')->get(['id', 'name']);
         $staffCategories = $this->staffCategoriesForForm($cid);
 
-        return view('employees.edit', compact('employee', 'departments', 'designations', 'staffCategories'));
+        return view('employees.edit', compact('employee', 'designations', 'staffCategories'));
     }
 
     public function update(Request $request, Employee $employee)
@@ -177,7 +171,6 @@ class EmployeeController extends Controller
             'name' => ['required', 'string', 'max:150'],
             'email' => ['nullable', 'email', 'max:200'],
             'phone' => ['nullable', 'string', 'max:60'],
-            'department_id' => ['nullable', 'integer', 'exists:tenant.employee_departments,id'],
             'designation_id' => ['nullable', 'integer', 'exists:tenant.employee_designations,id'],
             'staff_category_id' => ['nullable', 'integer', 'exists:tenant.employee_staff_categories,id'],
             'join_date' => ['nullable', 'date'],
@@ -192,7 +185,6 @@ class EmployeeController extends Controller
 
         $data['active'] = (bool) ($data['active'] ?? false);
         $data['salary'] = $data['salary'] ?? 0;
-        $data['department_id'] = isset($data['department_id']) && $data['department_id'] !== '' ? (int) $data['department_id'] : null;
         $data['designation_id'] = isset($data['designation_id']) && $data['designation_id'] !== '' ? (int) $data['designation_id'] : null;
         $data['staff_category_id'] = isset($data['staff_category_id']) && $data['staff_category_id'] !== '' ? (int) $data['staff_category_id'] : null;
 
@@ -234,7 +226,6 @@ class EmployeeController extends Controller
             'name' => $data['name'],
             'email' => $data['email'] ?? null,
             'phone' => $data['phone'] ?? null,
-            'department_id' => $data['department_id'],
             'designation_id' => $data['designation_id'],
             'staff_category_id' => $data['staff_category_id'],
             'join_date' => $data['join_date'] ?? null,

@@ -34,20 +34,6 @@
 
     <div class="col-12 col-md-4">
         <div class="d-flex justify-content-between align-items-center">
-            <label class="form-label mb-0">Department</label>
-            <a class="small text-decoration-none" href="{{ route('employees.departments.index') }}" target="_blank">Manage</a>
-        </div>
-        <select name="department_id" class="form-select @error('department_id') is-invalid @enderror">
-            <option value="">—</option>
-            @foreach($departments as $d)
-                <option value="{{ $d->id }}" @selected((string)old('department_id', $employee->department_id ?? '') === (string)$d->id)>{{ $d->name }}</option>
-            @endforeach
-        </select>
-        @error('department_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-    </div>
-
-    <div class="col-12 col-md-4">
-        <div class="d-flex justify-content-between align-items-center">
             <label class="form-label mb-0">Designation</label>
             <a class="small text-decoration-none" href="{{ route('employees.designations.index') }}" target="_blank">Manage</a>
         </div>
