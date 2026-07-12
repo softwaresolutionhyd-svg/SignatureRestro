@@ -26,6 +26,7 @@ use App\Http\Controllers\Employee\AttendanceController;
 use App\Http\Controllers\Employee\DepartmentController;
 use App\Http\Controllers\Employee\DesignationController;
 use App\Http\Controllers\Employee\EmployeeController;
+use App\Http\Controllers\Employee\EmployeeLoanController;
 use App\Http\Controllers\Employee\PayrollController;
 use App\Http\Controllers\Hr\HrController;
 use App\Http\Controllers\Hr\LeaveRequestController;
@@ -293,9 +294,12 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
             Route::put('/designations/{designation}', [DesignationController::class, 'update'])->name('designations.update');
             Route::delete('/designations/{designation}', [DesignationController::class, 'destroy'])->name('designations.destroy');
 
-            Route::get('/{employee}/edit', [EmployeeController::class, 'edit'])->name('edit');
-            Route::put('/{employee}', [EmployeeController::class, 'update'])->name('update');
-            Route::delete('/{employee}', [EmployeeController::class, 'destroy'])->name('destroy');
+            Route::get('/loans', [EmployeeLoanController::class, 'index'])->name('loans.index');
+            Route::get('/loans/create', [EmployeeLoanController::class, 'create'])->name('loans.create');
+            Route::post('/loans', [EmployeeLoanController::class, 'store'])->name('loans.store');
+            Route::get('/loans/{loan}/edit', [EmployeeLoanController::class, 'edit'])->name('loans.edit');
+            Route::put('/loans/{loan}', [EmployeeLoanController::class, 'update'])->name('loans.update');
+            Route::delete('/loans/{loan}', [EmployeeLoanController::class, 'destroy'])->name('loans.destroy');
 
             Route::get('/payroll', [PayrollController::class, 'index'])->name('payroll.index');
             Route::get('/payroll/print', [PayrollController::class, 'printSalaryRecord'])->name('payroll.print');
@@ -303,6 +307,10 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
             Route::post('/payroll/generate', [PayrollController::class, 'generate'])->name('payroll.generate');
             Route::put('/payroll/{payrollEntry}', [PayrollController::class, 'update'])->name('payroll.update');
             Route::post('/payroll/{payrollEntry}/paid', [PayrollController::class, 'markPaid'])->name('payroll.paid');
+
+            Route::get('/{employee}/edit', [EmployeeController::class, 'edit'])->name('edit');
+            Route::put('/{employee}', [EmployeeController::class, 'update'])->name('update');
+            Route::delete('/{employee}', [EmployeeController::class, 'destroy'])->name('destroy');
         });
 
         Route::middleware('role:company_admin,super_admin')->group(function () {

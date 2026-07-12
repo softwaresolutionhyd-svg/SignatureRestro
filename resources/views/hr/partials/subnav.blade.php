@@ -22,6 +22,9 @@
             <i class="bi bi-calendar2-week me-1"></i> Leave
         </a>
         @if($u->canManagePayroll())
+            <a href="{{ route('employees.loans.index') }}" class="btn btn-outline-primary {{ request()->routeIs('employees.loans.*') ? 'active' : '' }}">
+                <i class="bi bi-wallet2 me-1"></i> Loans
+            </a>
             <a href="{{ route('employees.payroll.index') }}" class="btn btn-outline-primary {{ request()->routeIs('employees.payroll.*') ? 'active' : '' }}">
                 <i class="bi bi-cash-stack me-1"></i> Payroll
             </a>
@@ -31,6 +34,10 @@
         @if(request()->routeIs('hr.leave.*') && ($u->moduleAllows('hr', 'create') || $u->bypassesModulePermissions()))
             <a href="{{ route('hr.leave.create') }}" class="btn btn-success btn-sm">
                 <i class="bi bi-plus-circle me-1"></i> Request Leave
+            </a>
+        @elseif(request()->routeIs('employees.loans.*') && $u->canManagePayroll())
+            <a href="{{ route('employees.loans.create') }}" class="btn btn-success btn-sm">
+                <i class="bi bi-plus-circle me-1"></i> New Loan
             </a>
         @elseif(request()->routeIs('employees.index', 'employees.departments.*', 'employees.designations.*') && $u->moduleAllows('hr', 'create'))
             <a href="{{ route('employees.create') }}" class="btn btn-success btn-sm">

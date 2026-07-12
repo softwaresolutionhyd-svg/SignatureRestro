@@ -15,6 +15,7 @@ class PayrollSalaryService
     public function __construct(
         private readonly AttendancePayrollService $attendancePayroll,
         private readonly EmployeeContactSyncService $contactSync,
+        private readonly EmployeeLoanService $loanService,
     ) {}
 
     /**
@@ -83,7 +84,7 @@ class PayrollSalaryService
         $entry->base_salary = $base;
         $entry->deduction = $deduction;
         $entry->food_bill = $foodBill;
-        $entry->loan = (float) ($entry->loan ?? 0);
+        $this->loanService->syncLoanDeductionForPayroll($entry, $employee, $period);
         $entry->bonus = (float) ($entry->bonus ?? 0);
         $entry->recalculateNet();
         $entry->save();

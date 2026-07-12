@@ -41,6 +41,7 @@
 
     <div class="alert alert-info small py-2">
         Employees auto <strong>Contacts</strong> mein link hain — is month ki <strong>credit sale</strong> Food Bill mein deduct hoti hai.
+        <strong>Loan</strong> active employee loan se auto monthly instalment deduct hoti hai.
         Final = Basic + Bonus − Deduction − Food Bill − Loan
     </div>
 
@@ -81,7 +82,9 @@
                                 <input type="number" step="0.01" min="0" name="food_bill" form="{{ $pf }}" value="{{ old('food_bill', $entry->food_bill ?? 0) }}" class="form-control form-control-sm" title="Credit sales — auto from contact">
                             </td>
                             <td style="min-width: 95px;">
-                                <input type="number" step="0.01" min="0" name="loan" form="{{ $pf }}" value="{{ old('loan', $entry->loan ?? 0) }}" class="form-control form-control-sm">
+                                <input type="text" readonly class="form-control form-control-sm bg-light"
+                                       value="{{ number_format((float)($entry->loan ?? 0), 2) }}"
+                                       title="Auto from Employee Loan — monthly instalment">
                             </td>
                             <td style="min-width: 95px;">
                                 <input type="number" step="0.01" min="0" name="bonus" form="{{ $pf }}" value="{{ old('bonus', $entry->bonus) }}" class="form-control form-control-sm">
