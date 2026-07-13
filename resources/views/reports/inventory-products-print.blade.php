@@ -46,14 +46,18 @@
             <th style="width:90px;">Unit</th>
             <th class="num" style="width:64px;">Qty</th>
             <th class="num" style="width:80px;">Cost</th>
-            <th class="num" style="width:80px;">Price</th>
+            <th class="num" style="width:96px;">Value</th>
             <th style="width:60px;">Status</th>
         </tr>
         </thead>
         <tbody>
+        @php $totalValue = 0; @endphp
         @forelse($products as $i => $p)
             @php
                 $qty = (float) $p->qty_on_hand;
+                $cost = (float) $p->cost;
+                $value = $qty * $cost;
+                $totalValue += $value;
                 $status = $qty <= 0 ? 'Out' : ($qty <= 10 ? 'Low' : 'OK');
             @endphp
             <tr>
@@ -62,8 +66,8 @@
                 <td>{{ $p->name }}</td>
                 <td>{{ $p->uom ?: '—' }}</td>
                 <td class="num">{{ fmt_num($qty, 2) }}</td>
-                <td class="num">{{ $currency }} {{ fmt_num($p->cost, 2) }}</td>
-                <td class="num">{{ $currency }} {{ fmt_num($p->price, 2) }}</td>
+                <td class="num">{{ $currency }} {{ fmt_num($cost, 2) }}</td>
+                <td class="num">{{ $currency }} {{ fmt_num($value, 2) }}</td>
                 <td>{{ $status }}</td>
             </tr>
         @empty
@@ -72,6 +76,15 @@
             </tr>
         @endforelse
         </tbody>
+        @if($products->count())
+        <tfoot>
+        <tr>
+            <th colspan="6" class="num" style="text-align:right;">Total Stock Value</th>
+            <th class="num">{{ $currency }} {{ fmt_num($totalValue, 2) }}</th>
+            <th></th>
+        </tr>
+        </tfoot>
+        @endif
     </table>
 
     @if(request()->boolean('print'))

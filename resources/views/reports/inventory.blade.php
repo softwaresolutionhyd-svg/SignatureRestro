@@ -85,7 +85,7 @@
             <div class="table-responsive" style="max-height:340px; overflow-y:auto;">
                 <table class="table table-sm table-hover mb-0 align-middle">
                     <thead class="table-light sticky-top">
-                        <tr><th>SKU</th><th>Name</th><th>Unit</th><th class="text-end">Qty</th><th class="text-end">Cost</th><th class="text-end">Price</th></tr>
+                        <tr><th>SKU</th><th>Name</th><th>Unit</th><th class="text-end">Qty</th><th class="text-end">Cost</th><th class="text-end">Value</th></tr>
                     </thead>
                     <tbody>
                     @forelse($products as $p)
@@ -102,7 +102,7 @@
                             @endif
                         </td>
                         <td class="text-end small">{{ $currency }} {{ fmt_num($p->cost,2) }}</td>
-                        <td class="text-end small">{{ $currency }} {{ fmt_num($p->price,2) }}</td>
+                        <td class="text-end small">{{ $currency }} {{ fmt_num((float) $p->qty_on_hand * (float) $p->cost, 2) }}</td>
                     </tr>
                     @empty
                     <tr><td colspan="6" class="text-center py-4 text-secondary">No products found</td></tr>
