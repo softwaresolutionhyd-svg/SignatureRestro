@@ -58,13 +58,6 @@
         @error('order_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
 
-    <div class="col-12 col-lg-3">
-        <label class="form-label">Expected date</label>
-        <input type="date" name="expected_date" value="{{ old('expected_date', optional($order->expected_date ?? null)?->format('Y-m-d')) }}"
-               class="form-control @error('expected_date') is-invalid @enderror">
-        @error('expected_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
-    </div>
-
     <div class="col-12 col-lg-2">
         <label class="form-label">Status</label>
         <input type="text" class="form-control" value="{{ strtoupper($order->status ?? 'RFQ') }}" disabled>
