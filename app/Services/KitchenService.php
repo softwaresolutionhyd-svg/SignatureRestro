@@ -14,13 +14,20 @@ use RuntimeException;
 
 final class KitchenService
 {
+    /** Per-request cache: activeOrders() is called several times per kitchen page. */
+    private ?Collection $activeOrdersCache = null;
+
     /**
      * @return Collection<int, PosOrder>
      */
     public function activeOrders(): Collection
     {
+        if ($this->activeOrdersCache !== null) {
+            return $this->activeOrdersCache;
+        }
+
         if (! Schema::hasColumn('pos_orders', 'kitchen_completed_at')) {
-            return collect();
+            return $this->activeOrdersCache = collect();
         }
 
         $session = PosSession::query()
@@ -86,7 +93,7 @@ final class KitchenService
                 ->orderBy('kitchen_sort');
         }
 
-        return $query->orderBy('ready_for_pos_at')
+        return $this->activeOrdersCache = $query->orderBy('ready_for_pos_at')
             ->orderBy('created_at')
             ->get()
             ->filter(fn (PosOrder $order) => $this->orderBelongsOnKitchenBoard($order))

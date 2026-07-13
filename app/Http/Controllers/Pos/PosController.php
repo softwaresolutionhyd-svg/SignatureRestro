@@ -343,15 +343,22 @@ class PosController extends Controller
         ];
     }
 
+    /** @var array<int, Employee|null> Per-request cache keyed by user id. */
+    private array $posEmployeeCache = [];
+
     private function resolvePosEmployee(?User $user): ?Employee
     {
         if ($user === null) {
             return null;
         }
 
+        if (array_key_exists($user->id, $this->posEmployeeCache)) {
+            return $this->posEmployeeCache[$user->id];
+        }
+
         $employee = $user->relationLoaded('employee') ? $user->getRelation('employee') : null;
         if ($employee !== null) {
-            return $employee->active ? $employee : null;
+            return $this->posEmployeeCache[$user->id] = ($employee->active ? $employee : null);
         }
 
         $query = Employee::withoutGlobalScope('company')
@@ -362,9 +369,7 @@ class PosController extends Controller
             $query->where('company_id', $user->company_id);
         }
 
-        $employee = $query->first();
-
-        return $employee;
+        return $this->posEmployeeCache[$user->id] = $query->first();
     }
 
     private function employeeDesignationText(Employee $employee): string
@@ -546,12 +551,17 @@ class PosController extends Controller
         $billSessionIds = $this->resolvePosBillSessionIds($session, $user);
         $heldOrders = app(PosPendingBillsService::class)->queryHeldDrafts($billSessionIds, false);
 
+        // Batch eager-load once for the whole collection (avoids N+1 per draft).
+        if ($heldOrders->isNotEmpty()) {
+            $heldOrders->load(['items.product:id,name', 'table:id,name']);
+            $heldOrders->loadCount('items');
+        }
+
         foreach ($heldOrders as $draft) {
-            $draft->loadMissing(['items.product:id,name', 'table:id,name']);
-            $draft->loadCount('items');
             if ($this->repairDraftOrderIfNeeded($draft)) {
                 $draft->refresh();
                 $draft->loadMissing(['items.product:id,name', 'table:id,name']);
+                $draft->loadCount('items');
             }
         }
 

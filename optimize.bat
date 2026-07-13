@@ -1,0 +1,4 @@
+@echo off
+title Signature POS - Optimize
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0optimize.ps1"
+pause

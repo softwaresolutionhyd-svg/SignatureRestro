@@ -3,11 +3,46 @@
 namespace App\Support;
 
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 
 /** Auto-add POS columns when hosting migrate was not run after FTP deploy. */
 final class PosRuntimeSchema
 {
+    /**
+     * Bump this whenever the ensure* methods below add a NEW column, so the
+     * per-request skip-cache is invalidated. (Deploy/optimize also clears cache.)
+     */
+    private const SCHEMA_VERSION = '2026_07_13_1';
+
+    /**
+     * Run an ensure routine at most once per cache window (avoids hitting
+     * information_schema on every POS request/poll). The closure should return
+     * FALSE if it could not fully run (e.g. table missing) so we retry later.
+     */
+    private static function once(string $key, callable $fn): void
+    {
+        $cacheKey = 'pos_runtime_schema:' . self::SCHEMA_VERSION . ':' . $key;
+
+        try {
+            if (Cache::get($cacheKey)) {
+                return;
+            }
+        } catch (\Throwable $e) {
+            // Cache unavailable — just run the ensure.
+        }
+
+        $result = $fn();
+
+        if ($result !== false) {
+            try {
+                Cache::put($cacheKey, true, now()->addHours(12));
+            } catch (\Throwable $e) {
+                // ignore cache write failure
+            }
+        }
+    }
+
     public static function ensureForSessionSummary(?string $connection = null): void
     {
         self::ensureServiceChargeColumns($connection);
@@ -23,11 +58,19 @@ final class PosRuntimeSchema
 
     public static function ensureServiceChargeColumns(?string $connection = null): void
     {
+        self::once('service_charge:' . ($connection ?? 'auto'), fn () => self::runServiceChargeColumns($connection));
+    }
+
+    private static function runServiceChargeColumns(?string $connection = null): bool
+    {
+        $ranForTable = false;
+
         foreach (self::resolveConnections($connection) as $conn) {
             $schema = Schema::connection($conn);
             if (! $schema->hasTable('pos_orders')) {
                 continue;
             }
+            $ranForTable = true;
 
             if (! $schema->hasColumn('pos_orders', 'service_charge_percent')) {
                 try {
@@ -51,6 +94,8 @@ final class PosRuntimeSchema
                 }
             }
         }
+
+        return $ranForTable;
     }
 
     /**
@@ -86,10 +131,15 @@ final class PosRuntimeSchema
 
     public static function ensureOrdersTable(?string $connection = null): void
     {
+        self::once('orders:' . ($connection ?? 'tenant'), fn () => self::runOrdersTable($connection));
+    }
+
+    private static function runOrdersTable(?string $connection = null): bool
+    {
         $schema = Schema::connection($connection ?? 'tenant');
 
         if (! $schema->hasTable('pos_orders')) {
-            return;
+            return false;
         }
 
         try {
@@ -214,14 +264,21 @@ final class PosRuntimeSchema
         } catch (\Throwable $e) {
             report($e);
         }
+
+        return true;
     }
 
     public static function ensureOrderItemsTable(?string $connection = null): void
     {
+        self::once('order_items:' . ($connection ?? 'tenant'), fn () => self::runOrderItemsTable($connection));
+    }
+
+    private static function runOrderItemsTable(?string $connection = null): bool
+    {
         $schema = Schema::connection($connection ?? 'tenant');
 
         if (! $schema->hasTable('pos_order_items')) {
-            return;
+            return false;
         }
 
         try {
@@ -243,14 +300,21 @@ final class PosRuntimeSchema
         } catch (\Throwable $e) {
             report($e);
         }
+
+        return true;
     }
 
     public static function ensureSessionsDailyClosing(?string $connection = null): void
     {
+        self::once('sessions_daily:' . ($connection ?? 'tenant'), fn () => self::runSessionsDailyClosing($connection));
+    }
+
+    private static function runSessionsDailyClosing(?string $connection = null): bool
+    {
         $schema = Schema::connection($connection ?? 'tenant');
 
         if (! $schema->hasTable('pos_sessions')) {
-            return;
+            return false;
         }
 
         try {
@@ -282,5 +346,7 @@ final class PosRuntimeSchema
         } catch (\Throwable $e) {
             report($e);
         }
+
+        return true;
     }
 }
