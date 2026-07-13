@@ -31,6 +31,8 @@ final class OrderTakerService
             throw new RuntimeException('Kam az kam aik product add karein.');
         }
 
+        $this->assertPosSessionStarted();
+
         $guest = $this->resolveGuestMeta($meta);
         [$subtotal, $discountTotal, $taxTotal, $serviceTotal, $grandTotal, $lines] = $this->buildLines(
             $items,
@@ -81,10 +83,36 @@ final class OrderTakerService
 
     public function openPosSession(): ?PosSession
     {
+        $today = now()->toDateString();
+
         return PosSession::query()
             ->where('status', 'open')
+            ->where(function ($q) use ($today) {
+                $q->whereDate('opened_at', $today)
+                    ->orWhere('business_date', $today);
+            })
+            ->when($this->sessionsHaveShiftStartedColumn(), function ($q) {
+                $q->where('shift_started', true);
+            })
             ->latest('id')
             ->first();
+    }
+
+    public function hasStartedPosSession(): bool
+    {
+        return $this->openPosSession() !== null;
+    }
+
+    public function assertPosSessionStarted(): void
+    {
+        if (! $this->hasStartedPosSession()) {
+            throw new RuntimeException('POS session abhi open nahi hui. Pehle cashier se POS session open karwayein, phir order punch karein.');
+        }
+    }
+
+    private function sessionsHaveShiftStartedColumn(): bool
+    {
+        return Schema::hasColumn('pos_sessions', 'shift_started');
     }
 
     /**
@@ -295,6 +323,7 @@ final class OrderTakerService
      */
     public function updatePendingBill(PosOrder $order, array $items): PosOrder
     {
+        $this->assertPosSessionStarted();
         $this->assertPendingAmendable($order);
 
         if ($items === []) {

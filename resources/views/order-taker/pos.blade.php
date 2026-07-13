@@ -96,7 +96,7 @@
             <div class="ot-table-board-body">
                 <div class="ot-no-session">
                     <i class="bi bi-exclamation-triangle"></i>
-                    <p>POS session open nahi hai. Pehle cashier se session open karwayein.</p>
+                    <p>POS session abhi open nahi hui. Jab tak cashier POS session open na kare, order punch nahi ho sakta.</p>
                 </div>
             </div>
         @elseif($tableBoard === [])
