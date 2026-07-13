@@ -250,6 +250,8 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
             Route::post('/reopen/{order}', [PosController::class, 'reopenPaidBill'])->name('reopen');
             Route::get('/receipt/{order}/unpaid', [PosController::class, 'unpaidReceipt'])->name('receipt.unpaid');
             Route::get('/kitchen/{order}', [PosController::class, 'kitchenSlip'])->name('kitchen');
+            Route::post('/kitchen-print/{order}', [PosController::class, 'kitchenPrintNetwork'])->name('kitchen-print');
+            Route::post('/cashier-print/{order}', [PosController::class, 'cashierPrintNetwork'])->name('cashier-print');
             Route::get('/receipt/{order}', [PosController::class, 'receipt'])->name('receipt');
         });
     });

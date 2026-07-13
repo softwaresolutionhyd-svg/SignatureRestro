@@ -383,6 +383,8 @@
     $receiptStub = str_replace('999999999', '__ID__', route('restaurant-pos.receipt', ['order' => 999999999]));
     $receiptUnpaidStub = str_replace('999999999', '__ID__', route('restaurant-pos.receipt.unpaid', ['order' => 999999999]));
     $kitchenStub = str_replace('999999999', '__ID__', route('restaurant-pos.kitchen', ['order' => 999999999]));
+    $kitchenPrintStub = str_replace('999999999', '__ID__', route('restaurant-pos.kitchen-print', ['order' => 999999999]));
+    $cashierPrintStub = str_replace('999999999', '__ID__', route('restaurant-pos.cashier-print', ['order' => 999999999]));
     $discardStub = str_replace('999999999', '__ID__', route('restaurant-pos.hold.discard', ['orderId' => 999999999]));
     $reopenStub = str_replace('999999999', '__ID__', route('restaurant-pos.reopen', ['order' => 999999999]));
     $restaurantBootstrap = [
@@ -413,6 +415,8 @@
             'receipt' => $receiptStub,
             'receiptUnpaid' => $receiptUnpaidStub,
             'kitchen' => $kitchenStub,
+            'kitchenPrint' => $kitchenPrintStub,
+            'cashierPrint' => $cashierPrintStub,
             'reopen' => $reopenStub,
         ],
     ];

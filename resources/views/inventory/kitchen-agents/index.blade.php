@@ -42,6 +42,46 @@
                     </tr>
                     </thead>
                     <tbody>
+                    <tr class="table-primary">
+                        <td class="fw-semibold">
+                            <i class="bi bi-cash-coin me-1"></i> CASHIER
+                            <span class="badge text-bg-dark ms-1">Bills</span>
+                        </td>
+                        <td>
+                            <input type="text"
+                                   name="cashier_printer_ip"
+                                   value="{{ old('cashier_printer_ip', $cashier['printer_ip']) }}"
+                                   class="form-control form-control-sm @error('cashier_printer_ip') is-invalid @enderror"
+                                   placeholder="192.168.1.60" inputmode="numeric" autocomplete="off">
+                            @error('cashier_printer_ip')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </td>
+                        <td>
+                            <input type="number"
+                                   name="cashier_printer_port"
+                                   value="{{ old('cashier_printer_port', $cashier['printer_port']) }}"
+                                   class="form-control form-control-sm @error('cashier_printer_port') is-invalid @enderror"
+                                   placeholder="9100" min="1" max="65535">
+                            @error('cashier_printer_port')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </td>
+                        <td>
+                            <input type="text"
+                                   name="cashier_printer_name"
+                                   value="{{ old('cashier_printer_name', $cashier['printer_name']) }}"
+                                   class="form-control form-control-sm"
+                                   placeholder="e.g. Cashier Receipt" maxlength="100" autocomplete="off">
+                        </td>
+                        <td class="text-center">
+                            @if(!empty($cashier['printer_ip']))
+                                <span class="badge text-bg-success">Assigned</span>
+                            @else
+                                <span class="badge text-bg-secondary">Not set</span>
+                            @endif
+                        </td>
+                    </tr>
                     @forelse($departments as $d)
                         <tr>
                             <td class="fw-semibold">

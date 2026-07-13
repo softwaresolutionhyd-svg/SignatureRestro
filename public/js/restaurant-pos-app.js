@@ -1252,6 +1252,17 @@
 
         const receiptUrl = data.receipt_url
             || (data.order_id ? (routes.receipt || '').replace('__ID__', String(data.order_id)) : '');
+
+        // If a cashier network printer is configured, print the bill there and skip browser auto-print.
+        if (data.order_id && await tryCashierNetworkPrint(data.order_id)) {
+            if (receiptUrl) {
+                window.location.assign(receiptUrl + (receiptUrl.includes('?') ? '&' : '?') + 'noprint=1');
+                return true;
+            }
+            resetForNewBill();
+            return true;
+        }
+
         if (receiptUrl) {
             window.location.assign(receiptUrl);
             return true;
@@ -1516,12 +1527,75 @@
         });
     }
 
-    function printKitchenSlip(orderId) {
+    function browserPrintKitchenSlip(orderId) {
         const base = (routes.kitchen || '').replace('__ID__', String(orderId));
         if (!base) {
             throw new Error('Kitchen print route missing.');
         }
         return printUrlInHiddenFrame(`${base}?noprint=1`);
+    }
+
+    async function printKitchenSlip(orderId) {
+        // Try direct network printing first: each product routes to its department's printer.
+        const netUrl = (routes.kitchenPrint || '').replace('__ID__', String(orderId));
+        if (netUrl && csrf) {
+            try {
+                const res = await fetch(netUrl, {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': csrf,
+                    },
+                });
+                const data = await res.json().catch(() => ({}));
+
+                if (res.ok && data.ok) {
+                    const failed = (data.results || []).filter((r) => !r.ok);
+                    if (failed.length) {
+                        alert('Kuch printers par print nahi hua:\n' +
+                            failed.map((r) => `• ${r.department}: ${r.error || 'error'}`).join('\n'));
+                    }
+                    return;
+                }
+
+                // fallback === true means no department printer configured → use browser print.
+                if (!data.fallback) {
+                    const failed = (data.results || []).filter((r) => !r.ok);
+                    if (failed.length) {
+                        alert('Network print fail hua (browser print try kar rahe hain):\n' +
+                            failed.map((r) => `• ${r.department}: ${r.error || 'error'}`).join('\n'));
+                    } else if (data.message) {
+                        alert(data.message);
+                    }
+                }
+            } catch (e) {
+                // Ignore and fall back to browser print below.
+            }
+        }
+
+        return browserPrintKitchenSlip(orderId);
+    }
+
+    async function tryCashierNetworkPrint(orderId) {
+        const url = (routes.cashierPrint || '').replace('__ID__', String(orderId));
+        if (!url || !csrf) return false;
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': csrf,
+                },
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data.ok) return true;
+            if (!data.fallback && data.message) alert(data.message);
+            return false;
+        } catch (e) {
+            return false;
+        }
     }
 
     function clearStaleResumeState(message) {
@@ -1737,6 +1811,9 @@
         if (btn) btn.disabled = true;
         try {
             const orderId = await ensureHeldOrderForPrint();
+            if (await tryCashierNetworkPrint(orderId)) {
+                return;
+            }
             const base = (routes.receiptUnpaid || '').replace('__ID__', String(orderId));
             if (!base) {
                 throw new Error('Print route missing.');

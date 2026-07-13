@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
 use App\Models\InventoryDepartment;
+use App\Models\Setting;
 use App\Services\InventoryStockService;
 use App\Support\EnsuresKitchenAgentSchema;
 use Illuminate\Http\Request;
@@ -27,7 +28,13 @@ class KitchenAgentController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('inventory.kitchen-agents.index', compact('departments'));
+        $cashier = [
+            'printer_ip'   => Setting::get('cashier_printer_ip', ''),
+            'printer_port' => Setting::get('cashier_printer_port', ''),
+            'printer_name' => Setting::get('cashier_printer_name', ''),
+        ];
+
+        return view('inventory.kitchen-agents.index', compact('departments', 'cashier'));
     }
 
     public function update(Request $request)
@@ -39,8 +46,13 @@ class KitchenAgentController extends Controller
             'printers.*.printer_ip'    => ['nullable', 'ip'],
             'printers.*.printer_port'  => ['nullable', 'integer', 'min:1', 'max:65535'],
             'printers.*.printer_name'  => ['nullable', 'string', 'max:100'],
+
+            'cashier_printer_ip'       => ['nullable', 'ip'],
+            'cashier_printer_port'     => ['nullable', 'integer', 'min:1', 'max:65535'],
+            'cashier_printer_name'     => ['nullable', 'string', 'max:100'],
         ], [
             'printers.*.printer_ip.ip' => 'Valid IP address likhein (jaise 192.168.1.50).',
+            'cashier_printer_ip.ip'    => 'Cashier ke liye valid IP likhein (jaise 192.168.1.60).',
         ]);
 
         $printers = $data['printers'] ?? [];
@@ -61,6 +73,11 @@ class KitchenAgentController extends Controller
                 'printer_name' => $name !== '' ? $name : null,
             ]);
         }
+
+        $cashierIp = trim((string) ($data['cashier_printer_ip'] ?? ''));
+        Setting::set('cashier_printer_ip', $cashierIp !== '' ? $cashierIp : '');
+        Setting::set('cashier_printer_port', $cashierIp !== '' ? ((string) ($data['cashier_printer_port'] ?? 9100 ?: 9100)) : '');
+        Setting::set('cashier_printer_name', trim((string) ($data['cashier_printer_name'] ?? '')));
 
         return redirect()
             ->route('inventory.kitchen-agents.index')
