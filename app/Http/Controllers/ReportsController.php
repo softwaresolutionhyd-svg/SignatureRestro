@@ -568,13 +568,28 @@ class ReportsController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'is_warehouse']);
 
-        // Warehouse master stock ke sare items dikhane ke liye: warehouse select hone par
-        // pivot filter skip karke sare active products show karo.
         $selectedDepartment  = $departmentId ? $departments->firstWhere('id', $departmentId) : null;
         $isWarehouseSelected = (bool) ($selectedDepartment?->is_warehouse);
 
+        // Warehouse = master stock: sirf woh products jo warehouse me maujood hain
+        // (warehouse stock qty > 0) ya warehouse-assigned hain. Baaki departments ki
+        // products warehouse report me show nahi hongi.
         $applyDepartment = function ($query) use ($departmentId, $isWarehouseSelected) {
-            if ($departmentId !== null && ! $isWarehouseSelected) {
+            if ($departmentId === null) {
+                return $query;
+            }
+
+            if ($isWarehouseSelected) {
+                $query->where(function ($q) use ($departmentId) {
+                    $q->whereHas(
+                        'stocks',
+                        fn ($s) => $s->where('department_id', $departmentId)->where('qty_on_hand', '>', 0)
+                    )->orWhereHas(
+                        'departments',
+                        fn ($dep) => $dep->where('inventory_departments.id', $departmentId)
+                    );
+                });
+            } else {
                 $query->whereHas(
                     'departments',
                     fn ($dep) => $dep->where('inventory_departments.id', $departmentId)
@@ -635,12 +650,24 @@ class ReportsController extends Controller
 
         $query = InventoryProduct::with('category')->where('active', true);
 
-        // Warehouse master stock: warehouse select hone par sare active products dikhao.
-        if ($departmentId !== null && ! ($department?->is_warehouse)) {
-            $query->whereHas(
-                'departments',
-                fn ($dep) => $dep->where('inventory_departments.id', $departmentId)
-            );
+        if ($departmentId !== null) {
+            if ($department?->is_warehouse) {
+                // Warehouse = master stock: warehouse me maujood ya warehouse-assigned products.
+                $query->where(function ($q) use ($departmentId) {
+                    $q->whereHas(
+                        'stocks',
+                        fn ($s) => $s->where('department_id', $departmentId)->where('qty_on_hand', '>', 0)
+                    )->orWhereHas(
+                        'departments',
+                        fn ($dep) => $dep->where('inventory_departments.id', $departmentId)
+                    );
+                });
+            } else {
+                $query->whereHas(
+                    'departments',
+                    fn ($dep) => $dep->where('inventory_departments.id', $departmentId)
+                );
+            }
         }
 
         if ($filter === 'low') {
