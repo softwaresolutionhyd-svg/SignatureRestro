@@ -568,8 +568,13 @@ class ReportsController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'is_warehouse']);
 
-        $applyDepartment = function ($query) use ($departmentId) {
-            if ($departmentId !== null) {
+        // Warehouse master stock ke sare items dikhane ke liye: warehouse select hone par
+        // pivot filter skip karke sare active products show karo.
+        $selectedDepartment  = $departmentId ? $departments->firstWhere('id', $departmentId) : null;
+        $isWarehouseSelected = (bool) ($selectedDepartment?->is_warehouse);
+
+        $applyDepartment = function ($query) use ($departmentId, $isWarehouseSelected) {
+            if ($departmentId !== null && ! $isWarehouseSelected) {
                 $query->whereHas(
                     'departments',
                     fn ($dep) => $dep->where('inventory_departments.id', $departmentId)
@@ -626,9 +631,12 @@ class ReportsController extends Controller
         $departmentId = $departmentId > 0 ? $departmentId : null;
         $currency     = Setting::get('currency_symbol', 'Rs.');
 
+        $department = $departmentId ? InventoryDepartment::find($departmentId) : null;
+
         $query = InventoryProduct::with('category')->where('active', true);
 
-        if ($departmentId !== null) {
+        // Warehouse master stock: warehouse select hone par sare active products dikhao.
+        if ($departmentId !== null && ! ($department?->is_warehouse)) {
             $query->whereHas(
                 'departments',
                 fn ($dep) => $dep->where('inventory_departments.id', $departmentId)
@@ -641,8 +649,7 @@ class ReportsController extends Controller
             $query->where('qty_on_hand', '<=', 0)->excludingActiveBomFinishedProducts();
         }
 
-        $products   = $query->orderBy('name')->get();
-        $department = $departmentId ? InventoryDepartment::find($departmentId) : null;
+        $products = $query->orderBy('name')->get();
 
         $filterLabel = match ($filter) {
             'low'  => 'Low Stock (≤10)',
