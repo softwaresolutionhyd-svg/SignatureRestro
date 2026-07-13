@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Contact;
 use App\Models\CreditLedger;
 use App\Models\PosOrder;
+use App\Models\PurchaseOrder;
 use App\Models\Setting;
 use App\Services\PosCreditLedgerSync;
 use Illuminate\Http\Request;
@@ -66,6 +67,20 @@ class CreditBookController extends Controller
         ], Setting::all_map());
 
         return view('credit-book.partials.pos-sale-detail', compact('order', 'settings'));
+    }
+
+    /** View items purchased on a credit purchase order linked to the credit book. */
+    public function showPurchase(Request $request, PurchaseOrder $order): View
+    {
+        abort_unless($order->purchase_type === 'credit', 404);
+
+        $order->load(['lines.product:id,name,sku', 'vendor:id,name,phone', 'creator:id,name']);
+
+        $settings = array_merge([
+            'currency_symbol' => 'Rs.',
+        ], Setting::all_map());
+
+        return view('credit-book.partials.purchase-detail', compact('order', 'settings'));
     }
 
     /** Add a manual credit or payment entry for a contact */

@@ -92,6 +92,24 @@ class ContactController extends Controller
         return view('contacts.show', compact('contact','ledger','balance','totalCredit','totalPaid'));
     }
 
+    public function printLedger(Contact $contact)
+    {
+        $ledger = $contact->creditLedger()
+            ->orderBy('entry_date')
+            ->orderBy('id')
+            ->get();
+
+        $totalCredit = (float) $contact->creditLedger()->where('type', 'credit')->sum('amount');
+        $totalPaid   = (float) $contact->creditLedger()->where('type', 'payment')->sum('amount');
+        $balance     = round($totalCredit - $totalPaid, 2);
+        $companyName = Setting::get('company_name', config('app.name'));
+        $currency    = Setting::get('currency_symbol', 'Rs.');
+
+        return view('contacts.ledger-print', compact(
+            'contact', 'ledger', 'totalCredit', 'totalPaid', 'balance', 'companyName', 'currency'
+        ));
+    }
+
     public function edit(Contact $contact)
     {
         $categoryOptions = Contact::categoryOptions();

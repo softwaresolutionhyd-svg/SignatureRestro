@@ -27,6 +27,9 @@
     </div>
     <div class="d-flex gap-2">
         <a href="{{ route('contacts.index') }}" class="btn btn-outline-secondary btn-sm">← Back</a>
+        <a href="{{ route('contacts.ledger-print', $contact) }}" target="_blank" class="btn btn-outline-dark btn-sm">
+            <i class="bi bi-printer"></i> Print Ledger
+        </a>
         <a href="{{ route('contacts.edit', $contact) }}" class="btn btn-outline-primary btn-sm">Edit</a>
     </div>
 </div>
@@ -132,6 +135,11 @@
                                            class="btn btn-sm btn-outline-primary py-0 px-2 js-pos-sale-view"
                                            style="font-size:11px;"
                                            data-pos-sale-url="{{ route('credit-book.pos-sale', $entry->posOrder) }}">View</button>
+                                    @elseif($entry->purchase_order_id && $entry->purchaseOrder)
+                                        <button type="button"
+                                           class="btn btn-sm btn-outline-primary py-0 px-2 js-pos-sale-view"
+                                           style="font-size:11px;"
+                                           data-pos-sale-url="{{ route('credit-book.purchase', $entry->purchaseOrder) }}">View</button>
                                     @elseif(!$entry->pos_order_id && !$entry->purchase_order_id && !$entry->payroll_entry_id)
                                     <form method="POST" action="{{ route('credit-book.destroy', $entry) }}"
                                         onsubmit="return confirm('Delete this entry?')">
@@ -219,7 +227,7 @@
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">POS Sale Detail</h5>
+                <h5 class="modal-title">Transaction Detail</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-0" id="posSaleViewBody" style="min-height:70vh;">

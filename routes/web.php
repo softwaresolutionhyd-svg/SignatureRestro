@@ -372,6 +372,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
         Route::get('/create',          [ContactController::class, 'create']) ->name('create');
         Route::post('/',               [ContactController::class, 'store'])  ->name('store');
         Route::get('/{contact}',       [ContactController::class, 'show'])   ->name('show');
+        Route::get('/{contact}/ledger-print', [ContactController::class, 'printLedger'])->name('ledger-print');
         Route::get('/{contact}/edit',  [ContactController::class, 'edit'])   ->name('edit');
         Route::put('/{contact}',       [ContactController::class, 'update']) ->name('update');
         Route::delete('/{contact}',    [ContactController::class, 'destroy'])->name('destroy');
@@ -381,6 +382,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
     Route::prefix('credit-book')->name('credit-book.')->middleware('moduleAccess')->group(function () {
         Route::get('/',               [CreditBookController::class, 'index'])  ->name('index');
         Route::get('/pos-sale/{order}', [CreditBookController::class, 'showPosSale'])->name('pos-sale');
+        Route::get('/purchase/{order}', [CreditBookController::class, 'showPurchase'])->name('purchase');
         Route::post('/',              [CreditBookController::class, 'store'])  ->name('store');
         Route::delete('/{entry}',     [CreditBookController::class, 'destroy'])->name('destroy');
     });
