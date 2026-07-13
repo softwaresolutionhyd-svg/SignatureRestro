@@ -78,10 +78,6 @@
                         <div class="text-secondary small">Order date</div>
                         <div class="fw-semibold">{{ $order->order_date?->format('Y-m-d') ?? '—' }}</div>
                     </div>
-                    <div class="col-12 col-lg-3">
-                        <div class="text-secondary small">Expected date</div>
-                        <div class="fw-semibold">{{ $order->expected_date?->format('Y-m-d') ?? '—' }}</div>
-                    </div>
                     <div class="col-12 col-lg-2">
                         <div class="text-secondary small">Total</div>
                         <div class="fw-bold">{{ fmt_num((float)$order->grand_total, 2) }}</div>
