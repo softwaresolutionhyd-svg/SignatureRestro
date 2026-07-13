@@ -508,6 +508,33 @@ class ReportsController extends Controller
             'total' => $group->sum('grand_total'),
         ])->sortByDesc('total');
 
+        // Purchased products grouped per vendor, then by date (which day how much came in)
+        $byVendorProducts = $purchaseLines
+            ->groupBy(fn (PurchaseOrderLine $line) => $line->order?->vendor_id ?: 'none')
+            ->map(function ($group) {
+                $first = $group->first();
+
+                return [
+                    'vendor' => optional($first->order?->vendor)->name ?? 'Unknown',
+                    'orders' => $group->pluck('purchase_order_id')->unique()->count(),
+                    'qty'    => round((float) $group->sum('qty'), 3),
+                    'total'  => round((float) $group->sum('total'), 2),
+                    'lines'  => $group
+                        ->sortBy(fn (PurchaseOrderLine $l) => $l->order?->order_date?->format('Y-m-d') . str_pad((string) ($l->order?->number ?? ''), 12, '0', STR_PAD_LEFT))
+                        ->map(fn (PurchaseOrderLine $l) => [
+                            'date'    => $l->order?->order_date,
+                            'number'  => $l->order?->number,
+                            'product' => $l->product?->name ?? $l->description ?? 'Unknown',
+                            'sku'     => $l->product?->sku ?? '—',
+                            'uom'     => $l->uom ?: ($l->product?->uom ?? '—'),
+                            'qty'     => round((float) $l->qty, 3),
+                            'total'   => round((float) $l->total, 2),
+                        ])->values(),
+                ];
+            })
+            ->sortByDesc('total')
+            ->values();
+
         $vendors = PurchaseVendor::orderBy('name')->get(['id', 'name']);
 
         $chartLabels = $byVendor->pluck('name');
@@ -519,7 +546,7 @@ class ReportsController extends Controller
         return compact(
             'orders', 'from', 'to', 'vendor', 'status', 'currency',
             'totalAmount', 'totalTax', 'orderCount',
-            'byVendor', 'vendors', 'chartLabels', 'chartData',
+            'byVendor', 'byVendorProducts', 'vendors', 'chartLabels', 'chartData',
             'purchaseLines', 'byProduct', 'lineCount', 'productCount',
             'selectedVendor', 'statusLabel'
         );

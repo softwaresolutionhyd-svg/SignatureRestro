@@ -1,8 +1,9 @@
+@php $companyName = \App\Models\Setting::get('company_name', config('app.name')); @endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Purchase Report — {{ config('app.name') }}</title>
+    <title>Purchase Report — {{ $companyName }}</title>
     <style>
         * { box-sizing: border-box; }
         @page { size: A4 portrait; margin: 14mm; }
@@ -26,7 +27,7 @@
         <a href="{{ route('reports.purchases', request()->only(['from', 'to', 'vendor', 'status'])) }}">Back</a>
     </div>
 
-    <h1>{{ $companyName ?? config('app.name') }}</h1>
+    <h1>{{ $companyName }}</h1>
     <h2 style="text-align:center;font-weight:normal;margin-top:0;">Purchase Report</h2>
 
     <div class="meta">
@@ -40,6 +41,53 @@
         <tr><th>Total Spend</th><td class="num">{{ $currency }} {{ fmt_num($totalAmount, 2) }}</td></tr>
         <tr><th>Tax</th><td class="num">{{ $currency }} {{ fmt_num($totalTax, 2) }}</td></tr>
     </table>
+
+    <h2>Purchased Products (Vendor Wise)</h2>
+    @forelse($byVendorProducts as $vendorGroup)
+        <table style="margin-bottom:4px;">
+            <tr>
+                <th colspan="5" style="background:#eee;font-size:11pt;">
+                    {{ $vendorGroup['vendor'] }}
+                    <span style="font-weight:normal;font-size:9pt;">
+                        &nbsp;— {{ $vendorGroup['orders'] }} order(s), Total {{ $currency }} {{ fmt_num($vendorGroup['total'], 2) }}
+                    </span>
+                </th>
+            </tr>
+        </table>
+        <table style="margin-bottom:16px;">
+            <thead>
+            <tr>
+                <th style="width:90px;">Date</th>
+                <th>Product</th>
+                <th style="width:90px;">SKU</th>
+                <th style="width:60px;">UOM</th>
+                <th class="num" style="width:80px;">Qty</th>
+                <th class="num" style="width:100px;">Amount</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach($vendorGroup['lines'] as $line)
+                <tr>
+                    <td>{{ $line['date'] ? \Carbon\Carbon::parse($line['date'])->format('d M Y') : '—' }}</td>
+                    <td>{{ $line['product'] }}</td>
+                    <td>{{ $line['sku'] }}</td>
+                    <td>{{ $line['uom'] }}</td>
+                    <td class="num">{{ fmt_num($line['qty'], 3) }}</td>
+                    <td class="num">{{ $currency }} {{ fmt_num($line['total'], 2) }}</td>
+                </tr>
+            @endforeach
+            </tbody>
+            <tfoot>
+            <tr class="bold">
+                <td colspan="4" class="num">Vendor Total</td>
+                <td class="num">{{ fmt_num($vendorGroup['qty'], 3) }}</td>
+                <td class="num">{{ $currency }} {{ fmt_num($vendorGroup['total'], 2) }}</td>
+            </tr>
+            </tfoot>
+        </table>
+    @empty
+        <table><tr><td style="text-align:center;">No products</td></tr></table>
+    @endforelse
 
     <h2>Vendor Breakdown</h2>
     <table>
@@ -55,37 +103,12 @@
             <tr><td colspan="3" style="text-align:center;">No data</td></tr>
         @endforelse
         </tbody>
-    </table>
-
-    <h2>Purchased Products (Summary)</h2>
-    <table>
-        <thead>
-        <tr>
-            <th>Product</th>
-            <th>SKU</th>
-            <th>UOM</th>
-            <th class="num">Total Qty</th>
-            <th class="num">Total Amount</th>
-        </tr>
-        </thead>
-        <tbody>
-        @forelse($byProduct as $row)
-            <tr>
-                <td>{{ $row['name'] }}</td>
-                <td>{{ $row['sku'] }}</td>
-                <td>{{ $row['uom'] }}</td>
-                <td class="num">{{ fmt_num($row['qty'], 3) }}</td>
-                <td class="num">{{ $currency }} {{ fmt_num($row['total'], 2) }}</td>
-            </tr>
-        @empty
-            <tr><td colspan="5" style="text-align:center;">No products</td></tr>
-        @endforelse
-        </tbody>
-        @if($byProduct->isNotEmpty())
+        @if($byVendor->isNotEmpty())
         <tfoot>
         <tr class="bold">
-            <th colspan="4" class="num">Total</th>
-            <th class="num">{{ $currency }} {{ fmt_num($purchaseLines->sum('total'), 2) }}</th>
+            <td class="num">Total</td>
+            <td class="num">{{ $orderCount }}</td>
+            <td class="num">{{ $currency }} {{ fmt_num($totalAmount, 2) }}</td>
         </tr>
         </tfoot>
         @endif

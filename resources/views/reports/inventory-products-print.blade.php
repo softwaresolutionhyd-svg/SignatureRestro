@@ -26,7 +26,7 @@
         <a href="{{ route('reports.inventory', request()->only(['filter', 'department_id'])) }}">Back</a>
     </div>
 
-    <h1>{{ $companyName ?? config('app.name') }}</h1>
+    <h1>{{ \App\Models\Setting::get('company_name', config('app.name')) }}</h1>
     <h2>Inventory Products</h2>
 
     <div class="meta">

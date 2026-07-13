@@ -27,7 +27,7 @@
         <a href="{{ route('reports.issue-stock', request()->only(['from', 'to', 'department_id'])) }}">Back</a>
     </div>
 
-    <h1>{{ $companyName ?? config('app.name') }}</h1>
+    <h1>{{ \App\Models\Setting::get('company_name', config('app.name')) }}</h1>
     <h2 style="text-align:center;font-weight:normal;margin-top:0;">Issue Stock Report</h2>
 
     <div class="meta">
