@@ -111,8 +111,8 @@
             <th style="min-width: 260px;">Product</th>
             <th style="min-width: 120px;">UOM</th>
             <th class="text-end" style="min-width: 120px;">Qty</th>
-            <th class="text-end" style="min-width: 140px;">Unit price</th>
-            <th class="text-end" style="min-width: 140px;">Total</th>
+            <th class="text-end" style="min-width: 140px;">Unit price <span class="text-secondary fw-normal small">(auto)</span></th>
+            <th class="text-end" style="min-width: 140px;">Total <span class="text-secondary fw-normal small">(editable)</span></th>
             <th class="text-end" style="width: 1%;">&nbsp;</th>
         </tr>
         </thead>
@@ -302,17 +302,39 @@
             .replace(/"/g, '&quot;');
     }
 
-    function computeTotals() {
+    function lineTotalOf(tr) {
+        return parseFloat(tr.querySelector('.lineTotalInput')?.value || '0') || 0;
+    }
+
+    // Qty × Unit price => Total (normal direction).
+    function setLineTotalFromUnit(tr) {
+        const qty = parseFloat(tr.querySelector('[name$="[qty]"]').value || '0') || 0;
+        const unit = parseFloat(tr.querySelector('[name$="[unit_price]"]').value || '0') || 0;
+        const total = qty * unit;
+        const input = tr.querySelector('.lineTotalInput');
+        if (input) input.value = total ? (Math.round(total * 100) / 100) : '';
+    }
+
+    // Total ÷ Qty => Unit price (reverse direction: user Total type kare, unit auto ban jaye).
+    function setUnitFromLineTotal(tr) {
+        const qty = parseFloat(tr.querySelector('[name$="[qty]"]').value || '0') || 0;
+        const total = lineTotalOf(tr);
+        const unitInput = tr.querySelector('[name$="[unit_price]"]');
+        if (!unitInput) return;
+        unitInput.value = qty > 0 ? Number((total / qty).toFixed(4)) : 0;
+    }
+
+    function refreshSubtotal() {
         let subtotal = 0;
-        [...body.querySelectorAll('tr')].forEach(tr => {
-            const qty = parseFloat(tr.querySelector('[name$="[qty]"]').value || '0');
-            const unit = parseFloat(tr.querySelector('[name$="[unit_price]"]').value || '0');
-            const lineSubtotal = qty * unit;
-            subtotal += lineSubtotal;
-            tr.querySelector('.lineTotal').textContent = fmt(lineSubtotal);
-        });
+        [...body.querySelectorAll('tr')].forEach(tr => { subtotal += lineTotalOf(tr); });
         document.getElementById('subtotalText').textContent = fmt(subtotal);
         document.getElementById('grandText').textContent = fmt(subtotal);
+    }
+
+    // Sab lines ka total qty×unit se refresh karo (product select / load ke waqt).
+    function computeTotals() {
+        [...body.querySelectorAll('tr')].forEach(tr => setLineTotalFromUnit(tr));
+        refreshSubtotal();
     }
 
     function uomOptions(productId, selected) {
@@ -391,7 +413,7 @@
               <input class="form-control text-end" type="number" step="0.01" min="0" name="lines[${idx}][unit_price]" value="${line.unit_price ?? '0'}" required>
               <input type="hidden" name="lines[${idx}][tax_percent]" value="0">
             </td>
-            <td class="text-end fw-semibold lineTotal">0.00</td>
+            <td><input class="form-control text-end fw-semibold lineTotalInput" type="number" step="0.01" min="0" placeholder="0.00" value=""></td>
             <td class="text-end">
               <button type="button" class="btn btn-sm btn-outline-secondary quickEditLineProduct">Quick edit</button>
               <button type="button" class="btn btn-sm btn-outline-danger removeLine">Remove</button>
@@ -454,7 +476,11 @@
             if (nextRow) nextRow.focus();
         });
 
-        tr.querySelectorAll('input').forEach(inp => inp.addEventListener('input', computeTotals));
+        const qtyInput = tr.querySelector('[name$="[qty]"]');
+        const lineTotalInput = tr.querySelector('.lineTotalInput');
+        qtyInput.addEventListener('input', () => { setLineTotalFromUnit(tr); refreshSubtotal(); });
+        unitPriceInput.addEventListener('input', () => { setLineTotalFromUnit(tr); refreshSubtotal(); });
+        lineTotalInput.addEventListener('input', () => { setUnitFromLineTotal(tr); refreshSubtotal(); });
         tr.querySelector('.quickEditLineProduct').addEventListener('click', () => openQuickEditModal(tr));
         tr.querySelector('.removeLine').addEventListener('click', () => {
             tr.remove();
