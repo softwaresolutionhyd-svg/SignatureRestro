@@ -203,13 +203,7 @@
     </div>
 </div>
 
-<style>
-@media print {
-    @page { size: A4 portrait; margin: 12mm; }
-    .no-print, .admin-topbar, .breadcrumb { display: none !important; }
-    main { padding: 0 !important; }
-}
-</style>
+@include('reports.partials.print-portrait')
 @endsection
 
 @section('scripts')

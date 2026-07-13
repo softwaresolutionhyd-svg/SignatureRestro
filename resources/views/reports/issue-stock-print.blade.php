@@ -2,88 +2,79 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Issue Stock Report — {{ config('app.name') }}</title>
     <style>
         * { box-sizing: border-box; }
-        body { margin: 0; padding: 16px 20px 32px; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; font-size: 12px; color: #111; background: #fff; }
-        h1 { margin: 0 0 4px; font-size: 20px; font-weight: 700; }
-        .meta { color: #444; font-size: 12px; margin-bottom: 16px; }
-        h2 { font-size: 14px; margin: 20px 0 8px; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
-        th, td { border: 1px solid #333; padding: 5px 7px; vertical-align: top; }
-        th { background: #f3f4f6; font-weight: 700; text-align: left; }
+        @page { size: A4 portrait; margin: 14mm; }
+        body { margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; font-size: 11pt; color: #000; background: #fff; }
+        .noprint { margin-bottom: 12px; }
+        .noprint button, .noprint a { margin-right: 6px; padding: 6px 12px; font-size: 12px; border: 1px solid #000; background: #fff; color: #000; cursor: pointer; text-decoration: none; }
+        h1 { margin: 0 0 2px; font-size: 16pt; font-weight: bold; text-align: center; }
+        h2 { margin: 16px 0 6px; font-size: 11pt; font-weight: bold; }
+        .meta { font-size: 10pt; margin-bottom: 14px; line-height: 1.6; }
+        .meta p { margin: 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 10pt; margin-bottom: 12px; }
+        th, td { border: 1px solid #000; padding: 5px 7px; text-align: left; vertical-align: top; }
+        th { font-weight: bold; }
         td.num, th.num { text-align: right; white-space: nowrap; }
-        tfoot td { font-weight: 700; background: #f9fafb; }
-        .kpi { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
-        .kpi div { border: 1px solid #ccc; padding: 8px 12px; border-radius: 6px; min-width: 140px; }
-        .kpi strong { display: block; font-size: 16px; margin-top: 2px; }
-        .noprint { margin-bottom: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
-        .noprint button, .noprint a { padding: 8px 14px; font-size: 13px; border-radius: 6px; cursor: pointer; text-decoration: none; border: 1px solid #ccc; background: #fff; color: #111; }
-        .noprint .primary { background: #dc3545; border-color: #dc3545; color: #fff; }
-        @media print { body { padding: 0; } .noprint { display: none !important; } @page { size: A4 portrait; margin: 12mm; } }
+        tfoot td, tfoot th, tr.bold td { font-weight: bold; }
+        @media print { .noprint { display: none; } }
     </style>
 </head>
 <body>
     <div class="noprint">
-        <button type="button" class="primary" onclick="window.print()">Print</button>
-        <a href="{{ route('reports.issue-stock', request()->only(['from', 'to', 'department_id'])) }}">← Back to Report</a>
+        <button type="button" onclick="window.print()">Print / PDF</button>
+        <a href="{{ route('reports.issue-stock', request()->only(['from', 'to', 'department_id'])) }}">Back</a>
     </div>
 
-    <h1>Issue Stock Report</h1>
+    <h1>{{ $companyName ?? config('app.name') }}</h1>
+    <h2 style="text-align:center;font-weight:normal;margin-top:0;">Issue Stock Report</h2>
+
     <div class="meta">
-        Period: <strong>{{ \Carbon\Carbon::parse($from)->format('d M Y') }} — {{ \Carbon\Carbon::parse($to)->format('d M Y') }}</strong>
-        @if($selectedDepartment)
-            &nbsp;|&nbsp; Department: <strong>{{ $selectedDepartment->name }}</strong>
-        @endif
-        &nbsp;|&nbsp; Generated: {{ now()->format('d M Y, h:i A') }}
+        <p>Period: <strong>{{ \Carbon\Carbon::parse($from)->format('d M Y') }} — {{ \Carbon\Carbon::parse($to)->format('d M Y') }}</strong>@if($selectedDepartment) &nbsp;|&nbsp; Department: <strong>{{ $selectedDepartment->name }}</strong>@endif</p>
+        <p>Generated: {{ now()->format('d M Y, h:i A') }}</p>
     </div>
 
-    <div class="kpi">
-        <div>Issue Lines<strong>{{ $issueCount }}</strong></div>
-        <div>Total Qty<strong>{{ fmt_num($totalQty, 3) }}</strong></div>
-        <div>Total Value<strong>{{ $currency }} {{ fmt_num($totalValue, 2) }}</strong></div>
-        <div>Departments<strong>{{ $departmentHit }}</strong></div>
-    </div>
+    <table style="width:60%;">
+        <tr><th>Issue Lines</th><td class="num">{{ $issueCount }}</td></tr>
+        <tr><th>Total Qty</th><td class="num">{{ fmt_num($totalQty, 3) }}</td></tr>
+        <tr><th>Total Value</th><td class="num">{{ $currency }} {{ fmt_num($totalValue, 2) }}</td></tr>
+        <tr><th>Departments</th><td class="num">{{ $departmentHit }}</td></tr>
+    </table>
 
-    <div style="display:flex;gap:16px;flex-wrap:wrap;">
-        <div style="flex:1;min-width:280px;">
-            <h2>By Day</h2>
-            <table>
-                <thead><tr><th>Date</th><th class="num">Lines</th><th class="num">Qty</th><th class="num">Value</th></tr></thead>
-                <tbody>
-                @forelse($byDay as $row)
-                    <tr>
-                        <td>{{ $row['label'] }}</td>
-                        <td class="num">{{ $row['lines'] }}</td>
-                        <td class="num">{{ fmt_num($row['qty'], 3) }}</td>
-                        <td class="num">{{ $currency }} {{ fmt_num($row['value'], 2) }}</td>
-                    </tr>
-                @empty
-                    <tr><td colspan="4" style="text-align:center;">No data</td></tr>
-                @endforelse
-                </tbody>
-            </table>
-        </div>
-        <div style="flex:1;min-width:280px;">
-            <h2>By Department</h2>
-            <table>
-                <thead><tr><th>Department</th><th class="num">Lines</th><th class="num">Qty</th><th class="num">Value</th></tr></thead>
-                <tbody>
-                @forelse($byDepartment as $row)
-                    <tr>
-                        <td>{{ $row['name'] }}</td>
-                        <td class="num">{{ $row['lines'] }}</td>
-                        <td class="num">{{ fmt_num($row['qty'], 3) }}</td>
-                        <td class="num">{{ $currency }} {{ fmt_num($row['value'], 2) }}</td>
-                    </tr>
-                @empty
-                    <tr><td colspan="4" style="text-align:center;">No data</td></tr>
-                @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <h2>By Day</h2>
+    <table>
+        <thead><tr><th>Date</th><th class="num">Lines</th><th class="num">Qty</th><th class="num">Value</th></tr></thead>
+        <tbody>
+        @forelse($byDay as $row)
+            <tr>
+                <td>{{ $row['label'] }}</td>
+                <td class="num">{{ $row['lines'] }}</td>
+                <td class="num">{{ fmt_num($row['qty'], 3) }}</td>
+                <td class="num">{{ $currency }} {{ fmt_num($row['value'], 2) }}</td>
+            </tr>
+        @empty
+            <tr><td colspan="4" style="text-align:center;">No data</td></tr>
+        @endforelse
+        </tbody>
+    </table>
+
+    <h2>By Department</h2>
+    <table>
+        <thead><tr><th>Department</th><th class="num">Lines</th><th class="num">Qty</th><th class="num">Value</th></tr></thead>
+        <tbody>
+        @forelse($byDepartment as $row)
+            <tr>
+                <td>{{ $row['name'] }}</td>
+                <td class="num">{{ $row['lines'] }}</td>
+                <td class="num">{{ fmt_num($row['qty'], 3) }}</td>
+                <td class="num">{{ $currency }} {{ fmt_num($row['value'], 2) }}</td>
+            </tr>
+        @empty
+            <tr><td colspan="4" style="text-align:center;">No data</td></tr>
+        @endforelse
+        </tbody>
+    </table>
 
     <h2>Issue Details</h2>
     <table>
@@ -105,7 +96,7 @@
                 <td>{{ $issue->created_at?->format('d M Y H:i') }}</td>
                 <td>
                     <strong>{{ $issue->product?->name ?? '—' }}</strong>
-                    @if($issue->product?->sku)<br><span style="color:#555;">{{ $issue->product->sku }}</span>@endif
+                    @if($issue->product?->sku)<br>{{ $issue->product->sku }}@endif
                 </td>
                 <td class="num">{{ fmt_num((float) $issue->qty_uom, 3) }} {{ $issue->uom }}</td>
                 <td>{{ $issue->fromDepartment?->name ?? 'Warehouse' }}</td>
@@ -115,12 +106,12 @@
                 <td>{{ $issue->note ?: '—' }}</td>
             </tr>
         @empty
-            <tr><td colspan="8" style="text-align:center;padding:24px;">No issues in this period.</td></tr>
+            <tr><td colspan="8" style="text-align:center;padding:16px;">No issues in this period.</td></tr>
         @endforelse
         </tbody>
         @if($issues->isNotEmpty())
         <tfoot>
-        <tr>
+        <tr class="bold">
             <td colspan="6" class="num">Total</td>
             <td class="num">{{ $currency }} {{ fmt_num($totalValue, 2) }}</td>
             <td></td>
@@ -130,7 +121,7 @@
     </table>
 
     @if(request()->boolean('print'))
-    <script>window.addEventListener('load', () => window.print());</script>
+    <script>window.addEventListener('load', () => setTimeout(() => window.print(), 200));</script>
     @endif
 </body>
 </html>

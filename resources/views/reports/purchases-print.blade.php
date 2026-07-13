@@ -2,52 +2,44 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Purchase Report — {{ config('app.name') }}</title>
     <style>
         * { box-sizing: border-box; }
-        body { margin: 0; padding: 16px 20px 32px; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; font-size: 12px; color: #111; background: #fff; }
-        h1 { margin: 0 0 4px; font-size: 20px; font-weight: 700; }
-        h2 { font-size: 14px; margin: 20px 0 8px; }
-        .meta { color: #444; font-size: 12px; margin-bottom: 16px; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
-        th, td { border: 1px solid #333; padding: 5px 7px; vertical-align: top; }
-        th { background: #f3f4f6; font-weight: 700; text-align: left; }
+        @page { size: A4 portrait; margin: 14mm; }
+        body { margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; font-size: 11pt; color: #000; background: #fff; }
+        .noprint { margin-bottom: 12px; }
+        .noprint button, .noprint a { margin-right: 6px; padding: 6px 12px; font-size: 12px; border: 1px solid #000; background: #fff; color: #000; cursor: pointer; text-decoration: none; }
+        h1 { margin: 0 0 2px; font-size: 16pt; font-weight: bold; text-align: center; }
+        h2 { margin: 16px 0 6px; font-size: 11pt; font-weight: bold; }
+        .meta { font-size: 10pt; margin-bottom: 14px; line-height: 1.6; }
+        table { width: 100%; border-collapse: collapse; font-size: 10pt; margin-bottom: 12px; }
+        th, td { border: 1px solid #000; padding: 5px 7px; text-align: left; vertical-align: top; }
+        th { font-weight: bold; }
         td.num, th.num { text-align: right; white-space: nowrap; }
-        tfoot td, tfoot th { font-weight: 700; background: #f9fafb; }
-        .kpi { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
-        .kpi div { border: 1px solid #ccc; padding: 8px 12px; border-radius: 6px; min-width: 130px; }
-        .kpi strong { display: block; font-size: 16px; margin-top: 2px; }
-        .noprint { margin-bottom: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
-        .noprint button, .noprint a { padding: 8px 14px; font-size: 13px; border-radius: 6px; cursor: pointer; text-decoration: none; border: 1px solid #ccc; background: #fff; color: #111; }
-        .noprint .primary { background: #dc3545; border-color: #dc3545; color: #fff; }
-        @media print { body { padding: 0; } .noprint { display: none !important; } @page { size: A4 portrait; margin: 12mm; } }
+        tfoot td, tfoot th, tr.bold td { font-weight: bold; }
+        @media print { .noprint { display: none; } }
     </style>
 </head>
 <body>
     <div class="noprint">
-        <button type="button" class="primary" onclick="window.print()">Print</button>
-        <a href="{{ route('reports.purchases', request()->only(['from', 'to', 'vendor', 'status'])) }}">← Back to Report</a>
+        <button type="button" onclick="window.print()">Print / PDF</button>
+        <a href="{{ route('reports.purchases', request()->only(['from', 'to', 'vendor', 'status'])) }}">Back</a>
     </div>
 
-    <h1>Purchase Report</h1>
+    <h1>{{ $companyName ?? config('app.name') }}</h1>
+    <h2 style="text-align:center;font-weight:normal;margin-top:0;">Purchase Report</h2>
+
     <div class="meta">
-        Period: <strong>{{ \Carbon\Carbon::parse($from)->format('d M Y') }} — {{ \Carbon\Carbon::parse($to)->format('d M Y') }}</strong>
-        @if($selectedVendor)
-            &nbsp;|&nbsp; Vendor: <strong>{{ $selectedVendor->name }}</strong>
-        @endif
-        @if($statusLabel)
-            &nbsp;|&nbsp; Status: <strong>{{ $statusLabel }}</strong>
-        @endif
-        &nbsp;|&nbsp; Generated: {{ now()->format('d M Y, h:i A') }}
+        <p style="margin:0;">Period: <strong>{{ \Carbon\Carbon::parse($from)->format('d M Y') }} — {{ \Carbon\Carbon::parse($to)->format('d M Y') }}</strong>@if($selectedVendor) &nbsp;|&nbsp; Vendor: <strong>{{ $selectedVendor->name }}</strong>@endif @if($statusLabel) &nbsp;|&nbsp; Status: <strong>{{ $statusLabel }}</strong>@endif</p>
+        <p style="margin:0;">Generated: {{ now()->format('d M Y, h:i A') }}</p>
     </div>
 
-    <div class="kpi">
-        <div>Orders<strong>{{ $orderCount }}</strong></div>
-        <div>Products<strong>{{ $productCount }}</strong></div>
-        <div>Total Spend<strong>{{ $currency }} {{ fmt_num($totalAmount, 2) }}</strong></div>
-        <div>Tax<strong>{{ $currency }} {{ fmt_num($totalTax, 2) }}</strong></div>
-    </div>
+    <table style="width:60%;">
+        <tr><th>Orders</th><td class="num">{{ $orderCount }}</td></tr>
+        <tr><th>Products</th><td class="num">{{ $productCount }}</td></tr>
+        <tr><th>Total Spend</th><td class="num">{{ $currency }} {{ fmt_num($totalAmount, 2) }}</td></tr>
+        <tr><th>Tax</th><td class="num">{{ $currency }} {{ fmt_num($totalTax, 2) }}</td></tr>
+    </table>
 
     <h2>Vendor Breakdown</h2>
     <table>
@@ -91,7 +83,7 @@
         </tbody>
         @if($byProduct->isNotEmpty())
         <tfoot>
-        <tr>
+        <tr class="bold">
             <th colspan="4" class="num">Total</th>
             <th class="num">{{ $currency }} {{ fmt_num($purchaseLines->sum('total'), 2) }}</th>
         </tr>
@@ -100,7 +92,7 @@
     </table>
 
     @if(request()->boolean('print'))
-    <script>window.addEventListener('load', () => window.print());</script>
+    <script>window.addEventListener('load', () => setTimeout(() => window.print(), 200));</script>
     @endif
 </body>
 </html>
