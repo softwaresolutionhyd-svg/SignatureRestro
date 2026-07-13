@@ -76,16 +76,13 @@
             </tr>
         @endforelse
         </tbody>
-        @if($products->count())
-        <tfoot>
-        <tr>
-            <th colspan="6" class="num" style="text-align:right;">Total Stock Value</th>
-            <th class="num">{{ $currency }} {{ fmt_num($totalValue, 2) }}</th>
-            <th></th>
-        </tr>
-        </tfoot>
-        @endif
     </table>
+
+    @if($products->count())
+        <div style="margin-top:8px; text-align:right; font-weight:bold;">
+            Total Stock Value: {{ $currency }} {{ fmt_num($totalValue, 2) }}
+        </div>
+    @endif
 
     @if(request()->boolean('print'))
     <script>window.addEventListener('load', () => setTimeout(() => window.print(), 200));</script>
