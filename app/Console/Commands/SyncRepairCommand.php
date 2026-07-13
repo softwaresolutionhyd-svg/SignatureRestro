@@ -9,7 +9,9 @@ use App\Models\EmployeeAttendance;
 use App\Models\EmployeeLoan;
 use App\Models\EmployeeLoanPayment;
 use App\Models\EmployeeStaffCategory;
+use App\Models\InventoryDepartment;
 use App\Models\PayrollEntry;
+use App\Models\Setting;
 use App\Services\Sync\CloudSyncService;
 use App\Services\Sync\SyncOutboxRecorder;
 use App\Services\Sync\SyncPayrollQueueService;
@@ -22,6 +24,7 @@ class SyncRepairCommand extends Command
                             {--push : Push pending changes to hosting after schema repair}
                             {--queue-staff-categories : Re-queue all employees + staff categories for sync}
                             {--queue-payroll : Re-queue payroll, loans, attendance, credit ledger for sync}
+                            {--queue-kitchen-agents : Re-queue department printers + cashier printer settings}
                             {--period= : Limit payroll queue to YYYY-MM period}';
 
     protected $description = 'Ensure sync target DB schema (mysql + tenant) and optionally push pending queue.';
@@ -32,9 +35,34 @@ class SyncRepairCommand extends Command
         SyncOutboxRecorder $recorder,
         SyncPayrollQueueService $payrollQueue,
     ): int {
-        $this->info('Ensuring payroll / loan / credit ledger schema on all DB connections…');
+        $this->info('Ensuring payroll / loan / kitchen-agent / credit ledger schema on all DB connections…');
         $schema->ensureAll();
         $this->info('Schema check done.');
+
+        if ($this->option('queue-kitchen-agents') && $sync->isLocalRole()) {
+            $queued = 0;
+
+            InventoryDepartment::withoutGlobalScope('company')
+                ->orderBy('id')
+                ->each(function (InventoryDepartment $department) use ($recorder, &$queued) {
+                    $recorder->recordModel($department, 'upsert');
+                    $queued++;
+                });
+
+            Setting::query()
+                ->whereIn('key', [
+                    'cashier_printer_ip',
+                    'cashier_printer_port',
+                    'cashier_printer_name',
+                ])
+                ->orderBy('id')
+                ->each(function (Setting $setting) use ($recorder, &$queued) {
+                    $recorder->recordModel($setting, 'upsert');
+                    $queued++;
+                });
+
+            $this->info("Queued {$queued} kitchen-agent / cashier printer row(s) for sync.");
+        }
 
         if ($this->option('queue-staff-categories') && $sync->isLocalRole()) {
             $queued = 0;

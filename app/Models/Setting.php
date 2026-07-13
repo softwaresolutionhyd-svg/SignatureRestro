@@ -100,6 +100,36 @@ class Setting extends Model
         self::forgetAllMapCache();
     }
 
+    /**
+     * Clear setting caches after cloud sync apply (Query Builder upserts skip Eloquent).
+     * Must clear both company-scoped forever caches or cloud UI keeps stale empty values.
+     */
+    public static function forgetCachesAfterSync(?int $companyId, ?string $key = null): void
+    {
+        if ($companyId !== null && $companyId > 0) {
+            if ($key !== null && $key !== '') {
+                Cache::forget('setting:'.$key.':c'.$companyId);
+            }
+            Cache::forget('settings:all:c'.$companyId);
+        }
+
+        // Also clear "no company" / current-context caches used by some pages.
+        if ($key !== null && $key !== '') {
+            Cache::forget('setting:'.$key.':c0');
+            try {
+                Cache::forget(self::settingCacheKey($key));
+            } catch (\Throwable) {
+                // ignore
+            }
+        }
+        Cache::forget('settings:all:c0');
+        try {
+            self::forgetAllMapCache();
+        } catch (\Throwable) {
+            // ignore
+        }
+    }
+
     /** Return all settings as key→value array for the current company. */
     public static function all_map(): array
     {

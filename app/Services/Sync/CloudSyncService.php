@@ -214,6 +214,19 @@ class CloudSyncService
         }
 
         $column = $matches[1];
+
+        // Never permanently drop kitchen/cashier printer columns — they must be
+        // re-applied after hosting schema is repaired. Stripping them caused silent
+        // "synced" rows without printer_ip on cloud.
+        if (in_array($column, ['printer_ip', 'printer_port', 'printer_name'], true)
+            || str_starts_with($column, 'cashier_printer_')) {
+            $item->forceFill([
+                'last_error' => "Hosting missing column `{$column}` — deploy Kitchen Agents schema, then sync:repair --queue-kitchen-agents --push",
+            ])->save();
+
+            return false;
+        }
+
         $payload = $item->payload;
         if (! is_array($payload) || ! array_key_exists($column, $payload)) {
             return false;
@@ -299,8 +312,19 @@ class CloudSyncService
                             $connection->table($table)->updateOrInsert(['id' => $key], $payload);
                         } else {
                             unset($payload['id']);
+                            // Kitchen printer columns must exist before filterPayloadForTable strips them.
+                            if ($table === 'inventory_departments') {
+                                $this->schemaService->ensureAll();
+                            }
                             $payload = $this->filterPayloadForTable($connection, $table, $payload);
                             $connection->table($table)->updateOrInsert(['id' => $key], $payload);
+
+                            if ($table === 'settings') {
+                                \App\Models\Setting::forgetCachesAfterSync(
+                                    isset($payload['company_id']) ? (int) $payload['company_id'] : null,
+                                    isset($payload['key']) ? (string) $payload['key'] : null
+                                );
+                            }
                         }
                     } else {
                         throw new \InvalidArgumentException("Unknown action: {$action}");
