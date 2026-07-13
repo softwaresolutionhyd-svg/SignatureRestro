@@ -154,6 +154,8 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
             ->middleware('role:super_admin');
         Route::resource('categories', CategoryController::class)->except(['show']);
         Route::resource('departments', InventoryDepartmentController::class)->except(['show']);
+        Route::get('kitchen-agents', [\App\Http\Controllers\Inventory\KitchenAgentController::class, 'index'])->name('kitchen-agents.index');
+        Route::put('kitchen-agents', [\App\Http\Controllers\Inventory\KitchenAgentController::class, 'update'])->name('kitchen-agents.update');
         Route::get('issues', [StockIssueController::class, 'index'])->name('issues.index');
         Route::get('issues/warehouse-stock/print', [StockIssueController::class, 'warehouseStockPrint'])->name('issues.warehouse-stock-print');
         Route::get('issues/create', [StockIssueController::class, 'create'])->name('issues.create');

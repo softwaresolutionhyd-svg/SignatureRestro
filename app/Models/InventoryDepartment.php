@@ -20,11 +20,15 @@ class InventoryDepartment extends Model
         'name',
         'active',
         'is_warehouse',
+        'printer_ip',
+        'printer_port',
+        'printer_name',
     ];
 
     protected $casts = [
         'active' => 'bool',
         'is_warehouse' => 'bool',
+        'printer_port' => 'integer',
     ];
 
     public function products(): HasMany
