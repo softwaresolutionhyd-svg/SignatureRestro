@@ -12,6 +12,7 @@ use App\Models\PurchaseOrderLine;
 use App\Models\PurchaseVendor;
 use App\Models\Setting;
 use App\Services\AutoJournalService;
+use App\Services\PurchaseCreditLedgerService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -20,7 +21,8 @@ use Illuminate\Validation\ValidationException;
 class OrderController extends Controller
 {
     public function __construct(
-        private readonly AutoJournalService $autoJournal
+        private readonly AutoJournalService $autoJournal,
+        private readonly PurchaseCreditLedgerService $purchaseCreditLedger
     ) {}
 
     public function index(Request $request)
@@ -81,6 +83,8 @@ class OrderController extends Controller
             return $order;
         });
 
+        $this->purchaseCreditLedger->syncForOrder($order->fresh('vendor'));
+
         return redirect()->route('purchase.orders.edit', $order)->with('status', 'RFQ created.');
     }
 
@@ -123,6 +127,8 @@ class OrderController extends Controller
 
             $this->syncLinesAndTotals($order, $data['lines']);
         });
+
+        $this->purchaseCreditLedger->syncForOrder($order->fresh('vendor'));
 
         return redirect()->route('purchase.orders.edit', $order)->with('status', 'RFQ updated.');
     }
@@ -274,6 +280,7 @@ class OrderController extends Controller
             'paid_at' => now(),
         ]);
 
+        $this->purchaseCreditLedger->registerPayment($order->fresh('vendor'));
         $this->autoJournal->postPurchasePaid($order);
 
         return redirect()->route('purchase.orders.edit', $order)->with('status', 'Purchase marked as paid.');

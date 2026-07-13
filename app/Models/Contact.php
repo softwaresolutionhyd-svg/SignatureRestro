@@ -54,6 +54,8 @@ class Contact extends Model
 
 
 
+    public const SUPPLIER_CATEGORY = 'supplier';
+
     public static function ensureCategoryCatalog(): void
 
     {
@@ -65,6 +67,33 @@ class Contact extends Model
             self::persistCategoryRows(self::defaultCategoryRows());
 
         }
+
+    }
+
+    /** Make sure the built-in "Supplier" category exists so vendors can be tagged. */
+    public static function ensureSupplierCategory(): string
+
+    {
+
+        self::ensureCategoryCatalog();
+
+        $rows = self::categoryRows();
+
+        foreach ($rows as $row) {
+
+            if ($row['slug'] === self::SUPPLIER_CATEGORY) {
+
+                return self::SUPPLIER_CATEGORY;
+
+            }
+
+        }
+
+        $rows[] = ['slug' => self::SUPPLIER_CATEGORY, 'label' => 'Supplier'];
+
+        self::persistCategoryRows($rows);
+
+        return self::SUPPLIER_CATEGORY;
 
     }
 

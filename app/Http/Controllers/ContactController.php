@@ -79,7 +79,7 @@ class ContactController extends Controller
     {
         $contact->load(['posOrders.creditLedger']);
         $ledger = $contact->creditLedger()
-            ->with(['posOrder', 'creator'])
+            ->with(['posOrder', 'purchaseOrder', 'creator'])
             ->orderByDesc('entry_date')
             ->orderByDesc('id')
             ->paginate(Setting::pageSize('contact_ledger_per_page', 20))

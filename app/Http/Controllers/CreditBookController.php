@@ -107,6 +107,9 @@ class CreditBookController extends Controller
         if ($entry->pos_order_id) {
             return back()->with('error', 'Cannot delete a POS-linked credit entry.');
         }
+        if ($entry->purchase_order_id) {
+            return back()->with('error', 'Cannot delete a purchase-linked credit entry.');
+        }
         if ($entry->payroll_entry_id) {
             return back()->with('error', 'Cannot delete a payroll salary-deduction entry.');
         }

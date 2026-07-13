@@ -18,7 +18,7 @@ class CreditLedger extends Model
 
     protected $fillable = [
         'company_id',
-        'contact_id', 'type', 'pos_order_id', 'payroll_entry_id', 'description',
+        'contact_id', 'type', 'pos_order_id', 'purchase_order_id', 'payroll_entry_id', 'description',
         'amount', 'balance_after', 'entry_date', 'notes', 'created_by',
     ];
 
@@ -36,6 +36,11 @@ class CreditLedger extends Model
     public function posOrder(): BelongsTo
     {
         return $this->belongsTo(PosOrder::class, 'pos_order_id');
+    }
+
+    public function purchaseOrder(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseOrder::class, 'purchase_order_id');
     }
 
     public function payrollEntry(): BelongsTo

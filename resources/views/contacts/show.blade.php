@@ -106,6 +106,11 @@
                                             POS: {{ $entry->posOrder->order_no }}
                                         </div>
                                     @endif
+                                    @if($entry->purchase_order_id && $entry->purchaseOrder)
+                                        <div style="font-size:11px;" class="text-secondary">
+                                            Purchase: {{ $entry->purchaseOrder->number }}
+                                        </div>
+                                    @endif
                                     @if($entry->notes)
                                         <div style="font-size:11px;" class="text-secondary fst-italic">{{ $entry->notes }}</div>
                                     @endif
@@ -127,7 +132,7 @@
                                            class="btn btn-sm btn-outline-primary py-0 px-2 js-pos-sale-view"
                                            style="font-size:11px;"
                                            data-pos-sale-url="{{ route('credit-book.pos-sale', $entry->posOrder) }}">View</button>
-                                    @elseif(!$entry->pos_order_id)
+                                    @elseif(!$entry->pos_order_id && !$entry->purchase_order_id && !$entry->payroll_entry_id)
                                     <form method="POST" action="{{ route('credit-book.destroy', $entry) }}"
                                         onsubmit="return confirm('Delete this entry?')">
                                         @csrf @method('DELETE')

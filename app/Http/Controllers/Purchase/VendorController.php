@@ -5,12 +5,18 @@ namespace App\Http\Controllers\Purchase;
 use App\Http\Controllers\Controller;
 use App\Models\PurchaseVendor;
 use App\Models\Setting;
+use App\Services\VendorContactSyncService;
 use Illuminate\Http\Request;
 
 class VendorController extends Controller
 {
+    public function __construct(
+        private readonly VendorContactSyncService $vendorContacts
+    ) {}
+
     public function index()
     {
+        $this->vendorContacts->backfillMissing();
         $vendors = PurchaseVendor::query()->orderBy('name')->paginate(Setting::pageSize('purchase_vendors_per_page', 20));
         return view('purchase.vendors.index', compact('vendors'));
     }
@@ -32,9 +38,10 @@ class VendorController extends Controller
         ]);
 
         $data['active'] = (bool) ($data['active'] ?? false);
-        PurchaseVendor::create($data);
+        $vendor = PurchaseVendor::create($data);
+        $this->vendorContacts->ensureContactForVendor($vendor);
 
-        return redirect()->route('purchase.vendors.index')->with('status', 'Vendor created.');
+        return redirect()->route('purchase.vendors.index')->with('status', 'Vendor created — contact book me bhi add ho gaya.');
     }
 
     public function edit(PurchaseVendor $vendor)
@@ -55,6 +62,7 @@ class VendorController extends Controller
 
         $data['active'] = (bool) ($data['active'] ?? false);
         $vendor->update($data);
+        $this->vendorContacts->ensureContactForVendor($vendor);
 
         return redirect()->route('purchase.vendors.index')->with('status', 'Vendor updated.');
     }
