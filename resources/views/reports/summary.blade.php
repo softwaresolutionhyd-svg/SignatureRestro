@@ -2,7 +2,8 @@
 @section('title', 'Financial Summary — ' . config('app.name'))
 
 @section('content')
-<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+@include('reports.partials.print-header', ['reportName' => 'Financial Summary', 'period' => 'Period: '.\Carbon\Carbon::parse($from)->format('d M Y').' — '.\Carbon\Carbon::parse($to)->format('d M Y')])
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4 no-print">
     <div>
         <h4 class="fw-bold mb-0">Financial Summary</h4>
         <div class="text-secondary small">
@@ -84,7 +85,7 @@
 </div>
 
 {{-- KPI strip (totals) --}}
-<div class="row g-3 mb-4">
+<div class="row g-3 mb-4 no-print report-kpis">
     <div class="col-6 col-lg-4 col-xl-3">
         <div class="card border-0 shadow-sm h-100 border-start border-4" style="border-color:#7c3aed!important;">
             <div class="card-body py-3">

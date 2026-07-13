@@ -13,6 +13,10 @@
 
     body, html { background: #fff !important; }
 
+    /* Show the simple print-only header, hide KPI stat boxes */
+    .print-only { display: block !important; }
+    .report-kpis { display: none !important; }
+
     /* Hide app chrome and interactive-only bits */
     .admin-topbar,
     .no-print,

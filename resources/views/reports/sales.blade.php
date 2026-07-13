@@ -2,8 +2,9 @@
 @section('title', 'Sales Report — ' . config('app.name'))
 
 @section('content')
+@include('reports.partials.print-header', ['reportName' => 'Sales Report', 'period' => 'Period: '.\Carbon\Carbon::parse($from)->format('d M Y').' — '.\Carbon\Carbon::parse($to)->format('d M Y')])
 {{-- Header --}}
-<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4 no-print">
     <div>
         <h4 class="fw-bold mb-0">Sales Report</h4>
         <div class="text-secondary small">POS revenue, orders & top-selling products</div>
@@ -36,7 +37,7 @@
 </form>
 
 {{-- KPI cards --}}
-<div class="row g-3 mb-4">
+<div class="row g-3 mb-4 no-print report-kpis">
     @foreach([
         ['Orders', $orderCount, 'bi-receipt', '#7c3aed', ''],
         ['Revenue', $currency.' '.fmt_num($totalRevenue,2), 'bi-cash-stack', '#22c55e', ''],

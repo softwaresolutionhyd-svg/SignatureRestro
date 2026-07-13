@@ -2,7 +2,8 @@
 @section('title', 'Employee Report — ' . config('app.name'))
 
 @section('content')
-<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+@include('reports.partials.print-header', ['reportName' => 'Employee Report'])
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4 no-print">
     <div>
         <h4 class="fw-bold mb-0">Employee Report</h4>
         <div class="text-secondary small">Staff directory & salary breakdown</div>
@@ -39,7 +40,7 @@
 </form>
 
 {{-- KPI --}}
-<div class="row g-3 mb-4">
+<div class="row g-3 mb-4 no-print report-kpis">
     @foreach([
         ['Total Shown', $employees->count(), 'bi-people', '#ec4899'],
         ['Active', $activeCount, 'bi-person-check', '#22c55e'],

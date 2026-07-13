@@ -2,7 +2,8 @@
 @section('title', 'POS Bills Report — ' . config('app.name'))
 
 @section('content')
-<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+@include('reports.partials.print-header', ['reportName' => 'POS Bills Report', 'period' => 'Period: '.\Carbon\Carbon::parse($from)->format('d M Y').' — '.\Carbon\Carbon::parse($to)->format('d M Y')])
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4 no-print">
     <div>
         <h4 class="fw-bold mb-0">POS Bills Report</h4>
         <div class="text-secondary small">Paid bills — bill #, date, time, amounts, gross profit (sale − cost, pre-tax). Filter by date.</div>
