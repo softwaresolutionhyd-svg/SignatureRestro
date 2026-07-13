@@ -418,7 +418,11 @@ class PosController extends Controller
         $designation = $this->employeeDesignationText($employee);
 
         return $designation !== ''
-            && (str_contains($designation, 'manager') || str_contains($designation, 'owner'));
+            && (
+                str_contains($designation, 'manager')
+                || str_contains($designation, 'owner')
+                || str_contains($designation, 'admin')
+            );
     }
 
     private function posUsesSharedBills(?User $user): bool
@@ -1027,6 +1031,11 @@ class PosController extends Controller
         if ($resumeOrderId) {
             $resumeDraft = $this->findDraftOrderForSession($session, $resumeOrderId, $checkoutUser);
             if ($resumeDraft) {
+                $this->assertCartQtyNotReducedByNonManager(
+                    $resumeDraft->items()->get()->all(),
+                    $itemsNormalized,
+                    $checkoutUser
+                );
                 $this->assertKitchenLockedQuantitiesPreserved(
                     $resumeDraft->items()->get()->all(),
                     $itemsNormalized,
@@ -1339,6 +1348,11 @@ class PosController extends Controller
         if ($resumeOrderId) {
             $resumeDraft = $this->findDraftOrderForSession($session, $resumeOrderId, $holdUser);
             if ($resumeDraft) {
+                $this->assertCartQtyNotReducedByNonManager(
+                    $resumeDraft->items()->get()->all(),
+                    $itemsNormalized,
+                    $holdUser
+                );
                 $this->assertKitchenLockedQuantitiesPreserved(
                     $resumeDraft->items()->get()->all(),
                     $itemsNormalized,
@@ -3210,6 +3224,42 @@ class PosController extends Controller
         unset($item);
 
         return $items;
+    }
+
+    /**
+     * Cashier / order-taker cannot reduce or remove any line qty on an existing draft.
+     * Only manager/admin may delete or decrease (kitchen voids still require reason separately).
+     *
+     * @param  array<int, PosOrderItem>  $existingItems
+     * @param  array<int, array<string, mixed>>  $incomingItems
+     */
+    private function assertCartQtyNotReducedByNonManager(array $existingItems, array $incomingItems, ?User $user): void
+    {
+        if ($this->userCanKitchenVoid($user)) {
+            return;
+        }
+
+        $kitchen = app(KitchenService::class);
+        $existingByFp = [];
+        foreach ($existingItems as $existing) {
+            $fp = $kitchen->baseItemFingerprint($existing);
+            $existingByFp[$fp] = ($existingByFp[$fp] ?? 0) + (float) $existing->qty;
+        }
+
+        $incomingByFp = [];
+        foreach ($incomingItems as $item) {
+            $fp = $kitchen->baseItemFingerprint($item);
+            $incomingByFp[$fp] = ($incomingByFp[$fp] ?? 0) + (float) ($item['qty'] ?? 0);
+        }
+
+        foreach ($existingByFp as $fp => $qty) {
+            $next = (float) ($incomingByFp[$fp] ?? 0);
+            if ($next + 0.00001 < $qty) {
+                throw ValidationException::withMessages([
+                    'items' => 'Item kam/remove sirf manager ya admin kar sakta hai.',
+                ]);
+            }
+        }
     }
 
     /**

@@ -402,7 +402,9 @@
         'tableBoard' => $tableBoard ?? [],
         'restaurantName' => config('app.name'),
         'canVoidKitchenItems' => (bool) (($canPosDiscountCredit ?? false) || auth()->user()?->bypassesModulePermissions()),
-        'requireItemChangeReason' => (bool) ($canPosDiscountCredit ?? false),
+        // Reason sirf kitchen print ke baad — pehle se free delete ke liye false.
+        'requireItemChangeReason' => false,
+        'canReduceCartItems' => (bool) (($canPosDiscountCredit ?? false) || auth()->user()?->bypassesModulePermissions()),
         'canReopenPaidBill' => (bool) ($canReopenPaidBill ?? false),
         'canPosPay' => (bool) ($canPosPay ?? false),
         'canPosDiscountCredit' => (bool) ($canPosDiscountCredit ?? false),

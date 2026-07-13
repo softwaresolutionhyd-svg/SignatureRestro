@@ -15,6 +15,8 @@
     const posServiceChargePercent = posServiceChargeEnabled ? Number(settings.service_charge_percent || 0) : 0;
     const posTablesEnabled = settings.enable_tables !== false;
     const canVoidKitchenItems = boot.canVoidKitchenItems === true;
+    // Order taker cannot delete/reduce — sirf admin/manager (bypass) kar sakta hai.
+    const canReduceCartItems = canVoidKitchenItems;
 
     let cart = [];
     let selectedMenuCategoryId = null;
@@ -192,7 +194,7 @@
         grid.innerHTML = list.map((p) => {
             const qty = cartQtyForProduct(p.id);
             const locked = cartLockedQtyForProduct(p.id);
-            const canDec = qty > locked;
+            const canDec = qty > 0 && canReduceCartItems;
             const price = unitPriceForProduct(p, p.uom);
             const label = displayProductName(p.name);
             const img = p.image_url
@@ -224,7 +226,7 @@
         wrap.innerHTML = cart.map((r, i) => {
             const total = lineRowTotal(r);
             const locked = Number(r.kitchen_locked_qty) || 0;
-            const showRemove = locked === 0 || canVoidKitchenItems;
+            const showRemove = canReduceCartItems;
             const kitchenBadge = locked > 0
                 ? `<span class="rp-kitchen-pill ${r.kitchen_served ? 'rp-kitchen-pill--served' : 'rp-kitchen-pill--pending'}">
                     <i class="bi ${r.kitchen_served ? 'bi-check-circle-fill' : 'bi-fire'}"></i>
@@ -288,6 +290,10 @@
 
     function adjustProductQty(productId, delta) {
         const p = productById(productId);
+        if (delta < 0 && !canReduceCartItems) {
+            alert('Quantity kam sirf manager/admin kar sakta hai.');
+            return;
+        }
         const locked = cartLockedQtyForProduct(productId);
         const totalQty = cartQtyForProduct(productId);
         const next = Math.round((totalQty + delta) * 1000) / 1000;
@@ -319,6 +325,10 @@
     function removeCartLine(index) {
         const row = cart[index];
         if (!row) return;
+        if (!canReduceCartItems) {
+            alert('Item remove sirf manager/admin kar sakta hai.');
+            return;
+        }
         const locked = Number(row.kitchen_locked_qty) || 0;
         if (locked > 0 && !canVoidKitchenItems) return;
         cart.splice(index, 1);

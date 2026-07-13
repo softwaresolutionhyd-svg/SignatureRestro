@@ -23,7 +23,10 @@
     const posTablesEnabled = boot.tablesEnabled !== undefined ? !!boot.tablesEnabled : !!settings.enable_tables;
     const posShowCustomerSection = settings.show_customer_section !== false;
     const canVoidKitchenItems = boot.canVoidKitchenItems === true;
-    const requireItemChangeReason = boot.requireItemChangeReason === true;
+    // Delete / qty-kam sirf manager/admin (cashier + order taker nahi).
+    const canReduceCartItems = boot.canReduceCartItems === true || canVoidKitchenItems;
+    // Legacy flag — reason ab sirf kitchen-locked items par mangte hain.
+    const requireItemChangeReason = false;
     const canReopenPaidBill = boot.canReopenPaidBill === true;
 
     let cart = [];
@@ -498,13 +501,19 @@
         const row = cart[index];
         if (!row) return;
 
+        if (!canReduceCartItems) {
+            alert('Item remove sirf manager/admin kar sakta hai.');
+            return;
+        }
+
         const locked = Number(row.kitchen_locked_qty) || 0;
         if (locked > 0 && !canVoidKitchenItems) {
             alert('Kitchen print ke baad item sirf manager/admin remove kar sakta hai.');
             return;
         }
 
-        const needsReason = (requireItemChangeReason || locked > 0) && !String(reason || '').trim();
+        // Reason sirf tab jab kitchen print ho chuka ho (locked qty).
+        const needsReason = locked > 0 && !String(reason || '').trim();
         if (needsReason) {
             openItemChangeReasonModal({ type: 'remove', index });
             return;
@@ -517,11 +526,7 @@
         if (locked > 0 && reasonText) {
             kitchenVoids.push(buildReductionEntry(row, locked, reasonText));
         }
-        const regularQty = Math.max(0, Number(row.qty) - locked);
-        if (regularQty > 0 && requireItemChangeReason && reasonText) {
-            itemReductions.push(buildReductionEntry(row, regularQty, reasonText));
-        }
-
+        // Pre-kitchen deletions: no reason log required.
         cart.splice(index, 1);
         renderAll();
 
@@ -624,8 +629,8 @@
             return;
         }
 
-        if (requireItemChangeReason && !String(reason || '').trim()) {
-            openItemChangeReasonModal({ type: 'dec', productId });
+        if (!canReduceCartItems) {
+            alert('Quantity kam sirf manager/admin kar sakta hai.');
             return;
         }
 
@@ -634,6 +639,7 @@
         const next = Math.round((totalQty + delta) * 1000) / 1000;
         const reasonText = String(reason || '').trim();
 
+        // Kitchen-printed qty se kam karne par hi reason mangna.
         if (next < locked) {
             if (!canVoidKitchenItems) {
                 alert('Kitchen me bheji hui quantity kam nahi ho sakti.');
@@ -647,13 +653,6 @@
             const sample = findCartRowForProduct(productId);
             if (voidQty > 0 && sample) {
                 kitchenVoids.push(buildReductionEntry(sample, voidQty, reasonText));
-            }
-        } else if (requireItemChangeReason && reasonText) {
-            const sample = findCartRowForProduct(productId);
-            const reducible = Math.max(0, totalQty - locked);
-            const decQty = Math.min(1, reducible);
-            if (sample && decQty > 0) {
-                itemReductions.push(buildReductionEntry(sample, decQty, reasonText));
             }
         }
 
@@ -671,10 +670,17 @@
             const row = cart[i];
             if (Number(row.product_id) !== Number(productId)) continue;
             const rowLocked = Number(row.kitchen_locked_qty) || 0;
-            const reducible = Math.max(0, Number(row.qty) - rowLocked);
+            const voidingKitchen = next < locked;
+            const reducible = voidingKitchen
+                ? Math.max(0, Number(row.qty))
+                : Math.max(0, Number(row.qty) - rowLocked);
             const take = Math.min(reducible, remaining);
             if (take <= 0) continue;
             row.qty = Math.round((Number(row.qty) - take) * 1000) / 1000;
+            if (voidingKitchen && rowLocked > 0) {
+                const lockedTake = Math.min(rowLocked, take);
+                row.kitchen_locked_qty = Math.max(0, Math.round((rowLocked - lockedTake) * 1000) / 1000);
+            }
             remaining -= take;
             if (p) row.unit_price = unitPriceForProduct(p, row.uom);
         }
@@ -760,7 +766,7 @@
         grid.innerHTML = list.map((p) => {
             const qty = cartQtyForProduct(p.id);
             const locked = cartLockedQtyForProduct(p.id);
-            const canDec = qty > 0 && (qty > locked || canVoidKitchenItems);
+            const canDec = qty > 0 && canReduceCartItems;
             const price = unitPriceForProduct(p, p.uom);
             const label = displayProductName(p.name);
             const img = p.image_url
@@ -793,16 +799,14 @@
         wrap.innerHTML = cart.map((r, i) => {
             const total = lineRowTotal(r, totals, i);
             const locked = Number(r.kitchen_locked_qty) || 0;
-            const showRemove = locked === 0 || canVoidKitchenItems || requireItemChangeReason;
+            const showRemove = canReduceCartItems;
             const kitchenBadge = locked > 0
                 ? `<span class="rp-kitchen-pill ${r.kitchen_served ? 'rp-kitchen-pill--served' : 'rp-kitchen-pill--pending'}" title="Kitchen me bheja hua">
                     <i class="bi ${r.kitchen_served ? 'bi-check-circle-fill' : 'bi-fire'}"></i>
                     ${r.kitchen_served ? 'Served' : 'Kitchen'}
                    </span>`
                 : '';
-            const removeTitle = requireItemChangeReason
-                ? 'Reason required'
-                : (locked > 0 ? 'Kitchen item — reason required' : 'Remove item');
+            const removeTitle = locked > 0 ? 'Kitchen item — reason required' : 'Remove item';
             return `<div class="rp-cart-line${locked > 0 ? ' is-kitchen-locked' : ''}" data-cart-index="${i}">
                 <div class="rp-cl-main">
                     <span class="rp-cl-qty">${fmtQty(r.qty)}×</span>
