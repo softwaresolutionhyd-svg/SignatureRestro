@@ -270,6 +270,7 @@ class ReportsController extends Controller
         $totalSubtotal = (float) $orders->sum('subtotal');
         $totalDiscount = (float) $orders->sum('discount_total');
         $totalTax = (float) $orders->sum('tax_total');
+        $totalService = (float) $orders->sum('service_charge_total');
         $totalGrand = (float) $orders->sum('grand_total');
         $totalGrossProfit = round((float) $orders->sum('gross_profit'), 2);
         $billCount = $orders->count();
@@ -283,6 +284,7 @@ class ReportsController extends Controller
             'totalSubtotal',
             'totalDiscount',
             'totalTax',
+            'totalService',
             'totalGrand',
             'totalGrossProfit',
             'billCount'

@@ -70,8 +70,8 @@
                 <div class="fw-bold fs-5 text-danger">{{ $currency }} {{ fmt_num($totalDiscount, 2) }}</div>
             </div>
             <div class="col">
-                <div class="text-secondary">Tax</div>
-                <div class="fw-bold fs-5">{{ $currency }} {{ fmt_num($totalTax, 2) }}</div>
+                <div class="text-secondary">Service Charges</div>
+                <div class="fw-bold fs-5">{{ $currency }} {{ fmt_num($totalService, 2) }}</div>
             </div>
             <div class="col">
                 <div class="text-secondary">Gross profit</div>
@@ -102,7 +102,7 @@
                     <th>Cashier</th>
                     <th class="text-end">Bill total</th>
                     <th class="text-end">Discount</th>
-                    <th class="text-end">Tax</th>
+                    <th class="text-end">Service Charges</th>
                     <th class="text-end" title="Line net − cost (pre-tax), current product cost">Gross profit</th>
                     <th class="text-end">Grand total</th>
                     @if(auth()->user()?->isPlatformSuperAdmin())
@@ -129,7 +129,7 @@
                     <td class="small">{{ optional($order->user)->name ?? '—' }}</td>
                     <td class="text-end small">{{ $currency }} {{ fmt_num($order->subtotal, 2) }}</td>
                     <td class="text-end small text-danger">{{ $currency }} {{ fmt_num($order->discount_total, 2) }}</td>
-                    <td class="text-end small">{{ $currency }} {{ fmt_num($order->tax_total, 2) }}</td>
+                    <td class="text-end small">{{ $currency }} {{ fmt_num($order->service_charge_total ?? 0, 2) }}</td>
                     <td class="text-end small fw-semibold {{ ($order->gross_profit ?? 0) < 0 ? 'text-danger' : 'text-success' }}">{{ $currency }} {{ fmt_num($order->gross_profit ?? 0, 2) }}</td>
                     <td class="text-end small fw-semibold">{{ $currency }} {{ fmt_num($order->grand_total, 2) }}</td>
                     @if(auth()->user()?->isPlatformSuperAdmin())
@@ -159,7 +159,7 @@
                     <td colspan="5" class="text-end">Totals</td>
                     <td class="text-end">{{ $currency }} {{ fmt_num($totalSubtotal, 2) }}</td>
                     <td class="text-end text-danger">{{ $currency }} {{ fmt_num($totalDiscount, 2) }}</td>
-                    <td class="text-end">{{ $currency }} {{ fmt_num($totalTax, 2) }}</td>
+                    <td class="text-end">{{ $currency }} {{ fmt_num($totalService, 2) }}</td>
                     <td class="text-end text-success">{{ $currency }} {{ fmt_num($totalGrossProfit, 2) }}</td>
                     <td class="text-end text-primary">{{ $currency }} {{ fmt_num($totalGrand, 2) }}</td>
                     @if(auth()->user()?->isPlatformSuperAdmin())
