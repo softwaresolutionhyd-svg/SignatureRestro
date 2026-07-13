@@ -3,10 +3,12 @@
 
 @section('content')
 
-@include('inventory.partials.subnav')
+<div class="no-print">@include('inventory.partials.subnav')</div>
+
+@include('reports.partials.print-header', ['reportName' => 'Low Stock Report', 'period' => 'Filter: '.ucfirst($filter)])
 
 {{-- ── Header ──────────────────────────────────────────────────────────── --}}
-<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4 no-print">
     <div>
         <h4 class="fw-bold mb-0">Low Stock Report</h4>
         <div class="text-secondary small">Generated on {{ now()->format('l, d M Y H:i') }}</div>
@@ -25,7 +27,7 @@
 </div>
 
 {{-- ── KPI Cards ────────────────────────────────────────────────────────── --}}
-<div class="row g-3 mb-4">
+<div class="row g-3 mb-4 no-print report-kpis">
     <div class="col-6 col-md-3">
         <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #ef4444!important;">
             <div class="card-body py-3">
@@ -215,25 +217,11 @@
     </div>
 </div>
 
-{{-- Print-only header --}}
-<div id="printHeader" class="d-none">
-    <h3>{{ \App\Models\Setting::get('company_name', config('app.name')) }} — Low Stock Report</h3>
-    <p>Generated: {{ now()->format('d M Y H:i') }} &nbsp;|&nbsp; Filter: {{ ucfirst($filter) }}</p>
-</div>
+@include('reports.partials.print-portrait')
 
 @endsection
 
 @section('scripts')
-<style>
-@media print {
-    @page { size: A4 portrait; margin: 12mm; }
-    .btn, nav, .odoo-topbar, #filterCard { display: none !important; }
-    #printHeader { display: block !important; margin-bottom: 16px; }
-    .card { box-shadow: none !important; border: 1px solid #ddd !important; }
-    .table-danger td { background: #fee2e2 !important; -webkit-print-color-adjust: exact; }
-    .table-warning td { background: #fef9c3 !important; -webkit-print-color-adjust: exact; }
-}
-</style>
 <script>
 document.getElementById('btnCsvExport').addEventListener('click', function () {
     const rows = [];
