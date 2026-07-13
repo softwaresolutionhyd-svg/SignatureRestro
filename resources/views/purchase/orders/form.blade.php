@@ -403,10 +403,10 @@
             </td>
             <td><input class="form-control text-end" type="number" step="0.001" min="0.001" name="lines[${idx}][qty]" value="${line.qty ?? ''}" required></td>
             <td>
-              <input class="form-control text-end" type="number" step="0.01" min="0" name="lines[${idx}][unit_price]" value="${line.unit_price ?? '0'}" required>
+              <input class="form-control text-end" type="number" step="any" min="0" name="lines[${idx}][unit_price]" value="${line.unit_price ?? '0'}" required>
               <input type="hidden" name="lines[${idx}][tax_percent]" value="0">
             </td>
-            <td><input class="form-control text-end fw-semibold lineTotalInput" type="number" step="0.01" min="0" placeholder="0.00" value=""></td>
+            <td><input class="form-control text-end fw-semibold lineTotalInput" type="number" step="any" min="0" placeholder="0.00" value=""></td>
             <td class="text-end">
               <button type="button" class="btn btn-sm btn-outline-secondary quickEditLineProduct">Quick edit</button>
               <button type="button" class="btn btn-sm btn-outline-danger removeLine">Remove</button>
