@@ -1,4 +1,7 @@
-@php $companyName = \App\Models\Setting::get('company_name', config('app.name')); @endphp
+@php
+    $companyName = \App\Models\Setting::get('company_name', config('app.name'));
+    $companyLogo = company_logo_url(\App\Models\Setting::get('company_logo'));
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -27,6 +30,9 @@
         <a href="{{ route('reports.purchases', request()->only(['from', 'to', 'vendor', 'status'])) }}">Back</a>
     </div>
 
+    @if($companyLogo)
+        <div style="text-align:center;"><img src="{{ $companyLogo }}" alt="" style="max-height:70px;max-width:220px;margin-bottom:4px;"></div>
+    @endif
     <h1>{{ $companyName }}</h1>
     <h2 style="text-align:center;font-weight:normal;margin-top:0;">Purchase Report</h2>
 

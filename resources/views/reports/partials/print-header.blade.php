@@ -1,6 +1,12 @@
-@php $rpCompany = \App\Models\Setting::get('company_name', config('app.name')); @endphp
+@php
+    $rpCompany = \App\Models\Setting::get('company_name', config('app.name'));
+    $rpLogo = company_logo_url(\App\Models\Setting::get('company_logo'));
+@endphp
 <div class="print-only report-print-header" style="display:none;">
     <div style="text-align:center;">
+        @if($rpLogo)
+            <img src="{{ $rpLogo }}" alt="" style="max-height:70px;max-width:220px;margin-bottom:6px;">
+        @endif
         <div style="font-size:16pt;font-weight:bold;">{{ $rpCompany }}</div>
         <div style="font-size:12pt;margin-top:2px;">{{ $reportName ?? 'Report' }}</div>
         <div style="font-size:10pt;margin-top:4px;">

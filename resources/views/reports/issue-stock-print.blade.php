@@ -27,6 +27,9 @@
         <a href="{{ route('reports.issue-stock', request()->only(['from', 'to', 'department_id'])) }}">Back</a>
     </div>
 
+    @if($rpLogo = company_logo_url(\App\Models\Setting::get('company_logo')))
+        <div style="text-align:center;"><img src="{{ $rpLogo }}" alt="" style="max-height:70px;max-width:220px;margin-bottom:4px;"></div>
+    @endif
     <h1>{{ \App\Models\Setting::get('company_name', config('app.name')) }}</h1>
     <h2 style="text-align:center;font-weight:normal;margin-top:0;">Issue Stock Report</h2>
 
