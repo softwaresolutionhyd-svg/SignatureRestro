@@ -132,6 +132,16 @@ final class NetworkPrinterService
 
         $out = self::INIT;
 
+        // Logo (ESC/POS raster) — from Settings → company logo
+        $logoPath = (string) ($settings['company_logo_abs_path'] ?? '');
+        if ($logoPath === '') {
+            $logoPath = company_logo_path((string) ($settings['company_logo'] ?? '')) ?? '';
+        }
+        $logoBytes = $this->escposLogoRaster($logoPath !== '' ? $logoPath : null);
+        if ($logoBytes !== null) {
+            $out .= self::ALIGN_CENTER . $logoBytes . "\n";
+        }
+
         // Brand header
         $out .= self::ALIGN_CENTER . self::SIZE_DOUBLE . self::BOLD_ON;
         $out .= $this->clip($company !== '' ? $company : 'SIGNATURE RESTRO') . "\n";
@@ -207,6 +217,89 @@ final class NetworkPrinterService
     }
 
     // ── formatting helpers ─────────────────────────────────────────────────
+
+    /**
+     * Convert a PNG/JPG logo into ESC/POS raster bytes (GS v 0).
+     * Returns null when GD is unavailable or the file cannot be read.
+     */
+    private function escposLogoRaster(?string $absolutePath, int $maxWidthDots = 384): ?string
+    {
+        if ($absolutePath === null || $absolutePath === '' || ! is_file($absolutePath)) {
+            return null;
+        }
+        if (! function_exists('imagecreatefromstring') || ! function_exists('imagecreatetruecolor')) {
+            return null;
+        }
+
+        $raw = @file_get_contents($absolutePath);
+        if ($raw === false || $raw === '') {
+            return null;
+        }
+
+        $src = @imagecreatefromstring($raw);
+        if ($src === false) {
+            return null;
+        }
+
+        $srcW = imagesx($src);
+        $srcH = imagesy($src);
+        if ($srcW < 1 || $srcH < 1) {
+            imagedestroy($src);
+
+            return null;
+        }
+
+        $dstW = min($maxWidthDots, $srcW);
+        // Keep even width in bytes for printer alignment.
+        $dstW = (int) (floor($dstW / 8) * 8);
+        if ($dstW < 8) {
+            $dstW = 8;
+        }
+        $dstH = (int) max(1, round($srcH * ($dstW / $srcW)));
+
+        $dst = imagecreatetruecolor($dstW, $dstH);
+        if ($dst === false) {
+            imagedestroy($src);
+
+            return null;
+        }
+
+        $white = imagecolorallocate($dst, 255, 255, 255);
+        imagefill($dst, 0, 0, $white);
+        imagealphablending($dst, true);
+        imagecopyresampled($dst, $src, 0, 0, 0, 0, $dstW, $dstH, $srcW, $srcH);
+        imagedestroy($src);
+
+        // Threshold to 1-bit (dark pixels print).
+        $bytesPerRow = (int) ($dstW / 8);
+        $bitmap = '';
+        for ($y = 0; $y < $dstH; $y++) {
+            for ($byte = 0; $byte < $bytesPerRow; $byte++) {
+                $value = 0;
+                for ($bit = 0; $bit < 8; $bit++) {
+                    $x = $byte * 8 + $bit;
+                    $rgb = imagecolorat($dst, $x, $y);
+                    $r = ($rgb >> 16) & 0xFF;
+                    $g = ($rgb >> 8) & 0xFF;
+                    $b = $rgb & 0xFF;
+                    $luma = (int) (0.299 * $r + 0.587 * $g + 0.114 * $b);
+                    if ($luma < 160) {
+                        $value |= 1 << (7 - $bit);
+                    }
+                }
+                $bitmap .= chr($value);
+            }
+        }
+        imagedestroy($dst);
+
+        // GS v 0 m xL xH yL yH d1…dk
+        $xL = $bytesPerRow & 0xFF;
+        $xH = ($bytesPerRow >> 8) & 0xFF;
+        $yL = $dstH & 0xFF;
+        $yH = ($dstH >> 8) & 0xFF;
+
+        return "\x1D\x76\x30\x00" . chr($xL) . chr($xH) . chr($yL) . chr($yH) . $bitmap;
+    }
 
     private function orderLocation(PosOrder $order): string
     {

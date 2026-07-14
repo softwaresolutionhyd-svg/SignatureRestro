@@ -261,6 +261,60 @@ function company_logo_url(?string $path): ?string
 }
 
 /**
+ * Absolute filesystem path for a company logo on the public disk.
+ */
+function company_logo_path(?string $path): ?string
+{
+    $path = trim((string) $path);
+    if ($path === '' || str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+        return null;
+    }
+
+    $candidates = [
+        storage_path('app/public/'.$path),
+        public_path('storage/'.$path),
+    ];
+
+    foreach ($candidates as $candidate) {
+        if (is_file($candidate)) {
+            return $candidate;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Data-URI for reliable browser / thermal print embedding.
+ */
+function company_logo_data_uri(?string $path): ?string
+{
+    $absolute = company_logo_path($path);
+    if ($absolute === null) {
+        return null;
+    }
+
+    $mime = @mime_content_type($absolute) ?: null;
+    if ($mime === null || ! str_starts_with($mime, 'image/')) {
+        $ext = strtolower(pathinfo($absolute, PATHINFO_EXTENSION));
+        $mime = match ($ext) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'svg' => 'image/svg+xml',
+            default => 'image/png',
+        };
+    }
+
+    $bytes = @file_get_contents($absolute);
+    if ($bytes === false || $bytes === '') {
+        return null;
+    }
+
+    return 'data:'.$mime.';base64,'.base64_encode($bytes);
+}
+
+/**
  * Food images for the login page hero collage (from active POS products).
  *
  * @return list<string>

@@ -96,10 +96,16 @@
     $companyPhone = trim((string) ($settings['company_phone'] ?? ''));
     $currency = $settings['currency_symbol'] ?? 'Rs.';
     $orderType = $order->serviceTypeLabel() ?: '—';
+    $logoSrc = trim((string) ($settings['company_logo_data_uri'] ?? ''))
+        ?: trim((string) ($settings['company_logo_url'] ?? ''));
+    if ($logoSrc === '' && ! empty($settings['company_logo'])) {
+        $logoSrc = company_logo_data_uri((string) $settings['company_logo'])
+            ?: (company_logo_url((string) $settings['company_logo']) ?? '');
+    }
 @endphp
 <div class="r-wrap">
-    @if(!empty($settings['company_logo_url']))
-        <img src="{{ $settings['company_logo_url'] }}" alt="" class="r-logo">
+    @if($logoSrc !== '')
+        <img src="{{ $logoSrc }}" alt="{{ $companyName }}" class="r-logo">
     @endif
 
     <div class="center r-brand">{{ $companyName }}</div>
@@ -238,13 +244,45 @@
 @if(!empty($autoPrint))
 <script>
 (function () {
+    var printed = false;
+    function waitForImages(done) {
+        var imgs = Array.prototype.slice.call(document.images || []);
+        var finished = false;
+        var complete = function () {
+            if (finished) return;
+            finished = true;
+            done();
+        };
+        if (!imgs.length) {
+            complete();
+            return;
+        }
+        var left = imgs.length;
+        var onOne = function () {
+            left -= 1;
+            if (left <= 0) complete();
+        };
+        imgs.forEach(function (img) {
+            if (img.complete) {
+                onOne();
+                return;
+            }
+            img.addEventListener('load', onOne, { once: true });
+            img.addEventListener('error', onOne, { once: true });
+        });
+        setTimeout(complete, 2500);
+    }
     function doPrint() {
-        window.print();
+        waitForImages(function () {
+            if (printed) return;
+            printed = true;
+            setTimeout(function () { window.print(); }, 150);
+        });
     }
     if (document.readyState === 'complete') {
-        setTimeout(doPrint, 300);
+        doPrint();
     } else {
-        window.addEventListener('load', function () { setTimeout(doPrint, 300); });
+        window.addEventListener('load', doPrint);
     }
 })();
 </script>
