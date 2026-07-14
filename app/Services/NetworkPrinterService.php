@@ -124,21 +124,33 @@ final class NetworkPrinterService
     public function buildBillSlip(PosOrder $order, array $settings): string
     {
         $currency = (string) ($settings['currency_symbol'] ?? 'Rs.');
+        $company = strtoupper(trim((string) ($settings['company_name'] ?? config('app.name'))));
+        $isPaid = strtolower((string) ($order->status ?? '')) === 'paid'
+            || filled($order->paid_at);
+        $statusLabel = $order->type === 'refund' ? 'REFUND' : ($isPaid ? 'PAID' : 'UNPAID');
+        $orderType = $order->serviceTypeLabel() ?: '—';
+
         $out = self::INIT;
 
+        // Brand header
         $out .= self::ALIGN_CENTER . self::SIZE_DOUBLE . self::BOLD_ON;
-        $out .= $this->clip((string) ($settings['company_name'] ?? config('app.name'))) . "\n";
+        $out .= $this->clip($company !== '' ? $company : 'SIGNATURE RESTRO') . "\n";
         $out .= self::SIZE_NORMAL . self::BOLD_OFF;
+        $out .= "\n";
 
-        if (! empty($settings['company_address'])) {
-            $out .= $this->clip((string) $settings['company_address']) . "\n";
+        if (! empty(trim((string) ($settings['company_address'] ?? '')))) {
+            $out .= $this->clip('Address: ' . $settings['company_address']) . "\n";
         }
-        if (! empty($settings['company_phone'])) {
-            $out .= $this->clip('Ph: ' . $settings['company_phone']) . "\n";
+        if (! empty(trim((string) ($settings['company_email'] ?? '')))) {
+            $out .= $this->clip('Email: ' . $settings['company_email']) . "\n";
+        }
+        if (! empty(trim((string) ($settings['company_phone'] ?? '')))) {
+            $out .= $this->clip('Phone: ' . $settings['company_phone']) . "\n";
         }
 
-        $out .= self::ALIGN_LEFT . $this->rule();
-        $out .= $this->twoCol('Bill #: ' . ($order->order_no ?? $order->id), $order->created_at?->format('d-M H:i') ?? '') . "\n";
+        $out .= self::ALIGN_LEFT . "\n" . $this->rule();
+        $out .= $this->line('Invoice Number: ' . ($order->order_no ?? $order->id)) . "\n";
+        $out .= $this->line('Order Type: ' . $orderType) . "\n";
         $where = $this->orderLocation($order);
         if ($where !== '') {
             $out .= $this->line('Table/Room: ' . $where) . "\n";
@@ -146,35 +158,48 @@ final class NetworkPrinterService
         if ($order->user?->name) {
             $out .= $this->line('Cashier: ' . $order->user->name) . "\n";
         }
-        $out .= $this->rule();
+        $out .= $this->rule() . "\n";
 
-        // Column header
-        $out .= self::BOLD_ON . $this->itemRow('Item', 'Qty', 'Amount') . self::BOLD_OFF . "\n";
+        // Column header: ITEMS | QTY | RATE | AMOUNT
+        $out .= self::BOLD_ON . $this->itemRow4('ITEMS', 'QTY', 'RATE', 'AMOUNT') . self::BOLD_OFF . "\n";
+        $out .= $this->rule();
         foreach ($order->items as $item) {
             $qty = rtrim(rtrim(number_format((float) $item->qty, 3, '.', ''), '0'), '.');
+            $rate = number_format((float) ($item->unit_price ?? 0), 2);
             $amount = number_format((float) $item->total, 2);
-            $out .= $this->itemRow((string) ($item->product?->name ?? $item->name ?? 'Item'), $qty, $amount) . "\n";
+            $out .= $this->itemRow4(
+                (string) ($item->product?->name ?? $item->name ?? 'Item'),
+                $qty,
+                $rate,
+                $amount
+            ) . "\n\n";
         }
         $out .= $this->rule();
 
         // Totals
-        $out .= $this->twoCol('Subtotal', $currency . ' ' . number_format((float) $order->subtotal, 2)) . "\n";
+        $out .= $this->twoCol('Sub Total', number_format((float) $order->subtotal, 2)) . "\n";
         if ((float) $order->discount_total > 0) {
-            $out .= $this->twoCol('Discount', '-' . $currency . ' ' . number_format((float) $order->discount_total, 2)) . "\n";
+            $out .= $this->twoCol('Discount', '-' . number_format((float) $order->discount_total, 2)) . "\n";
         }
         if ((float) ($order->service_charge_total ?? 0) > 0) {
-            $out .= $this->twoCol('Service Charges', $currency . ' ' . number_format((float) $order->service_charge_total, 2)) . "\n";
+            $pct = $order->service_charge_percent !== null
+                ? ' @ ' . number_format((float) $order->service_charge_percent, 2) . '%'
+                : '';
+            $out .= $this->twoCol('Service Charges' . $pct, number_format((float) $order->service_charge_total, 2)) . "\n";
         }
         if ((float) $order->tax_total > 0) {
-            $out .= $this->twoCol('Tax', $currency . ' ' . number_format((float) $order->tax_total, 2)) . "\n";
+            $out .= $this->twoCol('Tax', number_format((float) $order->tax_total, 2)) . "\n";
         }
-        $out .= self::BOLD_ON . self::SIZE_TALL;
-        $out .= $this->twoCol('TOTAL', $currency . ' ' . number_format((float) $order->grand_total, 2)) . "\n";
+        $out .= "\n" . self::BOLD_ON . self::SIZE_TALL;
+        $out .= $this->twoCol('Grand Total', $currency . ' ' . number_format((float) $order->grand_total, 2)) . "\n";
         $out .= self::SIZE_NORMAL . self::BOLD_OFF;
 
-        $out .= $this->rule();
-        $out .= self::ALIGN_CENTER;
-        $out .= $this->clip('Thank you!') . "\n";
+        $out .= "\n" . $this->rule();
+        $out .= self::ALIGN_CENTER . self::SIZE_DOUBLE . self::BOLD_ON;
+        $out .= $this->clip($statusLabel) . "\n";
+        $out .= self::SIZE_NORMAL . self::BOLD_OFF;
+        $out .= "\n";
+        $out .= $this->clip('Powered by softwaresolutions.pk') . "\n";
         $out .= self::ALIGN_LEFT;
         $out .= self::FEED . self::CUT;
 
@@ -238,5 +263,22 @@ final class NetworkPrinterService
         $amount = str_repeat(' ', max(0, $amtW - mb_strlen($amount))) . $amount;
 
         return $name . $qty . $amount;
+    }
+
+    /** ITEMS | QTY | RATE | AMOUNT — 48-char thermal line. */
+    private function itemRow4(string $name, string $qty, string $rate, string $amount): string
+    {
+        $qtyW = 6;
+        $rateW = 9;
+        $amtW = 10;
+        $nameW = self::WIDTH - $qtyW - $rateW - $amtW;
+
+        $name = mb_substr($name, 0, $nameW);
+        $name = $name . str_repeat(' ', max(0, $nameW - mb_strlen($name)));
+        $qty = str_repeat(' ', max(0, $qtyW - mb_strlen($qty))) . $qty;
+        $rate = str_repeat(' ', max(0, $rateW - mb_strlen($rate))) . $rate;
+        $amount = str_repeat(' ', max(0, $amtW - mb_strlen($amount))) . $amount;
+
+        return $name . $qty . $rate . $amount;
     }
 }

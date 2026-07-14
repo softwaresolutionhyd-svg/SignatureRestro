@@ -2101,6 +2101,7 @@ class PosController extends Controller
             'company_name' => config('app.name'),
             'company_address' => '',
             'company_phone' => '',
+            'company_email' => '',
             'company_logo' => '',
             'currency_symbol' => 'Rs.',
             'pos_allow_bill_print' => '1',
