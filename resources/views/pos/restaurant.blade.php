@@ -106,6 +106,12 @@
             <button type="button" class="btn btn-sm rp-order-tab" id="rpTabMenu" data-mode="menu">
                 <i class="bi bi-grid-3x3-gap-fill"></i> Menu
             </button>
+            @if($canPosDiscountCredit ?? false)
+            <button type="button" class="btn btn-sm rp-order-tab" id="rpTabKitchenVoids" data-mode="kitchen-voids" title="Kitchen print ke baad cancel hue items">
+                <i class="bi bi-x-octagon"></i> Cancelled
+                <span class="badge rp-badge-count rp-badge-cancelled" id="rpKitchenVoidCount">0</span>
+            </button>
+            @endif
             <button type="button" class="btn btn-sm rp-order-tab" id="rpTabCart" data-mode="cart">
                 <i class="bi bi-bag-check"></i> Cart
             </button>
@@ -408,6 +414,7 @@
         'canReopenPaidBill' => (bool) ($canReopenPaidBill ?? false),
         'canPosPay' => (bool) ($canPosPay ?? false),
         'canPosDiscountCredit' => (bool) ($canPosDiscountCredit ?? false),
+        'canViewKitchenVoids' => (bool) ($canPosDiscountCredit ?? false),
         'routes' => [
             'checkout' => route('restaurant-pos.checkout'),
             'hold' => route('restaurant-pos.hold'),
@@ -419,6 +426,7 @@
             'kitchen' => $kitchenStub,
             'kitchenPrint' => $kitchenPrintStub,
             'cashierPrint' => $cashierPrintStub,
+            'kitchenVoids' => route('restaurant-pos.kitchen-voids'),
             'reopen' => $reopenStub,
         ],
     ];

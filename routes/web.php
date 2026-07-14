@@ -240,6 +240,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
             Route::get('/closing', [PosController::class, 'closing'])->name('closing');
             Route::get('/closing/print', [PosController::class, 'closingPrint'])->name('closing.print');
             Route::get('/sync', [PosController::class, 'sync'])->name('sync');
+            Route::get('/kitchen-voids', [PosController::class, 'sessionKitchenVoids'])->name('kitchen-voids');
             Route::post('/session/open', [PosController::class, 'openSession'])->name('session.open');
             Route::post('/session/close', [PosController::class, 'closeSession'])->name('session.close');
             Route::post('/cash-movement', [PosController::class, 'addCashMovement'])->name('cash-movement');

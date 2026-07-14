@@ -784,6 +784,79 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     color: #fcd98a;
 }
 
+.restaurant-pos-app .rp-badge-cancelled {
+    background: #dc2626;
+    color: #fff;
+}
+
+.restaurant-pos-app .rp-menu-grid.rp-kitchen-voids-grid {
+    display: block;
+    overflow: auto;
+    align-content: start;
+}
+
+.restaurant-pos-app .rp-kitchen-voids-table {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    width: 100%;
+}
+
+.restaurant-pos-app .rp-kv-row {
+    display: grid;
+    grid-template-columns: minmax(72px, 0.7fr) minmax(120px, 1.4fr) 52px minmax(140px, 1.6fr) minmax(80px, 0.9fr) minmax(110px, 1fr);
+    gap: 0.5rem 0.65rem;
+    align-items: start;
+    padding: 0.65rem 0.75rem;
+    border-radius: 10px;
+    background: linear-gradient(145deg, rgba(28, 34, 44, 0.96) 0%, rgba(18, 22, 30, 0.98) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 0.78rem;
+    color: #e7e5e4;
+}
+
+.restaurant-pos-app .rp-kv-row.rp-kv-head {
+    background: rgba(15, 18, 24, 0.92);
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #a8a29e;
+    border-color: rgba(252, 217, 138, 0.15);
+}
+
+.restaurant-pos-app .rp-kv-bill {
+    font-weight: 700;
+    color: #fcd98a;
+}
+
+.restaurant-pos-app .rp-kv-product {
+    font-weight: 600;
+}
+
+.restaurant-pos-app .rp-kv-uom {
+    font-weight: 400;
+    color: #a8a29e;
+    font-size: 0.72rem;
+}
+
+.restaurant-pos-app .rp-kv-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+}
+
+.restaurant-pos-app .rp-kv-reason {
+    color: #fca5a5;
+    line-height: 1.35;
+}
+
+.restaurant-pos-app .rp-kv-by,
+.restaurant-pos-app .rp-kv-time {
+    color: #a8a29e;
+    font-size: 0.72rem;
+}
+
 /* —— Main body —— */
 .restaurant-pos-app .rp-body {
     display: grid;

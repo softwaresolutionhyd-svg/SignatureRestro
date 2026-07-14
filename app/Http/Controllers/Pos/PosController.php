@@ -7,6 +7,7 @@ use App\Http\Requests\PosCashMovementRequest;
 use App\Http\Requests\PosCheckoutRequest;
 use App\Http\Requests\PosCloseSessionRequest;
 use App\Http\Requests\PosOpenSessionRequest;
+use App\Models\ActivityLog;
 use App\Models\Contact;
 use App\Models\CreditLedger;
 use App\Models\InventoryCostLayer;
@@ -543,6 +544,73 @@ class PosController extends Controller
             'count' => $pending->count(),
             'resumed' => $resumed,
             'table_board' => $this->orderTaker->tableBoard(),
+        ]);
+    }
+
+    /**
+     * Kitchen print ke baad bill se hataaye gaye items (reasons ke sath) — sirf manager/admin.
+     */
+    public function sessionKitchenVoids(Request $request): JsonResponse
+    {
+        $user = Auth::user();
+        abort_unless($this->userCanKitchenVoid($user), 403);
+
+        $session = $this->requireOpenSessionForUser($user);
+        $billSessionIds = $this->resolvePosBillSessionIds($session, $user);
+
+        if ($billSessionIds === []) {
+            return response()->json(['items' => [], 'count' => 0]);
+        }
+
+        $orderIds = PosOrder::query()
+            ->whereIn('session_id', $billSessionIds)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if ($orderIds === []) {
+            return response()->json(['items' => [], 'count' => 0]);
+        }
+
+        $logs = ActivityLog::query()
+            ->where('action', 'pos.kitchen_void')
+            ->where('subject_type', PosOrder::class)
+            ->whereIn('subject_id', $orderIds)
+            ->with(['user:id,name', 'subject:id,order_no,table_id,guest_name,room_no'])
+            ->orderByDesc('created_at')
+            ->limit(500)
+            ->get();
+
+        $items = $logs->map(function (ActivityLog $log) {
+            /** @var PosOrder|null $order */
+            $order = $log->subject;
+            $void = is_array($log->properties) ? ($log->properties['void'] ?? []) : [];
+            if (! is_array($void)) {
+                $void = [];
+            }
+
+            $name = trim((string) ($void['name'] ?? ''));
+            if ($name === '' && ! empty($void['product_id'])) {
+                $name = 'Product #'.(int) $void['product_id'];
+            }
+
+            return [
+                'id' => (int) $log->id,
+                'order_id' => (int) $log->subject_id,
+                'order_no' => (string) ($order?->order_no ?? ('#'.$log->subject_id)),
+                'product' => $name !== '' ? $name : 'Item',
+                'qty' => round((float) ($void['qty'] ?? 0), 3),
+                'uom' => (string) ($void['uom'] ?? ''),
+                'reason' => (string) ($void['reason'] ?? ''),
+                'notes' => (string) ($void['notes'] ?? ''),
+                'cancelled_at' => $log->created_at?->format('d M Y, h:i A') ?? '',
+                'cancelled_by' => (string) ($log->user?->name ?? '—'),
+            ];
+        })->values();
+
+        return response()->json([
+            'items' => $items,
+            'count' => $items->count(),
         ]);
     }
 

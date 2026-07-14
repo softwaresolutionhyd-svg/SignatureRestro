@@ -17,6 +17,7 @@
     const posServiceChargePercent = posServiceChargeEnabled ? Number(settings.service_charge_percent || 0) : 0;
     const canPosPay = boot.canPosPay === true;
     const canPosDiscountCredit = boot.canPosDiscountCredit === true;
+    const canViewKitchenVoids = boot.canViewKitchenVoids === true;
     const posShowDiscount = canPosDiscountCredit && settings.show_discount !== false;
     const resumeBillDiscount = Number(settings.resume_bill_discount_percent || 0);
     const resumeOwnerDiscount = settings.resume_is_owner_discount === true;
@@ -32,6 +33,8 @@
     let cart = [];
     let kitchenVoids = [];
     let itemReductions = [];
+    let kitchenVoidsSessionList = [];
+    let kitchenVoidsLoading = false;
     let pendingChangeAction = null;
     let removeReasonModalInstance = null;
     let resumeSaveLock = Promise.resolve();
@@ -750,7 +753,7 @@
             return;
         }
         const grid = $('#rpMenuGrid');
-        grid?.classList.remove('rp-bills-grid');
+        grid?.classList.remove('rp-bills-grid', 'rp-kitchen-voids-grid');
         const q = ($('#rpProductSearch')?.value || '').trim().toLowerCase();
         if (!grid) return;
         const list = products.filter((p) => isProductVisible(p) && productMatchesMenuCategory(p) && (
@@ -899,6 +902,18 @@
             head.appendChild(billsHead);
         }
 
+        if (orderListMode === 'kitchen-voids') {
+            const rows = filterKitchenVoidsForSearch(kitchenVoidsSessionList);
+            billsHead.innerHTML = `
+                <div class="rp-bills-head-main">
+                    <span class="rp-bills-head-title">Kitchen Cancelled</span>
+                    <span class="rp-bills-head-count">${rows.length} item${rows.length === 1 ? '' : 's'}</span>
+                </div>
+                <span class="rp-bills-head-hint">Kitchen print ke baad bill se hataaye gaye items aur un ka reason.</span>
+            `;
+            return;
+        }
+
         const isPending = orderListMode === 'pending';
         const orders = isPending ? (boot.pendingBillsDetail || []) : (boot.paidBillsDetail || []);
         billsHead.innerHTML = `
@@ -958,10 +973,62 @@
         orderListMode = null;
         $('#rpTabPending')?.classList.remove('is-active');
         $('#rpTabPaid')?.classList.remove('is-active');
+        $('#rpTabKitchenVoids')?.classList.remove('is-active');
         clearBillsMenuHead();
         const search = $('#rpProductSearch');
         if (search) search.placeholder = 'Search menu…';
         renderAll();
+    }
+
+    async function loadSessionKitchenVoids() {
+        if (!canViewKitchenVoids || !routes.kitchenVoids) {
+            return [];
+        }
+        if (kitchenVoidsLoading) {
+            return kitchenVoidsSessionList;
+        }
+        kitchenVoidsLoading = true;
+        try {
+            const res = await fetch(routes.kitchenVoids, {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.message || 'Cancelled items load nahi ho saki.');
+            }
+            kitchenVoidsSessionList = Array.isArray(data.items) ? data.items : [];
+            updateKitchenVoidCount();
+            return kitchenVoidsSessionList;
+        } catch (e) {
+            console.warn('kitchen voids load failed', e);
+            return kitchenVoidsSessionList;
+        } finally {
+            kitchenVoidsLoading = false;
+        }
+    }
+
+    function updateKitchenVoidCount() {
+        const el = $('#rpKitchenVoidCount');
+        if (!el) return;
+        const n = kitchenVoidsSessionList.length;
+        el.textContent = String(n);
+        el.style.display = n > 0 ? '' : 'none';
+    }
+
+    function filterKitchenVoidsForSearch(items) {
+        const q = ($('#rpProductSearch')?.value || '').trim().toLowerCase();
+        if (!q) return items;
+        return items.filter((row) => {
+            const hay = [
+                row.order_no,
+                row.product,
+                row.reason,
+                row.cancelled_by,
+                row.cancelled_at,
+                row.uom,
+            ].join(' ').toLowerCase();
+            return hay.includes(q);
+        });
     }
 
     function filterOrdersForSearch(orders) {
@@ -983,6 +1050,7 @@
     function setOrderListMode(mode) {
         const tabPending = $('#rpTabPending');
         const tabPaid = $('#rpTabPaid');
+        const tabKitchenVoids = $('#rpTabKitchenVoids');
 
         if (orderListMode === mode) {
             showMenuPanel();
@@ -994,6 +1062,7 @@
 
         tabPending?.classList.toggle('is-active', mode === 'pending');
         tabPaid?.classList.toggle('is-active', mode === 'paid');
+        tabKitchenVoids?.classList.toggle('is-active', mode === 'kitchen-voids');
         $('#rpTabMenu')?.classList.remove('is-active');
 
         if (panelView === 'cart') {
@@ -1002,18 +1071,71 @@
 
         const search = $('#rpProductSearch');
         if (search) {
-            search.placeholder = mode === 'pending' ? 'Search pending bill…' : 'Search paid bill…';
+            if (mode === 'pending') search.placeholder = 'Search pending bill…';
+            else if (mode === 'paid') search.placeholder = 'Search paid bill…';
+            else if (mode === 'kitchen-voids') search.placeholder = 'Search cancelled item…';
             search.value = '';
+        }
+
+        if (mode === 'kitchen-voids') {
+            loadSessionKitchenVoids().then(() => {
+                updateBillsMenuHead();
+                renderOrderCards();
+            });
+            return;
         }
 
         updateBillsMenuHead();
         renderOrderCards();
     }
 
+    function renderKitchenVoidCards() {
+        const grid = $('#rpMenuGrid');
+        if (!grid) return;
+
+        updateBillsMenuHead();
+        grid.classList.remove('rp-bills-grid');
+        grid.classList.add('rp-kitchen-voids-grid');
+
+        const rows = filterKitchenVoidsForSearch(kitchenVoidsSessionList);
+        if (!rows.length) {
+            grid.innerHTML = `<div class="rp-empty rp-empty--menu">
+                <span class="rp-empty-icon"><i class="bi bi-x-octagon"></i></span>
+                <span>${kitchenVoidsSessionList.length ? 'Is search se koi cancelled item nahi mili.' : 'Is session mein kitchen print ke baad koi item cancel nahi hua.'}</span>
+            </div>`;
+            return;
+        }
+
+        grid.innerHTML = `<div class="rp-kitchen-voids-table">
+            <div class="rp-kv-row rp-kv-head">
+                <span>Bill</span>
+                <span>Item</span>
+                <span class="rp-kv-num">Qty</span>
+                <span>Reason</span>
+                <span>By</span>
+                <span>Time</span>
+            </div>
+            ${rows.map((row) => `<div class="rp-kv-row">
+                <span class="rp-kv-bill">${escHtml(row.order_no)}</span>
+                <span class="rp-kv-product">${escHtml(row.product)}${row.uom ? ` <span class="rp-kv-uom">(${escHtml(row.uom)})</span>` : ''}</span>
+                <span class="rp-kv-num">${escHtml(fmtQty(row.qty))}</span>
+                <span class="rp-kv-reason">${escHtml(row.reason || '—')}</span>
+                <span class="rp-kv-by">${escHtml(row.cancelled_by)}</span>
+                <span class="rp-kv-time">${escHtml(row.cancelled_at)}</span>
+            </div>`).join('')}
+        </div>`;
+    }
+
     function renderOrderCards() {
         const grid = $('#rpMenuGrid');
         if (!grid || !orderListMode) return;
 
+        if (orderListMode === 'kitchen-voids') {
+            renderKitchenVoidCards();
+            return;
+        }
+
+        grid.classList.remove('rp-kitchen-voids-grid');
         updateBillsMenuHead();
         grid.classList.add('rp-bills-grid');
 
@@ -1726,6 +1848,7 @@
                     throw new Error(errMsg);
                 }
 
+                const hadKitchenVoids = kitchenVoids.length > 0;
                 if (data.order) {
                     upsertPendingBill(data.order, true);
                     reloadCartFromOrder(data.order);
@@ -1736,6 +1859,13 @@
                 }
                 kitchenVoids = [];
                 itemReductions = [];
+                if (hadKitchenVoids && canViewKitchenVoids) {
+                    loadSessionKitchenVoids().then(() => {
+                        if (orderListMode === 'kitchen-voids') {
+                            renderOrderCards();
+                        }
+                    });
+                }
                 return data.order || null;
             } finally {
                 setCartSaving(false);
@@ -2015,6 +2145,7 @@
         $('#rpOwnerDiscountBtn')?.addEventListener('click', applyOwnerDiscount);
         $('#rpTabPending')?.addEventListener('click', () => setOrderListMode('pending'));
         $('#rpTabPaid')?.addEventListener('click', () => setOrderListMode('paid'));
+        $('#rpTabKitchenVoids')?.addEventListener('click', () => setOrderListMode('kitchen-voids'));
         $('#rpTabMenu')?.addEventListener('click', () => {
             if (orderListMode) showMenuPanel();
             togglePanelView('menu');
@@ -2142,6 +2273,9 @@
         bindEvents();
         applyTableBoard(boot.tableBoard || []);
         updateOrderTabCounts();
+        if (canViewKitchenVoids) {
+            loadSessionKitchenVoids();
+        }
         updateOwnerDiscountButton();
         updateCheckoutActions();
         renderAll();
