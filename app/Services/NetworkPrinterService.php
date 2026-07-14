@@ -192,10 +192,7 @@ final class NetworkPrinterService
             $out .= $this->twoCol('Discount', '-' . number_format((float) $order->discount_total, 2)) . "\n";
         }
         if ((float) ($order->service_charge_total ?? 0) > 0) {
-            $pct = $order->service_charge_percent !== null
-                ? ' @ ' . number_format((float) $order->service_charge_percent, 2) . '%'
-                : '';
-            $out .= $this->twoCol('Service Charges' . $pct, number_format((float) $order->service_charge_total, 2)) . "\n";
+            $out .= $this->twoCol('Service Charges', number_format((float) $order->service_charge_total, 2)) . "\n";
         }
         if ((float) $order->tax_total > 0) {
             $out .= $this->twoCol('Tax', number_format((float) $order->tax_total, 2)) . "\n";

@@ -184,7 +184,7 @@
         @endif
         @if((float) ($order->service_charge_total ?? 0) > 0)
             <div class="tot-row">
-                <span class="muted">Service Charges{{ $order->service_charge_percent !== null ? ' @ ' . fmt_num((float) $order->service_charge_percent, 2) . '%' : '' }}</span>
+                <span class="muted">Service Charges</span>
                 <span>{{ $currency }}{{ fmt_num((float) $order->service_charge_total, 2) }}</span>
             </div>
         @endif
