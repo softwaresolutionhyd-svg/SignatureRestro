@@ -2108,6 +2108,13 @@ class PosController extends Controller
             'pos_enable_tables' => '1',
         ], Setting::all_map());
 
+        $companyName = trim((string) ($settings['company_name'] ?? ''));
+        $fixedCompanyName = preg_replace('/\bRESRO\b/iu', 'RESTRO', $companyName) ?? $companyName;
+        if ($fixedCompanyName !== '' && $fixedCompanyName !== $companyName) {
+            Setting::set('company_name', $fixedCompanyName);
+            $settings['company_name'] = $fixedCompanyName;
+        }
+
         $logoPath = (string) ($settings['company_logo'] ?? '');
         $settings['company_logo_url'] = company_logo_url($logoPath) ?? '';
         $settings['company_logo_data_uri'] = company_logo_data_uri($logoPath) ?? '';

@@ -125,6 +125,7 @@ final class NetworkPrinterService
     {
         $currency = (string) ($settings['currency_symbol'] ?? 'Rs.');
         $company = strtoupper(trim((string) ($settings['company_name'] ?? config('app.name'))));
+        $company = preg_replace('/\bRESRO\b/u', 'RESTRO', $company) ?? $company;
         $isPaid = strtolower((string) ($order->status ?? '')) === 'paid'
             || filled($order->paid_at);
         $statusLabel = $order->type === 'refund' ? 'REFUND' : ($isPaid ? 'PAID' : 'UNPAID');
@@ -142,8 +143,8 @@ final class NetworkPrinterService
             $out .= self::ALIGN_CENTER . $logoBytes . "\n";
         }
 
-        // Brand header
-        $out .= self::ALIGN_CENTER . self::SIZE_DOUBLE . self::BOLD_ON;
+        // Brand header (tall + bold — double-width strips chars on 58mm paper)
+        $out .= self::ALIGN_CENTER . self::SIZE_TALL . self::BOLD_ON;
         $out .= $this->clip($company !== '' ? $company : 'SIGNATURE RESTRO') . "\n";
         $out .= self::SIZE_NORMAL . self::BOLD_OFF;
         $out .= "\n";
@@ -197,15 +198,20 @@ final class NetworkPrinterService
         if ((float) $order->tax_total > 0) {
             $out .= $this->twoCol('Tax', number_format((float) $order->tax_total, 2)) . "\n";
         }
-        $out .= "\n" . self::BOLD_ON . self::SIZE_TALL;
-        $out .= $this->twoCol('Grand Total', $currency . ' ' . number_format((float) $order->grand_total, 2)) . "\n";
+
+        $grandLabel = 'Grand Total';
+        $grandAmount = $currency . ' ' . number_format((float) $order->grand_total, 2);
+        $out .= "\n" . self::ALIGN_CENTER . self::BOLD_ON . self::SIZE_TALL;
+        $out .= $this->clip($grandLabel) . "\n";
+        $out .= $this->clip($grandAmount) . "\n";
         $out .= self::SIZE_NORMAL . self::BOLD_OFF;
 
         $out .= "\n" . $this->rule();
         $out .= self::ALIGN_CENTER . self::SIZE_DOUBLE . self::BOLD_ON;
         $out .= $this->clip($statusLabel) . "\n";
         $out .= self::SIZE_NORMAL . self::BOLD_OFF;
-        $out .= "\n";
+        $out .= "\n\n"; // ~1–2 blank lines before footer
+        $out .= self::ALIGN_CENTER;
         $out .= $this->clip('Powered by softwaresolutions.pk') . "\n";
         $out .= self::ALIGN_LEFT;
         $out .= self::FEED . self::CUT;
