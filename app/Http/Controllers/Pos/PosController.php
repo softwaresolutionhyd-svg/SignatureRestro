@@ -610,7 +610,26 @@ class PosController extends Controller
             ->limit(500)
             ->get();
 
-        $items = $logs->map(function (ActivityLog $log) {
+        $missingProductIds = $logs->map(function (ActivityLog $log) {
+            $void = is_array($log->properties) ? ($log->properties['void'] ?? []) : [];
+            if (! is_array($void)) {
+                return 0;
+            }
+            $name = trim((string) ($void['name'] ?? ''));
+            $productId = (int) ($void['product_id'] ?? 0);
+
+            return ($name === '' || str_starts_with($name, 'Product #')) && $productId > 0
+                ? $productId
+                : 0;
+        })->filter()->unique()->values()->all();
+
+        $productNames = $missingProductIds === []
+            ? collect()
+            : InventoryProduct::query()
+                ->whereIn('id', $missingProductIds)
+                ->pluck('name', 'id');
+
+        $items = $logs->map(function (ActivityLog $log) use ($productNames) {
             /** @var PosOrder|null $order */
             $order = $log->subject;
             $void = is_array($log->properties) ? ($log->properties['void'] ?? []) : [];
@@ -618,16 +637,23 @@ class PosController extends Controller
                 $void = [];
             }
 
+            $productId = (int) ($void['product_id'] ?? 0);
             $name = trim((string) ($void['name'] ?? ''));
-            if ($name === '' && ! empty($void['product_id'])) {
-                $name = 'Product #'.(int) $void['product_id'];
+            if ($name === '' || str_starts_with($name, 'Product #')) {
+                $resolved = trim((string) ($productNames[$productId] ?? ''));
+                if ($resolved !== '') {
+                    $name = $resolved;
+                }
+            }
+            if ($name === '') {
+                $name = $productId > 0 ? 'Product #'.$productId : 'Item';
             }
 
             return [
                 'id' => (int) $log->id,
                 'order_id' => (int) $log->subject_id,
                 'order_no' => (string) ($order?->order_no ?? ('#'.$log->subject_id)),
-                'product' => $name !== '' ? $name : 'Item',
+                'product' => $name,
                 'qty' => round((float) ($void['qty'] ?? 0), 3),
                 'uom' => (string) ($void['uom'] ?? ''),
                 'reason' => (string) ($void['reason'] ?? ''),
@@ -3452,7 +3478,7 @@ class PosController extends Controller
     }
 
     /**
-     * @return list<array{product_id: int, uom: string, qty: float, reason: string, notes?: string}>
+     * @return list<array{product_id: int, uom: string, qty: float, reason: string, notes?: string, name?: string}>
      */
     private function normalizedKitchenVoids(PosCheckoutRequest $request): array
     {
@@ -3472,6 +3498,7 @@ class PosController extends Controller
                 'qty' => $qty,
                 'reason' => $reason,
                 'notes' => trim((string) ($void['notes'] ?? '')),
+                'name' => trim((string) ($void['name'] ?? '')),
             ];
         }
 
@@ -3542,11 +3569,28 @@ class PosController extends Controller
             return;
         }
 
+        $productIds = collect($kitchenVoids)
+            ->map(fn (array $void) => (int) ($void['product_id'] ?? 0))
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+        $productNames = $productIds === []
+            ? collect()
+            : InventoryProduct::query()
+                ->whereIn('id', $productIds)
+                ->pluck('name', 'id');
+
         foreach ($kitchenVoids as $void) {
             $label = trim((string) ($void['name'] ?? ''));
-            if ($label === '') {
-                $label = 'Product #'.(int) ($void['product_id'] ?? 0);
+            $productId = (int) ($void['product_id'] ?? 0);
+            if ($label === '' && $productId > 0) {
+                $label = trim((string) ($productNames[$productId] ?? ''));
             }
+            if ($label === '') {
+                $label = $productId > 0 ? 'Product #'.$productId : 'Item';
+            }
+            $void['name'] = $label;
             ActivityLogger::log(
                 'pos.kitchen_void',
                 sprintf(
