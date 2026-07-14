@@ -257,6 +257,7 @@ class PosController extends Controller
         $canReopenPaidBill = $this->userCanReopenPaidPosBill($user);
         $posStaffCaps = $this->posStaffCapabilities($user);
         $canPosPay = $posStaffCaps['can_pay'];
+        $canPosDiscount = $posStaffCaps['can_discount'];
         $canPosDiscountCredit = $posStaffCaps['can_discount_credit'];
         $recentDailyClosings = PosSession::query()
             ->where('user_id', $user->id)
@@ -274,7 +275,7 @@ class PosController extends Controller
                 'note',
             ]);
 
-        return compact('session', 'products', 'heldOrders', 'paidOrders', 'paidBillsDetail', 'pendingBillsDetail', 'resumedOrder', 'contacts', 'posSettings', 'sessionCashExpected', 'sessionPosStats', 'tables', 'tableBoard', 'checkedInRooms', 'waiters', 'recentDailyClosings', 'canReopenPaidBill', 'canPosPay', 'canPosDiscountCredit');
+        return compact('session', 'products', 'heldOrders', 'paidOrders', 'paidBillsDetail', 'pendingBillsDetail', 'resumedOrder', 'contacts', 'posSettings', 'sessionCashExpected', 'sessionPosStats', 'tables', 'tableBoard', 'checkedInRooms', 'waiters', 'recentDailyClosings', 'canReopenPaidBill', 'canPosPay', 'canPosDiscount', 'canPosDiscountCredit');
     }
 
     private function userCanReopenPaidPosBill(?User $user): bool
@@ -298,6 +299,7 @@ class PosController extends Controller
     /**
      * @return array{
      *   can_pay: bool,
+     *   can_discount: bool,
      *   can_discount_credit: bool,
      *   is_manager: bool,
      *   is_cashier: bool
@@ -308,6 +310,7 @@ class PosController extends Controller
         if ($user === null) {
             return [
                 'can_pay' => false,
+                'can_discount' => false,
                 'can_discount_credit' => false,
                 'is_manager' => false,
                 'is_cashier' => false,
@@ -317,6 +320,7 @@ class PosController extends Controller
         if ($user->bypassesModulePermissions()) {
             return [
                 'can_pay' => true,
+                'can_discount' => true,
                 'can_discount_credit' => true,
                 'is_manager' => true,
                 'is_cashier' => true,
@@ -327,6 +331,7 @@ class PosController extends Controller
         if ($employee === null) {
             return [
                 'can_pay' => false,
+                'can_discount' => false,
                 'can_discount_credit' => false,
                 'is_manager' => false,
                 'is_cashier' => false,
@@ -338,6 +343,7 @@ class PosController extends Controller
 
         return [
             'can_pay' => $isCashier,
+            'can_discount' => $isManager || $isCashier,
             'can_discount_credit' => $isManager,
             'is_manager' => $isManager,
             'is_cashier' => $isCashier,
@@ -493,15 +499,38 @@ class PosController extends Controller
             }
         }
 
-        if (! $caps['can_discount_credit']) {
-            if ($request->boolean('is_owner_discount')) {
-                abort(403, 'Discount sirf manager de sakta hai.');
-            }
-
-            if (round((float) $request->input('bill_discount_percent', 0), 3) > 0) {
-                abort(403, 'Discount sirf manager de sakta hai.');
+        if ($request->boolean('is_owner_discount')) {
+            if (! $caps['can_discount_credit']) {
+                abort_unless(
+                    $this->resumeOrderPreservesOwnerDiscount($user, $request),
+                    403,
+                    'Owner discount sirf manager de sakta hai.'
+                );
             }
         }
+
+        $billDisc = round((float) $request->input('bill_discount_percent', 0), 3);
+        if ($billDisc > 0 && ! $request->boolean('is_owner_discount')) {
+            abort_unless($caps['can_discount'], 403, 'Discount sirf cashier ya manager de sakta hai.');
+        }
+    }
+
+    private function resumeOrderPreservesOwnerDiscount(User $user, PosCheckoutRequest $request): bool
+    {
+        $resumeOrderId = $request->integer('resume_order_id') ?: null;
+        if (! $resumeOrderId) {
+            return false;
+        }
+
+        try {
+            $session = $this->requireOpenSessionForUser($user);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        $draft = $this->findDraftOrderForSession($session, $resumeOrderId, $user);
+
+        return $draft !== null && (bool) ($draft->is_owner_discount ?? false);
     }
 
     public function sync(Request $request): JsonResponse

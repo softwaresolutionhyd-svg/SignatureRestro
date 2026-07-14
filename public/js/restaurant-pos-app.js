@@ -16,9 +16,10 @@
     const posServiceChargeEnabled = settings.service_charge_enabled === true;
     const posServiceChargePercent = posServiceChargeEnabled ? Number(settings.service_charge_percent || 0) : 0;
     const canPosPay = boot.canPosPay === true;
+    const canPosDiscount = boot.canPosDiscount === true;
     const canPosDiscountCredit = boot.canPosDiscountCredit === true;
     const canViewKitchenVoids = boot.canViewKitchenVoids === true;
-    const posShowDiscount = canPosDiscountCredit && settings.show_discount !== false;
+    const posShowDiscount = canPosDiscount && settings.show_discount !== false;
     const resumeBillDiscount = Number(settings.resume_bill_discount_percent || 0);
     const resumeOwnerDiscount = settings.resume_is_owner_discount === true;
     const posTablesEnabled = boot.tablesEnabled !== undefined ? !!boot.tablesEnabled : !!settings.enable_tables;
@@ -387,7 +388,7 @@
 
     function applyOwnerDiscount() {
         if (!canPosDiscountCredit) {
-            alert('Discount sirf manager de sakta hai.');
+            alert('Owner discount sirf manager de sakta hai.');
             return;
         }
         if (!cart.length) {

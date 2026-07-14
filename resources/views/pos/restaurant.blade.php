@@ -235,7 +235,7 @@
                 <div class="rp-bill-summary-head">Bill Summary</div>
                 <div class="rp-total-row"><span>Items</span><span id="rpSumItems">0</span></div>
                 <div class="rp-total-row"><span>Subtotal</span><span id="rpSumSubtotal">0.00</span></div>
-                @if(($canPosDiscountCredit ?? false) && ($posSettings['show_discount'] ?? true))
+                @if(($canPosDiscount ?? false) && ($posSettings['show_discount'] ?? true))
                     <div class="rp-total-row rp-total-row-adjust" id="rpDiscountRow">
                         <div class="rp-discount-controls">
                             <span class="rp-adjust-label">
@@ -245,9 +245,11 @@
                                        value="{{ $posSettings['resume_bill_discount_percent'] ?? 0 }}">
                                 <span class="rp-pct-sym">%</span>
                             </span>
+                            @if($canPosDiscountCredit ?? false)
                             <button type="button" class="btn btn-outline-info btn-sm rp-owner-discount-btn" id="rpOwnerDiscountBtn" title="Owner ko 100% discount de kar bill close karein">
                                 <i class="bi bi-gift"></i> Owner 100%
                             </button>
+                            @endif
                         </div>
                         <span id="rpSumDiscount">0.00</span>
                     </div>
@@ -413,6 +415,7 @@
         'canReduceCartItems' => (bool) (($canPosDiscountCredit ?? false) || auth()->user()?->bypassesModulePermissions()),
         'canReopenPaidBill' => (bool) ($canReopenPaidBill ?? false),
         'canPosPay' => (bool) ($canPosPay ?? false),
+        'canPosDiscount' => (bool) ($canPosDiscount ?? false),
         'canPosDiscountCredit' => (bool) ($canPosDiscountCredit ?? false),
         'canViewKitchenVoids' => (bool) ($canPosDiscountCredit ?? false),
         'routes' => [
@@ -434,5 +437,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=48"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=49"></script>
 @endsection
