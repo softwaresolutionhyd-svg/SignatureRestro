@@ -272,8 +272,7 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     gap: 0.65rem;
     flex-wrap: nowrap;
     min-height: 2.25rem;
-    overflow-x: auto;
-    scrollbar-width: thin;
+    overflow: visible;
 }
 
 .restaurant-pos-app .rp-service-types {
@@ -281,6 +280,9 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     align-items: center;
     gap: 0.4rem;
     flex: 0 0 auto;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    max-width: min(100%, 22rem);
 }
 
 .restaurant-pos-app .rp-service-type {
@@ -404,7 +406,7 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     position: absolute;
     top: calc(100% + 2px);
     right: 0;
-    z-index: 30;
+    z-index: 120;
     max-height: 220px;
     overflow-y: auto;
     min-width: 14rem;
@@ -416,8 +418,16 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
 
 /* —— Order fields strip —— */
 .restaurant-pos-app .rp-order-zone {
+    position: relative;
+    z-index: 50;
     background: var(--rp-bg-elevated);
     border-bottom: 1px solid var(--rp-border);
+}
+
+.restaurant-pos-app .rp-order-fields {
+    padding: 0.35rem 0.85rem;
+    border-bottom: 1px solid var(--rp-border);
+    overflow: visible;
 }
 
 .restaurant-pos-app .rp-order-zone:not(:has(#rpOrderLinePanel:not(.d-none))) .rp-order-fields {
@@ -425,11 +435,6 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
 }
 
 .restaurant-pos-app .rp-order-zone:not(:has(#rpOrderLinePanel:not(.d-none))) {
-    border-bottom: 1px solid var(--rp-border);
-}
-
-.restaurant-pos-app .rp-order-fields {
-    padding: 0.35rem 0.85rem;
     border-bottom: 1px solid var(--rp-border);
 }
 
