@@ -810,9 +810,14 @@
                    </span>`
                 : '';
             const removeTitle = locked > 0 ? 'Kitchen item — reason required' : 'Remove item';
-            return `<div class="rp-cart-line${locked > 0 ? ' is-kitchen-locked' : ''}" data-cart-index="${i}">
+            const canDec = canReduceCartItems && Number(r.qty) > 0;
+            return `<div class="rp-cart-line${locked > 0 ? ' is-kitchen-locked' : ''}" data-cart-index="${i}" data-product-id="${r.product_id}">
                 <div class="rp-cl-main">
-                    <span class="rp-cl-qty">${fmtQty(r.qty)}×</span>
+                    <div class="rp-cl-qty-ctrl" role="group" aria-label="Quantity">
+                        <button type="button" class="rp-cl-qty-btn" data-action="cart-dec" data-id="${r.product_id}"${canDec ? '' : ' disabled'} aria-label="Decrease">−</button>
+                        <span class="rp-cl-qty">${fmtQty(r.qty)}</span>
+                        <button type="button" class="rp-cl-qty-btn" data-action="cart-inc" data-id="${r.product_id}" aria-label="Increase">+</button>
+                    </div>
                     <span class="rp-cl-name">${escHtml(r.name)}</span>
                     ${kitchenBadge}
                 </div>
@@ -1877,7 +1882,7 @@
         const wrap = $('#rpCartLines');
         if (!wrap) return;
         wrap.classList.toggle('is-saving', isSaving);
-        wrap.querySelectorAll('.rp-cl-remove').forEach((btn) => {
+        wrap.querySelectorAll('.rp-cl-remove, .rp-cl-qty-btn').forEach((btn) => {
             btn.disabled = isSaving;
         });
     }
@@ -2104,6 +2109,18 @@
             if (btn.dataset.action === 'dec') changeCartQty(id, -1);
         });
         $('#rpCartLines')?.addEventListener('click', async (e) => {
+            const qtyBtn = e.target.closest('[data-action="cart-inc"], [data-action="cart-dec"]');
+            if (qtyBtn && !qtyBtn.disabled) {
+                const id = Number(qtyBtn.dataset.id);
+                if (!Number.isFinite(id)) return;
+                if (qtyBtn.dataset.action === 'cart-inc') {
+                    addOrIncrementProduct(id);
+                } else {
+                    changeCartQty(id, -1);
+                }
+                return;
+            }
+
             const btn = e.target.closest('[data-action="remove-line"]');
             if (!btn || btn.disabled) return;
             const index = Number(btn.dataset.index);

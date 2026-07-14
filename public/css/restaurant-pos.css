@@ -1294,12 +1294,48 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     gap: 0.25rem 0.4rem;
 }
 
+.restaurant-pos-app .rp-cl-qty-ctrl {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    flex-shrink: 0;
+}
+
+.restaurant-pos-app .rp-cl-qty-btn {
+    width: 1.55rem;
+    height: 1.55rem;
+    padding: 0;
+    border-radius: 5px;
+    border: 1px solid rgba(232, 176, 74, 0.35);
+    background: rgba(232, 176, 74, 0.12);
+    color: var(--rp-gold);
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.restaurant-pos-app .rp-cl-qty-btn:hover:not(:disabled) {
+    background: rgba(232, 176, 74, 0.28);
+    border-color: rgba(232, 176, 74, 0.55);
+}
+
+.restaurant-pos-app .rp-cl-qty-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
 .restaurant-pos-app .rp-cart-line .rp-cl-qty {
     color: var(--rp-gold);
-    font-size: 0.72rem;
+    font-size: 0.78rem;
     font-weight: 800;
+    min-width: 1.5rem;
+    text-align: center;
     background: rgba(232, 176, 74, 0.12);
-    padding: 0.1rem 0.35rem;
+    padding: 0.15rem 0.35rem;
     border-radius: 4px;
 }
 
