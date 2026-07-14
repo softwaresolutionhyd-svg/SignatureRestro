@@ -485,6 +485,99 @@
         renderAll();
     }
 
+    function increaseProductQtyBy(productId, addQty) {
+        const p = products.find((x) => Number(x.id) === Number(productId));
+        if (!p || addQty <= 0) return;
+        const existing = cart.find((r) => Number(r.product_id) === Number(productId) && String(r.uom) === String(p.uom));
+        if (existing) {
+            existing.qty = Math.round((Number(existing.qty) + addQty) * 1000) / 1000;
+            existing.unit_price = unitPriceForProduct(p, existing.uom);
+        } else {
+            cart.push({
+                product_id: p.id,
+                name: p.name,
+                uom: p.uom,
+                qty: Math.round(addQty * 1000) / 1000,
+                unit_price: unitPriceForProduct(p, p.uom),
+                tax_percent: 0,
+                notes: '',
+                kitchen_served: false,
+                kitchen_pending: false,
+                kitchen_locked_qty: 0,
+            });
+        }
+    }
+
+    function setCartProductQty(productId, targetQty, reason) {
+        const current = cartQtyForProduct(productId);
+        const next = Math.round(Number(targetQty) * 1000) / 1000;
+        if (!Number.isFinite(next)) {
+            renderCart();
+            return;
+        }
+        if (next <= 0) {
+            if (!canReduceCartItems) {
+                alert('Quantity kam sirf manager/admin kar sakta hai.');
+                renderCart();
+                return;
+            }
+            changeCartQty(productId, -current, reason);
+            return;
+        }
+        const delta = Math.round((next - current) * 1000) / 1000;
+        if (Math.abs(delta) < 0.0005) {
+            return;
+        }
+        if (delta > 0) {
+            increaseProductQtyBy(productId, delta);
+            renderAll();
+            if (resumeOrderId) {
+                saveResumedDraftChanges().catch((e) => alert(e.message || 'Order save nahi ho saki.'));
+            }
+            return;
+        }
+        changeCartQty(productId, delta, reason);
+    }
+
+    function commitCartQtyInput(input) {
+        const productId = Number(input.dataset.id);
+        if (!Number.isFinite(productId)) return;
+
+        const parsed = parseFloat(String(input.value).trim().replace(',', '.'));
+        const current = cartQtyForProduct(productId);
+
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+            renderCart();
+            return;
+        }
+
+        const next = Math.round(parsed * 1000) / 1000;
+        if (Math.abs(next - current) < 0.0005) {
+            input.value = fmtQty(current);
+            return;
+        }
+
+        if (next < current) {
+            if (!canReduceCartItems) {
+                alert('Quantity kam sirf manager/admin kar sakta hai.');
+                renderCart();
+                return;
+            }
+            const locked = cartLockedQtyForProduct(productId);
+            if (next < locked) {
+                if (!canVoidKitchenItems) {
+                    alert('Kitchen me bheji hui quantity kam nahi ho sakti.');
+                    renderCart();
+                    return;
+                }
+                openItemChangeReasonModal({ type: 'setQty', productId, targetQty: next, voidKitchen: true });
+                return;
+            }
+        }
+
+        setCartProductQty(productId, next);
+    }
+
     function buildReductionEntry(row, qty, reason) {
         return {
             product_id: row.product_id,
@@ -614,6 +707,8 @@
                 await removeCartLine(action.index, reason);
             } else if (action.type === 'dec') {
                 changeCartQty(action.productId, -1, reason);
+            } else if (action.type === 'setQty') {
+                setCartProductQty(action.productId, action.targetQty, reason);
             }
         } catch (e) {
             alert(e.message || 'Change save nahi ho saki.');
@@ -623,6 +718,7 @@
     function cancelRemoveReasonModal() {
         pendingChangeAction = null;
         getRemoveReasonModal()?.hide();
+        renderCart();
     }
 
     function changeCartQty(productId, delta, reason) {
@@ -815,7 +911,7 @@
                 <div class="rp-cl-main">
                     <div class="rp-cl-qty-ctrl" role="group" aria-label="Quantity">
                         <button type="button" class="rp-cl-qty-btn" data-action="cart-dec" data-id="${r.product_id}"${canDec ? '' : ' disabled'} aria-label="Decrease">−</button>
-                        <span class="rp-cl-qty">${fmtQty(r.qty)}</span>
+                        <input type="text" inputmode="decimal" class="rp-cl-qty-input" data-id="${r.product_id}" value="${fmtQty(r.qty)}" aria-label="Quantity" autocomplete="off" spellcheck="false">
                         <button type="button" class="rp-cl-qty-btn" data-action="cart-inc" data-id="${r.product_id}" aria-label="Increase">+</button>
                     </div>
                     <span class="rp-cl-name">${escHtml(r.name)}</span>
@@ -2109,6 +2205,9 @@
             if (btn.dataset.action === 'dec') changeCartQty(id, -1);
         });
         $('#rpCartLines')?.addEventListener('click', async (e) => {
+            if (e.target.closest('.rp-cl-qty-input')) {
+                return;
+            }
             const qtyBtn = e.target.closest('[data-action="cart-inc"], [data-action="cart-dec"]');
             if (qtyBtn && !qtyBtn.disabled) {
                 const id = Number(qtyBtn.dataset.id);
@@ -2131,6 +2230,22 @@
                 alert(err.message || 'Item remove save nahi ho saki.');
             }
         });
+        $('#rpCartLines')?.addEventListener('focusin', (e) => {
+            if (e.target.matches('.rp-cl-qty-input')) {
+                e.target.select();
+            }
+        });
+        $('#rpCartLines')?.addEventListener('keydown', (e) => {
+            if (e.target.matches('.rp-cl-qty-input') && e.key === 'Enter') {
+                e.preventDefault();
+                e.target.blur();
+            }
+        });
+        $('#rpCartLines')?.addEventListener('blur', (e) => {
+            if (e.target.matches('.rp-cl-qty-input')) {
+                commitCartQtyInput(e.target);
+            }
+        }, true);
         $('#rpServiceTypes')?.addEventListener('click', (e) => {
             const btn = e.target.closest('.rp-service-type');
             if (!btn?.dataset.type) return;
