@@ -2031,7 +2031,7 @@ body.admin-app-body:has(.restaurant-pos-app) .restaurant-pos-app .rp-checkout-fo
 }
 
 .rp-pay-modal-dialog {
-    max-width: 420px;
+    max-width: 520px;
 }
 
 .rp-pay-modal {
@@ -2084,6 +2084,54 @@ body.admin-app-body:has(.restaurant-pos-app) .restaurant-pos-app .rp-checkout-fo
     font-weight: 800;
     color: #15803d;
     font-variant-numeric: tabular-nums;
+}
+
+.rp-cash-suggest {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.rp-cash-chip {
+    appearance: none;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 0.45rem 0.85rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #fff;
+    background: #2f1b4a;
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+    font-variant-numeric: tabular-nums;
+}
+
+.rp-cash-chip:hover {
+    background: #3d2560;
+    transform: translateY(-1px);
+}
+
+.rp-cash-chip.is-active {
+    background: #b45309;
+    box-shadow: 0 0 0 2px rgba(232, 176, 74, 0.45);
+}
+
+.rp-cash-chip--amount {
+    color: #1d4ed8;
+    background: #fff;
+    border-color: #93c5fd;
+}
+
+.rp-cash-chip--amount:hover,
+.rp-cash-chip--amount.is-active {
+    background: #eff6ff;
+    color: #1e40af;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
+.rp-cash-chip--amount i {
+    margin-right: 0.25rem;
 }
 
 .rp-pay-modal .input-group-text {

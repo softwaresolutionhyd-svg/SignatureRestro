@@ -1537,6 +1537,97 @@
         return payModalInstance;
     }
 
+    function fmtCashChip(n) {
+        const v = Math.round(Number(n) * 100) / 100;
+        if (!Number.isFinite(v)) return 'Rs 0';
+        const hasDec = Math.abs(v - Math.round(v)) > 0.001;
+        const body = hasDec
+            ? v.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+            : Math.round(v).toLocaleString('en-PK');
+        return `Rs ${body}`;
+    }
+
+    function buildCashSuggestions(total) {
+        const exact = Math.round(Number(total) * 100) / 100;
+        if (!Number.isFinite(exact) || exact < 0) return [0];
+
+        const seen = new Set();
+        const out = [];
+        const add = (raw) => {
+            const n = Math.round(Number(raw) * 100) / 100;
+            if (!Number.isFinite(n) || n + 0.001 < exact) return;
+            const key = n.toFixed(2);
+            if (seen.has(key)) return;
+            seen.add(key);
+            out.push(n);
+        };
+
+        add(exact);
+
+        // Common note round-ups (10 / 50 / 100 / 500)
+        [10, 50, 100, 500].forEach((step) => {
+            add(Math.ceil(exact / step) * step);
+        });
+
+        // Next thousand notes
+        let base = Math.ceil(exact / 1000) * 1000;
+        if (base <= exact + 0.001) base += 1000;
+        for (let i = 0; i < 8 && out.length < 8; i += 1) {
+            add(base + (i * 1000));
+        }
+
+        return out.slice(0, 8);
+    }
+
+    function setCashTendered(amount, { manual = false } = {}) {
+        const input = $('#rpCashTendered');
+        if (input) {
+            if (amount === '' || amount === null || amount === undefined) {
+                input.value = '';
+            } else {
+                const v = Math.round(Number(amount) * 100) / 100;
+                input.value = Number.isFinite(v) ? String(v) : '';
+            }
+        }
+        const wrap = $('#rpCashManualWrap');
+        if (manual) {
+            wrap?.classList.remove('d-none');
+        } else {
+            wrap?.classList.add('d-none');
+        }
+        const activeAmount = amount === '' || amount === null || amount === undefined
+            ? NaN
+            : Number(amount);
+        syncCashSuggestionActive(activeAmount, manual);
+        updatePayModalAmounts();
+    }
+
+    function syncCashSuggestionActive(amount, manual = false) {
+        const wrap = $('#rpCashSuggestions');
+        if (!wrap) return;
+        const target = Math.round(Number(amount) * 100) / 100;
+        wrap.querySelectorAll('.rp-cash-chip').forEach((btn) => {
+            if (btn.dataset.action === 'manual') {
+                btn.classList.toggle('is-active', !!manual);
+                return;
+            }
+            const val = Number(btn.dataset.amount);
+            btn.classList.toggle('is-active', !manual && Number.isFinite(val) && Math.abs(val - target) < 0.001);
+        });
+    }
+
+    function renderCashSuggestions(total) {
+        const wrap = $('#rpCashSuggestions');
+        if (!wrap) return;
+        const suggestions = buildCashSuggestions(total);
+        wrap.innerHTML = suggestions.map((amt) => (
+            `<button type="button" class="rp-cash-chip" data-amount="${amt}">${escHtml(fmtCashChip(amt))}</button>`
+        )).join('') + `
+            <button type="button" class="rp-cash-chip rp-cash-chip--amount" data-action="manual">
+                <i class="bi bi-grid-3x3-gap-fill"></i> Amount
+            </button>`;
+    }
+
     function updatePayModalAmounts() {
         const grand = calcCartTotals().grand;
         const tendered = Number($('#rpCashTendered')?.value || 0);
@@ -1564,11 +1655,8 @@
         }
 
         const grand = calcCartTotals().grand;
-        const input = $('#rpCashTendered');
-        if (input) {
-            input.value = grand <= 0 ? '0' : '';
-        }
-        updatePayModalAmounts();
+        renderCashSuggestions(grand);
+        setCashTendered(grand <= 0 ? 0 : grand, { manual: false });
 
         const modal = getPayModal();
         if (!modal) {
@@ -1576,10 +1664,6 @@
             return;
         }
         modal.show();
-        setTimeout(() => {
-            input?.focus();
-            input?.select();
-        }, 280);
     }
 
     async function confirmPayModal() {
@@ -2350,7 +2434,27 @@
         $('#rpWhatsappBtn')?.addEventListener('click', () => openDeliveryWhatsapp());
         $('#rpPayBtn')?.addEventListener('click', () => openPayModal());
         $('#rpPayModalConfirm')?.addEventListener('click', () => confirmPayModal());
-        $('#rpCashTendered')?.addEventListener('input', updatePayModalAmounts);
+        $('#rpCashSuggestions')?.addEventListener('click', (e) => {
+            const btn = e.target.closest('.rp-cash-chip');
+            if (!btn) return;
+            if (btn.dataset.action === 'manual') {
+                const current = Number($('#rpCashTendered')?.value || 0);
+                setCashTendered(current > 0 ? current : '', { manual: true });
+                setTimeout(() => {
+                    const input = $('#rpCashTendered');
+                    input?.focus();
+                    input?.select();
+                }, 50);
+                return;
+            }
+            const amount = Number(btn.dataset.amount);
+            if (!Number.isFinite(amount)) return;
+            setCashTendered(amount, { manual: false });
+        });
+        $('#rpCashTendered')?.addEventListener('input', () => {
+            syncCashSuggestionActive(Number($('#rpCashTendered')?.value || 0), true);
+            updatePayModalAmounts();
+        });
         $('#rpCashTendered')?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();

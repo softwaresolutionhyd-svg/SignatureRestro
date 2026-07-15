@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=45">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=46">
 @endpush
 
 @section('content')
@@ -344,10 +344,14 @@
                     <span class="rp-pay-modal-amount" id="rpPayModalTotal">0.00</span>
                 </div>
                 <div class="mb-3">
-                    <label for="rpCashTendered" class="form-label fw-semibold mb-1">Customer ne diye</label>
-                    <div class="input-group input-group-lg">
-                        <span class="input-group-text">Rs.</span>
-                        <input type="number" class="form-control" id="rpCashTendered" min="0" step="0.01" inputmode="decimal" placeholder="0.00" autocomplete="off">
+                    <div class="form-label fw-semibold mb-2">Customer ne diye</div>
+                    <div class="rp-cash-suggest" id="rpCashSuggestions" role="group" aria-label="Cash suggestions"></div>
+                    <div class="rp-cash-manual d-none mt-2" id="rpCashManualWrap">
+                        <label for="rpCashTendered" class="visually-hidden">Custom amount</label>
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text">Rs.</span>
+                            <input type="number" class="form-control" id="rpCashTendered" min="0" step="0.01" inputmode="decimal" placeholder="0.00" autocomplete="off">
+                        </div>
                     </div>
                 </div>
                 <div class="rp-pay-modal-return">
@@ -443,5 +447,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=55"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=56"></script>
 @endsection
