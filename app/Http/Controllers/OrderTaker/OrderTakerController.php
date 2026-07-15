@@ -80,7 +80,7 @@ class OrderTakerController extends Controller
         $data = $this->validated($request, $order);
 
         try {
-            $this->orderTaker->updatePendingBill($order, $data['items']);
+            $this->orderTaker->updatePendingBill($order, $data['items'], $data['meta']);
         } catch (\Throwable $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }
@@ -169,6 +169,7 @@ class OrderTakerController extends Controller
             'items.*.uom' => ['required', 'string', 'max:30'],
             'items.*.qty' => ['required', 'numeric', 'min:0.001'],
             'items.*.notes' => ['nullable', 'string', 'max:200'],
+            'kitchen_notes' => ['nullable', 'string', 'max:1000'],
         ];
 
         if (! $pendingMode) {
@@ -202,6 +203,7 @@ class OrderTakerController extends Controller
                     'room_no' => $order->room_no ?? '',
                     'waiter_name' => $order->waiter_name ?? '',
                     'table_id' => $order->table_id,
+                    'kitchen_notes' => $validated['kitchen_notes'] ?? '',
                 ],
                 'items' => $items,
             ];
@@ -215,6 +217,7 @@ class OrderTakerController extends Controller
                 'room_no' => $validated['room_no'] ?? '',
                 'order_notes' => $validated['order_notes'] ?? '',
                 'table_id' => $validated['table_id'] ?? null,
+                'kitchen_notes' => $validated['kitchen_notes'] ?? '',
             ],
             'items' => $items,
         ];

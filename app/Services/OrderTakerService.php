@@ -44,7 +44,7 @@ final class OrderTakerService
         }
         $session = $this->openPosSession();
 
-        $order = PosOrder::create([
+        $orderPayload = [
             'order_no' => DailyOrderNumber::next(),
             'session_id' => $session?->id,
             'user_id' => Auth::id(),
@@ -69,7 +69,12 @@ final class OrderTakerService
             'service_charge_total' => $serviceTotal,
             'grand_total' => $grandTotal,
             'ready_for_pos_at' => now(),
-        ]);
+        ];
+        if (Schema::hasColumn('pos_orders', 'kitchen_notes')) {
+            $orderPayload['kitchen_notes'] = $this->kitchenNotesFromMeta($meta);
+        }
+
+        $order = PosOrder::create($orderPayload);
 
         $kitchen = app(KitchenService::class);
         $itemsWithKitchenFlags = $kitchen->applyKitchenPendingFlags([], $lines);
@@ -407,7 +412,7 @@ final class OrderTakerService
     /**
      * @param  list<array{product_id:int,uom:string,qty:float,notes?:?string}>  $items
      */
-    public function updatePendingBill(PosOrder $order, array $items): PosOrder
+    public function updatePendingBill(PosOrder $order, array $items, array $meta = []): PosOrder
     {
         $this->assertPosSessionStarted();
         $this->assertPendingAmendable($order);
@@ -447,14 +452,20 @@ final class OrderTakerService
             }
         }
 
-        $order->fill([
+        $updatePayload = [
             'subtotal' => $subtotal,
             'discount_total' => $discountTotal,
             'tax_total' => $taxTotal,
             'service_charge_percent' => $serviceTotal > 0 ? PosServiceCharge::percent() : null,
             'service_charge_total' => $serviceTotal,
             'grand_total' => $grandTotal,
-        ] + $kitchenPayload);
+        ] + $kitchenPayload;
+
+        if (Schema::hasColumn($order->getTable(), 'kitchen_notes')) {
+            $updatePayload['kitchen_notes'] = $this->kitchenNotesFromMeta($meta);
+        }
+
+        $order->fill($updatePayload);
         $order->save();
 
         $order->items()->delete();
@@ -466,6 +477,17 @@ final class OrderTakerService
         $this->dispatchKitchenPrintQuietly($order);
 
         return $order;
+    }
+
+    private function kitchenNotesFromMeta(array $meta): ?string
+    {
+        if (! Schema::hasColumn('pos_orders', 'kitchen_notes')) {
+            return null;
+        }
+
+        $notes = trim((string) ($meta['kitchen_notes'] ?? ''));
+
+        return $notes !== '' ? $notes : null;
     }
 
     /**

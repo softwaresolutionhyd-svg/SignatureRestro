@@ -276,6 +276,12 @@
                     </button>
                 </div>
                 <div class="rp-cart-lines" id="otCartLines"></div>
+                <div class="rp-bill-kitchen-notes-wrap">
+                    <label class="rp-bill-kitchen-label" for="otBillKitchenNotes">Bill instructions</label>
+                    <textarea id="otBillKitchenNotes" class="form-control form-control-sm rp-bill-kitchen-notes"
+                              rows="2" maxlength="1000" placeholder="Complete bill note for kitchen…"
+                              aria-label="Complete bill instructions">{{ old('kitchen_notes', $resumedOrder?->kitchen_notes ?? '') }}</textarea>
+                </div>
             </aside>
         </div>
 
@@ -306,6 +312,7 @@
     <input type="hidden" name="room_no" id="otFormRoomNo" value="">
     <input type="hidden" name="order_notes" id="otFormOrderNotes" value="">
     <input type="hidden" name="table_id" id="otFormTableId" value="">
+    <input type="hidden" name="kitchen_notes" id="otFormKitchenNotes" value="">
     <input type="hidden" name="items" id="otFormItems" value="">
 </form>
 @endsection
@@ -336,6 +343,7 @@
         'resumeGuestName' => $resumedOrder?->guest_name,
         'resumeRoomNo' => $resumedOrder?->room_no,
         'resumeOrderNotes' => $resumedOrder?->order_notes,
+        'resumeKitchenNotes' => $resumedOrder?->kitchen_notes,
         'resumeItems' => $resumeItems,
         'startTableId' => $startTableId,
         'startServiceType' => $startServiceType,
@@ -351,5 +359,5 @@
 <script>
 window.ORDER_TAKER_BOOTSTRAP = @json($otBootstrap);
 </script>
-<script src="{{ asset('js/order-taker-app.js') }}?v=5"></script>
+<script src="{{ asset('js/order-taker-app.js') }}?v=6"></script>
 @endsection

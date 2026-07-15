@@ -15,8 +15,8 @@
     const posServiceChargePercent = posServiceChargeEnabled ? Number(settings.service_charge_percent || 0) : 0;
     const posTablesEnabled = settings.enable_tables !== false;
     const canVoidKitchenItems = boot.canVoidKitchenItems === true;
-    // Order taker cannot delete/reduce — sirf admin/manager (bypass) kar sakta hai.
-    const canReduceCartItems = canVoidKitchenItems;
+    // Kitchen print se pehle delete/reduce; print ke baad sirf admin/manager.
+    const canReduceCartItems = true;
 
     let cart = [];
     let selectedMenuCategoryId = null;
@@ -194,7 +194,9 @@
         grid.innerHTML = list.map((p) => {
             const qty = cartQtyForProduct(p.id);
             const locked = cartLockedQtyForProduct(p.id);
-            const canDec = qty > 0 && canReduceCartItems;
+            const canDec = qty > 0 && (
+                canVoidKitchenItems || (canReduceCartItems && qty > locked)
+            );
             const price = unitPriceForProduct(p, p.uom);
             const label = displayProductName(p.name);
             const img = p.image_url
@@ -226,25 +228,39 @@
         wrap.innerHTML = cart.map((r, i) => {
             const total = lineRowTotal(r);
             const locked = Number(r.kitchen_locked_qty) || 0;
-            const showRemove = canReduceCartItems;
+            const showRemove = (locked <= 0 && canReduceCartItems) || (locked > 0 && canVoidKitchenItems);
             const kitchenBadge = locked > 0
-                ? `<span class="rp-kitchen-pill ${r.kitchen_served ? 'rp-kitchen-pill--served' : 'rp-kitchen-pill--pending'}">
+                ? `<span class="rp-kitchen-pill ${r.kitchen_served ? 'rp-kitchen-pill--served' : 'rp-kitchen-pill--pending'}" title="Kitchen me bheja hua">
                     <i class="bi ${r.kitchen_served ? 'bi-check-circle-fill' : 'bi-fire'}"></i>
                     ${r.kitchen_served ? 'Served' : 'Kitchen'}
                    </span>`
                 : '';
-            return `<div class="rp-cart-line${locked > 0 ? ' is-kitchen-locked' : ''}" data-cart-index="${i}">
-                <div class="rp-cl-main">
-                    <span class="rp-cl-qty">${fmtQty(r.qty)}×</span>
-                    <span class="rp-cl-name">${escHtml(r.name)}</span>
-                    ${kitchenBadge}
+            const removeTitle = locked > 0 ? 'Kitchen item — remove nahi ho sakta' : 'Remove item';
+            const canDec = Number(r.qty) > 0 && (
+                canVoidKitchenItems || (canReduceCartItems && Number(r.qty) > locked)
+            );
+            const noteVal = escHtml(r.notes || '');
+            return `<div class="rp-cart-line${locked > 0 ? ' is-kitchen-locked' : ''}" data-cart-index="${i}" data-product-id="${r.product_id}">
+                <div class="rp-cl-row">
+                    <div class="rp-cl-main">
+                        <div class="rp-cl-qty-ctrl" role="group" aria-label="Quantity">
+                            <button type="button" class="rp-cl-qty-btn" data-action="cart-dec" data-id="${r.product_id}"${canDec ? '' : ' disabled'} aria-label="Decrease">−</button>
+                            <input type="text" inputmode="decimal" class="rp-cl-qty-input" data-id="${r.product_id}" value="${fmtQty(r.qty)}" aria-label="Quantity" autocomplete="off" spellcheck="false">
+                            <button type="button" class="rp-cl-qty-btn" data-action="cart-inc" data-id="${r.product_id}" aria-label="Increase">+</button>
+                        </div>
+                        <span class="rp-cl-name">${escHtml(r.name)}</span>
+                        ${kitchenBadge}
+                    </div>
+                    <div class="rp-cl-actions">
+                        <div class="rp-cl-total">${fmtMoney(total)}</div>
+                        ${showRemove ? `<button type="button" class="rp-cl-remove" data-action="remove-line" data-index="${i}" aria-label="Remove item" title="${removeTitle}">
+                            <i class="bi bi-x-lg"></i>
+                        </button>` : ''}
+                    </div>
                 </div>
-                <div class="rp-cl-actions">
-                    <div class="rp-cl-total">${fmtMoney(total)}</div>
-                    ${showRemove ? `<button type="button" class="rp-cl-remove" data-action="remove-line" data-index="${i}" aria-label="Remove item">
-                        <i class="bi bi-x-lg"></i>
-                    </button>` : ''}
-                </div>
+                <input type="text" class="rp-cl-note" data-index="${i}" maxlength="255"
+                       value="${noteVal}" placeholder="Item instruction…"
+                       aria-label="Instruction for ${escHtml(r.name)}">
             </div>`;
         }).join('');
     }
@@ -266,23 +282,56 @@
         renderTotals();
     }
 
-    function addProductToCart(productId, delta) {
+    function addOrIncrementProduct(productId) {
         const p = productById(productId);
         if (!p || !isProductVisible(p)) return;
-        if (delta > 0) {
-            const uom = defaultUom(p);
+        const uom = defaultUom(p);
+        const existing = cart.find((r) => Number(r.product_id) === Number(productId) && String(r.uom) === String(uom));
+        if (existing) {
+            existing.qty = Math.round((Number(existing.qty) + 1) * 1000) / 1000;
+            existing.unit_price = unitPriceForProduct(p, existing.uom);
+        } else {
             cart.push({
                 product_id: p.id,
                 name: p.name,
                 uom,
-                qty: delta,
+                qty: 1,
                 unit_price: unitPriceForProduct(p, uom),
                 notes: '',
                 kitchen_served: false,
-                kitchen_pending: true,
+                kitchen_pending: false,
                 kitchen_locked_qty: 0,
             });
-            renderAll();
+        }
+        renderAll();
+    }
+
+    function increaseProductQtyBy(productId, addQty) {
+        const p = productById(productId);
+        if (!p || addQty <= 0) return;
+        const uom = defaultUom(p);
+        const existing = cart.find((r) => Number(r.product_id) === Number(productId) && String(r.uom) === String(uom));
+        if (existing) {
+            existing.qty = Math.round((Number(existing.qty) + addQty) * 1000) / 1000;
+            existing.unit_price = unitPriceForProduct(p, existing.uom);
+        } else {
+            cart.push({
+                product_id: p.id,
+                name: p.name,
+                uom,
+                qty: Math.round(addQty * 1000) / 1000,
+                unit_price: unitPriceForProduct(p, uom),
+                notes: '',
+                kitchen_served: false,
+                kitchen_pending: false,
+                kitchen_locked_qty: 0,
+            });
+        }
+    }
+
+    function addProductToCart(productId, delta) {
+        if (delta > 0) {
+            addOrIncrementProduct(productId);
             return;
         }
         adjustProductQty(productId, delta);
@@ -290,15 +339,11 @@
 
     function adjustProductQty(productId, delta) {
         const p = productById(productId);
-        if (delta < 0 && !canReduceCartItems) {
-            alert('Quantity kam sirf manager/admin kar sakta hai.');
-            return;
-        }
         const locked = cartLockedQtyForProduct(productId);
         const totalQty = cartQtyForProduct(productId);
         const next = Math.round((totalQty + delta) * 1000) / 1000;
         if (next < locked) {
-            alert('Kitchen me bheji hui quantity kam nahi ho sakti.');
+            alert('Kitchen print ke baad quantity kam nahi ho sakti.');
             return;
         }
         if (next <= 0) {
@@ -322,17 +367,73 @@
         renderAll();
     }
 
+    function setCartProductQty(productId, targetQty) {
+        const current = cartQtyForProduct(productId);
+        const next = Math.round(Number(targetQty) * 1000) / 1000;
+        if (!Number.isFinite(next)) {
+            renderCart();
+            return;
+        }
+        if (next <= 0) {
+            adjustProductQty(productId, -current);
+            return;
+        }
+        const delta = Math.round((next - current) * 1000) / 1000;
+        if (Math.abs(delta) < 0.0005) return;
+        if (delta > 0) {
+            increaseProductQtyBy(productId, delta);
+            renderAll();
+            return;
+        }
+        adjustProductQty(productId, delta);
+    }
+
+    function commitCartQtyInput(input) {
+        const productId = Number(input.dataset.id);
+        if (!Number.isFinite(productId)) return;
+
+        const parsed = parseFloat(String(input.value).trim().replace(',', '.'));
+        const current = cartQtyForProduct(productId);
+
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+            renderCart();
+            return;
+        }
+
+        const next = Math.round(parsed * 1000) / 1000;
+        if (Math.abs(next - current) < 0.0005) {
+            input.value = fmtQty(current);
+            return;
+        }
+
+        const locked = cartLockedQtyForProduct(productId);
+        if (next < locked) {
+            alert('Kitchen print ke baad quantity kam nahi ho sakti.');
+            renderCart();
+            return;
+        }
+
+        setCartProductQty(productId, next);
+    }
+
     function removeCartLine(index) {
         const row = cart[index];
         if (!row) return;
-        if (!canReduceCartItems) {
-            alert('Item remove sirf manager/admin kar sakta hai.');
+        const locked = Number(row.kitchen_locked_qty) || 0;
+        if (locked > 0 && !canVoidKitchenItems) {
+            alert('Kitchen print ke baad item delete nahi ho sakta.');
             return;
         }
-        const locked = Number(row.kitchen_locked_qty) || 0;
-        if (locked > 0 && !canVoidKitchenItems) return;
         cart.splice(index, 1);
         renderAll();
+    }
+
+    function syncItemNotesFromDom() {
+        $$('#otCartLines .rp-cl-note').forEach((input) => {
+            const idx = Number(input.dataset.index);
+            if (!Number.isFinite(idx) || !cart[idx]) return;
+            cart[idx].notes = String(input.value || '');
+        });
     }
 
     function isNarrowScreen() {
@@ -410,8 +511,12 @@
             if (boot.resumeRoomNo && $('#otDeliveryPhone')) $('#otDeliveryPhone').value = boot.resumeRoomNo;
             if (boot.resumeOrderNotes && $('#otDeliveryAddress')) $('#otDeliveryAddress').value = boot.resumeOrderNotes;
             if ($('#otTableNo') && boot.resumeGuestName) $('#otTableNo').value = boot.resumeGuestName;
+            if ($('#otBillKitchenNotes') && boot.resumeKitchenNotes !== undefined) {
+                $('#otBillKitchenNotes').value = boot.resumeKitchenNotes || '';
+            }
             return;
         }
+        if ($('#otBillKitchenNotes')) $('#otBillKitchenNotes').value = '';
         setServiceType(boot.startServiceType || boot.defaultServiceType || 'dine_in');
         syncServiceDetailPanels();
     }
@@ -443,6 +548,7 @@
         selectedTableName = tableName || null;
         cart = [];
         boot.resumeOrderNo = null;
+        boot.resumeKitchenNotes = null;
         boot.startServiceType = serviceType || 'dine_in';
         showOrderScreen();
         setServiceType(serviceType || 'dine_in');
@@ -501,6 +607,8 @@
         const form = $('#otSubmitForm');
         if (!form) return;
 
+        syncItemNotesFromDom();
+
         const itemsPayload = cart.map((r) => ({
             product_id: r.product_id,
             uom: r.uom,
@@ -535,6 +643,9 @@
         $('#otFormOrderNotes').value = orderNotes;
         $('#otFormTableId').value = tableId;
         $('#otFormItems').value = JSON.stringify(itemsPayload);
+        const kitchenNotes = ($('#otBillKitchenNotes')?.value || '').trim();
+        const kitchenInput = $('#otFormKitchenNotes');
+        if (kitchenInput) kitchenInput.value = kitchenNotes;
 
         if (pendingMode && editOrderId) {
             form.action = (routes.update || '').replace('__ID__', String(editOrderId));
@@ -613,9 +724,49 @@
         });
 
         $('#otCartLines')?.addEventListener('click', (e) => {
+            if (e.target.closest('.rp-cl-qty-input')) return;
+
+            const qtyBtn = e.target.closest('[data-action="cart-inc"], [data-action="cart-dec"]');
+            if (qtyBtn && !qtyBtn.disabled) {
+                const id = Number(qtyBtn.dataset.id);
+                if (!Number.isFinite(id)) return;
+                if (qtyBtn.dataset.action === 'cart-inc') {
+                    addOrIncrementProduct(id);
+                } else {
+                    adjustProductQty(id, -1);
+                }
+                return;
+            }
+
             const btn = e.target.closest('[data-action="remove-line"]');
-            if (!btn) return;
+            if (!btn || btn.disabled) return;
             removeCartLine(Number(btn.dataset.index));
+        });
+
+        $('#otCartLines')?.addEventListener('focusin', (e) => {
+            if (e.target.matches('.rp-cl-qty-input')) {
+                e.target.select();
+            }
+        });
+
+        $('#otCartLines')?.addEventListener('keydown', (e) => {
+            if (e.target.matches('.rp-cl-qty-input') && e.key === 'Enter') {
+                e.preventDefault();
+                e.target.blur();
+            }
+        });
+
+        $('#otCartLines')?.addEventListener('blur', (e) => {
+            if (e.target.matches('.rp-cl-qty-input')) {
+                commitCartQtyInput(e.target);
+            }
+        }, true);
+
+        $('#otCartLines')?.addEventListener('input', (e) => {
+            if (!e.target.matches('.rp-cl-note')) return;
+            const idx = Number(e.target.dataset.index);
+            if (!Number.isFinite(idx) || !cart[idx]) return;
+            cart[idx].notes = String(e.target.value || '');
         });
 
         $('#otProductSearch')?.addEventListener('input', renderMenuGrid);
