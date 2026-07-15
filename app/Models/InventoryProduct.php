@@ -367,54 +367,59 @@ class InventoryProduct extends Model
     /**
      * Rows for dropdowns: base + product conversions + matching global library rules (to = product base).
      * Product-specific factors override library when the same “from” code exists.
+     * Built-in metric fallbacks (g→kg, ml→ltr, …) so recipe/BoM always gets grams when base is kg.
      *
      * @return list<array{uom: string, factor: float}>
      */
     public function uomsForForms(): array
     {
-        $baseNorm = InventoryUnit::normalizeCode((string) $this->uom);
-        $out = [['uom' => $this->uom, 'factor' => 1.0]];
+        $baseRaw = trim((string) $this->uom);
+        $baseNorm = InventoryUnit::normalizeCode($baseRaw);
+        if ($baseNorm === '') {
+            return [];
+        }
+
+        $out = [['uom' => $baseRaw !== '' ? $baseRaw : $baseNorm, 'factor' => 1.0]];
         $seen = [$baseNorm => true];
+
+        $add = function (string $uom, float $factor) use (&$out, &$seen): void {
+            $code = InventoryUnit::normalizeCode($uom);
+            if ($code === '' || $factor <= 0 || isset($seen[$code])) {
+                return;
+            }
+            $out[] = ['uom' => $code, 'factor' => $factor];
+            $seen[$code] = true;
+        };
 
         $this->loadMissing(['uomConversions' => fn ($q) => $q->where('active', true)]);
         foreach ($this->uomConversions as $c) {
-            if (!$c->active) {
+            if (! $c->active) {
                 continue;
             }
-            $code = InventoryUnit::normalizeCode((string) $c->uom);
-            if (isset($seen[$code])) {
-                continue;
-            }
-            $out[] = ['uom' => $c->uom, 'factor' => (float) $c->factor_to_base];
-            $seen[$code] = true;
+            $add((string) $c->uom, (float) $c->factor_to_base);
         }
 
         // Auto-include package inner unit (e.g. g) when product defines packet contents.
         if ($this->hasPackageContents()) {
             $innerUom = trim((string) $this->package_contents_uom);
-            $innerNorm = InventoryUnit::normalizeCode($innerUom);
-            if ($innerNorm !== '' && !isset($seen[$innerNorm])) {
-                $factor = $this->packageContentsInnerFactorToBase();
-                if ($factor !== null && $factor > 0) {
-                    $out[] = ['uom' => $innerUom, 'factor' => $factor];
-                    $seen[$innerNorm] = true;
-                }
+            $factor = $this->packageContentsInnerFactorToBase();
+            if ($innerUom !== '' && $factor !== null && $factor > 0) {
+                $add($innerUom, $factor);
             }
         }
 
         foreach (self::allLibraryUnitConversions() as $lib) {
-            if (!$lib->fromUnit || !$lib->toUnit) {
+            if (! $lib->fromUnit || ! $lib->toUnit) {
                 continue;
             }
             if (InventoryUnit::normalizeCode($lib->toUnit->code) !== $baseNorm) {
                 continue;
             }
-            $fn = InventoryUnit::normalizeCode($lib->fromUnit->code);
-            if ($fn === $baseNorm || isset($seen[$fn])) {
-                continue;
-            }
-            $out[] = ['uom' => $lib->fromUnit->code, 'factor' => (float) $lib->factor];
-            $seen[$fn] = true;
+            $add((string) $lib->fromUnit->code, (float) $lib->factor);
+        }
+
+        foreach (self::builtInMetricFactorsToBase($baseNorm) as $from => $factor) {
+            $add($from, $factor);
         }
 
         return $out;
@@ -422,7 +427,8 @@ class InventoryProduct extends Model
 
     /**
      * How many base units = 1 of {@see $uomCode}, or null if not allowed.
-     * Uses product conversions first, then global library rule from → to = product base.
+     * Uses product conversions first, then global library rule from → to = product base,
+     * then built-in metric fallbacks (g→kg, etc.).
      */
     public function factorToBaseForUom(string $uomCode): ?float
     {
@@ -443,11 +449,13 @@ class InventoryProduct extends Model
 
         $this->loadMissing(['uomConversions' => fn ($q) => $q->where('active', true)]);
         foreach ($this->uomConversions as $c) {
-            if (!$c->active) {
+            if (! $c->active) {
                 continue;
             }
             if (strcasecmp((string) $c->uom, $uomCode) === 0) {
-                return (float) $c->factor_to_base;
+                $factor = (float) $c->factor_to_base;
+
+                return $factor > 0 ? $factor : null;
             }
         }
 
@@ -455,7 +463,7 @@ class InventoryProduct extends Model
         $fromNorm = InventoryUnit::normalizeCode($uomCode);
 
         foreach (self::allLibraryUnitConversions() as $lib) {
-            if (!$lib->fromUnit || !$lib->toUnit) {
+            if (! $lib->fromUnit || ! $lib->toUnit) {
                 continue;
             }
             if (InventoryUnit::normalizeCode($lib->fromUnit->code) !== $fromNorm) {
@@ -464,11 +472,45 @@ class InventoryProduct extends Model
             if (InventoryUnit::normalizeCode($lib->toUnit->code) !== $baseNorm) {
                 continue;
             }
+            $factor = (float) $lib->factor;
 
-            return (float) $lib->factor;
+            return $factor > 0 ? $factor : null;
         }
 
-        return null;
+        $builtIn = self::builtInMetricFactorsToBase($baseNorm);
+
+        return $builtIn[$fromNorm] ?? null;
+    }
+
+    /**
+     * Always-available metric pairs when library/product conversion rows are missing.
+     * Values = how many base units equal 1 of the from-unit.
+     *
+     * @return array<string, float> from_code => factor_to_base
+     */
+    private static function builtInMetricFactorsToBase(string $baseNorm): array
+    {
+        $baseNorm = InventoryUnit::normalizeCode($baseNorm);
+
+        return match ($baseNorm) {
+            'kg' => [
+                'g' => 0.001,
+                'gm' => 0.001,
+                'gram' => 0.001,
+                'grams' => 0.001,
+            ],
+            'g', 'gm', 'gram', 'grams' => [
+                'kg' => 1000.0,
+            ],
+            'ltr', 'l', 'liter', 'litre' => [
+                'ml' => 0.001,
+            ],
+            'ml' => [
+                'ltr' => 1000.0,
+                'l' => 1000.0,
+            ],
+            default => [],
+        };
     }
 
     /**
@@ -511,7 +553,8 @@ class InventoryProduct extends Model
         if (self::$libraryConversionsMemo !== null) {
             return self::$libraryConversionsMemo;
         }
-        if (!Schema::hasTable('inventory_unit_conversions')) {
+        // Tenant DB pe check karo — default connection landlord hoti hai jahan yeh table nahi hoti.
+        if (! Schema::connection('tenant')->hasTable('inventory_unit_conversions')) {
             return self::$libraryConversionsMemo = collect();
         }
 

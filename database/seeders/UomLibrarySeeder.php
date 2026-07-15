@@ -10,10 +10,6 @@ class UomLibrarySeeder extends Seeder
 {
     public function run(): void
     {
-        if (InventoryUnit::query()->exists()) {
-            return;
-        }
-
         $defs = [
             ['code' => 'kg', 'name' => 'Kilogram'],
             ['code' => 'g', 'name' => 'Gram'],
@@ -27,7 +23,10 @@ class UomLibrarySeeder extends Seeder
 
         $ids = [];
         foreach ($defs as $d) {
-            $u = InventoryUnit::query()->create($d);
+            $u = InventoryUnit::query()->firstOrCreate(
+                ['code' => InventoryUnit::normalizeCode($d['code'])],
+                ['name' => $d['name']]
+            );
             $ids[$u->code] = $u->id;
         }
 
@@ -38,15 +37,19 @@ class UomLibrarySeeder extends Seeder
         ];
 
         foreach ($rules as $r) {
-            if (!isset($ids[$r['from']], $ids[$r['to']])) {
+            if (! isset($ids[$r['from']], $ids[$r['to']])) {
                 continue;
             }
-            InventoryUnitConversion::query()->create([
-                'from_unit_id' => $ids[$r['from']],
-                'to_unit_id' => $ids[$r['to']],
-                'factor' => $r['factor'],
-                'note' => $r['note'],
-            ]);
+            InventoryUnitConversion::query()->updateOrCreate(
+                [
+                    'from_unit_id' => $ids[$r['from']],
+                    'to_unit_id' => $ids[$r['to']],
+                ],
+                [
+                    'factor' => $r['factor'],
+                    'note' => $r['note'],
+                ]
+            );
         }
     }
 }

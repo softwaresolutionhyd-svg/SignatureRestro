@@ -221,16 +221,22 @@
             return;
         }
         const base = String(meta.base_uom || '');
-        sel.innerHTML = meta.uoms.map(u => {
-            const selAttr = selectedUom && String(u.uom).toLowerCase() === String(selectedUom).toLowerCase() ? ' selected' : '';
+        const uoms = (meta.uoms || []).filter((u) => String(u?.uom || '').trim() !== '');
+        sel.innerHTML = uoms.map(u => {
+            const code = String(u.uom).trim();
+            const selAttr = selectedUom && code.toLowerCase() === String(selectedUom).toLowerCase() ? ' selected' : '';
             const factor = Number(u.factor);
-            let label = String(u.uom);
+            let label = code;
             if (Number.isFinite(factor) && Math.abs(factor - 1) > 1e-9 && base) {
                 const perBase = Math.round((1 / factor) * 1000) / 1000;
-                label = `${u.uom} (${perBase} ${u.uom} = 1 ${base})`;
+                label = `${code} (${perBase} ${code} = 1 ${base})`;
             }
-            return `<option value="${esc(u.uom)}"${selAttr}>${esc(label)}</option>`;
+            return `<option value="${esc(code)}"${selAttr}>${esc(label)}</option>`;
         }).join('');
+        if (selectedUom && !Array.from(sel.options).some((o) => o.value.toLowerCase() === String(selectedUom).toLowerCase())) {
+            // Keep legacy line unit visible if not in current list
+            sel.insertAdjacentHTML('beforeend', `<option value="${esc(selectedUom)}" selected>${esc(selectedUom)}</option>`);
+        }
     }
 
     function lineCost(meta, uom, qty) {

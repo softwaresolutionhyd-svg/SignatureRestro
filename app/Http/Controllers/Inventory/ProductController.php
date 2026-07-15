@@ -486,13 +486,13 @@ class ProductController extends Controller
      */
     private function uomLibraryForProductForm(): array
     {
-        if (!Schema::hasTable('inventory_units')) {
+        if (! Schema::connection('tenant')->hasTable('inventory_units')) {
             return [collect(), []];
         }
 
         $units = InventoryUnit::query()->orderBy('code')->get(['id', 'code', 'name']);
 
-        if (!Schema::hasTable('inventory_unit_conversions')) {
+        if (! Schema::connection('tenant')->hasTable('inventory_unit_conversions')) {
             return [$units, []];
         }
 
@@ -513,7 +513,7 @@ class ProductController extends Controller
     /** Lowercase codes from Inventory → Units (empty if table missing or no rows). */
     private function libraryUnitCodesStrict(): array
     {
-        if (!Schema::hasTable('inventory_units')) {
+        if (! Schema::connection('tenant')->hasTable('inventory_units')) {
             return [];
         }
 
