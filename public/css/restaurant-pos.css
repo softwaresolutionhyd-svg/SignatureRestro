@@ -1294,8 +1294,8 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     padding: 0.28rem 0.45rem;
     font-size: 0.72rem;
     line-height: 1.3;
-    color: var(--rp-text);
-    background: rgba(255, 255, 255, 0.04);
+    color: #111 !important;
+    background: #fff !important;
     border: 1px solid var(--rp-border);
     border-radius: 6px;
     resize: none;
@@ -1305,12 +1305,13 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     outline: none;
     border-color: rgba(229, 169, 59, 0.45);
     box-shadow: 0 0 0 2px var(--rp-gold-glow);
-    background: rgba(255, 255, 255, 0.06);
+    background: #fff !important;
+    color: #111 !important;
 }
 
 .restaurant-pos-app .rp-cl-note::placeholder {
-    color: var(--rp-text-soft);
-    opacity: 0.8;
+    color: #6b7280 !important;
+    opacity: 1;
 }
 
 .restaurant-pos-app .rp-bill-kitchen-notes-wrap {
@@ -1334,8 +1335,8 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     width: 100%;
     min-height: 2.4rem;
     font-size: 0.75rem;
-    color: var(--rp-text);
-    background: rgba(255, 255, 255, 0.04);
+    color: #111 !important;
+    background: #fff !important;
     border: 1px solid var(--rp-border-strong);
     border-radius: 6px;
     resize: vertical;
@@ -1345,8 +1346,13 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     outline: none;
     border-color: rgba(229, 169, 59, 0.45);
     box-shadow: 0 0 0 2px var(--rp-gold-glow);
-    background: rgba(255, 255, 255, 0.06);
-    color: #fff;
+    background: #fff !important;
+    color: #111 !important;
+}
+
+.restaurant-pos-app .rp-bill-kitchen-notes::placeholder {
+    color: #6b7280 !important;
+    opacity: 1;
 }
 
 .restaurant-pos-app .rp-cart-line:hover {
