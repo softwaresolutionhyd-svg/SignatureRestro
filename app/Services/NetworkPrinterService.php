@@ -29,10 +29,13 @@ final class NetworkPrinterService
     private const ALIGN_LEFT = "\x1B\x61\x00";
     private const ALIGN_CENTER = "\x1B\x61\x01";
     private const SIZE_NORMAL = "\x1D\x21\x00";
-    private const SIZE_DOUBLE = "\x1D\x21\x11";   // double width + height
-    private const SIZE_TALL = "\x1D\x21\x01";     // double height
+    private const SIZE_WIDE = "\x1D\x21\x10";    // double width, normal height (big, not stretched down)
+    private const SIZE_DOUBLE = "\x1D\x21\x11";   // double width + height (headers only)
+    private const SIZE_TALL = "\x1D\x21\x01";     // double height only — avoid for body text
     private const CUT = "\x1D\x56\x42\x00";       // partial cut with feed
     private const FEED = "\x1B\x64\x04";          // feed 4 lines
+    /** Usable chars per line when width is doubled. */
+    private const WIDTH_DOUBLE = 24;
 
     /**
      * Open a TCP socket to the printer and write the payload.
@@ -215,9 +218,9 @@ final class NetworkPrinterService
 
         $out = self::INIT;
 
-        // Department Name (center)
+        // Department Name (center) — proportional double size
         $out .= self::ALIGN_CENTER . self::SIZE_DOUBLE . self::BOLD_ON;
-        $out .= $this->clip(strtoupper(trim($departmentName))) . "\n";
+        $out .= $this->clipWide(strtoupper(trim($departmentName))) . "\n";
         $out .= self::SIZE_NORMAL . self::BOLD_OFF;
 
         // Company (center)
@@ -231,15 +234,20 @@ final class NetworkPrinterService
         $billRight = now()->format('d-M-Y h:i A');
         $out .= $this->twoCol($billLeft, $billRight) . "\n";
 
-        // Table No# (center, large — tall, not double-width, so long names fit)
-        $where = $this->orderLocation($order);
-        if ($where === '') {
-            $where = $order->serviceTypeLabel() ?: '';
-        }
-        if ($where !== '') {
-            $out .= "\n" . self::ALIGN_CENTER . self::SIZE_TALL . self::BOLD_ON;
-            $out .= $this->clip($where) . "\n";
+        // Table No# (center, wide+bold — big font, normal height)
+        $tableNo = $this->kitchenTableLabel($order);
+        if ($tableNo !== '') {
+            $out .= "\n" . self::ALIGN_CENTER . self::SIZE_WIDE . self::BOLD_ON;
+            $out .= $this->clipWide($tableNo) . "\n";
             $out .= self::SIZE_NORMAL . self::BOLD_OFF;
+        }
+
+        // Service type under table
+        $serviceTag = $this->kitchenServiceTag($order);
+        if ($serviceTag !== '') {
+            $out .= self::ALIGN_CENTER . self::BOLD_ON;
+            $out .= $this->clip($serviceTag) . "\n";
+            $out .= self::BOLD_OFF;
         }
 
         // by: (cashier / order taker)
@@ -263,22 +271,20 @@ final class NetworkPrinterService
 
         $out .= $this->rule();
 
-        // Items                                 QTY
+        // Items | QTY — wide+bold (big letters, not stretched down)
         $out .= self::BOLD_ON . $this->twoCol('Items', 'QTY') . self::BOLD_OFF . "\n";
-        $out .= self::SIZE_TALL . self::BOLD_ON;
         foreach ($items as $item) {
             $qty = rtrim(rtrim(number_format((float) $item->qty, 3, '.', ''), '0'), '.');
             $name = (string) ($item->product?->name ?? $item->name ?? 'Item');
-            $out .= $this->twoCol($name, $qty) . "\n";
+            $out .= self::SIZE_WIDE . self::BOLD_ON;
+            $out .= $this->twoColWide($name, $qty) . "\n";
+            $out .= self::SIZE_NORMAL . self::BOLD_OFF;
 
             $notes = trim((string) ($item->notes ?? ''));
             if ($notes !== '') {
-                $out .= self::SIZE_NORMAL . self::BOLD_OFF;
                 $out .= $this->line('*' . $notes) . "\n";
-                $out .= self::SIZE_TALL . self::BOLD_ON;
             }
         }
-        $out .= self::SIZE_NORMAL . self::BOLD_OFF;
 
         // 2 blank lines, then END, then cut
         $out .= "\n\n";
@@ -288,6 +294,29 @@ final class NetworkPrinterService
         $out .= self::CUT;
 
         return $out;
+    }
+
+    private function kitchenTableLabel(PosOrder $order): string
+    {
+        if ($order->table?->name) {
+            return (string) $order->table->name;
+        }
+        $room = trim((string) ($order->room_no ?? ''));
+        if ($room !== '') {
+            return 'Room ' . $room;
+        }
+
+        return trim((string) ($order->guest_name ?? ''));
+    }
+
+    private function kitchenServiceTag(PosOrder $order): string
+    {
+        return match ($order->serviceTypeKey()) {
+            PosOrder::SERVICE_DINE_IN => 'DINE-IN',
+            PosOrder::SERVICE_TAKEAWAY => 'TAKEAWAY',
+            PosOrder::SERVICE_DELIVERY => 'DELIVERY',
+            default => '',
+        };
     }
 
     /**
@@ -498,6 +527,13 @@ final class NetworkPrinterService
         return mb_substr($text, 0, self::WIDTH);
     }
 
+    private function clipWide(string $text): string
+    {
+        $text = preg_replace('/\s+/', ' ', trim($text)) ?? '';
+
+        return mb_substr($text, 0, self::WIDTH_DOUBLE);
+    }
+
     private function line(string $text): string
     {
         return $this->clip($text);
@@ -510,12 +546,23 @@ final class NetworkPrinterService
 
     private function twoCol(string $left, string $right): string
     {
+        return $this->twoColAt($left, $right, self::WIDTH);
+    }
+
+    /** Two columns for SIZE_DOUBLE lines (half char budget). */
+    private function twoColWide(string $left, string $right): string
+    {
+        return $this->twoColAt($left, $right, self::WIDTH_DOUBLE);
+    }
+
+    private function twoColAt(string $left, string $right, int $width): string
+    {
         $left = trim($left);
         $right = trim($right);
-        $space = self::WIDTH - mb_strlen($left) - mb_strlen($right);
+        $space = $width - mb_strlen($left) - mb_strlen($right);
         if ($space < 1) {
-            $left = mb_substr($left, 0, max(0, self::WIDTH - mb_strlen($right) - 1));
-            $space = self::WIDTH - mb_strlen($left) - mb_strlen($right);
+            $left = mb_substr($left, 0, max(0, $width - mb_strlen($right) - 1));
+            $space = $width - mb_strlen($left) - mb_strlen($right);
         }
 
         return $left . str_repeat(' ', max(1, $space)) . $right;

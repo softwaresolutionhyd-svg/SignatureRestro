@@ -46,11 +46,19 @@
         }
         .table-no {
             text-align: center;
-            font-size: 22px;
+            font-size: 20px;
             font-weight: 800;
             letter-spacing: 0.02em;
-            margin: 8px 0 6px;
+            margin: 8px 0 2px;
             line-height: 1.15;
+        }
+        .service-tag {
+            text-align: center;
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            margin: 0 0 6px;
+            text-transform: uppercase;
         }
         .by-line { margin: 2px 0 6px; }
         .bill-notes {
@@ -70,8 +78,8 @@
         table.items td.item-name {
             word-break: break-word;
             font-weight: 800;
-            font-size: 15px;
-            line-height: 1.25;
+            font-size: 16px;
+            line-height: 1.2;
             padding-right: 6px;
         }
         table.items td.item-qty {
@@ -79,8 +87,8 @@
             text-align: right;
             width: 22%;
             font-weight: 800;
-            font-size: 17px;
-            line-height: 1.25;
+            font-size: 16px;
+            line-height: 1.2;
         }
         table.items td.item-note {
             font-size: 11px;
@@ -99,9 +107,9 @@
         @media print {
             .noprint { display: none !important; }
             html, body { max-width: none; }
-            .table-no { font-size: 24px; }
+            .table-no { font-size: 20px; }
             table.items td.item-name { font-size: 16px; }
-            table.items td.item-qty { font-size: 18px; }
+            table.items td.item-qty { font-size: 16px; }
         }
     </style>
 </head>
@@ -118,8 +126,13 @@
     }
     $tableLabel = $order->table?->name
         ?? (trim((string) ($order->room_no ?? '')) !== '' ? 'Room ' . trim((string) $order->room_no) : null)
-        ?? (trim((string) ($order->guest_name ?? '')) !== '' ? trim((string) $order->guest_name) : null)
-        ?? $order->serviceTypeLabel();
+        ?? (trim((string) ($order->guest_name ?? '')) !== '' ? trim((string) $order->guest_name) : null);
+    $serviceTag = match ($order->serviceTypeKey()) {
+        \App\Models\PosOrder::SERVICE_DINE_IN => 'DINE-IN',
+        \App\Models\PosOrder::SERVICE_TAKEAWAY => 'TAKEAWAY',
+        \App\Models\PosOrder::SERVICE_DELIVERY => 'DELIVERY',
+        default => null,
+    };
     $billKitchenNotes = trim((string) ($order->kitchen_notes ?? ''));
 @endphp
 <div class="r-wrap">
@@ -133,6 +146,9 @@
 
     @if($tableLabel)
         <div class="table-no">{{ $tableLabel }}</div>
+    @endif
+    @if($serviceTag)
+        <div class="service-tag">{{ $serviceTag }}</div>
     @endif
 
     <div class="by-line">by: {{ $order->user->name ?? '—' }}</div>
