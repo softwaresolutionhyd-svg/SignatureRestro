@@ -81,6 +81,7 @@
             font-size: 16px;
             line-height: 1.2;
             padding-right: 6px;
+            padding-top: 8px;
         }
         table.items td.item-qty {
             white-space: nowrap;
@@ -89,6 +90,7 @@
             font-weight: 800;
             font-size: 16px;
             line-height: 1.2;
+            padding-top: 8px;
         }
         table.items td.item-note {
             font-size: 11px;

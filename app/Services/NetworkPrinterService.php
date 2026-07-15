@@ -284,6 +284,7 @@ final class NetworkPrinterService
             if ($notes !== '') {
                 $out .= $this->line('*' . $notes) . "\n";
             }
+            $out .= "\n"; // gap between item lines
         }
 
         // 2 blank lines, then END, then cut
