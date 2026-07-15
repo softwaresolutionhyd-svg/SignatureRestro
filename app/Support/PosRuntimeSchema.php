@@ -203,6 +203,11 @@ final class PosRuntimeSchema
                     $table->text('order_notes')->nullable()->after('waiter_name');
                 });
             }
+            if (! $schema->hasColumn('pos_orders', 'kitchen_notes')) {
+                $schema->table('pos_orders', function (Blueprint $table) {
+                    $table->text('kitchen_notes')->nullable()->after('order_notes');
+                });
+            }
             if (! $schema->hasColumn('pos_orders', 'serve_time')) {
                 $schema->table('pos_orders', function (Blueprint $table) {
                     $table->string('serve_time', 10)->nullable()->after('waiter_name');

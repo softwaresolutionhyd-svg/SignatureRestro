@@ -115,6 +115,9 @@
                         </li>
                     @endforeach
                 </ul>
+                @if(trim((string) ($order->kitchen_notes ?? '')) !== '')
+                    <div class="kitchen-item-note mb-2"><strong>Bill:</strong> {{ $order->kitchen_notes }}</div>
+                @endif
                 <div class="kitchen-status-actions">
                     @if($order->kitchenStatusKey() === \App\Models\PosOrder::KITCHEN_STATUS_QUEUED)
                         <form method="POST" action="{{ route('kitchen.status', [$order, 'preparing']) }}" class="kitchen-status-form" data-remove="0">

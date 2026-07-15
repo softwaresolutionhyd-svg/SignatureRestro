@@ -110,6 +110,19 @@ final class NetworkPrinterService
         }
         $out .= self::SIZE_NORMAL . self::BOLD_OFF;
 
+        $billNotes = trim((string) ($order->kitchen_notes ?? ''));
+        if ($billNotes !== '') {
+            $out .= $this->rule();
+            $out .= self::BOLD_ON . $this->line('BILL INSTRUCTIONS:') . self::BOLD_OFF . "\n";
+            foreach (preg_split("/\r\n|\n|\r/", $billNotes) ?: [] as $noteLine) {
+                $noteLine = trim((string) $noteLine);
+                if ($noteLine === '') {
+                    continue;
+                }
+                $out .= $this->line($noteLine) . "\n";
+            }
+        }
+
         $out .= $this->rule();
         $out .= self::FEED . self::CUT;
 

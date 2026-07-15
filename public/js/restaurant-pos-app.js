@@ -908,22 +908,28 @@
                 : '';
             const removeTitle = locked > 0 ? 'Kitchen item — reason required' : 'Remove item';
             const canDec = canReduceCartItems && Number(r.qty) > 0;
+            const noteVal = escHtml(r.notes || '');
             return `<div class="rp-cart-line${locked > 0 ? ' is-kitchen-locked' : ''}" data-cart-index="${i}" data-product-id="${r.product_id}">
-                <div class="rp-cl-main">
-                    <div class="rp-cl-qty-ctrl" role="group" aria-label="Quantity">
-                        <button type="button" class="rp-cl-qty-btn" data-action="cart-dec" data-id="${r.product_id}"${canDec ? '' : ' disabled'} aria-label="Decrease">−</button>
-                        <input type="text" inputmode="decimal" class="rp-cl-qty-input" data-id="${r.product_id}" value="${fmtQty(r.qty)}" aria-label="Quantity" autocomplete="off" spellcheck="false">
-                        <button type="button" class="rp-cl-qty-btn" data-action="cart-inc" data-id="${r.product_id}" aria-label="Increase">+</button>
+                <div class="rp-cl-row">
+                    <div class="rp-cl-main">
+                        <div class="rp-cl-qty-ctrl" role="group" aria-label="Quantity">
+                            <button type="button" class="rp-cl-qty-btn" data-action="cart-dec" data-id="${r.product_id}"${canDec ? '' : ' disabled'} aria-label="Decrease">−</button>
+                            <input type="text" inputmode="decimal" class="rp-cl-qty-input" data-id="${r.product_id}" value="${fmtQty(r.qty)}" aria-label="Quantity" autocomplete="off" spellcheck="false">
+                            <button type="button" class="rp-cl-qty-btn" data-action="cart-inc" data-id="${r.product_id}" aria-label="Increase">+</button>
+                        </div>
+                        <span class="rp-cl-name">${escHtml(r.name)}</span>
+                        ${kitchenBadge}
                     </div>
-                    <span class="rp-cl-name">${escHtml(r.name)}</span>
-                    ${kitchenBadge}
+                    <div class="rp-cl-actions">
+                        <div class="rp-cl-total">${fmtMoney(total)}</div>
+                        ${showRemove ? `<button type="button" class="rp-cl-remove" data-action="remove-line" data-index="${i}" aria-label="Remove item" title="${removeTitle}">
+                            <i class="bi bi-x-lg"></i>
+                        </button>` : ''}
+                    </div>
                 </div>
-                <div class="rp-cl-actions">
-                    <div class="rp-cl-total">${fmtMoney(total)}</div>
-                    ${showRemove ? `<button type="button" class="rp-cl-remove" data-action="remove-line" data-index="${i}" aria-label="Remove item" title="${removeTitle}">
-                        <i class="bi bi-x-lg"></i>
-                    </button>` : ''}
-                </div>
+                <input type="text" class="rp-cl-note" data-index="${i}" maxlength="255"
+                       value="${noteVal}" placeholder="Item instruction…"
+                       aria-label="Instruction for ${escHtml(r.name)}">
             </div>`;
         }).join('');
     }
@@ -1307,6 +1313,7 @@
     let autoPaymentAmount = true;
 
     function cartItemsForSubmit() {
+        syncItemNotesFromDom();
         const totals = calcCartTotals();
         return cart.map((r, idx) => ({
             product_id: r.product_id,
@@ -1318,6 +1325,14 @@
             notes: String(r.notes || '').trim(),
             line_total: lineRowTotal(r, totals, idx),
         }));
+    }
+
+    function syncItemNotesFromDom() {
+        $$('#rpCartLines .rp-cl-note').forEach((input) => {
+            const idx = Number(input.dataset.index);
+            if (!Number.isFinite(idx) || !cart[idx]) return;
+            cart[idx].notes = String(input.value || '');
+        });
     }
 
     function prepareSubmit(mode) {
@@ -1412,6 +1427,11 @@
             form.querySelector('[name="guest_name"]').value = '';
             form.querySelector('[name="room_no"]').value = '';
             form.querySelector('[name="order_notes"]').value = '';
+        }
+
+        const kitchenNotesInput = form.querySelector('[name="kitchen_notes"]');
+        if (kitchenNotesInput) {
+            kitchenNotesInput.value = ($('#rpBillKitchenNotes')?.value || '').trim();
         }
 
         form.querySelector('[name="items"]').value = JSON.stringify(cartItemsForSubmit());
@@ -1621,6 +1641,7 @@
         if ($('#rpDeliveryName')) $('#rpDeliveryName').value = '';
         if ($('#rpDeliveryPhone')) $('#rpDeliveryPhone').value = '';
         if ($('#rpDeliveryAddress')) $('#rpDeliveryAddress').value = '';
+        if ($('#rpBillKitchenNotes')) $('#rpBillKitchenNotes').value = '';
         selectedContactId = null;
         $('#rpSelectedContactWrap')?.classList.add('d-none');
         if ($('#rpContactSearch')) $('#rpContactSearch').value = '';
@@ -1710,6 +1731,9 @@
             $('#rpTabMenu')?.parentElement?.prepend(badge);
         }
         badge.textContent = order.order_no || String(order.id);
+        if ($('#rpBillKitchenNotes') && order.kitchen_notes !== undefined) {
+            $('#rpBillKitchenNotes').value = order.kitchen_notes || '';
+        }
     }
 
     function printUrlInHiddenFrame(url) {
@@ -1979,9 +2003,11 @@
         const wrap = $('#rpCartLines');
         if (!wrap) return;
         wrap.classList.toggle('is-saving', isSaving);
-        wrap.querySelectorAll('.rp-cl-remove, .rp-cl-qty-btn').forEach((btn) => {
+        wrap.querySelectorAll('.rp-cl-remove, .rp-cl-qty-btn, .rp-cl-note').forEach((btn) => {
             btn.disabled = isSaving;
         });
+        const billNotes = $('#rpBillKitchenNotes');
+        if (billNotes) billNotes.disabled = isSaving;
     }
 
     async function ensureHeldOrderForPrint() {
@@ -2247,6 +2273,12 @@
                 commitCartQtyInput(e.target);
             }
         }, true);
+        $('#rpCartLines')?.addEventListener('input', (e) => {
+            if (!e.target.matches('.rp-cl-note')) return;
+            const idx = Number(e.target.dataset.index);
+            if (!Number.isFinite(idx) || !cart[idx]) return;
+            cart[idx].notes = String(e.target.value || '');
+        });
         $('#rpServiceTypes')?.addEventListener('click', (e) => {
             const btn = e.target.closest('.rp-service-type');
             if (!btn?.dataset.type) return;

@@ -226,6 +226,12 @@
             </div>
 
             <div class="rp-cart-lines" id="rpCartLines"></div>
+            <div class="rp-bill-kitchen-notes-wrap">
+                <label class="rp-bill-kitchen-label" for="rpBillKitchenNotes">Bill instructions</label>
+                <textarea id="rpBillKitchenNotes" class="form-control form-control-sm rp-bill-kitchen-notes"
+                          rows="2" maxlength="1000" placeholder="Complete bill instructions (kitchen print)…"
+                          aria-label="Complete bill instructions">{{ old('kitchen_notes', $posSettings['resume_kitchen_notes'] ?? '') }}</textarea>
+            </div>
         </aside>
     </div>
 
@@ -374,6 +380,7 @@
     <input type="hidden" name="guest_name" value="">
     <input type="hidden" name="room_no" value="">
     <input type="hidden" name="order_notes" value="">
+    <input type="hidden" name="kitchen_notes" value="">
     <input type="hidden" name="items" value="">
     <input type="hidden" name="payments" value="">
     <input type="hidden" name="bill_tax_percent" value="0">
@@ -437,5 +444,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=50"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=51"></script>
 @endsection

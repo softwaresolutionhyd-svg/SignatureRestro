@@ -87,6 +87,12 @@
             @endif
         @endforeach
     </table>
+    @php $billKitchenNotes = trim((string) ($order->kitchen_notes ?? '')); @endphp
+    @if($billKitchenNotes !== '')
+        <hr class="line">
+        <div class="bold" style="font-size:12px;margin-bottom:4px;">BILL INSTRUCTIONS</div>
+        <div style="white-space:pre-wrap;font-size:11px;">{{ $billKitchenNotes }}</div>
+    @endif
     <hr class="line">
     <div class="center bold" style="font-size:13px;margin-top:6px;">{{ $kitchenItems->count() }} item(s)</div>
 </div>

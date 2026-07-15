@@ -47,6 +47,7 @@ class PosOrder extends Model
         'room_no',
         'waiter_name',
         'order_notes',
+        'kitchen_notes',
         'serve_time',
         'serve_date',
         'serve_meal',
