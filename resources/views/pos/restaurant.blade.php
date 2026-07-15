@@ -417,9 +417,8 @@
         'tableBoard' => $tableBoard ?? [],
         'restaurantName' => config('app.name'),
         'canVoidKitchenItems' => (bool) (($canPosDiscountCredit ?? false) || auth()->user()?->bypassesModulePermissions()),
-        // Reason sirf kitchen print ke baad — pehle se free delete ke liye false.
-        'requireItemChangeReason' => false,
-        'canReduceCartItems' => (bool) (($canPosDiscountCredit ?? false) || auth()->user()?->bypassesModulePermissions()),
+        // Pre-kitchen: cashier + manager delete/reduce. Post-kitchen void: manager only (canVoidKitchenItems).
+        'canReduceCartItems' => (bool) (($canPosPay ?? false) || ($canPosDiscountCredit ?? false) || auth()->user()?->bypassesModulePermissions()),
         'canReopenPaidBill' => (bool) ($canReopenPaidBill ?? false),
         'canPosPay' => (bool) ($canPosPay ?? false),
         'canPosDiscount' => (bool) ($canPosDiscount ?? false),
@@ -444,5 +443,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=51"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=52"></script>
 @endsection

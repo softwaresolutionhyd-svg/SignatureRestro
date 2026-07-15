@@ -3335,39 +3335,16 @@ class PosController extends Controller
     }
 
     /**
-     * Cashier / order-taker cannot reduce or remove any line qty on an existing draft.
-     * Only manager/admin may delete or decrease (kitchen voids still require reason separately).
+     * Pre-kitchen reductions are allowed for cashier.
+     * Kitchen-printed qty is enforced separately via assertKitchenLockedQuantitiesPreserved
+     * (manager/admin void + reason required).
      *
      * @param  array<int, PosOrderItem>  $existingItems
      * @param  array<int, array<string, mixed>>  $incomingItems
      */
     private function assertCartQtyNotReducedByNonManager(array $existingItems, array $incomingItems, ?User $user): void
     {
-        if ($this->userCanKitchenVoid($user)) {
-            return;
-        }
-
-        $kitchen = app(KitchenService::class);
-        $existingByFp = [];
-        foreach ($existingItems as $existing) {
-            $fp = $kitchen->baseItemFingerprint($existing);
-            $existingByFp[$fp] = ($existingByFp[$fp] ?? 0) + (float) $existing->qty;
-        }
-
-        $incomingByFp = [];
-        foreach ($incomingItems as $item) {
-            $fp = $kitchen->baseItemFingerprint($item);
-            $incomingByFp[$fp] = ($incomingByFp[$fp] ?? 0) + (float) ($item['qty'] ?? 0);
-        }
-
-        foreach ($existingByFp as $fp => $qty) {
-            $next = (float) ($incomingByFp[$fp] ?? 0);
-            if ($next + 0.00001 < $qty) {
-                throw ValidationException::withMessages([
-                    'items' => 'Item kam/remove sirf manager ya admin kar sakta hai.',
-                ]);
-            }
-        }
+        // Intentionally empty — see assertKitchenLockedQuantitiesPreserved().
     }
 
     /**

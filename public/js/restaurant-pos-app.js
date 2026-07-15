@@ -25,7 +25,7 @@
     const posTablesEnabled = boot.tablesEnabled !== undefined ? !!boot.tablesEnabled : !!settings.enable_tables;
     const posShowCustomerSection = settings.show_customer_section !== false;
     const canVoidKitchenItems = boot.canVoidKitchenItems === true;
-    // Delete / qty-kam sirf manager/admin (cashier + order taker nahi).
+    // Delete / qty-kam: cashier pre-kitchen allowed; kitchen-locked voids sirf manager/admin.
     const canReduceCartItems = boot.canReduceCartItems === true || canVoidKitchenItems;
     // Legacy flag — reason ab sirf kitchen-locked items par mangte hain.
     const requireItemChangeReason = false;
@@ -518,7 +518,7 @@
         }
         if (next <= 0) {
             if (!canReduceCartItems) {
-                alert('Quantity kam sirf manager/admin kar sakta hai.');
+                alert('Quantity kam nahi ho sakti.');
                 renderCart();
                 return;
             }
@@ -560,14 +560,14 @@
 
         if (next < current) {
             if (!canReduceCartItems) {
-                alert('Quantity kam sirf manager/admin kar sakta hai.');
+                alert('Quantity kam nahi ho sakti.');
                 renderCart();
                 return;
             }
             const locked = cartLockedQtyForProduct(productId);
             if (next < locked) {
                 if (!canVoidKitchenItems) {
-                    alert('Kitchen me bheji hui quantity kam nahi ho sakti.');
+                    alert('Kitchen print ke baad quantity sirf manager/admin kam kar sakta hai.');
                     renderCart();
                     return;
                 }
@@ -599,7 +599,7 @@
         if (!row) return;
 
         if (!canReduceCartItems) {
-            alert('Item remove sirf manager/admin kar sakta hai.');
+            alert('Item remove nahi ho sakti.');
             return;
         }
 
@@ -730,7 +730,7 @@
         }
 
         if (!canReduceCartItems) {
-            alert('Quantity kam sirf manager/admin kar sakta hai.');
+            alert('Quantity kam nahi ho sakti.');
             return;
         }
 
@@ -742,7 +742,7 @@
         // Kitchen-printed qty se kam karne par hi reason mangna.
         if (next < locked) {
             if (!canVoidKitchenItems) {
-                alert('Kitchen me bheji hui quantity kam nahi ho sakti.');
+                alert('Kitchen print ke baad quantity sirf manager/admin kam kar sakta hai.');
                 return;
             }
             if (!reasonText) {
@@ -866,7 +866,9 @@
         grid.innerHTML = list.map((p) => {
             const qty = cartQtyForProduct(p.id);
             const locked = cartLockedQtyForProduct(p.id);
-            const canDec = qty > 0 && canReduceCartItems;
+            const canDec = qty > 0 && (
+                canVoidKitchenItems || (canReduceCartItems && qty > locked)
+            );
             const price = unitPriceForProduct(p, p.uom);
             const label = displayProductName(p.name);
             const img = p.image_url
@@ -899,7 +901,7 @@
         wrap.innerHTML = cart.map((r, i) => {
             const total = lineRowTotal(r, totals, i);
             const locked = Number(r.kitchen_locked_qty) || 0;
-            const showRemove = canReduceCartItems;
+            const showRemove = (locked <= 0 && canReduceCartItems) || (locked > 0 && canVoidKitchenItems);
             const kitchenBadge = locked > 0
                 ? `<span class="rp-kitchen-pill ${r.kitchen_served ? 'rp-kitchen-pill--served' : 'rp-kitchen-pill--pending'}" title="Kitchen me bheja hua">
                     <i class="bi ${r.kitchen_served ? 'bi-check-circle-fill' : 'bi-fire'}"></i>
@@ -907,7 +909,9 @@
                    </span>`
                 : '';
             const removeTitle = locked > 0 ? 'Kitchen item — reason required' : 'Remove item';
-            const canDec = canReduceCartItems && Number(r.qty) > 0;
+            const canDec = Number(r.qty) > 0 && (
+                canVoidKitchenItems || (canReduceCartItems && Number(r.qty) > locked)
+            );
             const noteVal = escHtml(r.notes || '');
             return `<div class="rp-cart-line${locked > 0 ? ' is-kitchen-locked' : ''}" data-cart-index="${i}" data-product-id="${r.product_id}">
                 <div class="rp-cl-row">
