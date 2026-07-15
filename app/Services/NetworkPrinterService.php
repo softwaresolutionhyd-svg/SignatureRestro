@@ -376,7 +376,7 @@ final class NetworkPrinterService
     }
 
     /**
-     * Build an ESC/POS cashier bill.
+     * Build an ESC/POS cashier bill (paid / unpaid) matching the POS receipt layout.
      *
      * @param  array<string, mixed>  $settings
      */
@@ -389,6 +389,8 @@ final class NetworkPrinterService
             || filled($order->paid_at);
         $statusLabel = $order->type === 'refund' ? 'REFUND' : ($isPaid ? 'PAID' : 'UNPAID');
         $orderType = $order->serviceTypeLabel() ?: '—';
+
+        $order->loadMissing(['items.product:id,name', 'user:id,name', 'table:id,name', 'payments', 'contact:id,name,phone']);
 
         $out = self::INIT;
 
@@ -421,9 +423,19 @@ final class NetworkPrinterService
         $out .= self::ALIGN_LEFT . "\n" . $this->rule();
         $out .= $this->line('Invoice Number: ' . ($order->order_no ?? $order->id)) . "\n";
         $out .= $this->line('Order Type: ' . $orderType) . "\n";
-        $where = $this->orderLocation($order);
-        if ($where !== '') {
-            $out .= $this->line('Table/Room: ' . $where) . "\n";
+
+        if ($order->table?->name) {
+            $out .= $this->line('Table: ' . $order->table->name) . "\n";
+        } else {
+            $where = $this->orderLocation($order);
+            if ($where !== '') {
+                $out .= $this->line('Table/Room: ' . $where) . "\n";
+            }
+        }
+
+        $when = $order->paid_at ?? $order->updated_at ?? $order->created_at;
+        if ($when) {
+            $out .= $this->line('Date: ' . $when->format('d M Y H:i')) . "\n";
         }
         if ($order->user?->name) {
             $out .= $this->line('Cashier: ' . $order->user->name) . "\n";
@@ -435,41 +447,81 @@ final class NetworkPrinterService
         $out .= $this->rule();
         foreach ($order->items as $item) {
             $qty = rtrim(rtrim(number_format((float) $item->qty, 3, '.', ''), '0'), '.');
-            $rate = number_format((float) ($item->unit_price ?? 0), 2);
-            $amount = number_format((float) $item->total, 2);
+            $rate = number_format((float) ($item->unit_price ?? 0), 0);
+            $amount = number_format((float) $item->total, 0);
+            $out .= self::BOLD_ON;
             $out .= $this->itemRow4(
                 (string) ($item->product?->name ?? $item->name ?? 'Item'),
                 $qty,
                 $rate,
                 $amount
-            ) . "\n\n";
+            ) . "\n";
+            $out .= self::BOLD_OFF;
+
+            $itemNotes = trim((string) ($item->notes ?? ''));
+            if ($itemNotes !== '') {
+                $out .= $this->line('Note: ' . $itemNotes) . "\n";
+            }
+            $out .= "\n";
         }
         $out .= $this->rule();
 
         // Totals
-        $out .= $this->twoCol('Sub Total', number_format((float) $order->subtotal, 2)) . "\n";
+        $money = static fn (float $n): string => $currency . number_format($n, 0);
+        $out .= $this->twoCol('Subtotal', $money((float) $order->subtotal)) . "\n";
         if ((float) $order->discount_total > 0) {
-            $out .= $this->twoCol('Discount', '-' . number_format((float) $order->discount_total, 2)) . "\n";
+            $out .= $this->twoCol('Discount', '-' . $money((float) $order->discount_total)) . "\n";
         }
         if ((float) ($order->service_charge_total ?? 0) > 0) {
-            $out .= $this->twoCol('Service Charges', number_format((float) $order->service_charge_total, 2)) . "\n";
+            $out .= $this->twoCol('Service Charges', $money((float) $order->service_charge_total)) . "\n";
         }
         if ((float) $order->tax_total > 0) {
-            $out .= $this->twoCol('Tax', number_format((float) $order->tax_total, 2)) . "\n";
+            $out .= $this->twoCol('Tax', $money((float) $order->tax_total)) . "\n";
         }
 
-        $grandLabel = 'Grand Total';
-        $grandAmount = $currency . ' ' . number_format((float) $order->grand_total, 2);
+        $grandLabel = $isPaid ? 'Grand Total' : 'AMOUNT DUE';
+        $grandAmount = $currency . number_format((float) $order->grand_total, 0);
         $out .= "\n" . self::ALIGN_CENTER . self::BOLD_ON . self::SIZE_TALL;
         $out .= $this->clip($grandLabel) . "\n";
         $out .= $this->clip($grandAmount) . "\n";
         $out .= self::SIZE_NORMAL . self::BOLD_OFF;
 
+        // Payment / Received / Change (paid slip)
+        if ($isPaid && ! $order->is_credit) {
+            $payments = $order->relationLoaded('payments') ? $order->payments : $order->payments()->get();
+            if ($payments->isNotEmpty()) {
+                $out .= "\n" . self::ALIGN_LEFT . self::BOLD_ON . $this->line('Payment') . self::BOLD_OFF . "\n";
+                foreach ($payments as $pay) {
+                    $out .= $this->twoCol(ucfirst((string) $pay->method), $money((float) $pay->amount)) . "\n";
+                }
+            }
+            if ($order->cash_tendered !== null && (float) $order->cash_tendered >= 0) {
+                $out .= $this->twoCol('Received', $money((float) $order->cash_tendered)) . "\n";
+                if ($order->cash_change !== null) {
+                    $out .= self::BOLD_ON;
+                    $out .= $this->twoCol('Change', $money((float) $order->cash_change)) . "\n";
+                    $out .= self::BOLD_OFF;
+                }
+            }
+        } elseif ($isPaid && $order->is_credit) {
+            $out .= "\n" . self::ALIGN_CENTER . self::BOLD_ON;
+            $out .= $this->clip('CREDIT SALE') . "\n";
+            $out .= self::BOLD_OFF;
+            $out .= $this->clip('Amount on account: ' . $money((float) $order->grand_total)) . "\n";
+            $out .= self::ALIGN_LEFT;
+        }
+
+        $billNote = trim((string) ($order->order_notes ?? ''));
+        if ($billNote !== '') {
+            $out .= $this->rule();
+            $out .= $this->line('Note: ' . $billNote) . "\n";
+        }
+
         $out .= "\n" . $this->rule();
         $out .= self::ALIGN_CENTER . self::SIZE_DOUBLE . self::BOLD_ON;
         $out .= $this->clip($statusLabel) . "\n";
         $out .= self::SIZE_NORMAL . self::BOLD_OFF;
-        $out .= "\n\n"; // ~1–2 blank lines before footer
+        $out .= "\n\n";
         $out .= self::ALIGN_CENTER;
         $out .= $this->clip('Powered by softwaresolutions.pk') . "\n";
         $out .= self::ALIGN_LEFT;
@@ -662,7 +714,7 @@ final class NetworkPrinterService
         return $name . $qty . $amount;
     }
 
-    /** ITEMS | QTY | RATE | AMOUNT — 48-char thermal line. */
+    /** ITEMS | QTY | RATE | AMOUNT — 48-char thermal line; QTY centered under header. */
     private function itemRow4(string $name, string $qty, string $rate, string $amount): string
     {
         $qtyW = 6;
@@ -672,7 +724,12 @@ final class NetworkPrinterService
 
         $name = mb_substr($name, 0, $nameW);
         $name = $name . str_repeat(' ', max(0, $nameW - mb_strlen($name)));
-        $qty = str_repeat(' ', max(0, $qtyW - mb_strlen($qty))) . $qty;
+
+        $qty = mb_substr(trim($qty), 0, $qtyW);
+        $qtyPad = max(0, $qtyW - mb_strlen($qty));
+        $qtyLeft = intdiv($qtyPad, 2);
+        $qty = str_repeat(' ', $qtyLeft) . $qty . str_repeat(' ', $qtyPad - $qtyLeft);
+
         $rate = str_repeat(' ', max(0, $rateW - mb_strlen($rate))) . $rate;
         $amount = str_repeat(' ', max(0, $amtW - mb_strlen($amount))) . $amount;
 

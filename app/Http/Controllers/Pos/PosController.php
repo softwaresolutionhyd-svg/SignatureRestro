@@ -2017,7 +2017,7 @@ class PosController extends Controller
             ]);
         }
 
-        $order->load(['items.product:id,name,sku', 'user:id,name', 'table:id,name']);
+        $order->load(['items.product:id,name,sku', 'user:id,name', 'table:id,name', 'payments', 'contact:id,name,phone']);
         $settings = $this->receiptSettingsMap();
         $printer = app(NetworkPrinterService::class);
         $payload = $printer->buildBillSlip($order, $settings);
