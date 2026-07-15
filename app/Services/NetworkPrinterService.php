@@ -234,11 +234,17 @@ final class NetworkPrinterService
         $billRight = now()->format('d-M-Y h:i A');
         $out .= $this->twoCol($billLeft, $billRight) . "\n";
 
-        // Table No# (center, tall+bold — big font, normal letter spacing)
+        // Table No# (center) — short names: proportional double; long: bold normal (no stretch)
         $tableNo = $this->kitchenTableLabel($order);
         if ($tableNo !== '') {
-            $out .= "\n" . self::ALIGN_CENTER . self::SIZE_TALL . self::BOLD_ON;
-            $out .= $this->clip($tableNo) . "\n";
+            $out .= "\n" . self::ALIGN_CENTER;
+            if (mb_strlen($tableNo) <= 8) {
+                $out .= self::SIZE_DOUBLE . self::BOLD_ON;
+                $out .= $this->clipWide($tableNo) . "\n";
+            } else {
+                $out .= self::BOLD_ON;
+                $out .= $this->clip($tableNo) . "\n";
+            }
             $out .= self::SIZE_NORMAL . self::BOLD_OFF;
         }
 
@@ -271,14 +277,14 @@ final class NetworkPrinterService
 
         $out .= $this->rule();
 
-        // Items | QTY — bold + tall (bara font), normal letter spacing; qty centered under QTY
+        // Items | QTY — bold normal size (no tall/wide stretch); qty centered under QTY
         $out .= self::BOLD_ON . $this->kitchenItemRow('Items', 'QTY') . self::BOLD_OFF . "\n";
         foreach ($items as $item) {
             $qty = rtrim(rtrim(number_format((float) $item->qty, 3, '.', ''), '0'), '.');
             $name = (string) ($item->product?->name ?? $item->name ?? 'Item');
-            $out .= self::SIZE_TALL . self::BOLD_ON;
+            $out .= self::BOLD_ON;
             $out .= $this->kitchenItemRow($name, $qty) . "\n";
-            $out .= self::SIZE_NORMAL . self::BOLD_OFF;
+            $out .= self::BOLD_OFF;
 
             $notes = trim((string) ($item->notes ?? ''));
             if ($notes !== '') {
@@ -575,8 +581,8 @@ final class NetworkPrinterService
      */
     private function kitchenItemRow(string $name, string $qty): string
     {
-        $edge = 2;   // keep off the right edge
-        $qtyCol = 6; // wide enough for "QTY" / numbers, centered under header
+        $edge = 3;   // keep qty off the right paper edge
+        $qtyCol = 5; // "QTY" header width; numbers centered under it
         $nameW = self::WIDTH - $qtyCol - $edge;
 
         $name = preg_replace('/\s+/', ' ', trim($name)) ?? '';
