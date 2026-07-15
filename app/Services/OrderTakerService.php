@@ -83,14 +83,8 @@ final class OrderTakerService
 
     public function openPosSession(): ?PosSession
     {
-        $today = now()->toDateString();
-
         return PosSession::query()
             ->where('status', 'open')
-            ->where(function ($q) use ($today) {
-                $q->whereDate('opened_at', $today)
-                    ->orWhere('business_date', $today);
-            })
             ->when($this->sessionsHaveShiftStartedColumn(), function ($q) {
                 $q->where('shift_started', true);
             })
@@ -116,19 +110,16 @@ final class OrderTakerService
     }
 
     /**
-     * Open POS sessions for today (all cashiers) — table occupancy uses every active session.
+     * All currently open POS sessions (any business day) — table occupancy / shared bills.
      *
      * @return \Illuminate\Support\Collection<int, int>
      */
     public function openPosSessionIdsForToday(): \Illuminate\Support\Collection
     {
-        $today = now()->toDateString();
-
         return PosSession::query()
             ->where('status', 'open')
-            ->where(function ($q) use ($today) {
-                $q->whereDate('opened_at', $today)
-                    ->orWhereDate('business_date', $today);
+            ->when($this->sessionsHaveShiftStartedColumn(), function ($q) {
+                $q->where('shift_started', true);
             })
             ->pluck('id');
     }

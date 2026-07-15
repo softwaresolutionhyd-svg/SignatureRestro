@@ -109,8 +109,9 @@
         @else
             <div class="pos-open-wait">
                 <i class="bi bi-hourglass-split me-1"></i>
-                Aaj ki POS session abhi open nahi hui.<br>
-                <strong>Cashier</strong> se pehle session open karwaein, phir POS use karein.
+                POS session abhi open nahi hui.<br>
+                <strong>Cashier</strong> se pehle session open karwaein, phir POS use karein.<br>
+                <span class="small text-secondary">Session tab tak chalti rahegi jab tak manager/admin close na kare.</span>
             </div>
         @endif
 

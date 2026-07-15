@@ -5,7 +5,7 @@
 <div class="mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
     <div>
         <h4 class="fw-bold mb-0">POS Closing</h4>
-        <div class="text-secondary small">Aaj ki session summary — cash count karke session end karein</div>
+        <div class="text-secondary small">Session summary — cash count karke sirf manager/admin session end karein</div>
     </div>
     <div class="d-flex gap-2 flex-wrap">
         <a href="{{ route('dashboard') }}" class="btn btn-outline-secondary btn-sm">← Dashboard</a>

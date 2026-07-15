@@ -843,14 +843,10 @@ class PosController extends Controller
             return redirect()->route('restaurant-pos.index')->with('success', 'POS session pehle se open hai.');
         }
 
-        $today = now()->toDateString();
+        // Reuse any still-open session (even from previous days) — never auto-close overnight.
         $pending = PosSession::query()
             ->where('user_id', $user->id)
             ->where('status', 'open')
-            ->where(function ($q) use ($today) {
-                $q->whereDate('opened_at', $today)
-                    ->orWhere('business_date', $today);
-            })
             ->latest('id')
             ->first();
 
@@ -860,13 +856,11 @@ class PosController extends Controller
                 'opening_cash' => 0,
                 'note' => $request->input('note') ?: $pending->note,
             ]);
-            $this->rolloverStaleOpenSessionsForUser($user, $pending);
 
             return redirect()->route('restaurant-pos.index')->with('success', 'POS session open ho gayi.');
         }
 
-        $session = $this->createDailySession($user, $request->input('note'));
-        $this->rolloverStaleOpenSessionsForUser($user, $session);
+        $this->createDailySession($user, $request->input('note'));
 
         return redirect()->route('restaurant-pos.index')->with('success', 'POS session open ho gayi.');
     }
@@ -875,6 +869,12 @@ class PosController extends Controller
     {
         $this->ensurePosSessionDailyClosingSchema();
         $user = Auth::user();
+        abort_unless(
+            $user !== null && ($user->bypassesModulePermissions() || $user->canAccessPosClosing()),
+            403,
+            'POS session sirf manager ya admin close kar sakta hai.'
+        );
+
         $session = $this->getOpenPosSessionForUser($user);
         abort_if($session === null, 404, 'Koi open POS session nahi hai.');
 
@@ -921,15 +921,9 @@ class PosController extends Controller
 
     private function getOpenPosSessionForUser(User $user): ?PosSession
     {
-        $today = now()->toDateString();
-
         $own = PosSession::query()
             ->where('user_id', $user->id)
             ->where('status', 'open')
-            ->where(function ($q) use ($today) {
-                $q->whereDate('opened_at', $today)
-                    ->orWhere('business_date', $today);
-            })
             ->latest('id')
             ->first();
 
@@ -942,12 +936,7 @@ class PosController extends Controller
         }
 
         if ($this->posUsesSharedBills($user) && ! $this->userIsPosCashier($user)) {
-            $query = PosSession::query()
-                ->where('status', 'open')
-                ->where(function ($q) use ($today) {
-                    $q->where('business_date', $today)
-                        ->orWhereDate('opened_at', $today);
-                });
+            $query = PosSession::query()->where('status', 'open');
 
             if ($this->posSessionsHaveShiftStartedColumn()) {
                 $query->where('shift_started', true);
@@ -1003,26 +992,13 @@ class PosController extends Controller
         return $this->userIsPosCashier($user);
     }
 
+    /**
+     * Previously auto-closed previous-day open sessions. Disabled — sessions stay
+     * open until manager/admin closes them from POS Closing.
+     */
     private function rolloverStaleOpenSessionsForUser(User $user, PosSession $newSession): void
     {
-        $today = now()->toDateString();
-
-        $staleOpen = PosSession::query()
-            ->where('user_id', $user->id)
-            ->where('status', 'open')
-            ->where('id', '!=', $newSession->id)
-            ->whereDate('opened_at', '<', $today)
-            ->orderBy('id')
-            ->get();
-
-        foreach ($staleOpen as $stale) {
-            PosOrder::query()
-                ->where('session_id', $stale->id)
-                ->where('status', 'draft')
-                ->update(['session_id' => $newSession->id]);
-
-            $this->finalizeSessionClose($stale, 'Auto day rollover');
-        }
+        // no-op
     }
 
     private function createDailySession(User $user, ?string $note = null): PosSession
@@ -2154,15 +2130,9 @@ class PosController extends Controller
 
     private function openPosSessionForUser(User $user): ?PosSession
     {
-        $today = now()->toDateString();
-
         return PosSession::query()
             ->where('user_id', $user->id)
             ->where('status', 'open')
-            ->where(function ($q) use ($today) {
-                $q->whereDate('opened_at', $today)
-                    ->orWhereDate('business_date', $today);
-            })
             ->latest('id')
             ->first();
     }

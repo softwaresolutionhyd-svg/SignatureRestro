@@ -8,7 +8,10 @@ class PosCloseSessionRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return (bool) $this->user();
+        $user = $this->user();
+
+        return $user !== null
+            && ($user->bypassesModulePermissions() || $user->canAccessPosClosing());
     }
 
     /**
