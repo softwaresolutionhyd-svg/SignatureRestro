@@ -459,7 +459,7 @@
 
     function kitchenLockedFromResume(ri) {
         const qty = Number(ri.qty) || 0;
-        return (ri.kitchen_served || ri.kitchen_pending) ? qty : 0;
+        return (ri.kitchen_served || ri.kitchen_pending || ri.kitchen_printed) ? qty : 0;
     }
 
     function addOrIncrementProduct(id) {

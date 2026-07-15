@@ -302,6 +302,11 @@ final class PosRuntimeSchema
                     $table->timestamp('kitchen_served_at')->nullable()->after('kitchen_pending');
                 });
             }
+            if (! $schema->hasColumn('pos_order_items', 'kitchen_printed_at')) {
+                $schema->table('pos_order_items', function (Blueprint $table) {
+                    $table->timestamp('kitchen_printed_at')->nullable()->after('kitchen_served_at');
+                });
+            }
         } catch (\Throwable $e) {
             report($e);
         }

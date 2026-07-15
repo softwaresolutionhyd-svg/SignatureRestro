@@ -8,6 +8,7 @@ use App\Models\PosOrder;
 use App\Models\PosOrderItem;
 use App\Models\Setting;
 use App\Support\EnsuresKitchenAgentSchema;
+use App\Support\PosRuntimeSchema;
 use Illuminate\Support\Collection;
 use RuntimeException;
 
@@ -86,6 +87,7 @@ final class NetworkPrinterService
     public function dispatchPendingKitchenPrints(PosOrder $order): array
     {
         $this->ensureKitchenAgentSchema();
+        PosRuntimeSchema::ensureOrderItemsTable();
 
         $order->loadMissing([
             'items.product:id,name,sku,department_id',
@@ -96,17 +98,31 @@ final class NetworkPrinterService
         ]);
 
         $kitchenItems = $order->items
-            ->filter(fn (PosOrderItem $item) => (bool) $item->kitchen_pending && ! $item->isKitchenServed())
+            ->filter(function (PosOrderItem $item) {
+                if (! (bool) $item->kitchen_pending || $item->isKitchenServed()) {
+                    return false;
+                }
+                // Already ticketed once — skip re-print
+                if ($item->kitchen_printed_at !== null) {
+                    return false;
+                }
+
+                return true;
+            })
             ->values();
 
         if ($kitchenItems->isEmpty()) {
             return [
                 'ok' => false,
-                'message' => 'Koi kitchen item pending nahi.',
+                'message' => 'Koi naya kitchen item pending nahi.',
                 'results' => [],
                 'unrouted' => 0,
             ];
         }
+
+        $isAddonPrint = $order->items->contains(
+            fn (PosOrderItem $item) => $item->kitchen_printed_at !== null
+        );
 
         $groups = [];
         $unrouted = 0;
@@ -127,20 +143,34 @@ final class NetworkPrinterService
                 'message' => 'Kisi department ka printer set nahi (Inventory → Kitchen Agents).',
                 'results' => [],
                 'unrouted' => $unrouted,
+                'is_addon' => $isAddonPrint,
+                'pending_item_ids' => $kitchenItems->pluck('id')->map(fn ($id) => (int) $id)->all(),
             ];
         }
 
         $company = Setting::get('company_name', config('app.name'));
         $results = [];
+        $printedIds = [];
 
         foreach ($groups as $group) {
             /** @var InventoryDepartment $dept */
             $dept = $group['dept'];
-            $payload = $this->buildKitchenSlip($order, (string) $dept->name, $group['items'], $company);
+            /** @var list<PosOrderItem> $groupItems */
+            $groupItems = $group['items'];
+            $payload = $this->buildKitchenSlip(
+                $order,
+                (string) $dept->name,
+                $groupItems,
+                $company,
+                $isAddonPrint
+            );
 
             try {
                 $this->send((string) $dept->printer_ip, (int) ($dept->printer_port ?: 9100), $payload);
                 $results[] = ['department' => (string) $dept->name, 'ok' => true];
+                foreach ($groupItems as $gi) {
+                    $printedIds[] = (int) $gi->id;
+                }
             } catch (\Throwable $e) {
                 $results[] = [
                     'department' => (string) $dept->name,
@@ -150,12 +180,18 @@ final class NetworkPrinterService
             }
         }
 
+        if ($printedIds !== []) {
+            app(KitchenService::class)->markItemsKitchenPrinted($printedIds);
+        }
+
         $anyOk = collect($results)->contains(fn ($r) => $r['ok'] === true);
 
         return [
             'ok' => $anyOk,
             'results' => $results,
             'unrouted' => $unrouted,
+            'is_addon' => $isAddonPrint,
+            'pending_item_ids' => $kitchenItems->pluck('id')->map(fn ($id) => (int) $id)->all(),
             'message' => $anyOk ? null : 'Kitchen print fail hua.',
         ];
     }
@@ -204,12 +240,17 @@ final class NetworkPrinterService
      * Layout:
      *   Department (center) → Company (center) → Bill# / DateTime
      *   → Table No (center, large) → by: name → Complete bill Notes
-     *   → Items | QTY → *notes → blank lines → END → Cut
+     *   → [+ NEW ITEMS if addon] → Items | QTY → *notes → blank lines → END → Cut
      *
      * @param  Collection<int, PosOrderItem>|iterable<int, PosOrderItem>  $items
      */
-    public function buildKitchenSlip(PosOrder $order, string $departmentName, iterable $items, ?string $company = null): string
-    {
+    public function buildKitchenSlip(
+        PosOrder $order,
+        string $departmentName,
+        iterable $items,
+        ?string $company = null,
+        bool $isAddonPrint = false
+    ): string {
         $companyName = strtoupper(trim((string) ($company ?: '')));
         $companyName = preg_replace('/\bRESRO\b/u', 'RESTRO', $companyName) ?? $companyName;
         if ($companyName === '') {
@@ -276,6 +317,12 @@ final class NetworkPrinterService
         }
 
         $out .= $this->rule();
+
+        if ($isAddonPrint) {
+            $out .= self::ALIGN_CENTER . self::BOLD_ON;
+            $out .= $this->clip('+ NEW ITEMS') . "\n";
+            $out .= self::BOLD_OFF . self::ALIGN_LEFT;
+        }
 
         // Items | QTY — bold normal size (no tall/wide stretch); qty centered under QTY
         $out .= self::BOLD_ON . $this->kitchenItemRow('Items', 'QTY') . self::BOLD_OFF . "\n";

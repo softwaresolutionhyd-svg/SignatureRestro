@@ -537,7 +537,7 @@
             notes: r.notes || '',
             kitchen_served: !!r.kitchen_served,
             kitchen_pending: r.kitchen_pending !== false,
-            kitchen_locked_qty: Number(r.kitchen_locked_qty) || (r.kitchen_served || r.kitchen_pending ? Number(r.qty) : 0),
+            kitchen_locked_qty: Number(r.kitchen_locked_qty) || (r.kitchen_served || r.kitchen_pending || r.kitchen_printed ? Number(r.qty) : 0),
         }));
     }
 

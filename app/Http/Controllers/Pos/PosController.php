@@ -564,6 +564,7 @@ class PosController extends Controller
                         'notes' => (string) ($item->notes ?? ''),
                         'kitchen_served' => $item->isKitchenServed(),
                         'kitchen_pending' => (bool) $item->kitchen_pending,
+                        'kitchen_printed' => $item->kitchen_printed_at !== null,
                     ])->values()->all(),
                 ];
             }
@@ -1901,11 +1902,18 @@ class PosController extends Controller
         abort_unless($order->status === 'draft', 404);
         $this->assertDraftReceiptAccess($order);
 
+        \App\Support\PosRuntimeSchema::ensureOrderItemsTable();
         $order->load(['items.product:id,name,sku,department_id', 'items.product.departments:id,name', 'items.product.department:id,name', 'user:id,name', 'table:id,name']);
 
-        $kitchenItems = $order->items->filter(
-            fn (PosOrderItem $item) => (bool) $item->kitchen_pending && ! $item->isKitchenServed()
-        )->values();
+        $isAddonPrint = $order->items->contains(fn (PosOrderItem $item) => $item->kitchen_printed_at !== null);
+
+        $kitchenItems = $order->items->filter(function (PosOrderItem $item) {
+            if (! (bool) $item->kitchen_pending || $item->isKitchenServed()) {
+                return false;
+            }
+
+            return $item->kitchen_printed_at === null;
+        })->values();
 
         abort_unless($kitchenItems->isNotEmpty(), 404);
 
@@ -1929,7 +1937,25 @@ class PosController extends Controller
         $backUrl = route('restaurant-pos.index', ['resume_order' => $order->id]);
         $backLabel = '← Back to order';
 
-        return view('pos.kitchen-slip', compact('order', 'kitchenItems', 'settings', 'autoPrint', 'backUrl', 'backLabel', 'departmentName'));
+        // Mark lines printed once the kitchen slip is actually used for printing
+        // (auto-print or silent iframe print with noprint=1).
+        $shouldMarkPrinted = $autoPrint || $request->boolean('noprint', false) || $request->boolean('mark_printed', false);
+        if ($shouldMarkPrinted) {
+            app(KitchenService::class)->markItemsKitchenPrinted(
+                $kitchenItems->pluck('id')->map(fn ($id) => (int) $id)->all()
+            );
+        }
+
+        return view('pos.kitchen-slip', compact(
+            'order',
+            'kitchenItems',
+            'settings',
+            'autoPrint',
+            'backUrl',
+            'backLabel',
+            'departmentName',
+            'isAddonPrint'
+        ));
     }
 
     /**
@@ -1948,11 +1974,13 @@ class PosController extends Controller
             return response()->json([
                 'ok' => false,
                 'fallback' => true,
+                'is_addon' => $result['is_addon'] ?? false,
                 'message' => $result['message'] ?? 'Kisi department ka printer set nahi (Inventory → Kitchen Agents).',
             ]);
         }
 
-        if (($result['ok'] ?? false) !== true && ($result['message'] ?? '') === 'Koi kitchen item pending nahi.') {
+        $emptyMsg = (string) ($result['message'] ?? '');
+        if (($result['ok'] ?? false) !== true && str_contains($emptyMsg, 'pending nahi')) {
             return response()->json(['ok' => false, 'message' => $result['message']], 422);
         }
 
@@ -1962,6 +1990,7 @@ class PosController extends Controller
             'ok' => $anyOk,
             'results' => $result['results'] ?? [],
             'unrouted' => $result['unrouted'] ?? 0,
+            'is_addon' => $result['is_addon'] ?? false,
             'message' => $result['message'] ?? null,
         ], $anyOk ? 200 : 500);
     }
@@ -2872,6 +2901,7 @@ class PosController extends Controller
                 'notes' => trim((string) ($item->notes ?? '')),
                 'kitchen_served' => $item->isKitchenServed(),
                 'kitchen_pending' => (bool) $item->kitchen_pending,
+                'kitchen_printed' => $item->kitchen_printed_at !== null,
                 'kitchen_served_at' => $item->kitchen_served_at?->format('H:i'),
             ])->values()->all(),
         ];
@@ -3319,7 +3349,8 @@ class PosController extends Controller
             }
             $isServed = $existing->kitchen_served_at !== null;
             $isPending = (bool) $existing->kitchen_pending && ! $isServed;
-            if (! $isServed && ! $isPending) {
+            $isPrinted = $existing->kitchen_printed_at !== null && ! $isServed;
+            if (! $isServed && ! $isPending && ! $isPrinted) {
                 continue;
             }
             $fp = $kitchen->baseItemFingerprint($existing);

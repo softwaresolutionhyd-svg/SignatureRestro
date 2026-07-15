@@ -165,6 +165,10 @@
 
     <hr class="line">
 
+    @if(!empty($isAddonPrint))
+        <div class="center bold" style="font-size:15px;margin:6px 0 8px;letter-spacing:0.04em;">+ NEW ITEMS</div>
+    @endif
+
     <table class="items">
         <thead>
             <tr>

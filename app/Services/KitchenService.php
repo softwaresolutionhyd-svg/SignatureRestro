@@ -185,6 +185,63 @@ final class KitchenService
     }
 
     /**
+     * Already kitchen-printed (slip sent) qty still waiting / on board — do not re-print.
+     *
+     * @param  list<PosOrderItem>  $oldItems
+     * @return array<string, array{qty: float, printed_at: mixed}>
+     */
+    private function printedQtyPoolByBaseFingerprint(array $oldItems): array
+    {
+        if (! Schema::hasColumn('pos_order_items', 'kitchen_printed_at')) {
+            return [];
+        }
+
+        $pool = [];
+        foreach ($oldItems as $oldItem) {
+            if ($oldItem->kitchen_served_at !== null) {
+                continue;
+            }
+            if ($oldItem->kitchen_printed_at === null) {
+                continue;
+            }
+            $base = $this->baseItemFingerprint($oldItem);
+            if (! isset($pool[$base])) {
+                $pool[$base] = ['qty' => 0.0, 'printed_at' => $oldItem->kitchen_printed_at];
+            }
+            $pool[$base]['qty'] += (float) $oldItem->qty;
+        }
+
+        return $pool;
+    }
+
+    /**
+     * Pending kitchen lines that have not been printer-ticketed yet.
+     *
+     * @param  list<PosOrderItem>  $oldItems
+     * @return array<string, float>
+     */
+    private function unprintedPendingQtyPoolByBaseFingerprint(array $oldItems): array
+    {
+        $pool = [];
+        $hasPrinted = Schema::hasColumn('pos_order_items', 'kitchen_printed_at');
+        foreach ($oldItems as $oldItem) {
+            if ($oldItem->kitchen_served_at !== null) {
+                continue;
+            }
+            if (! (bool) $oldItem->kitchen_pending) {
+                continue;
+            }
+            if ($hasPrinted && $oldItem->kitchen_printed_at !== null) {
+                continue;
+            }
+            $base = $this->baseItemFingerprint($oldItem);
+            $pool[$base] = ($pool[$base] ?? 0.0) + (float) $oldItem->qty;
+        }
+
+        return $pool;
+    }
+
+    /**
      * @param  array<string, mixed>  $item
      * @return array<string, mixed>
      */
@@ -211,6 +268,9 @@ final class KitchenService
     }
 
     /**
+     * Rebuild line kitchen flags so already-printed qty is never set pending again for re-print.
+     * Only brand-new qty / new products become kitchen_pending (and unprinted).
+     *
      * @param  list<PosOrderItem>  $oldItems
      * @param  list<array<string, mixed>>  $newItemsData
      * @return list<array<string, mixed>>
@@ -222,44 +282,93 @@ final class KitchenService
         }
 
         $hasServedAt = Schema::hasColumn('pos_order_items', 'kitchen_served_at');
+        $hasPrintedAt = Schema::hasColumn('pos_order_items', 'kitchen_printed_at');
         $servedPool = $hasServedAt ? $this->servedQtyPoolByBaseFingerprint($oldItems) : [];
+        $printedPool = $hasPrintedAt ? $this->printedQtyPoolByBaseFingerprint($oldItems) : [];
+        $unprintedPendingPool = $this->unprintedPendingQtyPoolByBaseFingerprint($oldItems);
 
         $out = [];
         foreach ($newItemsData as $item) {
-            $newQty = (float) ($item['qty'] ?? 0);
-            if ($newQty <= 0) {
+            $remaining = (float) ($item['qty'] ?? 0);
+            if ($remaining <= 0) {
                 continue;
             }
 
             $baseFp = $this->baseItemFingerprint($item);
-            $servedQty = 0.0;
-            $servedAt = null;
-            if ($hasServedAt && isset($servedPool[$baseFp])) {
-                $servedQty = min((float) $servedPool[$baseFp]['served_qty'], $newQty);
-                $servedAt = $servedPool[$baseFp]['served_at'];
+
+            // 1) Already served portion
+            if ($hasServedAt && isset($servedPool[$baseFp]) && $servedPool[$baseFp]['served_qty'] > 0.0005) {
+                $servedQty = min((float) $servedPool[$baseFp]['served_qty'], $remaining);
                 $servedPool[$baseFp]['served_qty'] = max(0.0, (float) $servedPool[$baseFp]['served_qty'] - $servedQty);
-            }
+                $remaining = round($remaining - $servedQty, 3);
 
-            $pendingQty = round($newQty - $servedQty, 3);
-
-            if ($servedQty > 0.0005) {
                 $servedLine = $this->splitItemLineByQty($item, $servedQty);
                 $servedLine['kitchen_pending'] = false;
-                if ($hasServedAt && $servedAt !== null) {
-                    $servedLine['kitchen_served_at'] = $servedAt;
+                $servedLine['kitchen_served_at'] = $servedPool[$baseFp]['served_at'];
+                if ($hasPrintedAt) {
+                    $servedLine['kitchen_printed_at'] = $servedPool[$baseFp]['served_at'];
                 }
                 $out[] = $servedLine;
             }
 
-            if ($pendingQty > 0.0005) {
+            // 2) Already printed portion — keep locked, do not re-print
+            if ($hasPrintedAt && $remaining > 0.0005 && isset($printedPool[$baseFp]) && $printedPool[$baseFp]['qty'] > 0.0005) {
+                $printedQty = min((float) $printedPool[$baseFp]['qty'], $remaining);
+                $printedPool[$baseFp]['qty'] = max(0.0, (float) $printedPool[$baseFp]['qty'] - $printedQty);
+                $remaining = round($remaining - $printedQty, 3);
+
+                $printedLine = $this->splitItemLineByQty($item, $printedQty);
+                $printedLine['kitchen_pending'] = true;
+                $printedLine['kitchen_printed_at'] = $printedPool[$baseFp]['printed_at'];
+                unset($printedLine['kitchen_served_at']);
+                $out[] = $printedLine;
+            }
+
+            // 3) Still-pending unprinted portion (waiting for first print)
+            if ($remaining > 0.0005 && isset($unprintedPendingPool[$baseFp]) && $unprintedPendingPool[$baseFp] > 0.0005) {
+                $pendingQty = min((float) $unprintedPendingPool[$baseFp], $remaining);
+                $unprintedPendingPool[$baseFp] = max(0.0, (float) $unprintedPendingPool[$baseFp] - $pendingQty);
+                $remaining = round($remaining - $pendingQty, 3);
+
                 $pendingLine = $this->splitItemLineByQty($item, $pendingQty);
-                $pendingLine['kitchen_pending'] = $sendToKitchen;
+                $pendingLine['kitchen_pending'] = true;
                 unset($pendingLine['kitchen_served_at']);
+                if ($hasPrintedAt) {
+                    unset($pendingLine['kitchen_printed_at']);
+                }
                 $out[] = $pendingLine;
+            }
+
+            // 4) Brand-new qty / new item
+            if ($remaining > 0.0005) {
+                $newLine = $this->splitItemLineByQty($item, $remaining);
+                $newLine['kitchen_pending'] = $sendToKitchen;
+                unset($newLine['kitchen_served_at']);
+                if ($hasPrintedAt) {
+                    unset($newLine['kitchen_printed_at']);
+                }
+                $out[] = $newLine;
             }
         }
 
         return $out;
+    }
+
+    /**
+     * Mark the given line IDs as printer-ticketed so they are not sent again.
+     *
+     * @param  list<int>  $itemIds
+     */
+    public function markItemsKitchenPrinted(array $itemIds): void
+    {
+        if ($itemIds === [] || ! Schema::hasColumn('pos_order_items', 'kitchen_printed_at')) {
+            return;
+        }
+
+        PosOrderItem::query()
+            ->whereIn('id', $itemIds)
+            ->whereNull('kitchen_printed_at')
+            ->update(['kitchen_printed_at' => now()]);
     }
 
     /**

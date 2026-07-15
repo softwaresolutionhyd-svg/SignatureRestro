@@ -26,6 +26,7 @@ class PosOrderItem extends Model
         'notes',
         'kitchen_pending',
         'kitchen_served_at',
+        'kitchen_printed_at',
         'subtotal',
         'discount_amount',
         'tax_amount',
@@ -43,11 +44,27 @@ class PosOrderItem extends Model
         'total' => 'decimal:2',
         'kitchen_pending' => 'bool',
         'kitchen_served_at' => 'datetime',
+        'kitchen_printed_at' => 'datetime',
     ];
 
     public function isKitchenServed(): bool
     {
         return $this->kitchen_served_at !== null;
+    }
+
+    public function isKitchenPrinted(): bool
+    {
+        return $this->kitchen_printed_at !== null;
+    }
+
+    /** Sent to kitchen print at least once (or marked pending / served). */
+    public function isKitchenLocked(): bool
+    {
+        if ($this->isKitchenServed() || $this->isKitchenPrinted()) {
+            return true;
+        }
+
+        return (bool) $this->kitchen_pending;
     }
 
     public function order(): BelongsTo
