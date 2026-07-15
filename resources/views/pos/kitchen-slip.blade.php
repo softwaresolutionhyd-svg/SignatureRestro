@@ -24,15 +24,49 @@
         .bold { font-weight: 700; }
         .muted { color: #333; }
         .line { border: 0; border-top: 1px dashed #000; margin: 8px 0; }
-        .k-title { font-size: 16px; font-weight: 800; letter-spacing: 0.06em; margin: 4px 0; }
-        .tot-row { display: flex; justify-content: space-between; padding: 2px 0; }
-        .tot-row.k-table-row span:last-child {
+        .dept {
             font-size: 18px;
             font-weight: 800;
-            letter-spacing: 0.02em;
+            letter-spacing: 0.04em;
+            margin: 2px 0 4px;
+            text-transform: uppercase;
         }
+        .company {
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+        .meta-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            font-weight: 700;
+            padding: 2px 0 6px;
+        }
+        .table-no {
+            text-align: center;
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+            margin: 8px 0 6px;
+            line-height: 1.15;
+        }
+        .by-line { margin: 2px 0 6px; }
+        .bill-notes {
+            margin: 4px 0 8px;
+            white-space: pre-wrap;
+            font-size: 11px;
+        }
+        .bill-notes-label { font-weight: 700; font-size: 12px; margin-bottom: 2px; }
         table.items { width: 100%; border-collapse: collapse; }
         table.items td { padding: 5px 0; vertical-align: top; }
+        table.items thead td {
+            font-weight: 800;
+            font-size: 12px;
+            border-bottom: 1px dashed #000;
+            padding-bottom: 4px;
+        }
         table.items td.item-name {
             word-break: break-word;
             font-weight: 800;
@@ -42,59 +76,99 @@
         }
         table.items td.item-qty {
             white-space: nowrap;
-            text-align: center;
-            width: 20%;
+            text-align: right;
+            width: 22%;
             font-weight: 800;
             font-size: 17px;
             line-height: 1.25;
         }
-        table.items td.item-note { font-size: 10px; padding-top: 0; padding-bottom: 4px; color: #333; }
+        table.items td.item-note {
+            font-size: 11px;
+            padding-top: 0;
+            padding-bottom: 4px;
+            color: #222;
+        }
+        .end-mark {
+            text-align: center;
+            font-weight: 800;
+            font-size: 14px;
+            margin-top: 28px;
+            letter-spacing: 0.08em;
+        }
         .noprint { margin-top: 12px; text-align: center; }
         @media print {
             .noprint { display: none !important; }
             html, body { max-width: none; }
-            .tot-row.k-table-row span:last-child { font-size: 19px; }
+            .table-no { font-size: 24px; }
             table.items td.item-name { font-size: 16px; }
             table.items td.item-qty { font-size: 18px; }
         }
     </style>
 </head>
 <body>
+@php
+    $company = strtoupper(trim((string) ($settings['company_name'] ?? config('app.name'))));
+    $company = preg_replace('/\bRESRO\b/u', 'RESTRO', $company) ?? $company;
+    if ($company === '') {
+        $company = 'SIGNATURE RESTRO';
+    }
+    $departmentName = trim((string) ($departmentName ?? ''));
+    if ($departmentName === '') {
+        $departmentName = 'KITCHEN';
+    }
+    $tableLabel = $order->table?->name
+        ?? (trim((string) ($order->room_no ?? '')) !== '' ? 'Room ' . trim((string) $order->room_no) : null)
+        ?? (trim((string) ($order->guest_name ?? '')) !== '' ? trim((string) $order->guest_name) : null)
+        ?? $order->serviceTypeLabel();
+    $billKitchenNotes = trim((string) ($order->kitchen_notes ?? ''));
+@endphp
 <div class="r-wrap">
-    <div class="center k-title">KITCHEN ORDER</div>
-    <div class="center bold" style="font-size:14px;">{{ $settings['company_name'] ?? config('app.name') }}</div>
-    <hr class="line">
-    <div class="tot-row"><span class="muted">Order</span><span class="bold">{{ $order->order_no }}</span></div>
-    @if(!empty($settings['pos_enable_tables']) && $settings['pos_enable_tables'] === '1' && $order->table)
-        <div class="tot-row k-table-row"><span class="muted">Table</span><span>{{ $order->table->name }}</span></div>
+    <div class="center dept">{{ $departmentName }}</div>
+    <div class="center company">{{ $company }}</div>
+
+    <div class="meta-row">
+        <span>Bill#: {{ $order->order_no }}</span>
+        <span>{{ now()->format('d-M-Y h:i A') }}</span>
+    </div>
+
+    @if($tableLabel)
+        <div class="table-no">{{ $tableLabel }}</div>
     @endif
-    @if($order->serviceTypeLabel())
-        <div class="tot-row"><span class="muted">Service</span><span>{{ $order->serviceTypeLabel() }}</span></div>
-    @endif
-    <div class="tot-row"><span class="muted">Time</span><span>{{ now()->format('d M Y H:i') }}</span></div>
-    <div class="tot-row"><span class="muted">Cashier</span><span>{{ $order->user->name ?? '—' }}</span></div>
-    <hr class="line">
-    <table class="items">
-        @foreach($kitchenItems as $line)
-            <tr>
-                <td class="item-name">{{ $line->product->name ?? 'Item' }}</td>
-                <td class="item-qty">{{ fmt_num((float) $line->qty, 3) }}</td>
-            </tr>
-            @if(trim((string) ($line->notes ?? '')) !== '')
-            <tr>
-                <td colspan="2" class="item-note muted">Note: {{ $line->notes }}</td>
-            </tr>
-            @endif
-        @endforeach
-    </table>
-    @php $billKitchenNotes = trim((string) ($order->kitchen_notes ?? '')); @endphp
+
+    <div class="by-line">by: {{ $order->user->name ?? '—' }}</div>
+
     @if($billKitchenNotes !== '')
-        <hr class="line">
-        <div class="bold" style="font-size:12px;margin-bottom:4px;">BILL INSTRUCTIONS</div>
-        <div style="white-space:pre-wrap;font-size:11px;">{{ $billKitchenNotes }}</div>
+        <div class="bill-notes">
+            <div class="bill-notes-label">Complete bill Notes:</div>
+            <div>{{ $billKitchenNotes }}</div>
+        </div>
     @endif
+
     <hr class="line">
-    <div class="center bold" style="font-size:13px;margin-top:6px;">{{ $kitchenItems->count() }} item(s)</div>
+
+    <table class="items">
+        <thead>
+            <tr>
+                <td>Items</td>
+                <td class="item-qty">QTY</td>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($kitchenItems as $line)
+                <tr>
+                    <td class="item-name">{{ $line->product->name ?? 'Item' }}</td>
+                    <td class="item-qty">{{ fmt_num((float) $line->qty, 3) }}</td>
+                </tr>
+                @if(trim((string) ($line->notes ?? '')) !== '')
+                <tr>
+                    <td colspan="2" class="item-note">*{{ $line->notes }}</td>
+                </tr>
+                @endif
+            @endforeach
+        </tbody>
+    </table>
+
+    <div class="end-mark">END</div>
 </div>
 <div class="noprint" style="max-width:80mm;margin:12px auto 24px;padding:0 8px;">
     <a href="{{ $backUrl ?? route('restaurant-pos.index') }}" style="display:block;text-align:center;text-decoration:none;font-weight:700;padding:14px 16px;border-radius:10px;margin-bottom:10px;background:#0d6efd;color:#fff;font-size:15px;">{{ $backLabel ?? '← Back to Restaurant POS' }}</a>

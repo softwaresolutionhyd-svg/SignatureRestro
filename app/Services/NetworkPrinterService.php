@@ -66,54 +66,60 @@ final class NetworkPrinterService
     /**
      * Build an ESC/POS kitchen slip for one department's items.
      *
+     * Layout:
+     *   Department (center) → Company (center) → Bill# / DateTime
+     *   → Table No (center, large) → by: name → Complete bill Notes
+     *   → Items | QTY → *notes → blank lines → END → Cut
+     *
      * @param  Collection<int, PosOrderItem>|iterable<int, PosOrderItem>  $items
      */
     public function buildKitchenSlip(PosOrder $order, string $departmentName, iterable $items, ?string $company = null): string
     {
+        $companyName = strtoupper(trim((string) ($company ?: '')));
+        $companyName = preg_replace('/\bRESRO\b/u', 'RESTRO', $companyName) ?? $companyName;
+        if ($companyName === '') {
+            $companyName = 'SIGNATURE RESTRO';
+        }
+
         $out = self::INIT;
 
+        // Department Name (center)
         $out .= self::ALIGN_CENTER . self::SIZE_DOUBLE . self::BOLD_ON;
-        $out .= $this->clip(strtoupper($departmentName)) . "\n";
+        $out .= $this->clip(strtoupper(trim($departmentName))) . "\n";
         $out .= self::SIZE_NORMAL . self::BOLD_OFF;
 
-        if ($company) {
-            $out .= $this->clip($company) . "\n";
-        }
+        // Company (center)
+        $out .= self::ALIGN_CENTER . self::BOLD_ON;
+        $out .= $this->clip($companyName) . "\n";
+        $out .= self::BOLD_OFF;
+
+        // Bill#                               Date/Time
         $out .= self::ALIGN_LEFT;
-        $out .= $this->rule();
+        $billLeft = 'Bill#: ' . ($order->order_no ?? $order->id);
+        $billRight = now()->format('d-M-Y h:i A');
+        $out .= $this->twoCol($billLeft, $billRight) . "\n";
 
-        // Order meta
-        $out .= self::BOLD_ON . $this->twoCol('Bill #: ' . ($order->order_no ?? $order->id), $order->created_at?->format('d-M H:i') ?? '') . self::BOLD_OFF . "\n";
-
+        // Table No# (center, large — tall, not double-width, so long names fit)
         $where = $this->orderLocation($order);
+        if ($where === '') {
+            $where = $order->serviceTypeLabel() ?: '';
+        }
         if ($where !== '') {
-            $out .= $this->line('Table/Room: ' . $where) . "\n";
+            $out .= "\n" . self::ALIGN_CENTER . self::SIZE_TALL . self::BOLD_ON;
+            $out .= $this->clip($where) . "\n";
+            $out .= self::SIZE_NORMAL . self::BOLD_OFF;
         }
+
+        // by: (cashier / order taker)
+        $out .= self::ALIGN_LEFT;
         if ($order->user?->name) {
-            $out .= $this->line('By: ' . $order->user->name) . "\n";
+            $out .= $this->line('by: ' . $order->user->name) . "\n";
         }
-        $out .= $this->rule();
 
-        // Items (qty x name) in double height for kitchen readability
-        $out .= self::SIZE_TALL . self::BOLD_ON;
-        foreach ($items as $item) {
-            $qty = rtrim(rtrim(number_format((float) $item->qty, 3, '.', ''), '0'), '.');
-            $name = (string) ($item->product?->name ?? $item->name ?? 'Item');
-            $out .= $this->clip($qty . ' x ' . $name) . "\n";
-
-            $notes = trim((string) ($item->notes ?? ''));
-            if ($notes !== '') {
-                $out .= self::SIZE_NORMAL;
-                $out .= $this->line('   * ' . $notes) . "\n";
-                $out .= self::SIZE_TALL;
-            }
-        }
-        $out .= self::SIZE_NORMAL . self::BOLD_OFF;
-
+        // Complete bill Notes (if added)
         $billNotes = trim((string) ($order->kitchen_notes ?? ''));
         if ($billNotes !== '') {
-            $out .= $this->rule();
-            $out .= self::BOLD_ON . $this->line('BILL INSTRUCTIONS:') . self::BOLD_OFF . "\n";
+            $out .= self::BOLD_ON . $this->line('Complete bill Notes:') . self::BOLD_OFF . "\n";
             foreach (preg_split("/\r\n|\n|\r/", $billNotes) ?: [] as $noteLine) {
                 $noteLine = trim((string) $noteLine);
                 if ($noteLine === '') {
@@ -124,7 +130,30 @@ final class NetworkPrinterService
         }
 
         $out .= $this->rule();
-        $out .= self::FEED . self::CUT;
+
+        // Items                                 QTY
+        $out .= self::BOLD_ON . $this->twoCol('Items', 'QTY') . self::BOLD_OFF . "\n";
+        $out .= self::SIZE_TALL . self::BOLD_ON;
+        foreach ($items as $item) {
+            $qty = rtrim(rtrim(number_format((float) $item->qty, 3, '.', ''), '0'), '.');
+            $name = (string) ($item->product?->name ?? $item->name ?? 'Item');
+            $out .= $this->twoCol($name, $qty) . "\n";
+
+            $notes = trim((string) ($item->notes ?? ''));
+            if ($notes !== '') {
+                $out .= self::SIZE_NORMAL . self::BOLD_OFF;
+                $out .= $this->line('*' . $notes) . "\n";
+                $out .= self::SIZE_TALL . self::BOLD_ON;
+            }
+        }
+        $out .= self::SIZE_NORMAL . self::BOLD_OFF;
+
+        // 2 blank lines, then END, then cut
+        $out .= "\n\n";
+        $out .= self::ALIGN_CENTER . self::BOLD_ON;
+        $out .= "END\n";
+        $out .= self::BOLD_OFF . self::ALIGN_LEFT;
+        $out .= self::CUT;
 
         return $out;
     }

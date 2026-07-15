@@ -1901,7 +1901,7 @@ class PosController extends Controller
         abort_unless($order->status === 'draft', 404);
         $this->assertDraftReceiptAccess($order);
 
-        $order->load(['items.product:id,name,sku', 'user:id,name', 'table:id,name']);
+        $order->load(['items.product:id,name,sku,department_id', 'items.product.departments:id,name', 'user:id,name', 'table:id,name']);
 
         $kitchenItems = $order->items->filter(
             fn (PosOrderItem $item) => (bool) $item->kitchen_pending && ! $item->isKitchenServed()
@@ -1909,12 +1909,26 @@ class PosController extends Controller
 
         abort_unless($kitchenItems->isNotEmpty(), 404);
 
+        $departmentName = 'KITCHEN';
+        $deptNames = $kitchenItems
+            ->map(function (PosOrderItem $item) {
+                $dept = $this->resolveItemDepartment($item->product);
+
+                return $dept?->name;
+            })
+            ->filter()
+            ->unique()
+            ->values();
+        if ($deptNames->count() === 1) {
+            $departmentName = (string) $deptNames->first();
+        }
+
         $settings = $this->receiptSettingsMap();
         $autoPrint = ! $request->boolean('noprint', false) && $request->boolean('autoprint', true);
         $backUrl = route('restaurant-pos.index', ['resume_order' => $order->id]);
         $backLabel = '← Back to order';
 
-        return view('pos.kitchen-slip', compact('order', 'kitchenItems', 'settings', 'autoPrint', 'backUrl', 'backLabel'));
+        return view('pos.kitchen-slip', compact('order', 'kitchenItems', 'settings', 'autoPrint', 'backUrl', 'backLabel', 'departmentName'));
     }
 
     /**
