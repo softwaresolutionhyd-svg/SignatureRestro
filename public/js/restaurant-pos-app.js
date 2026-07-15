@@ -1502,30 +1502,19 @@
             throw new Error(data.message || validationMsg || 'Payment failed.');
         }
 
-        const receiptUrl = data.receipt_url
-            || (data.order_id ? (routes.receipt || '').replace('__ID__', String(data.order_id)) : '');
+        const networkPrinted = data.order_id && await tryCashierNetworkPrint(data.order_id);
 
-        // If a cashier network printer is configured, print the bill there and skip browser auto-print.
-        if (data.order_id && await tryCashierNetworkPrint(data.order_id)) {
-            if (receiptUrl) {
-                window.location.assign(receiptUrl + (receiptUrl.includes('?') ? '&' : '?') + 'noprint=1');
-                return true;
-            }
-            resetForNewBill();
-            return true;
+        applyCheckoutSuccess(data);
+
+        if (data.receipt_url) {
+            const qs = networkPrinted ? 'noprint=1' : 'autoprint=1';
+            window.open(
+                data.receipt_url + (data.receipt_url.includes('?') ? '&' : '?') + qs,
+                '_blank',
+                'noopener,noreferrer'
+            );
         }
 
-        if (receiptUrl) {
-            window.location.assign(receiptUrl);
-            return true;
-        }
-
-        if (data.redirect_url) {
-            window.location.assign(data.redirect_url);
-            return true;
-        }
-
-        resetForNewBill();
         return true;
     }
 
@@ -1623,6 +1612,55 @@
         updateOrderTabCounts();
         if (orderListMode === 'pending') {
             renderOrderCards();
+        }
+    }
+
+    function upsertPaidBill(order) {
+        if (!order?.id) return;
+        const list = Array.isArray(boot.paidBillsDetail) ? [...boot.paidBillsDetail] : [];
+        const idx = list.findIndex((o) => Number(o.id) === Number(order.id));
+        if (idx >= 0) {
+            list[idx] = order;
+        } else {
+            list.unshift(order);
+        }
+        boot.paidBillsDetail = list;
+    }
+
+    function removePendingBill(orderId) {
+        if (!orderId) return;
+        boot.pendingBillsDetail = (boot.pendingBillsDetail || []).filter(
+            (o) => Number(o.id) !== Number(orderId)
+        );
+    }
+
+    function applyCheckoutSuccess(data) {
+        const orderId = data.order_id || resumeOrderId;
+        removePendingBill(orderId);
+
+        if (data.order) {
+            upsertPaidBill(data.order);
+        } else if (orderId) {
+            upsertPaidBill({
+                id: orderId,
+                order_no: data.order_no || `#${orderId}`,
+                grand_total: calcCartTotals().grand,
+                paid_at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            });
+        }
+
+        if (Array.isArray(data.table_board)) {
+            applyTableBoard(data.table_board);
+        }
+
+        resetForNewBill();
+        updateOrderTabCounts();
+
+        if (orderListMode === 'paid') {
+            updateBillsMenuHead();
+            renderOrderCards();
+        } else {
+            setOrderListMode('paid');
         }
     }
 

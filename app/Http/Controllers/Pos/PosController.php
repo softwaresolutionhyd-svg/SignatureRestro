@@ -1364,6 +1364,9 @@ class PosController extends Controller
         $this->logItemReductions($order, $this->normalizedItemReductions($request));
         $this->autoJournal->postPosSale($order);
 
+        $order->refresh();
+        $order->loadMissing(['table', 'items.product', 'payments']);
+
         $openReceipt = Setting::get('pos_open_receipt_after_sale', '1') === '1';
         $msg = $isCredit ? 'Credit sale recorded successfully.' : 'Order paid successfully.';
 
@@ -1373,6 +1376,8 @@ class PosController extends Controller
                 'message' => $msg,
                 'order_id' => $order->id,
                 'order_no' => $order->order_no,
+                'order' => $this->paidOrderPayloadForJson($order),
+                'table_board' => $this->orderTaker->tableBoard(),
                 'receipt_url' => $openReceipt ? route('restaurant-pos.receipt', $order) : null,
                 'redirect_url' => $openReceipt
                     ? route('restaurant-pos.receipt', $order)
