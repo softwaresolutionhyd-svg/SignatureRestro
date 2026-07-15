@@ -272,6 +272,7 @@
         el('#otSumItems', cart.length ? `${fmtQty(itemQty)} (${cart.length})` : '0');
         el('#otSumSubtotal', fmtMoney(subtotal));
         el('#otSumGrand', fmtMoney(grand));
+        el('#otBarTotal', fmtMoney(grand));
         el('#otCartCount', String(cart.length));
         el('#otCartTabCount', String(cart.length));
     }
@@ -775,13 +776,16 @@
 
         $('#otProductSearch')?.addEventListener('input', renderMenuGrid);
 
-        $('#otTabMenu')?.addEventListener('click', () => {
+        $('#otTabMenu')?.addEventListener('click', (e) => {
+            e.preventDefault();
             setPanelView('menu');
         });
-        $('#otTabCart')?.addEventListener('click', () => {
+        $('#otTabCart')?.addEventListener('click', (e) => {
+            e.preventDefault();
             setPanelView(panelView === 'cart' ? 'menu' : 'cart');
         });
-        $('#otToggleCartView')?.addEventListener('click', () => {
+        $('#otToggleCartView')?.addEventListener('click', (e) => {
+            e.preventDefault();
             setPanelView(panelView === 'cart' ? 'menu' : 'cart');
         });
 
@@ -797,7 +801,10 @@
             }
         });
 
-        $('#otSendBtn')?.addEventListener('click', submitOrder);
+        document.getElementById('otSendBtn')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            submitOrder();
+        });
     }
 
     function init() {

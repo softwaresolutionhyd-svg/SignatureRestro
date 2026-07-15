@@ -428,22 +428,36 @@
     display: flex !important;
 }
 
-/* Order-taker: never hide Send dock (shared RP CSS hides it in cart view). */
-.order-taker-pos-app .rp-pay-dock,
-.order-taker-pos-app.rp-view-cart .rp-pay-dock,
-.order-taker-pos-app.rp-view-menu .rp-pay-dock {
-    display: block !important;
-    flex-shrink: 0;
-    position: relative;
-    z-index: 40;
-}
-
-.order-taker-pos-app.rp-view-cart .rp-order-zone {
+/* Send button lives in the order bar (top). Hide old bottom dock. */
+.order-taker-pos-app .ot-pay-dock-hidden,
+.order-taker-pos-app .rp-pay-dock.ot-pay-dock-hidden,
+.order-taker-pos-app.rp-view-cart .rp-pay-dock.ot-pay-dock-hidden,
+.order-taker-pos-app.rp-view-menu .rp-pay-dock.ot-pay-dock-hidden {
     display: none !important;
 }
 
-.order-taker-pos-app #otOrderScreen .rp-pay-dock {
-    flex-shrink: 0;
+.order-taker-pos-app .ot-order-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+    flex: 0 0 auto;
+}
+
+.order-taker-pos-app .ot-order-bar-total {
+    font-size: 0.92rem;
+    font-weight: 800;
+    color: var(--rp-gold-light);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.order-taker-pos-app .ot-send-bar-btn,
+.order-taker-pos-app #otSendBtn {
+    min-height: 2.35rem;
+    font-weight: 700;
+    white-space: nowrap;
+    flex: 0 0 auto;
 }
 
 .order-taker-pos-app #otOrderScreen .rp-body {
@@ -451,15 +465,9 @@
     min-height: 0;
 }
 
-.order-taker-pos-app #otOrderScreen .rp-actions {
-    display: flex;
-    align-items: stretch;
-}
-
-.order-taker-pos-app #otSendBtn {
-    min-height: 2.5rem;
-    font-weight: 700;
-    white-space: nowrap;
+/* Keep service-type row visible when Cart tab is open (Send button is there). */
+.order-taker-pos-app.rp-view-cart .rp-order-zone {
+    display: block !important;
 }
 
 @media (max-width: 991.98px) {
@@ -486,10 +494,13 @@
 
     .order-taker-pos-app #otOrderScreen .rp-order-zone {
         flex-shrink: 0;
+        z-index: 25;
     }
 
     .order-taker-pos-app #otOrderScreen .rp-order-bar {
+        display: flex;
         flex-wrap: nowrap;
+        align-items: center;
         gap: 0.4rem;
         overflow-x: auto;
         overflow-y: hidden;
@@ -502,9 +513,36 @@
     }
 
     .order-taker-pos-app #otOrderScreen .rp-service-types {
-        flex: 0 0 auto;
+        flex: 0 1 auto;
         flex-wrap: nowrap;
-        overflow: visible;
+        max-width: none;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    .order-taker-pos-app #otOrderScreen .rp-service-types::-webkit-scrollbar {
+        display: none;
+    }
+
+    .order-taker-pos-app #otOrderScreen .rp-order-bar-fields {
+        flex: 0 0 auto;
+    }
+
+    .order-taker-pos-app #otOrderScreen .ot-order-bar-actions {
+        flex: 0 0 auto;
+        margin-left: auto;
+        justify-content: flex-end;
+        width: auto;
+        gap: 0.45rem;
+    }
+
+    .order-taker-pos-app #otOrderScreen .ot-send-bar-btn,
+    .order-taker-pos-app #otOrderScreen #otSendBtn {
+        min-height: 2.6rem;
+        font-size: 0.88rem;
+        border-radius: 10px;
+        padding: 0.4rem 0.9rem;
     }
 
     /* Category tabs: one horizontal scroll row */
@@ -539,7 +577,7 @@
         flex: 0 0 auto;
     }
 
-    /* Stack: menu on top + mini cart under it */
+    /* Stack: menu on top + scrollable cart under it */
     .order-taker-pos-app #otOrderScreen .rp-body {
         display: flex !important;
         flex-direction: column;
@@ -559,7 +597,6 @@
         border-right: none;
     }
 
-    /* Menu + mini-cart under menu (always visible on phone) */
     .order-taker-pos-app.rp-view-menu .rp-checkout,
     .order-taker-pos-app:not(.rp-view-cart) .rp-checkout {
         display: flex !important;
@@ -567,20 +604,28 @@
         flex: 0 0 auto;
         width: 100%;
         max-width: none;
-        max-height: 30vh;
-        min-height: 0;
+        height: 34vh;
+        max-height: 34vh;
+        min-height: 9rem;
         border-left: none;
         border-top: 1px solid rgba(232, 176, 74, 0.18);
-        height: auto;
+        overflow: hidden;
+    }
+
+    .order-taker-pos-app.rp-view-menu .rp-checkout-head,
+    .order-taker-pos-app:not(.rp-view-cart) .rp-checkout-head {
+        flex-shrink: 0;
     }
 
     .order-taker-pos-app.rp-view-menu .rp-cart-lines,
     .order-taker-pos-app:not(.rp-view-cart) .rp-cart-lines {
         flex: 1 1 auto;
         min-height: 0;
-        max-height: 18vh;
-        overflow-y: auto;
+        max-height: none;
+        overflow-y: auto !important;
         -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        touch-action: pan-y;
     }
 
     .order-taker-pos-app.rp-view-menu .rp-bill-kitchen-notes-wrap,
@@ -588,15 +633,9 @@
         display: none;
     }
 
-    .order-taker-pos-app.rp-view-menu .rp-cart-view-btn {
-        display: inline-flex;
-    }
-
-    /* Cart tab: bigger cart under a shorter menu */
+    /* Cart tab: hide menu, give cart full body + scroll */
     .order-taker-pos-app.rp-view-cart .rp-menu-panel {
-        display: block !important;
-        flex: 0 0 32%;
-        max-height: 32%;
+        display: none !important;
     }
 
     .order-taker-pos-app.rp-view-cart .rp-checkout {
@@ -604,71 +643,29 @@
         flex-direction: column;
         flex: 1 1 auto;
         min-height: 0;
+        height: auto;
         max-height: none;
         width: 100%;
         max-width: none;
         border-left: none;
-        border-top: 1px solid rgba(232, 176, 74, 0.18);
-        height: auto;
+        border-top: none;
+        overflow: hidden;
     }
 
     .order-taker-pos-app.rp-view-cart .rp-cart-lines {
-        flex: 1;
+        flex: 1 1 auto;
         min-height: 0;
         max-height: none;
-        overflow-y: auto;
+        overflow-y: auto !important;
         -webkit-overflow-scrolling: touch;
-        padding-bottom: 0.5rem;
+        overscroll-behavior: contain;
+        touch-action: pan-y;
+        padding-bottom: 0.75rem;
     }
 
     .order-taker-pos-app.rp-view-cart .rp-bill-kitchen-notes-wrap {
         display: block;
         flex-shrink: 0;
-    }
-
-    /* Compact sticky Send bar */
-    .order-taker-pos-app #otOrderScreen .rp-pay-dock .rp-checkout-foot {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.75rem;
-        grid-template-columns: none;
-        padding: 0.55rem 0.75rem calc(0.55rem + env(safe-area-inset-bottom, 0px));
-    }
-
-    .order-taker-pos-app #otOrderScreen .rp-pay-dock .rp-bill-summary {
-        display: flex;
-        flex-direction: column;
-        gap: 0.1rem;
-        min-width: 0;
-        flex: 1;
-    }
-
-    .order-taker-pos-app #otOrderScreen .rp-pay-dock .rp-bill-summary-head,
-    .order-taker-pos-app #otOrderScreen .rp-pay-dock .rp-total-row:not(.grand) {
-        display: none;
-    }
-
-    .order-taker-pos-app #otOrderScreen .rp-pay-dock .rp-total-row.grand {
-        font-size: 1rem;
-        font-weight: 800;
-        color: var(--rp-gold-light);
-    }
-
-    .order-taker-pos-app #otOrderScreen .rp-pay-dock .rp-actions {
-        width: auto;
-        flex: 0 0 auto;
-        min-width: 0;
-    }
-
-    .order-taker-pos-app #otSendBtn {
-        width: auto;
-        min-width: 9.5rem;
-        min-height: 2.85rem;
-        font-size: 0.92rem;
-        border-radius: 10px;
-        padding-left: 1rem;
-        padding-right: 1rem;
     }
 }
 
@@ -710,5 +707,20 @@
     .order-taker-pos-app #otOrderScreen .rp-order-tab {
         padding: 0.35rem 0.55rem;
         font-size: 0.72rem;
+    }
+
+    .order-taker-pos-app #otOrderScreen .ot-order-bar-actions {
+        flex: 1 1 auto;
+        width: auto;
+        margin-left: auto;
+        justify-content: flex-end;
+    }
+
+    .order-taker-pos-app #otOrderScreen .ot-order-bar-total {
+        font-size: 0.82rem;
+    }
+
+    .order-taker-pos-app #otOrderScreen .ot-send-bar-btn span {
+        font-size: 0.78rem;
     }
 }

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=46">
-<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=5">
+<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=7">
 @endpush
 
 @section('content')
@@ -253,6 +253,13 @@
                                    placeholder="Address" aria-label="Address">
                         </div>
                     </div>
+
+                    <div class="ot-order-bar-actions">
+                        <span class="ot-order-bar-total" id="otBarTotal">0.00</span>
+                        <button type="button" class="btn btn-sm btn-rp-primary ot-send-bar-btn" id="otSendBtn">
+                            <i class="bi bi-send"></i> <span id="otSendBtnLabel">Send to Kitchen</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -286,18 +293,13 @@
             </aside>
         </div>
 
-        <div class="rp-pay-dock">
+        <div class="rp-pay-dock ot-pay-dock-hidden" aria-hidden="true">
             <div class="rp-checkout-foot">
                 <div class="rp-bill-summary">
                     <div class="rp-bill-summary-head">Bill Summary</div>
                     <div class="rp-total-row"><span>Items</span><span id="otSumItems">0</span></div>
                     <div class="rp-total-row"><span>Subtotal</span><span id="otSumSubtotal">0.00</span></div>
                     <div class="rp-total-row grand"><span>Total</span><span id="otSumGrand">0.00</span></div>
-                </div>
-                <div class="rp-actions">
-                    <button type="button" class="btn btn-sm btn-rp-primary" id="otSendBtn">
-                        <i class="bi bi-send"></i> <span id="otSendBtnLabel">Send to Kitchen</span>
-                    </button>
                 </div>
             </div>
         </div>
@@ -360,5 +362,5 @@
 <script>
 window.ORDER_TAKER_BOOTSTRAP = @json($otBootstrap);
 </script>
-<script src="{{ asset('js/order-taker-app.js') }}?v=8"></script>
+<script src="{{ asset('js/order-taker-app.js') }}?v=9"></script>
 @endsection
