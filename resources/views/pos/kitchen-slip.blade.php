@@ -85,12 +85,13 @@
         }
         table.items td.item-qty {
             white-space: nowrap;
-            text-align: right;
-            width: 22%;
+            text-align: center;
+            width: 18%;
             font-weight: 800;
             font-size: 16px;
             line-height: 1.2;
             padding-top: 8px;
+            padding-right: 8px;
         }
         table.items td.item-note {
             font-size: 11px;

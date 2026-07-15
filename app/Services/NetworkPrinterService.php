@@ -234,11 +234,11 @@ final class NetworkPrinterService
         $billRight = now()->format('d-M-Y h:i A');
         $out .= $this->twoCol($billLeft, $billRight) . "\n";
 
-        // Table No# (center, wide+bold — big font, normal height)
+        // Table No# (center, tall+bold — big font, normal letter spacing)
         $tableNo = $this->kitchenTableLabel($order);
         if ($tableNo !== '') {
-            $out .= "\n" . self::ALIGN_CENTER . self::SIZE_WIDE . self::BOLD_ON;
-            $out .= $this->clipWide($tableNo) . "\n";
+            $out .= "\n" . self::ALIGN_CENTER . self::SIZE_TALL . self::BOLD_ON;
+            $out .= $this->clip($tableNo) . "\n";
             $out .= self::SIZE_NORMAL . self::BOLD_OFF;
         }
 
@@ -271,13 +271,13 @@ final class NetworkPrinterService
 
         $out .= $this->rule();
 
-        // Items | QTY — wide+bold (big letters, not stretched down)
-        $out .= self::BOLD_ON . $this->twoCol('Items', 'QTY') . self::BOLD_OFF . "\n";
+        // Items | QTY — bold + tall (bara font), normal letter spacing; qty centered under QTY
+        $out .= self::BOLD_ON . $this->kitchenItemRow('Items', 'QTY') . self::BOLD_OFF . "\n";
         foreach ($items as $item) {
             $qty = rtrim(rtrim(number_format((float) $item->qty, 3, '.', ''), '0'), '.');
             $name = (string) ($item->product?->name ?? $item->name ?? 'Item');
-            $out .= self::SIZE_WIDE . self::BOLD_ON;
-            $out .= $this->twoColWide($name, $qty) . "\n";
+            $out .= self::SIZE_TALL . self::BOLD_ON;
+            $out .= $this->kitchenItemRow($name, $qty) . "\n";
             $out .= self::SIZE_NORMAL . self::BOLD_OFF;
 
             $notes = trim((string) ($item->notes ?? ''));
@@ -550,7 +550,7 @@ final class NetworkPrinterService
         return $this->twoColAt($left, $right, self::WIDTH);
     }
 
-    /** Two columns for SIZE_DOUBLE lines (half char budget). */
+    /** Two columns for SIZE_DOUBLE / SIZE_WIDE lines (half char budget). */
     private function twoColWide(string $left, string $right): string
     {
         return $this->twoColAt($left, $right, self::WIDTH_DOUBLE);
@@ -567,6 +567,30 @@ final class NetworkPrinterService
         }
 
         return $left . str_repeat(' ', max(1, $space)) . $right;
+    }
+
+    /**
+     * Kitchen Items | QTY row: name left, qty centered under QTY header,
+     * with right margin so numbers are not stuck on the paper edge.
+     */
+    private function kitchenItemRow(string $name, string $qty): string
+    {
+        $edge = 2;   // keep off the right edge
+        $qtyCol = 6; // wide enough for "QTY" / numbers, centered under header
+        $nameW = self::WIDTH - $qtyCol - $edge;
+
+        $name = preg_replace('/\s+/', ' ', trim($name)) ?? '';
+        $name = mb_substr($name, 0, max(1, $nameW));
+        $namePad = $name . str_repeat(' ', max(0, $nameW - mb_strlen($name)));
+
+        $qty = trim($qty);
+        $qty = mb_substr($qty, 0, $qtyCol);
+        $pad = max(0, $qtyCol - mb_strlen($qty));
+        $left = intdiv($pad, 2);
+        $right = $pad - $left;
+        $qtyCell = str_repeat(' ', $left) . $qty . str_repeat(' ', $right);
+
+        return $namePad . $qtyCell . str_repeat(' ', $edge);
     }
 
     private function itemRow(string $name, string $qty, string $amount): string
