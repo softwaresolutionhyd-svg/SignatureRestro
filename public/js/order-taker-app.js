@@ -458,11 +458,15 @@
         app.classList.remove('rp-view-menu', 'rp-view-cart');
         if (next === 'menu') app.classList.add('rp-view-menu');
         if (next === 'cart') app.classList.add('rp-view-cart');
+        // split = no view class → desktop side-by-side; mobile CSS still shows mini-cart
         $('#otTabMenu')?.classList.toggle('is-active', next === 'menu' || next === 'split');
         $('#otTabCart')?.classList.toggle('is-active', next === 'cart');
         const expandBtn = $('#otToggleCartView');
         const icon = expandBtn?.querySelector('i');
         if (icon) icon.className = next === 'cart' ? 'bi bi-layout-sidebar-reverse' : 'bi bi-arrows-fullscreen';
+        if (expandBtn) {
+            expandBtn.title = next === 'cart' ? 'Menu + mini cart' : 'Cart expand';
+        }
     }
 
     function showOrderScreen() {
@@ -772,13 +776,13 @@
         $('#otProductSearch')?.addEventListener('input', renderMenuGrid);
 
         $('#otTabMenu')?.addEventListener('click', () => {
-            setPanelView(isNarrowScreen() ? 'menu' : (panelView === 'menu' ? 'split' : 'menu'));
+            setPanelView('menu');
         });
         $('#otTabCart')?.addEventListener('click', () => {
-            setPanelView(isNarrowScreen() ? 'cart' : (panelView === 'cart' ? 'split' : 'cart'));
+            setPanelView(panelView === 'cart' ? 'menu' : 'cart');
         });
         $('#otToggleCartView')?.addEventListener('click', () => {
-            setPanelView(panelView === 'cart' ? preferredPanelView() : 'cart');
+            setPanelView(panelView === 'cart' ? 'menu' : 'cart');
         });
 
         window.addEventListener('resize', () => {
@@ -787,6 +791,9 @@
             }
             if (isNarrowScreen() && panelView === 'split') {
                 setPanelView('menu');
+            }
+            if (!isNarrowScreen() && (panelView === 'menu' || panelView === 'cart')) {
+                setPanelView('split');
             }
         });
 
