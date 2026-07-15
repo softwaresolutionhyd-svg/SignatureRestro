@@ -466,8 +466,109 @@
 }
 
 /* Keep service-type row visible when Cart tab is open (Send button is there). */
+.restaurant-pos-app.order-taker-pos-app.rp-view-cart .rp-order-zone,
 .order-taker-pos-app.rp-view-cart .rp-order-zone {
     display: block !important;
+}
+
+.restaurant-pos-app.order-taker-pos-app.rp-view-cart .rp-search,
+.order-taker-pos-app.rp-view-cart .rp-search {
+    display: block !important;
+}
+
+/* Cart tab — works on phone AND tablet (not only <992px) */
+.order-taker-pos-app.rp-view-cart #otOrderScreen .rp-body {
+    display: flex !important;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.order-taker-pos-app.rp-view-cart #otOrderScreen .rp-menu-panel {
+    display: none !important;
+}
+
+.order-taker-pos-app.rp-view-cart #otOrderScreen .rp-checkout {
+    display: flex !important;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    border-left: none;
+    border-top: none;
+    overflow: hidden;
+}
+
+.order-taker-pos-app.rp-view-cart #otOrderScreen .rp-cart-lines {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+}
+
+.order-taker-pos-app.rp-view-cart #otOrderScreen .rp-bill-kitchen-notes-wrap {
+    display: block !important;
+    flex-shrink: 0;
+}
+
+/* Menu tab on tablet/phone: mini cart under menu */
+@media (max-width: 1399.98px) {
+    .order-taker-pos-app.rp-view-menu #otOrderScreen .rp-body,
+    .order-taker-pos-app:not(.rp-view-cart) #otOrderScreen .rp-body {
+        display: flex !important;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+        grid-template-columns: none;
+    }
+
+    .order-taker-pos-app.rp-view-menu #otOrderScreen .rp-menu-panel,
+    .order-taker-pos-app:not(.rp-view-cart) #otOrderScreen .rp-menu-panel {
+        display: block !important;
+        flex: 1 1 auto;
+        min-height: 0;
+        height: auto !important;
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+        border-right: none;
+    }
+
+    .order-taker-pos-app.rp-view-menu #otOrderScreen .rp-checkout,
+    .order-taker-pos-app:not(.rp-view-cart) #otOrderScreen .rp-checkout {
+        display: flex !important;
+        flex-direction: column;
+        flex: 0 0 auto;
+        width: 100% !important;
+        max-width: none !important;
+        height: 34vh;
+        max-height: 34vh;
+        min-height: 9rem;
+        border-left: none;
+        border-top: 1px solid rgba(232, 176, 74, 0.18);
+        overflow: hidden;
+    }
+
+    .order-taker-pos-app.rp-view-menu #otOrderScreen .rp-cart-lines,
+    .order-taker-pos-app:not(.rp-view-cart) #otOrderScreen .rp-cart-lines {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        touch-action: pan-y;
+    }
+
+    .order-taker-pos-app.rp-view-menu #otOrderScreen .rp-bill-kitchen-notes-wrap,
+    .order-taker-pos-app:not(.rp-view-cart) #otOrderScreen .rp-bill-kitchen-notes-wrap {
+        display: none !important;
+    }
 }
 
 @media (max-width: 991.98px) {
@@ -577,8 +678,8 @@
         flex: 0 0 auto;
     }
 
-    /* Stack: menu on top + scrollable cart under it */
-    .order-taker-pos-app #otOrderScreen .rp-body {
+    /* Stack: menu on top + scrollable cart under it (menu tab only) */
+    .order-taker-pos-app:not(.rp-view-cart) #otOrderScreen .rp-body {
         display: flex !important;
         flex-direction: column;
         flex: 1;
@@ -586,7 +687,7 @@
         overflow: hidden;
     }
 
-    .order-taker-pos-app #otOrderScreen .rp-menu-panel {
+    .order-taker-pos-app:not(.rp-view-cart) #otOrderScreen .rp-menu-panel {
         display: block !important;
         flex: 1 1 auto;
         min-height: 0;
@@ -597,74 +698,8 @@
         border-right: none;
     }
 
-    .order-taker-pos-app.rp-view-menu .rp-checkout,
-    .order-taker-pos-app:not(.rp-view-cart) .rp-checkout {
-        display: flex !important;
-        flex-direction: column;
-        flex: 0 0 auto;
-        width: 100%;
-        max-width: none;
-        height: 34vh;
-        max-height: 34vh;
-        min-height: 9rem;
-        border-left: none;
-        border-top: 1px solid rgba(232, 176, 74, 0.18);
-        overflow: hidden;
-    }
-
     .order-taker-pos-app.rp-view-menu .rp-checkout-head,
     .order-taker-pos-app:not(.rp-view-cart) .rp-checkout-head {
-        flex-shrink: 0;
-    }
-
-    .order-taker-pos-app.rp-view-menu .rp-cart-lines,
-    .order-taker-pos-app:not(.rp-view-cart) .rp-cart-lines {
-        flex: 1 1 auto;
-        min-height: 0;
-        max-height: none;
-        overflow-y: auto !important;
-        -webkit-overflow-scrolling: touch;
-        overscroll-behavior: contain;
-        touch-action: pan-y;
-    }
-
-    .order-taker-pos-app.rp-view-menu .rp-bill-kitchen-notes-wrap,
-    .order-taker-pos-app:not(.rp-view-cart) .rp-bill-kitchen-notes-wrap {
-        display: none;
-    }
-
-    /* Cart tab: hide menu, give cart full body + scroll */
-    .order-taker-pos-app.rp-view-cart .rp-menu-panel {
-        display: none !important;
-    }
-
-    .order-taker-pos-app.rp-view-cart .rp-checkout {
-        display: flex !important;
-        flex-direction: column;
-        flex: 1 1 auto;
-        min-height: 0;
-        height: auto;
-        max-height: none;
-        width: 100%;
-        max-width: none;
-        border-left: none;
-        border-top: none;
-        overflow: hidden;
-    }
-
-    .order-taker-pos-app.rp-view-cart .rp-cart-lines {
-        flex: 1 1 auto;
-        min-height: 0;
-        max-height: none;
-        overflow-y: auto !important;
-        -webkit-overflow-scrolling: touch;
-        overscroll-behavior: contain;
-        touch-action: pan-y;
-        padding-bottom: 0.75rem;
-    }
-
-    .order-taker-pos-app.rp-view-cart .rp-bill-kitchen-notes-wrap {
-        display: block;
         flex-shrink: 0;
     }
 }

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=46">
-<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=7">
+<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=8">
 @endpush
 
 @section('content')
@@ -362,5 +362,5 @@
 <script>
 window.ORDER_TAKER_BOOTSTRAP = @json($otBootstrap);
 </script>
-<script src="{{ asset('js/order-taker-app.js') }}?v=9"></script>
+<script src="{{ asset('js/order-taker-app.js') }}?v=10"></script>
 @endsection

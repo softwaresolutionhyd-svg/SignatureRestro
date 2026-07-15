@@ -438,36 +438,46 @@
     }
 
     function isNarrowScreen() {
-        return window.matchMedia('(max-width: 991.98px)').matches;
-    }
-
-    function preferredPanelView(force) {
-        if (force === 'menu' || force === 'cart' || force === 'split') {
-            if (isNarrowScreen() && force === 'split') {
-                return 'menu';
-            }
-            return force;
-        }
-        return isNarrowScreen() ? 'menu' : 'split';
+        // Tablets (incl. landscape ~1024–1366) also need Menu/Cart tabs, not desktop split.
+        return window.matchMedia('(max-width: 1399.98px)').matches;
     }
 
     function setPanelView(view) {
         const app = document.querySelector('.order-taker-pos-app');
         if (!app) return;
-        const next = preferredPanelView(view);
+
+        let next = view;
+        if (next !== 'menu' && next !== 'cart' && next !== 'split') {
+            next = isNarrowScreen() ? 'menu' : 'split';
+        }
+        if (next === 'split' && isNarrowScreen()) {
+            next = 'menu';
+        }
+
         panelView = next;
         app.classList.remove('rp-view-menu', 'rp-view-cart');
         if (next === 'menu') app.classList.add('rp-view-menu');
         if (next === 'cart') app.classList.add('rp-view-cart');
-        // split = no view class → desktop side-by-side; mobile CSS still shows mini-cart
-        $('#otTabMenu')?.classList.toggle('is-active', next === 'menu' || next === 'split');
-        $('#otTabCart')?.classList.toggle('is-active', next === 'cart');
-        const expandBtn = $('#otToggleCartView');
+
+        const tabMenu = document.getElementById('otTabMenu');
+        const tabCart = document.getElementById('otTabCart');
+        tabMenu?.classList.toggle('is-active', next !== 'cart');
+        tabCart?.classList.toggle('is-active', next === 'cart');
+
+        const expandBtn = document.getElementById('otToggleCartView');
         const icon = expandBtn?.querySelector('i');
         if (icon) icon.className = next === 'cart' ? 'bi bi-layout-sidebar-reverse' : 'bi bi-arrows-fullscreen';
         if (expandBtn) {
-            expandBtn.title = next === 'cart' ? 'Menu + mini cart' : 'Cart expand';
+            expandBtn.title = next === 'cart' ? 'Back to menu' : 'Open cart';
         }
+    }
+
+    function preferredPanelView(force) {
+        if (force === 'menu' || force === 'cart' || force === 'split') {
+            if (isNarrowScreen() && force === 'split') return 'menu';
+            return force;
+        }
+        return isNarrowScreen() ? 'menu' : 'split';
     }
 
     function showOrderScreen() {
@@ -776,28 +786,28 @@
 
         $('#otProductSearch')?.addEventListener('input', renderMenuGrid);
 
-        $('#otTabMenu')?.addEventListener('click', (e) => {
+        // Event delegation — tablet/touch pe bhi Cart/Menu tabs reliably switch hote hain
+        document.getElementById('otOrderScreen')?.addEventListener('click', (e) => {
+            const tab = e.target.closest('#otTabMenu, #otTabCart, #otToggleCartView');
+            if (!tab) return;
             e.preventDefault();
-            setPanelView('menu');
-        });
-        $('#otTabCart')?.addEventListener('click', (e) => {
-            e.preventDefault();
-            setPanelView(panelView === 'cart' ? 'menu' : 'cart');
-        });
-        $('#otToggleCartView')?.addEventListener('click', (e) => {
-            e.preventDefault();
-            setPanelView(panelView === 'cart' ? 'menu' : 'cart');
+            e.stopPropagation();
+            if (tab.id === 'otTabMenu') {
+                setPanelView('menu');
+                return;
+            }
+            if (tab.id === 'otTabCart' || tab.id === 'otToggleCartView') {
+                setPanelView(panelView === 'cart' ? 'menu' : 'cart');
+            }
         });
 
         window.addEventListener('resize', () => {
             if (!document.querySelector('.order-taker-pos-app')?.classList.contains('ot-screen-order')) {
                 return;
             }
+            // Sirf split↔menu default adjust; user ke cart/menu selection ko mat undo karo
             if (isNarrowScreen() && panelView === 'split') {
                 setPanelView('menu');
-            }
-            if (!isNarrowScreen() && (panelView === 'menu' || panelView === 'cart')) {
-                setPanelView('split');
             }
         });
 
