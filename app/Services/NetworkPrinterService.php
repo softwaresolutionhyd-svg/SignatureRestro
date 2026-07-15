@@ -89,7 +89,9 @@ final class NetworkPrinterService
         $this->ensureKitchenAgentSchema();
         PosRuntimeSchema::ensureOrderItemsTable();
 
-        $order->loadMissing([
+        // Column may have been added just now — force a fresh SELECT *
+        $order->unsetRelation('items');
+        $order->load([
             'items.product:id,name,sku,department_id',
             'items.product.departments:id,name,printer_ip,printer_port',
             'items.product.department:id,name,printer_ip,printer_port',

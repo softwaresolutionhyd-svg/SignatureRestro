@@ -17,6 +17,19 @@ final class KitchenService
     /** Per-request cache: activeOrders() is called several times per kitchen page. */
     private ?Collection $activeOrdersCache = null;
 
+    private function tenantItemsHasColumn(string $column): bool
+    {
+        try {
+            \App\Support\PosRuntimeSchema::ensureOrderItemsTable();
+
+            return Schema::connection('tenant')->hasColumn('pos_order_items', $column);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return false;
+        }
+    }
+
     /**
      * @return Collection<int, PosOrder>
      */
@@ -192,7 +205,7 @@ final class KitchenService
      */
     private function printedQtyPoolByBaseFingerprint(array $oldItems): array
     {
-        if (! Schema::hasColumn('pos_order_items', 'kitchen_printed_at')) {
+        if (! $this->tenantItemsHasColumn('kitchen_printed_at')) {
             return [];
         }
 
@@ -223,7 +236,7 @@ final class KitchenService
     private function unprintedPendingQtyPoolByBaseFingerprint(array $oldItems): array
     {
         $pool = [];
-        $hasPrinted = Schema::hasColumn('pos_order_items', 'kitchen_printed_at');
+        $hasPrinted = $this->tenantItemsHasColumn('kitchen_printed_at');
         foreach ($oldItems as $oldItem) {
             if ($oldItem->kitchen_served_at !== null) {
                 continue;
@@ -277,12 +290,12 @@ final class KitchenService
      */
     public function applyKitchenPendingFlags(array $oldItems, array $newItemsData, bool $sendToKitchen = true): array
     {
-        if (! Schema::hasColumn('pos_order_items', 'kitchen_pending')) {
+        if (! $this->tenantItemsHasColumn('kitchen_pending')) {
             return $newItemsData;
         }
 
-        $hasServedAt = Schema::hasColumn('pos_order_items', 'kitchen_served_at');
-        $hasPrintedAt = Schema::hasColumn('pos_order_items', 'kitchen_printed_at');
+        $hasServedAt = $this->tenantItemsHasColumn('kitchen_served_at');
+        $hasPrintedAt = $this->tenantItemsHasColumn('kitchen_printed_at');
         $servedPool = $hasServedAt ? $this->servedQtyPoolByBaseFingerprint($oldItems) : [];
         $printedPool = $hasPrintedAt ? $this->printedQtyPoolByBaseFingerprint($oldItems) : [];
         $unprintedPendingPool = $this->unprintedPendingQtyPoolByBaseFingerprint($oldItems);
@@ -298,28 +311,32 @@ final class KitchenService
 
             // 1) Already served portion
             if ($hasServedAt && isset($servedPool[$baseFp]) && $servedPool[$baseFp]['served_qty'] > 0.0005) {
+                $servedAt = $servedPool[$baseFp]['served_at'];
                 $servedQty = min((float) $servedPool[$baseFp]['served_qty'], $remaining);
                 $servedPool[$baseFp]['served_qty'] = max(0.0, (float) $servedPool[$baseFp]['served_qty'] - $servedQty);
                 $remaining = round($remaining - $servedQty, 3);
 
                 $servedLine = $this->splitItemLineByQty($item, $servedQty);
                 $servedLine['kitchen_pending'] = false;
-                $servedLine['kitchen_served_at'] = $servedPool[$baseFp]['served_at'];
+                $servedLine['kitchen_served_at'] = $servedAt;
                 if ($hasPrintedAt) {
-                    $servedLine['kitchen_printed_at'] = $servedPool[$baseFp]['served_at'];
+                    $servedLine['kitchen_printed_at'] = $servedAt;
                 }
                 $out[] = $servedLine;
             }
 
             // 2) Already printed portion — keep locked, do not re-print
             if ($hasPrintedAt && $remaining > 0.0005 && isset($printedPool[$baseFp]) && $printedPool[$baseFp]['qty'] > 0.0005) {
+                $printedAt = $printedPool[$baseFp]['printed_at'];
                 $printedQty = min((float) $printedPool[$baseFp]['qty'], $remaining);
                 $printedPool[$baseFp]['qty'] = max(0.0, (float) $printedPool[$baseFp]['qty'] - $printedQty);
                 $remaining = round($remaining - $printedQty, 3);
 
                 $printedLine = $this->splitItemLineByQty($item, $printedQty);
                 $printedLine['kitchen_pending'] = true;
-                $printedLine['kitchen_printed_at'] = $printedPool[$baseFp]['printed_at'];
+                $printedLine['kitchen_printed_at'] = $printedAt
+                    ? Carbon::parse($printedAt)->toDateTimeString()
+                    : now()->toDateTimeString();
                 unset($printedLine['kitchen_served_at']);
                 $out[] = $printedLine;
             }
@@ -334,7 +351,7 @@ final class KitchenService
                 $pendingLine['kitchen_pending'] = true;
                 unset($pendingLine['kitchen_served_at']);
                 if ($hasPrintedAt) {
-                    unset($pendingLine['kitchen_printed_at']);
+                    $pendingLine['kitchen_printed_at'] = null;
                 }
                 $out[] = $pendingLine;
             }
@@ -345,7 +362,7 @@ final class KitchenService
                 $newLine['kitchen_pending'] = $sendToKitchen;
                 unset($newLine['kitchen_served_at']);
                 if ($hasPrintedAt) {
-                    unset($newLine['kitchen_printed_at']);
+                    $newLine['kitchen_printed_at'] = null;
                 }
                 $out[] = $newLine;
             }
@@ -361,12 +378,34 @@ final class KitchenService
      */
     public function markItemsKitchenPrinted(array $itemIds): void
     {
-        if ($itemIds === [] || ! Schema::hasColumn('pos_order_items', 'kitchen_printed_at')) {
+        $itemIds = array_values(array_unique(array_filter(array_map('intval', $itemIds))));
+        if ($itemIds === []) {
+            return;
+        }
+
+        if (! $this->tenantItemsHasColumn('kitchen_printed_at')) {
             return;
         }
 
         PosOrderItem::query()
             ->whereIn('id', $itemIds)
+            ->whereNull('kitchen_printed_at')
+            ->update(['kitchen_printed_at' => now()]);
+    }
+
+    /**
+     * Mark all currently printable (pending + unprinted) lines on an order.
+     */
+    public function markOrderPendingKitchenPrinted(PosOrder $order): void
+    {
+        if (! $this->tenantItemsHasColumn('kitchen_printed_at')) {
+            return;
+        }
+
+        PosOrderItem::query()
+            ->where('order_id', $order->id)
+            ->where('kitchen_pending', true)
+            ->whereNull('kitchen_served_at')
             ->whereNull('kitchen_printed_at')
             ->update(['kitchen_printed_at' => now()]);
     }

@@ -1903,6 +1903,7 @@ class PosController extends Controller
         $this->assertDraftReceiptAccess($order);
 
         \App\Support\PosRuntimeSchema::ensureOrderItemsTable();
+        $order->unsetRelation('items');
         $order->load(['items.product:id,name,sku,department_id', 'items.product.departments:id,name', 'items.product.department:id,name', 'user:id,name', 'table:id,name']);
 
         $isAddonPrint = $order->items->contains(fn (PosOrderItem $item) => $item->kitchen_printed_at !== null);

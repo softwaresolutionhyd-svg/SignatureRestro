@@ -275,7 +275,8 @@ final class PosRuntimeSchema
 
     public static function ensureOrderItemsTable(?string $connection = null): void
     {
-        self::once('order_items:' . ($connection ?? 'tenant'), fn () => self::runOrderItemsTable($connection));
+        // v2: includes kitchen_printed_at (bump key so older once-cache cannot skip column ensure)
+        self::once('order_items_v2:' . ($connection ?? 'tenant'), fn () => self::runOrderItemsTable($connection));
     }
 
     private static function runOrderItemsTable(?string $connection = null): bool
