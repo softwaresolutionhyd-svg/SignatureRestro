@@ -346,6 +346,12 @@
         return parts.join(' · ') || '—';
     }
 
+    function orderPunchedByHtml(order) {
+        const name = String(order.punched_by || order.waiter_name || '').trim();
+        if (!name) return '';
+        return `<div class="rp-oc-by">by: ${escHtml(name)}</div>`;
+    }
+
     function factorForUom(p, uomCode) {
         const u = String(uomCode ?? '').trim();
         if (!p || !u) return 1;
@@ -1151,6 +1157,8 @@
                 o.order_no,
                 orderMetaLabel(o),
                 orderMetaDetail(o),
+                o.punched_by,
+                o.waiter_name,
                 o.payment_label,
                 o.paid_at,
                 o.paid_at_full,
@@ -1265,6 +1273,7 @@
                 return `<a class="rp-order-card rp-order-card--grid" href="${escHtml(resumeUrl)}">
                     <div class="rp-oc-no">${escHtml(o.order_no)}</div>
                     <div class="rp-oc-meta">${escHtml(orderMetaLabel(o))} · ${escHtml(orderMetaDetail(o))}</div>
+                    ${orderPunchedByHtml(o)}
                     <div class="rp-oc-meta">${escHtml(fmtMoney(o.grand_total))} · ${o.items_count || 0} items</div>
                     <div class="rp-oc-open">Open bill <i class="bi bi-arrow-right-short"></i></div>
                 </a>`;
@@ -1291,6 +1300,7 @@
             return `<div class="rp-order-card rp-order-card-paid rp-order-card--grid">
                 <div class="rp-oc-no">${escHtml(o.order_no)}</div>
                 <div class="rp-oc-meta">${escHtml(orderMetaLabel(o))} · ${escHtml(orderMetaDetail(o))}</div>
+                ${orderPunchedByHtml(o)}
                 <div class="rp-oc-meta">${escHtml(fmtMoney(o.grand_total))} · ${escHtml(o.payment_label || 'Paid')}</div>
                 ${paidAt ? `<div class="rp-oc-pay">${escHtml(paidAt)}</div>` : ''}
                 <div class="rp-oc-actions">

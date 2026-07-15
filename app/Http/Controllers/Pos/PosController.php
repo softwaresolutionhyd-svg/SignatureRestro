@@ -125,7 +125,7 @@ class PosController extends Controller
                         ->orWhereNull('paid_at');
                 });
             })
-            ->with(['table:id,name', 'payments:id,order_id,method,amount', 'items.product:id,name'])
+            ->with(['table:id,name', 'payments:id,order_id,method,amount', 'items.product:id,name', 'user:id,name'])
             ->withCount('items')
             ->orderByDesc('paid_at')
             ->orderByDesc('id')
@@ -682,14 +682,14 @@ class PosController extends Controller
 
         // Batch eager-load once for the whole collection (avoids N+1 per draft).
         if ($heldOrders->isNotEmpty()) {
-            $heldOrders->load(['items.product:id,name', 'table:id,name']);
+            $heldOrders->load(['items.product:id,name', 'table:id,name', 'user:id,name']);
             $heldOrders->loadCount('items');
         }
 
         foreach ($heldOrders as $draft) {
             if ($this->repairDraftOrderIfNeeded($draft)) {
                 $draft->refresh();
-                $draft->loadMissing(['items.product:id,name', 'table:id,name']);
+                $draft->loadMissing(['items.product:id,name', 'table:id,name', 'user:id,name']);
                 $draft->loadCount('items');
             }
         }
@@ -2836,7 +2836,7 @@ class PosController extends Controller
     /** @return array<string, mixed> */
     private function posOrderDetailsPayload(PosOrder $order): array
     {
-        $order->loadMissing(['table', 'items.product', 'payments']);
+        $order->loadMissing(['table', 'items.product', 'payments', 'user:id,name']);
 
         $tableRoomParts = [];
         if ($order->table) {
@@ -2857,6 +2857,7 @@ class PosController extends Controller
         $serveDate = $order->serve_date instanceof \Illuminate\Support\Carbon
             ? $order->serve_date->format('Y-m-d')
             : trim((string) ($order->serve_date ?? ''));
+        $punchedBy = trim((string) ($order->user?->name ?? ''));
 
         return [
             'id' => $order->id,
@@ -2868,6 +2869,7 @@ class PosController extends Controller
             'service_type_label' => $order->serviceTypeLabel(),
             'guest_name' => $order->guest_name,
             'waiter_name' => $order->waiter_name,
+            'punched_by' => $punchedBy !== '' ? $punchedBy : null,
             'order_notes' => trim((string) ($order->order_notes ?? '')),
             'kitchen_notes' => trim((string) ($order->kitchen_notes ?? '')),
             'room_no' => $order->room_no,

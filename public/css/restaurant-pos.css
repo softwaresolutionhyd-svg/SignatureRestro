@@ -651,6 +651,13 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     line-height: 1.2;
 }
 
+.restaurant-pos-app .rp-order-card .rp-oc-by {
+    font-size: 0.68rem;
+    line-height: 1.2;
+    color: #fcd98a;
+    opacity: 0.9;
+}
+
 .restaurant-pos-app .rp-order-card .rp-oc-pay {
     font-size: 0.68rem;
     color: var(--rp-sage);

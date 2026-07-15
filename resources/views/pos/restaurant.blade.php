@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=44">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=45">
 @endpush
 
 @section('content')
@@ -443,5 +443,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=54"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=55"></script>
 @endsection
