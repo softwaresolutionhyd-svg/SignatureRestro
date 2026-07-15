@@ -78,7 +78,32 @@ final class OrderTakerService
             PosOrderItem::create(['order_id' => $order->id] + $line);
         }
 
-        return $order->fresh(['items.product', 'table']);
+        $order = $order->fresh(['items.product', 'table', 'user']);
+        $this->dispatchKitchenPrintQuietly($order);
+
+        return $order;
+    }
+
+    /**
+     * Send kitchen tickets to department printers after OT punch / amend.
+     * Failures do not roll back the order.
+     *
+     * @return array<string, mixed>
+     */
+    public function dispatchKitchenPrintQuietly(PosOrder $order): array
+    {
+        try {
+            return app(NetworkPrinterService::class)->dispatchPendingKitchenPrints($order);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return [
+                'ok' => false,
+                'message' => $e->getMessage(),
+                'results' => [],
+                'unrouted' => 0,
+            ];
+        }
     }
 
     public function openPosSession(): ?PosSession
@@ -437,7 +462,10 @@ final class OrderTakerService
             PosOrderItem::create(['order_id' => $order->id] + $line);
         }
 
-        return $order->fresh(['items.product', 'table']);
+        $order = $order->fresh(['items.product', 'table', 'user']);
+        $this->dispatchKitchenPrintQuietly($order);
+
+        return $order;
     }
 
     /**

@@ -1901,7 +1901,7 @@ class PosController extends Controller
         abort_unless($order->status === 'draft', 404);
         $this->assertDraftReceiptAccess($order);
 
-        $order->load(['items.product:id,name,sku,department_id', 'items.product.departments:id,name', 'user:id,name', 'table:id,name']);
+        $order->load(['items.product:id,name,sku,department_id', 'items.product.departments:id,name', 'items.product.department:id,name', 'user:id,name', 'table:id,name']);
 
         $kitchenItems = $order->items->filter(
             fn (PosOrderItem $item) => (bool) $item->kitchen_pending && ! $item->isKitchenServed()
@@ -1910,9 +1910,10 @@ class PosController extends Controller
         abort_unless($kitchenItems->isNotEmpty(), 404);
 
         $departmentName = 'KITCHEN';
+        $printer = app(NetworkPrinterService::class);
         $deptNames = $kitchenItems
-            ->map(function (PosOrderItem $item) {
-                $dept = $this->resolveItemDepartment($item->product);
+            ->map(function (PosOrderItem $item) use ($printer) {
+                $dept = $printer->resolveItemDepartment($item->product);
 
                 return $dept?->name;
             })
@@ -1940,68 +1941,28 @@ class PosController extends Controller
     {
         abort_unless($order->status === 'draft', 404);
         $this->assertDraftReceiptAccess($order);
-        $this->ensureKitchenAgentSchema();
 
-        $order->load([
-            'items.product:id,name,sku,department_id',
-            'items.product.departments:id,name,printer_ip,printer_port',
-            'user:id,name',
-            'table:id,name',
-        ]);
+        $result = app(NetworkPrinterService::class)->dispatchPendingKitchenPrints($order);
 
-        $kitchenItems = $order->items->filter(
-            fn (PosOrderItem $item) => (bool) $item->kitchen_pending && ! $item->isKitchenServed()
-        )->values();
-
-        if ($kitchenItems->isEmpty()) {
-            return response()->json(['ok' => false, 'message' => 'Koi kitchen item pending nahi.'], 422);
-        }
-
-        // Group items by their resolved department printer.
-        $groups = [];      // deptId => ['dept' => InventoryDepartment, 'items' => PosOrderItem[]]
-        $unrouted = 0;
-        foreach ($kitchenItems as $item) {
-            $dept = $this->resolveItemDepartment($item->product);
-            if ($dept && ! empty($dept->printer_ip)) {
-                $groups[$dept->id]['dept'] = $dept;
-                $groups[$dept->id]['items'][] = $item;
-            } else {
-                $unrouted++;
-            }
-        }
-
-        if ($groups === []) {
-            // Nothing has a printer assigned — let the client fall back to browser printing.
+        if (($result['fallback'] ?? false) === true) {
             return response()->json([
                 'ok' => false,
                 'fallback' => true,
-                'message' => 'Kisi department ka printer set nahi (Inventory → Kitchen Agents).',
+                'message' => $result['message'] ?? 'Kisi department ka printer set nahi (Inventory → Kitchen Agents).',
             ]);
         }
 
-        $printer = app(NetworkPrinterService::class);
-        $company = Setting::get('company_name', config('app.name'));
-        $results = [];
-
-        foreach ($groups as $group) {
-            /** @var \App\Models\InventoryDepartment $dept */
-            $dept = $group['dept'];
-            $payload = $printer->buildKitchenSlip($order, (string) $dept->name, $group['items'], $company);
-
-            try {
-                $printer->send((string) $dept->printer_ip, (int) ($dept->printer_port ?: 9100), $payload);
-                $results[] = ['department' => $dept->name, 'ok' => true];
-            } catch (\Throwable $e) {
-                $results[] = ['department' => $dept->name, 'ok' => false, 'error' => $e->getMessage()];
-            }
+        if (($result['ok'] ?? false) !== true && ($result['message'] ?? '') === 'Koi kitchen item pending nahi.') {
+            return response()->json(['ok' => false, 'message' => $result['message']], 422);
         }
 
-        $anyOk = collect($results)->contains(fn ($r) => $r['ok'] === true);
+        $anyOk = (bool) ($result['ok'] ?? false);
 
         return response()->json([
             'ok' => $anyOk,
-            'results' => $results,
-            'unrouted' => $unrouted,
+            'results' => $result['results'] ?? [],
+            'unrouted' => $result['unrouted'] ?? 0,
+            'message' => $result['message'] ?? null,
         ], $anyOk ? 200 : 500);
     }
 
@@ -2045,29 +2006,7 @@ class PosController extends Controller
      */
     private function resolveItemDepartment(?InventoryProduct $product): ?\App\Models\InventoryDepartment
     {
-        if ($product === null) {
-            return null;
-        }
-
-        $depts = $product->relationLoaded('departments') ? $product->departments : collect();
-
-        if ($depts->isEmpty()) {
-            return null;
-        }
-
-        // Prefer the product's primary department if it has a printer.
-        $primary = $depts->firstWhere('id', $product->department_id);
-        if ($primary && ! empty($primary->printer_ip)) {
-            return $primary;
-        }
-
-        // Otherwise the first tagged department that has a printer.
-        $withPrinter = $depts->first(fn ($d) => ! empty($d->printer_ip));
-        if ($withPrinter) {
-            return $withPrinter;
-        }
-
-        return $primary ?: $depts->first();
+        return app(NetworkPrinterService::class)->resolveItemDepartment($product);
     }
 
     private function renderReceipt(Request $request, PosOrder $order, bool $paidOnly): View

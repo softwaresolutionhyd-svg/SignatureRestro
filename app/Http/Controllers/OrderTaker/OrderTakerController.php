@@ -70,7 +70,7 @@ class OrderTakerController extends Controller
         }
 
         return redirect()->route('order-taker.index')
-            ->with('success', 'Order kitchen screen par bhej diya — POS pending bill bhi ready hai.');
+            ->with('success', 'Order kitchen printer + kitchen screen par bhej diya — POS pending bill bhi ready hai.');
     }
 
     public function update(Request $request, PosOrder $order): RedirectResponse
@@ -86,7 +86,7 @@ class OrderTakerController extends Controller
         }
 
         return redirect()->route('order-taker.index')
-            ->with('success', 'Bill update ho gayi — kitchen screen par naye items dikhenge.');
+            ->with('success', 'Bill update ho gayi — kitchen printer + kitchen screen par update bhej diya.');
     }
 
     /**

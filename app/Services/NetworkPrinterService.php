@@ -2,8 +2,12 @@
 
 namespace App\Services;
 
+use App\Models\InventoryDepartment;
+use App\Models\InventoryProduct;
 use App\Models\PosOrder;
 use App\Models\PosOrderItem;
+use App\Models\Setting;
+use App\Support\EnsuresKitchenAgentSchema;
 use Illuminate\Support\Collection;
 use RuntimeException;
 
@@ -13,6 +17,8 @@ use RuntimeException;
  */
 final class NetworkPrinterService
 {
+    use EnsuresKitchenAgentSchema;
+
     /** Characters per line for an 80mm thermal printer. */
     private const WIDTH = 48;
 
@@ -61,6 +67,132 @@ final class NetworkPrinterService
         } finally {
             @fclose($fp);
         }
+    }
+
+    /**
+     * Print all pending kitchen items to their department printers.
+     *
+     * @return array{
+     *   ok: bool,
+     *   fallback?: bool,
+     *   message?: string,
+     *   results: list<array{department: string, ok: bool, error?: string}>,
+     *   unrouted: int
+     * }
+     */
+    public function dispatchPendingKitchenPrints(PosOrder $order): array
+    {
+        $this->ensureKitchenAgentSchema();
+
+        $order->loadMissing([
+            'items.product:id,name,sku,department_id',
+            'items.product.departments:id,name,printer_ip,printer_port',
+            'items.product.department:id,name,printer_ip,printer_port',
+            'user:id,name',
+            'table:id,name',
+        ]);
+
+        $kitchenItems = $order->items
+            ->filter(fn (PosOrderItem $item) => (bool) $item->kitchen_pending && ! $item->isKitchenServed())
+            ->values();
+
+        if ($kitchenItems->isEmpty()) {
+            return [
+                'ok' => false,
+                'message' => 'Koi kitchen item pending nahi.',
+                'results' => [],
+                'unrouted' => 0,
+            ];
+        }
+
+        $groups = [];
+        $unrouted = 0;
+        foreach ($kitchenItems as $item) {
+            $dept = $this->resolveItemDepartment($item->product);
+            if ($dept && ! empty($dept->printer_ip)) {
+                $groups[$dept->id]['dept'] = $dept;
+                $groups[$dept->id]['items'][] = $item;
+            } else {
+                $unrouted++;
+            }
+        }
+
+        if ($groups === []) {
+            return [
+                'ok' => false,
+                'fallback' => true,
+                'message' => 'Kisi department ka printer set nahi (Inventory → Kitchen Agents).',
+                'results' => [],
+                'unrouted' => $unrouted,
+            ];
+        }
+
+        $company = Setting::get('company_name', config('app.name'));
+        $results = [];
+
+        foreach ($groups as $group) {
+            /** @var InventoryDepartment $dept */
+            $dept = $group['dept'];
+            $payload = $this->buildKitchenSlip($order, (string) $dept->name, $group['items'], $company);
+
+            try {
+                $this->send((string) $dept->printer_ip, (int) ($dept->printer_port ?: 9100), $payload);
+                $results[] = ['department' => (string) $dept->name, 'ok' => true];
+            } catch (\Throwable $e) {
+                $results[] = [
+                    'department' => (string) $dept->name,
+                    'ok' => false,
+                    'error' => $e->getMessage(),
+                ];
+            }
+        }
+
+        $anyOk = collect($results)->contains(fn ($r) => $r['ok'] === true);
+
+        return [
+            'ok' => $anyOk,
+            'results' => $results,
+            'unrouted' => $unrouted,
+            'message' => $anyOk ? null : 'Kitchen print fail hua.',
+        ];
+    }
+
+    /**
+     * Resolve which department (with a printer) a product should print to.
+     */
+    public function resolveItemDepartment(?InventoryProduct $product): ?InventoryDepartment
+    {
+        if ($product === null) {
+            return null;
+        }
+
+        $depts = $product->relationLoaded('departments')
+            ? $product->departments
+            : collect();
+
+        // Prefer tagged departments that have a printer.
+        if ($depts->isNotEmpty()) {
+            $primary = $depts->firstWhere('id', $product->department_id);
+            if ($primary && ! empty($primary->printer_ip)) {
+                return $primary;
+            }
+
+            $withPrinter = $depts->first(fn ($d) => ! empty($d->printer_ip));
+            if ($withPrinter) {
+                return $withPrinter;
+            }
+
+            if ($primary) {
+                return $primary;
+            }
+        }
+
+        // Fallback: product.primary department (belongsTo), even without pivot tags.
+        $primaryDept = $product->relationLoaded('department')
+            ? $product->department
+            : $product->department()->first(['id', 'name', 'printer_ip', 'printer_port']);
+
+        return $primaryDept instanceof InventoryDepartment ? $primaryDept : ($depts->first() ?: null);
     }
 
     /**
