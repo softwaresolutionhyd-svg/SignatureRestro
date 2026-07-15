@@ -97,6 +97,7 @@ class OrderTakerController extends Controller
         $session = $this->orderTaker->openPosSession();
         $tableBoard = $this->orderTaker->tableBoard();
         $pendingBills = $this->orderTaker->pendingPosOrders();
+        $myOrders = $this->orderTaker->myPunchedOrders();
 
         $resumedOrder = null;
         $resumeProductIds = [];
@@ -138,7 +139,7 @@ class OrderTakerController extends Controller
             ? PosTable::query()->where('active', true)->orderBy('name')->get(['id', 'name'])
             : collect();
 
-        return compact('session', 'tableBoard', 'pendingBills', 'resumedOrder', 'products', 'currency', 'tables', 'enableTables') + [
+        return compact('session', 'tableBoard', 'pendingBills', 'myOrders', 'resumedOrder', 'products', 'currency', 'tables', 'enableTables') + [
             'taxMode' => $taxMode,
             'defaultTaxRate' => (float) Setting::get('tax_rate', 0),
             'serviceChargeEnabled' => Setting::get('pos_service_charge_enabled', '0') === '1',

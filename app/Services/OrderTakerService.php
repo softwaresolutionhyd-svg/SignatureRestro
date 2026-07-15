@@ -280,6 +280,76 @@ final class OrderTakerService
             ->get();
     }
 
+    /**
+     * Orders punched by the logged-in order taker (today + still-open drafts).
+     *
+     * @return list<array{
+     *   id: int,
+     *   order_no: string,
+     *   service_type: ?string,
+     *   service_label: string,
+     *   table_name: ?string,
+     *   items_count: int,
+     *   grand_total: float,
+     *   status: string,
+     *   amendable: bool,
+     *   punched_at: string
+     * }>
+     */
+    public function myPunchedOrders(?int $userId = null): array
+    {
+        $userId = $userId ?? (int) Auth::id();
+        if ($userId <= 0) {
+            return [];
+        }
+
+        $today = now()->toDateString();
+        $hasOrderSource = Schema::hasColumn('pos_orders', 'order_source');
+
+        $orders = PosOrder::query()
+            ->where('user_id', $userId)
+            ->when($hasOrderSource, function ($q) {
+                $q->where(function ($w) {
+                    $w->where('order_source', self::SOURCE_ORDER_TAKER)
+                        ->orWhereNull('order_source');
+                });
+            })
+            ->where(function ($q) use ($today) {
+                $q->where('status', 'draft')
+                    ->orWhere(function ($w) use ($today) {
+                        $w->where('status', 'paid')
+                            ->where(function ($inner) use ($today) {
+                                $inner->whereDate('paid_at', $today)
+                                    ->orWhereDate('created_at', $today);
+                            });
+                    });
+            })
+            ->with(['table:id,name'])
+            ->withCount('items')
+            ->latest('id')
+            ->limit(40)
+            ->get();
+
+        return $orders->map(function (PosOrder $order) {
+            $serviceKey = $order->serviceTypeKey();
+            $tableName = $order->table?->name;
+            $when = $order->paid_at ?? $order->ready_for_pos_at ?? $order->created_at;
+
+            return [
+                'id' => (int) $order->id,
+                'order_no' => (string) $order->order_no,
+                'service_type' => $serviceKey,
+                'service_label' => $order->serviceTypeLabel() ?: 'Order',
+                'table_name' => $tableName ? (string) $tableName : null,
+                'items_count' => (int) $order->items_count,
+                'grand_total' => (float) $order->grand_total,
+                'status' => (string) $order->status,
+                'amendable' => $this->isPendingAmendable($order),
+                'punched_at' => $when?->format('h:i A') ?? '',
+            ];
+        })->values()->all();
+    }
+
     public function isPendingAmendable(PosOrder $order): bool
     {
         if ($order->status !== 'draft') {

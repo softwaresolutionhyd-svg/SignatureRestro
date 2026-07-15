@@ -568,6 +568,16 @@
             startNewOrder(tableId, tableName, 'dine_in');
         });
 
+        $('#otMyOrdersList')?.addEventListener('click', (e) => {
+            const row = e.target.closest('.ot-my-order-row');
+            if (!row || row.disabled) return;
+            const orderId = Number(row.dataset.orderId);
+            const amendable = row.dataset.amendable === '1';
+            if (!orderId || !amendable) return;
+            const board = (boot.tableBoard || []).find((t) => Number(t.order_id) === orderId);
+            startEditOrder(orderId, board?.id || null, board?.name || null);
+        });
+
         $$('.ot-quick-type').forEach((btn) => {
             btn.addEventListener('click', () => {
                 startServiceOrder(btn.dataset.service || 'takeaway');

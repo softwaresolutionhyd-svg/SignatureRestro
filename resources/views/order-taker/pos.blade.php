@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=34">
-<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=3">
+<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=4">
 @endpush
 
 @section('content')
@@ -115,7 +115,7 @@
                 <button type="button" class="btn btn-sm ot-quick-type" data-service="takeaway">Takeaway</button>
                 <button type="button" class="btn btn-sm ot-quick-type" data-service="delivery">Delivery</button>
             </div>
-            <div class="ot-table-board-body">
+            <div class="ot-table-board-body ot-table-board-body--split">
                 <div class="ot-table-grid" id="otTableGrid">
                     @foreach($tableBoard as $t)
                         <button type="button"
@@ -126,7 +126,15 @@
                                 data-order-id="{{ $t['order_id'] ?? '' }}"
                                 data-amendable="{{ $t['amendable'] ? '1' : '0' }}"
                                 aria-label="Table {{ $t['name'] }} — {{ $t['status'] === 'free' ? 'free' : 'reserved' }}">
-                            <span class="ot-table-box-no">{{ $t['name'] }}</span>
+                            <span class="ot-table-shape" aria-hidden="true">
+                                <span class="ot-chair ot-chair--n"></span>
+                                <span class="ot-chair ot-chair--e"></span>
+                                <span class="ot-chair ot-chair--s"></span>
+                                <span class="ot-chair ot-chair--w"></span>
+                                <span class="ot-table-top">
+                                    <span class="ot-table-box-no">{{ $t['name'] }}</span>
+                                </span>
+                            </span>
                             @if($t['status'] === 'occupied')
                                 <span class="ot-table-box-meta">{{ $t['order_no'] }}</span>
                                 <span class="ot-table-box-meta">{{ $t['items_count'] }} items</span>
@@ -136,6 +144,47 @@
                         </button>
                     @endforeach
                 </div>
+
+                <aside class="ot-my-orders" id="otMyOrders" aria-label="Mere punched orders">
+                    <div class="ot-my-orders-head">
+                        <span class="ot-my-orders-title"><i class="bi bi-receipt"></i> Mere Orders</span>
+                        <span class="ot-my-orders-count">{{ count($myOrders ?? []) }}</span>
+                    </div>
+                    <div class="ot-my-orders-list" id="otMyOrdersList">
+                        @forelse(($myOrders ?? []) as $mo)
+                            <button type="button"
+                                    class="ot-my-order-row{{ ($mo['amendable'] ?? false) ? ' ot-my-order-row--live' : '' }}{{ ($mo['status'] ?? '') === 'paid' ? ' ot-my-order-row--paid' : '' }}"
+                                    data-order-id="{{ $mo['id'] }}"
+                                    data-amendable="{{ ($mo['amendable'] ?? false) ? '1' : '0' }}"
+                                    data-status="{{ $mo['status'] }}"
+                                    @if(!($mo['amendable'] ?? false)) disabled @endif>
+                                <span class="ot-my-order-main">
+                                    <span class="ot-my-order-no">{{ $mo['order_no'] }}</span>
+                                    <span class="ot-my-order-meta">
+                                        @if(!empty($mo['table_name']))
+                                            {{ $mo['table_name'] }} ·
+                                        @endif
+                                        {{ $mo['service_label'] }}
+                                        · {{ $mo['items_count'] }} items
+                                    </span>
+                                </span>
+                                <span class="ot-my-order-side">
+                                    <span class="ot-my-order-time">{{ $mo['punched_at'] }}</span>
+                                    <span class="ot-my-order-total">{{ $currency }}{{ number_format((float) $mo['grand_total'], 0) }}</span>
+                                    @if(($mo['status'] ?? '') === 'paid')
+                                        <span class="ot-my-order-badge">Paid</span>
+                                    @elseif($mo['amendable'] ?? false)
+                                        <span class="ot-my-order-badge ot-my-order-badge--open">Open</span>
+                                    @else
+                                        <span class="ot-my-order-badge">Sent</span>
+                                    @endif
+                                </span>
+                            </button>
+                        @empty
+                            <div class="ot-my-orders-empty">Abhi koi order punch nahi hua.</div>
+                        @endforelse
+                    </div>
+                </aside>
             </div>
         @endif
     </div>
@@ -269,6 +318,7 @@
         'products' => $productJs,
         'menuCategories' => $menuCategories,
         'tableBoard' => $tableBoard,
+        'myOrders' => $myOrders ?? [],
         'settings' => [
             'tax_mode' => $taxMode,
             'default_tax_rate' => $defaultTaxRate,
@@ -301,5 +351,5 @@
 <script>
 window.ORDER_TAKER_BOOTSTRAP = @json($otBootstrap);
 </script>
-<script src="{{ asset('js/order-taker-app.js') }}?v=4"></script>
+<script src="{{ asset('js/order-taker-app.js') }}?v=5"></script>
 @endsection
