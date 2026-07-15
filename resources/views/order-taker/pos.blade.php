@@ -3,11 +3,12 @@
 @section('page-title', 'Order Taker')
 
 @push('head')
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=33">
-<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=2">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=34">
+<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=3">
 @endpush
 
 @section('content')
@@ -300,5 +301,5 @@
 <script>
 window.ORDER_TAKER_BOOTSTRAP = @json($otBootstrap);
 </script>
-<script src="{{ asset('js/order-taker-app.js') }}?v=3"></script>
+<script src="{{ asset('js/order-taker-app.js') }}?v=4"></script>
 @endsection

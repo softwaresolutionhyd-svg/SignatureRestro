@@ -335,18 +335,33 @@
         renderAll();
     }
 
+    function isNarrowScreen() {
+        return window.matchMedia('(max-width: 991.98px)').matches;
+    }
+
+    function preferredPanelView(force) {
+        if (force === 'menu' || force === 'cart' || force === 'split') {
+            if (isNarrowScreen() && force === 'split') {
+                return 'menu';
+            }
+            return force;
+        }
+        return isNarrowScreen() ? 'menu' : 'split';
+    }
+
     function setPanelView(view) {
         const app = document.querySelector('.order-taker-pos-app');
         if (!app) return;
-        panelView = view;
+        const next = preferredPanelView(view);
+        panelView = next;
         app.classList.remove('rp-view-menu', 'rp-view-cart');
-        if (view === 'menu') app.classList.add('rp-view-menu');
-        if (view === 'cart') app.classList.add('rp-view-cart');
-        $('#otTabMenu')?.classList.toggle('is-active', view === 'menu');
-        $('#otTabCart')?.classList.toggle('is-active', view === 'cart');
+        if (next === 'menu') app.classList.add('rp-view-menu');
+        if (next === 'cart') app.classList.add('rp-view-cart');
+        $('#otTabMenu')?.classList.toggle('is-active', next === 'menu' || next === 'split');
+        $('#otTabCart')?.classList.toggle('is-active', next === 'cart');
         const expandBtn = $('#otToggleCartView');
         const icon = expandBtn?.querySelector('i');
-        if (icon) icon.className = view === 'cart' ? 'bi bi-layout-sidebar-reverse' : 'bi bi-arrows-fullscreen';
+        if (icon) icon.className = next === 'cart' ? 'bi bi-layout-sidebar-reverse' : 'bi bi-arrows-fullscreen';
     }
 
     function showOrderScreen() {
@@ -354,6 +369,7 @@
         $('#otOrderScreen')?.classList.remove('d-none');
         updateOrderHeader();
         syncServiceFields();
+        setPanelView(preferredPanelView());
         renderAll();
     }
 
@@ -594,9 +610,24 @@
 
         $('#otProductSearch')?.addEventListener('input', renderMenuGrid);
 
-        $('#otTabMenu')?.addEventListener('click', () => setPanelView(panelView === 'menu' ? 'split' : 'menu'));
-        $('#otTabCart')?.addEventListener('click', () => setPanelView(panelView === 'cart' ? 'split' : 'cart'));
-        $('#otToggleCartView')?.addEventListener('click', () => setPanelView(panelView === 'cart' ? 'split' : 'cart'));
+        $('#otTabMenu')?.addEventListener('click', () => {
+            setPanelView(isNarrowScreen() ? 'menu' : (panelView === 'menu' ? 'split' : 'menu'));
+        });
+        $('#otTabCart')?.addEventListener('click', () => {
+            setPanelView(isNarrowScreen() ? 'cart' : (panelView === 'cart' ? 'split' : 'cart'));
+        });
+        $('#otToggleCartView')?.addEventListener('click', () => {
+            setPanelView(panelView === 'cart' ? preferredPanelView() : 'cart');
+        });
+
+        window.addEventListener('resize', () => {
+            if (!document.querySelector('.order-taker-pos-app')?.classList.contains('ot-screen-order')) {
+                return;
+            }
+            if (isNarrowScreen() && panelView === 'split') {
+                setPanelView('menu');
+            }
+        });
 
         $('#otSendBtn')?.addEventListener('click', submitOrder);
     }
