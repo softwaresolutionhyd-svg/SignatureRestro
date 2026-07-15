@@ -107,8 +107,9 @@
         </div>
         <div class="card-body p-0">
             <p class="small text-secondary px-3 pt-3 mb-0">
-                <strong>Unit</strong> column = is line ki qty kis naap mein hai. Base <code>pkt</code> ho to default <code>pkt</code> hota hai —
-                agar aap ne <strong>gram</strong> mein likha hai (jaise 25 g masala) to yahan <strong>g</strong> choose karein; warna 25 = <strong>25 packet</strong> samjha jayega.
+                <strong>Unit</strong> column = is line ki qty kis naap mein hai.
+                Component base <code>kg</code> ho aur aapne product / Units library mein <code>g</code> (1000 g = 1 kg) set kiya ho to yahan <strong>g</strong> choose karke grams mein likho — e.g. <strong>25 g</strong>.
+                Agar unit <code>kg</code> hi chhora to 25 = <strong>25 kg</strong> samjha jayega.
             </p>
             <div class="table-responsive">
                 <table class="table mb-0 align-middle" id="linesTable">
@@ -219,9 +220,16 @@
             if (sel) sel.innerHTML = '';
             return;
         }
+        const base = String(meta.base_uom || '');
         sel.innerHTML = meta.uoms.map(u => {
             const selAttr = selectedUom && String(u.uom).toLowerCase() === String(selectedUom).toLowerCase() ? ' selected' : '';
-            return `<option value="${esc(u.uom)}"${selAttr}>${esc(u.uom)}</option>`;
+            const factor = Number(u.factor);
+            let label = String(u.uom);
+            if (Number.isFinite(factor) && Math.abs(factor - 1) > 1e-9 && base) {
+                const perBase = Math.round((1 / factor) * 1000) / 1000;
+                label = `${u.uom} (${perBase} ${u.uom} = 1 ${base})`;
+            }
+            return `<option value="${esc(u.uom)}"${selAttr}>${esc(label)}</option>`;
         }).join('');
     }
 

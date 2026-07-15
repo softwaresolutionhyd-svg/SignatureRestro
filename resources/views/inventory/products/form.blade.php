@@ -220,12 +220,16 @@
         }
     @endphp
 
-    <div class="col-12 d-none" id="productOtherUnitsSection" aria-hidden="true">
+    <div class="col-12" id="productOtherUnitsSection">
         <div class="border rounded-3 p-3 bg-light">
             <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
                 <div>
-                    <div class="fw-semibold">Other Units (conversion to base)</div>
-                    <div class="text-secondary small">Factor = how many <strong>base</strong> units equal <strong>1</strong> of this unit. Example: base <span class="fw-semibold">kg</span>, add <span class="fw-semibold">g</span> with factor <span class="fw-semibold">0.001</span> (1 g = 0.001 kg). Base <span class="fw-semibold">pkt</span> aur 1 pkt = 25 g ho to <span class="fw-semibold">g</span> ka factor <span class="fw-semibold">1÷25 = 0.04</span> (1 g = 0.04 pkt) — yeh sahi hai; BoM/POS mein <strong>25 g</strong> = <strong>1 pkt</strong> ban’ta hai (<code>25 × 0.04</code>).</div>
+                    <div class="fw-semibold">Other Units (jaise grams)</div>
+                    <div class="text-secondary small">
+                        Base <code>kg</code> hai to yahan <code>g</code> add karein taake recipe / BoM / POS mein grams likh sako.
+                        <strong>Asaan tarika:</strong> neeche “Kitne units = 1 base” mein <code>1000</code> likho (matlab 1000 g = 1 kg) — system factor <code>0.001</code> auto set kar dega.
+                        Direct factor bhi chalega: 1 g = 0.001 kg.
+                    </div>
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-primary" id="addConversionRow">
                     <i class="bi bi-plus-circle me-1"></i> Add unit
@@ -236,13 +240,20 @@
                 @foreach($rows as $row)
                     @php
                         $rowUom = \App\Models\InventoryUnit::normalizeCode((string) ($row['uom'] ?? ''));
+                        $rowFactor = isset($row['factor_to_base']) && $row['factor_to_base'] !== '' && $row['factor_to_base'] !== null
+                            ? (float) $row['factor_to_base']
+                            : null;
+                        $rowPerBase = ($rowFactor !== null && $rowFactor > 0)
+                            ? round(1 / $rowFactor, 6)
+                            : '';
                     @endphp
                     <div class="row g-2 align-items-end mb-2" data-conv-row>
-                        <div class="col-12 col-md-6">
+                        <div class="col-12 col-md-4">
                             <label class="form-label">UOM</label>
                             @if($uomLib->isEmpty())
                                 <input type="text" name="conversions[][uom]" value="{{ $row['uom'] ?? '' }}"
-                                       class="form-control @error('conversions.*.uom') is-invalid @enderror" maxlength="30">
+                                       class="form-control @error('conversions.*.uom') is-invalid @enderror" maxlength="30"
+                                       placeholder="g">
                             @else
                                 <select name="conversions[][uom]" class="form-select @error('conversions.*.uom') is-invalid @enderror">
                                     <option value="">—</option>
@@ -256,12 +267,21 @@
                                 </select>
                             @endif
                         </div>
-                        <div class="col-12 col-md-4">
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">Kitne units = 1 base</label>
+                            <input type="number" step="any" min="0" inputmode="decimal"
+                                   value="{{ $rowPerBase }}"
+                                   class="form-control conv-per-base"
+                                   placeholder="e.g. 1000"
+                                   title="Example: 1000 g = 1 kg → yahan 1000">
+                        </div>
+                        <div class="col-6 col-md-3">
                             <label class="form-label">Factor to base</label>
-                            <input type="number" step="0.001" min="0" name="conversions[][factor_to_base]"
+                            <input type="number" step="any" min="0" name="conversions[][factor_to_base]"
                                    value="{{ $row['factor_to_base'] ?? '' }}"
-                                   class="form-control @error('conversions.*.factor_to_base') is-invalid @enderror"
-                                   title="1 is unit mein kitne base (e.g. pkt) — 25 g = 1 pkt ke liye g ka factor 1÷25 = 0.04">
+                                   class="form-control conv-factor-to-base @error('conversions.*.factor_to_base') is-invalid @enderror"
+                                   placeholder="0.001"
+                                   title="1 unit mein kitne base — 1 g = 0.001 kg">
                         </div>
                     </div>
                 @endforeach
@@ -270,7 +290,7 @@
             @if(!empty($uomLibraryRules))
                 <div class="mt-3 pt-3 border-top">
                     <div class="fw-semibold mb-1">Quick add from unit library</div>
-                    <div class="text-secondary small mb-2">Pehle <strong>Base UOM</strong> set karo (jaise <code>kg</code>). Neeche woh rules dikhengi jahan conversion <strong>is base</strong> par khatam hoti hai — click se nayi conversion line add ho jati hai.</div>
+                    <div class="text-secondary small mb-2">Pehle <strong>Base UOM</strong> set karo (jaise <code>kg</code>). Neeche woh rules dikhengi jahan conversion <strong>is base</strong> par khatam hoti hai — click se nayi conversion line add ho jati hai (kg ke liye aksar <code>g → kg ×0.001</code>).</div>
                     <div id="uomLibraryQuickAdd" class="d-flex flex-wrap gap-2"></div>
                 </div>
             @endif
@@ -446,21 +466,58 @@
             if (autoPackage) {
                 row.setAttribute('data-auto-package', '1');
             }
+            const fac = (factor != null && factor !== '' && Number(factor) > 0) ? Number(factor) : '';
+            const perBase = fac !== '' ? (Math.round((1 / fac) * 1e6) / 1e6) : '';
             row.innerHTML = `
-                <div class="col-12 col-md-6">
+                <div class="col-12 col-md-4">
                     <label class="form-label">UOM</label>
                     ${uomSelectHtml(uom)}
                 </div>
-                <div class="col-12 col-md-4">
+                <div class="col-6 col-md-3">
+                    <label class="form-label">Kitne units = 1 base</label>
+                    <input type="number" step="any" min="0" inputmode="decimal" class="form-control conv-per-base" placeholder="e.g. 1000" value="${perBase}">
+                </div>
+                <div class="col-6 col-md-3">
                     <label class="form-label">Factor to base</label>
-                    <input type="number" step="0.001" min="0" name="conversions[][factor_to_base]" class="form-control">
+                    <input type="number" step="any" min="0" name="conversions[][factor_to_base]" class="form-control conv-factor-to-base" placeholder="0.001" value="${fac}">
                 </div>
             `;
             container.appendChild(row);
-            const facInp = row.querySelector('input[name="conversions[][factor_to_base]"]');
-            if (factor != null && factor !== '' && facInp) facInp.value = factor;
             enforceUniqueConversionRows();
             return row;
+        }
+
+        function syncConversionPair(row, source) {
+            if (!row) return;
+            const perInp = row.querySelector('.conv-per-base');
+            const facInp = row.querySelector('.conv-factor-to-base');
+            if (!perInp || !facInp) return;
+            if (source === 'per') {
+                const per = parseFloat(perInp.value);
+                if (Number.isFinite(per) && per > 0) {
+                    facInp.value = String(Math.round((1 / per) * 1e9) / 1e9);
+                }
+            } else if (source === 'factor') {
+                const fac = parseFloat(facInp.value);
+                if (Number.isFinite(fac) && fac > 0) {
+                    perInp.value = String(Math.round((1 / fac) * 1e6) / 1e6);
+                }
+            }
+        }
+
+        if (container) {
+            container.addEventListener('input', (e) => {
+                const row = e.target.closest('[data-conv-row]');
+                if (!row) return;
+                if (e.target.classList.contains('conv-per-base')) syncConversionPair(row, 'per');
+                if (e.target.classList.contains('conv-factor-to-base')) syncConversionPair(row, 'factor');
+            });
+            container.addEventListener('change', (e) => {
+                const row = e.target.closest('[data-conv-row]');
+                if (!row) return;
+                if (e.target.classList.contains('conv-per-base')) syncConversionPair(row, 'per');
+                if (e.target.classList.contains('conv-factor-to-base')) syncConversionPair(row, 'factor');
+            });
         }
 
         function getRowUomInput(row) {
