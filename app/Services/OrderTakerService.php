@@ -311,7 +311,7 @@ final class OrderTakerService
     }
 
     /**
-     * All pending order-taker bills (kis ne bhi punch kiye hon) — sidebar list.
+     * All pending bills for order taker sidebar — cashier, admin, ya kisi bhi order taker ne punch kiye hon.
      *
      * @return list<array{
      *   id: int,
@@ -328,32 +328,31 @@ final class OrderTakerService
      */
     public function allPendingOrdersForOrderTaker(): array
     {
-        if (! Schema::hasColumn('pos_orders', 'order_source')) {
-            return [];
-        }
-
         $session = $this->openPosSession();
         $today = now()->toDateString();
+        $pendingService = app(PosPendingBillsService::class);
+        $billSessionIds = $session !== null
+            ? $pendingService->billSessionIdsForSession($session)
+            : $this->openPosSessionIdsForToday()->map(fn ($id) => (int) $id)->all();
 
         $orders = PosOrder::query()
             ->where('status', 'draft')
-            ->where('order_source', self::SOURCE_ORDER_TAKER)
-            ->where(function ($q) use ($session, $today) {
-                if ($session) {
-                    $q->where('session_id', $session->id)
-                        ->orWhere(function ($w) use ($today) {
-                            $w->whereNull('session_id')
-                                ->whereDate('created_at', $today);
-                        });
-                } else {
-                    $q->whereDate('created_at', $today);
+            ->where(function ($q) use ($billSessionIds, $today) {
+                if ($billSessionIds !== []) {
+                    $q->whereIn('session_id', $billSessionIds);
                 }
+                $q->orWhere(function ($w) use ($today) {
+                    $w->whereDate('created_at', $today)
+                        ->orWhereDate('updated_at', $today);
+                });
             })
             ->with(['table:id,name', 'user:id,name'])
             ->withCount('items')
             ->latest('id')
-            ->limit(60)
-            ->get();
+            ->limit(80)
+            ->get()
+            ->filter(fn (PosOrder $order) => $order->isDueForServeDay())
+            ->take(60);
 
         return $orders->map(function (PosOrder $order) {
             $when = $order->ready_for_pos_at ?? $order->created_at;
@@ -438,18 +437,11 @@ final class OrderTakerService
             return false;
         }
 
-        // Koi bhi order taker kisi ki bhi pending bill edit kar sakta hai.
-        if ($order->isFromOrderTaker()) {
-            return true;
+        if (! $order->isDueForServeDay()) {
+            return false;
         }
 
-        if (! Schema::hasColumn($order->getTable(), 'order_source')) {
-            return $order->session_id !== null;
-        }
-
-        $source = (string) ($order->order_source ?? 'pos');
-
-        return $order->session_id !== null && in_array($source, ['pos', ''], true);
+        return true;
     }
 
     public function assertPendingAmendable(PosOrder $order): void

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=46">
-<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=11">
+<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=12">
 @endpush
 
 @section('content')
@@ -154,9 +154,10 @@
                     <div class="ot-my-orders-list" id="otMyOrdersList">
                         @forelse(($allOrders ?? []) as $mo)
                             <button type="button"
-                                    class="ot-my-order-row ot-my-order-row--live"
+                                    class="ot-my-order-row{{ ($mo['amendable'] ?? false) ? ' ot-my-order-row--live' : '' }}"
                                     data-order-id="{{ $mo['id'] }}"
-                                    data-amendable="1">
+                                    data-amendable="{{ ($mo['amendable'] ?? false) ? '1' : '0' }}"
+                                    @if(!($mo['amendable'] ?? false)) disabled @endif>
                                 <span class="ot-my-order-main">
                                     <span class="ot-my-order-no">{{ $mo['order_no'] }}</span>
                                     <span class="ot-my-order-by">by: {{ $mo['punched_by'] ?? '—' }}</span>
@@ -355,5 +356,5 @@
 <script>
 window.ORDER_TAKER_BOOTSTRAP = @json($otBootstrap);
 </script>
-<script src="{{ asset('js/order-taker-app.js') }}?v=11"></script>
+<script src="{{ asset('js/order-taker-app.js') }}?v=12"></script>
 @endsection
