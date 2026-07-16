@@ -7,6 +7,7 @@ use App\Models\CompanyUpdate;
 use App\Models\InventoryProduct;
 use App\Observers\InventoryProductObserver;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -45,6 +46,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Bootstrap admin UI — default Tailwind pagination SVGs have no size without Tailwind CSS.
+        Paginator::useBootstrapFive();
+
         InventoryProduct::observe(InventoryProductObserver::class);
 
         $this->applyProductionSecurity();
