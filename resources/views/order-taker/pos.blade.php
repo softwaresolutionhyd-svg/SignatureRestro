@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=46">
-<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=13">
+<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=14">
 @endpush
 
 @section('content')
@@ -116,10 +116,23 @@
                 <button type="button" class="btn btn-sm ot-quick-type" data-service="takeaway">Takeaway</button>
                 <button type="button" class="btn btn-sm ot-quick-type" data-service="delivery">Delivery</button>
             </div>
+            @if(count($tableBoardGroups ?? []) > 0)
+                <div class="ot-area-filters" id="otAreaFilters" role="tablist" aria-label="Sitting areas">
+                    <button type="button" class="ot-area-filter-btn" data-area-key="all" role="tab">All</button>
+                    @foreach(($tableBoardGroups ?? []) as $idx => $area)
+                        <button type="button"
+                                class="ot-area-filter-btn{{ $idx === 0 ? ' is-active' : '' }}"
+                                data-area-key="{{ $area['id'] ?? ('name:'.$area['name']) }}"
+                                role="tab"
+                                aria-selected="{{ $idx === 0 ? 'true' : 'false' }}">{{ $area['name'] }}</button>
+                    @endforeach
+                </div>
+            @endif
             <div class="ot-table-board-body ot-table-board-body--split">
                 <div class="ot-table-areas" id="otTableGrid">
-                    @foreach(($tableBoardGroups ?? []) as $area)
-                        <section class="ot-sitting-area">
+                    @foreach(($tableBoardGroups ?? []) as $idx => $area)
+                        <section class="ot-sitting-area{{ $idx === 0 ? '' : ' d-none' }}"
+                                 data-area-key="{{ $area['id'] ?? ('name:'.$area['name']) }}">
                             <h3 class="ot-sitting-area-title">{{ $area['name'] }}</h3>
                             <div class="ot-table-grid">
                                 @foreach($area['tables'] as $t)
@@ -368,5 +381,5 @@
 <script>
 window.ORDER_TAKER_BOOTSTRAP = @json($otBootstrap);
 </script>
-<script src="{{ asset('js/order-taker-app.js') }}?v=13"></script>
+<script src="{{ asset('js/order-taker-app.js') }}?v=14"></script>
 @endsection

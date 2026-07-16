@@ -692,6 +692,21 @@
     }
 
     function bindEvents() {
+        $('#otAreaFilters')?.addEventListener('click', (e) => {
+            const btn = e.target.closest('.ot-area-filter-btn');
+            if (!btn) return;
+            const key = btn.dataset.areaKey || 'all';
+            $$('#otAreaFilters .ot-area-filter-btn').forEach((b) => {
+                const on = b === btn;
+                b.classList.toggle('is-active', on);
+                b.setAttribute('aria-selected', on ? 'true' : 'false');
+            });
+            $$('#otTableGrid .ot-sitting-area').forEach((section) => {
+                const show = key === 'all' || section.dataset.areaKey === key;
+                section.classList.toggle('d-none', !show);
+            });
+        });
+
         $('#otTableGrid')?.addEventListener('click', (e) => {
             const btn = e.target.closest('.ot-table-box');
             if (!btn) return;
