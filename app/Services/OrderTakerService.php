@@ -224,6 +224,9 @@ final class OrderTakerService
      * @return list<array{
      *   id: int,
      *   name: string,
+     *   sitting_area_id: ?int,
+     *   sitting_area_name: string,
+     *   sitting_area_sort: int,
      *   status: 'free'|'occupied',
      *   order_id: ?int,
      *   order_no: ?string,
@@ -238,19 +241,30 @@ final class OrderTakerService
             return [];
         }
 
-        $occupied = $this->draftOrdersByTableId();
+        \App\Support\PosTablesSchema::ensure();
 
-        return \App\Models\PosTable::query()
-            ->where('active', true)
+        $occupied = $this->draftOrdersByTableId();
+        $hasArea = Schema::connection('tenant')->hasColumn('pos_tables', 'sitting_area_id');
+
+        $query = \App\Models\PosTable::query()->where('active', true);
+        if ($hasArea) {
+            $query->with(['sittingArea:id,name,sort_order']);
+        }
+
+        return $query
             ->orderBy('name')
-            ->get(['id', 'name'])
-            ->map(function (\App\Models\PosTable $table) use ($occupied) {
+            ->get($hasArea ? ['id', 'name', 'sitting_area_id'] : ['id', 'name'])
+            ->map(function (\App\Models\PosTable $table) use ($occupied, $hasArea) {
                 /** @var PosOrder|null $order */
                 $order = $occupied->get($table->id);
+                $area = $hasArea ? $table->sittingArea : null;
 
                 return [
                     'id' => (int) $table->id,
                     'name' => (string) $table->name,
+                    'sitting_area_id' => $hasArea && $table->sitting_area_id ? (int) $table->sitting_area_id : null,
+                    'sitting_area_name' => $area?->name ? (string) $area->name : 'Other',
+                    'sitting_area_sort' => $area ? (int) $area->sort_order : 9999,
                     'status' => $order !== null ? 'occupied' : 'free',
                     'order_id' => $order?->id,
                     'order_no' => $order?->order_no,
@@ -259,8 +273,50 @@ final class OrderTakerService
                     'grand_total' => $order ? (float) $order->grand_total : 0.0,
                 ];
             })
+            ->sortBy([
+                ['sitting_area_sort', 'asc'],
+                ['sitting_area_name', 'asc'],
+                ['name', 'asc'],
+            ])
             ->values()
             ->all();
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $board
+     * @return list<array{id: ?int, name: string, tables: list<array<string, mixed>>}>
+     */
+    public function tableBoardGrouped(array $board = []): array
+    {
+        $board = $board !== [] ? $board : $this->tableBoard();
+        $groups = [];
+
+        foreach ($board as $row) {
+            $key = (string) ($row['sitting_area_id'] ?? 'none');
+            if (! isset($groups[$key])) {
+                $groups[$key] = [
+                    'id' => $row['sitting_area_id'] ?? null,
+                    'name' => (string) ($row['sitting_area_name'] ?? 'Other'),
+                    'sort' => (int) ($row['sitting_area_sort'] ?? 9999),
+                    'tables' => [],
+                ];
+            }
+            $groups[$key]['tables'][] = $row;
+        }
+
+        uasort($groups, function ($a, $b) {
+            if ($a['sort'] === $b['sort']) {
+                return strcasecmp($a['name'], $b['name']);
+            }
+
+            return $a['sort'] <=> $b['sort'];
+        });
+
+        return array_values(array_map(static function (array $g) {
+            unset($g['sort']);
+
+            return $g;
+        }, $groups));
     }
 
     /**

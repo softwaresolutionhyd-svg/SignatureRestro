@@ -31,6 +31,7 @@ use App\Support\DailyOrderNumber;
 use App\Support\EnsuresKitchenAgentSchema;
 use App\Support\PosServiceCharge;
 use App\Support\PosRuntimeSchema;
+use App\Support\PosTablesSchema;
 use App\Support\ActivityLogger;
 use App\Services\KitchenService;
 use App\Services\ManufacturingStockService;
@@ -3227,18 +3228,7 @@ class PosController extends Controller
 
     private function ensurePosTablesSchema(): void
     {
-        try {
-            if (! Schema::hasTable('pos_tables')) {
-                Schema::create('pos_tables', function (Blueprint $table) {
-                    $table->id();
-                    $table->string('name', 60)->unique();
-                    $table->boolean('active')->default(true);
-                    $table->timestamps();
-                });
-            }
-        } catch (\Throwable $e) {
-            report($e);
-        }
+        PosTablesSchema::ensure();
     }
 
     /**

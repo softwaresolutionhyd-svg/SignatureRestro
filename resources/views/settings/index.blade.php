@@ -546,26 +546,57 @@
                             <input class="form-check-input" type="checkbox" name="pos_enable_tables" value="1" id="pos_enable_tables" @checked($posChecked('pos_enable_tables'))>
                             <label class="form-check-label" for="pos_enable_tables">Enable restaurant tables (Table No on POS)</label>
                         </div>
-                        <div class="form-text ms-4 mb-3">When off, table selection is hidden from POS. Add and remove tables below in Settings — not on the POS screen.</div>
+                        <div class="form-text ms-4 mb-3">When off, table selection is hidden from POS. Pehle sitting area banayein, phir us ke under table numbers add karein.</div>
                         <div class="border rounded-3 p-3 mb-3 bg-light" id="posTablesManageBox">
-                            <div class="fw-semibold mb-2">Restaurant tables</div>
-                            <div class="d-flex flex-wrap gap-2 mb-3">
-                                <input form="posTableAddForm" type="text" name="name" class="form-control form-control-sm" style="max-width:14rem;" placeholder="Table No (e.g. T1)" maxlength="60" @disabled((string) ($settings['pos_enable_tables'] ?? '0') !== '1')>
-                                <button form="posTableAddForm" type="submit" class="btn btn-sm btn-outline-primary" @disabled((string) ($settings['pos_enable_tables'] ?? '0') !== '1')>Add table</button>
+                            <div class="fw-semibold mb-2">Sitting areas &amp; tables</div>
+
+                            <div class="d-flex flex-wrap gap-2 mb-3 align-items-end">
+                                <div>
+                                    <label class="form-label small mb-1" for="posSittingAreaName">1. Sitting area name</label>
+                                    <input form="posSittingAreaAddForm" type="text" name="name" id="posSittingAreaName" class="form-control form-control-sm" style="max-width:16rem;" placeholder="e.g. VIP Hall, Garden, Family" maxlength="80" @disabled((string) ($settings['pos_enable_tables'] ?? '0') !== '1')>
+                                </div>
+                                <button form="posSittingAreaAddForm" type="submit" class="btn btn-sm btn-primary" @disabled((string) ($settings['pos_enable_tables'] ?? '0') !== '1')>Add sitting area</button>
                             </div>
-                            @error('pos_table')
+                            @error('pos_sitting_area')
                                 <div class="text-danger small mb-2">{{ $message }}</div>
                             @enderror
-                            <div class="d-flex flex-wrap gap-1">
-                                @forelse($posTables ?? [] as $t)
-                                    <span class="badge rounded-pill bg-white border text-dark fw-semibold d-inline-flex align-items-center gap-1 py-1 px-2">
-                                        {{ $t->name }}
-                                        <button type="submit" form="posTableDeleteForm-{{ $t->id }}" class="btn btn-sm btn-link text-danger p-0 lh-1" title="Delete table" @disabled((string) ($settings['pos_enable_tables'] ?? '0') !== '1') onclick="return confirm('Delete table {{ $t->name }}?');">×</button>
-                                    </span>
-                                @empty
-                                    <span class="text-secondary small">No tables yet. Enable tables above, then add table numbers here.</span>
-                                @endforelse
-                            </div>
+                            @error('name')
+                                @if(request()->routeIs('settings.pos-sitting-areas.*') || old('_form') === 'sitting_area')
+                                    <div class="text-danger small mb-2">{{ $message }}</div>
+                                @endif
+                            @enderror
+
+                            @forelse(($posSittingAreas ?? []) as $area)
+                                <div class="border rounded-3 bg-white p-3 mb-2">
+                                    <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                                        <div class="fw-semibold">{{ $area->name }}</div>
+                                        <button type="submit" form="posSittingAreaDeleteForm-{{ $area->id }}" class="btn btn-sm btn-outline-danger" @disabled((string) ($settings['pos_enable_tables'] ?? '0') !== '1') onclick="return confirm('Delete sitting area {{ $area->name }}?');">Delete area</button>
+                                    </div>
+                                    <div class="d-flex flex-wrap gap-2 mb-2 align-items-end">
+                                        <div>
+                                            <label class="form-label small mb-1">2. Table No. for {{ $area->name }}</label>
+                                            <input form="posTableAddForm-{{ $area->id }}" type="text" name="name" class="form-control form-control-sm" style="max-width:12rem;" placeholder="e.g. T1" maxlength="60" @disabled((string) ($settings['pos_enable_tables'] ?? '0') !== '1')>
+                                            <input form="posTableAddForm-{{ $area->id }}" type="hidden" name="sitting_area_id" value="{{ $area->id }}">
+                                        </div>
+                                        <button form="posTableAddForm-{{ $area->id }}" type="submit" class="btn btn-sm btn-outline-primary" @disabled((string) ($settings['pos_enable_tables'] ?? '0') !== '1')>Add table</button>
+                                    </div>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        @forelse($area->tables as $t)
+                                            <span class="badge rounded-pill bg-white border text-dark fw-semibold d-inline-flex align-items-center gap-1 py-1 px-2">
+                                                {{ $t->name }}
+                                                <button type="submit" form="posTableDeleteForm-{{ $t->id }}" class="btn btn-sm btn-link text-danger p-0 lh-1" title="Delete table" @disabled((string) ($settings['pos_enable_tables'] ?? '0') !== '1') onclick="return confirm('Delete table {{ $t->name }}?');">×</button>
+                                            </span>
+                                        @empty
+                                            <span class="text-secondary small">Is area mein abhi koi table nahi.</span>
+                                        @endforelse
+                                    </div>
+                                </div>
+                            @empty
+                                <span class="text-secondary small">Pehle sitting area add karein (e.g. Hall A, Outdoor), phir us ke under tables.</span>
+                            @endforelse
+                            @error('pos_table')
+                                <div class="text-danger small mt-2">{{ $message }}</div>
+                            @enderror
                         </div>
                         <label class="form-label" for="pos_receipt_footer_note">Extra line on receipt (optional)</label>
                         <textarea name="pos_receipt_footer_note" id="pos_receipt_footer_note" class="form-control" rows="2" maxlength="240" placeholder="e.g. Returns within 7 days with receipt">{{ old('pos_receipt_footer_note', $settings['pos_receipt_footer_note'] ?? '') }}</textarea>
@@ -728,14 +759,23 @@
 
 </form>
 
-<form id="posTableAddForm" method="POST" action="{{ route('settings.pos-tables.store') }}" class="d-none">
+<form id="posSittingAreaAddForm" method="POST" action="{{ route('settings.pos-sitting-areas.store') }}" class="d-none">
     @csrf
 </form>
-@foreach($posTables ?? [] as $t)
-    <form id="posTableDeleteForm-{{ $t->id }}" method="POST" action="{{ route('settings.pos-tables.destroy', $t) }}" class="d-none">
+@foreach(($posSittingAreas ?? []) as $area)
+    <form id="posSittingAreaDeleteForm-{{ $area->id }}" method="POST" action="{{ route('settings.pos-sitting-areas.destroy', $area) }}" class="d-none">
         @csrf
         @method('DELETE')
     </form>
+    <form id="posTableAddForm-{{ $area->id }}" method="POST" action="{{ route('settings.pos-tables.store') }}" class="d-none">
+        @csrf
+    </form>
+    @foreach($area->tables as $t)
+        <form id="posTableDeleteForm-{{ $t->id }}" method="POST" action="{{ route('settings.pos-tables.destroy', $t) }}" class="d-none">
+            @csrf
+            @method('DELETE')
+        </form>
+    @endforeach
 @endforeach
 
 <form id="dbBackupForm" method="POST" action="{{ route('settings.database-backup') }}" class="d-none">

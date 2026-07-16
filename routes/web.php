@@ -451,6 +451,8 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
     // Settings (company admin / super admin in context)
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index')->middleware('role:company_admin,super_admin');
     Route::put('/settings', [SettingsController::class, 'update'])->name('settings.update')->middleware('role:company_admin,super_admin');
+    Route::post('/settings/pos-sitting-areas', [SettingsController::class, 'storePosSittingArea'])->name('settings.pos-sitting-areas.store')->middleware('role:company_admin,super_admin');
+    Route::delete('/settings/pos-sitting-areas/{posSittingArea}', [SettingsController::class, 'destroyPosSittingArea'])->name('settings.pos-sitting-areas.destroy')->middleware('role:company_admin,super_admin');
     Route::post('/settings/pos-tables', [SettingsController::class, 'storePosTable'])->name('settings.pos-tables.store')->middleware('role:company_admin,super_admin');
     Route::delete('/settings/pos-tables/{posTable}', [SettingsController::class, 'destroyPosTable'])->name('settings.pos-tables.destroy')->middleware('role:company_admin,super_admin');
     Route::post('/settings/database-backup', [DatabaseBackupController::class, 'download'])->name('settings.database-backup')->middleware('role:company_admin,super_admin');

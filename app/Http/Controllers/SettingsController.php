@@ -3,15 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\PosOrder;
+use App\Models\PosSittingArea;
 use App\Models\PosTable;
 use App\Models\Setting;
 use App\Support\ActivityLogger;
+use App\Support\PosTablesSchema;
 use App\Services\PublicStorageMirror;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class SettingsController extends Controller
@@ -76,14 +77,16 @@ class SettingsController extends Controller
 
     public function index()
     {
-        $this->ensurePosTablesSchema();
+        PosTablesSchema::ensure();
         $settings = array_merge(self::DEFAULTS, Setting::all_map());
-        $posTables = PosTable::query()
+        $posSittingAreas = PosSittingArea::query()
             ->where('active', true)
+            ->with(['tables' => fn ($q) => $q->where('active', true)->orderBy('name')])
+            ->orderBy('sort_order')
             ->orderBy('name')
-            ->get(['id', 'name']);
+            ->get(['id', 'name', 'sort_order']);
 
-        return view('settings.index', compact('settings', 'posTables'));
+        return view('settings.index', compact('settings', 'posSittingAreas'));
     }
 
     public function update(Request $request)
@@ -181,16 +184,58 @@ class SettingsController extends Controller
         return redirect()->route('settings.index')->with('status', 'Settings saved successfully.');
     }
 
-    public function storePosTable(Request $request): RedirectResponse
+    public function storePosSittingArea(Request $request): RedirectResponse
     {
-        $this->ensurePosTablesSchema();
+        PosTablesSchema::ensure();
         abort_unless((string) Setting::get('pos_enable_tables', '1') !== '0', 403);
 
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:60'],
+            'name' => ['required', 'string', 'max:80', 'unique:tenant.pos_sitting_areas,name'],
+        ]);
+
+        $maxSort = (int) PosSittingArea::query()->max('sort_order');
+
+        PosSittingArea::query()->create([
+            'name' => trim($data['name']),
+            'sort_order' => $maxSort + 1,
+            'active' => true,
+        ]);
+
+        return redirect()->route('settings.index', ['tab' => 'pos'])->with('status', 'Sitting area added.');
+    }
+
+    public function destroyPosSittingArea(PosSittingArea $posSittingArea): RedirectResponse
+    {
+        PosTablesSchema::ensure();
+        abort_unless((string) Setting::get('pos_enable_tables', '1') !== '0', 403);
+
+        if ($posSittingArea->tables()->exists()) {
+            return redirect()->route('settings.index', ['tab' => 'pos'])
+                ->withErrors(['pos_sitting_area' => 'Pehle is sitting area ki saari tables delete karein.']);
+        }
+
+        $posSittingArea->delete();
+
+        return redirect()->route('settings.index', ['tab' => 'pos'])->with('status', 'Sitting area deleted.');
+    }
+
+    public function storePosTable(Request $request): RedirectResponse
+    {
+        PosTablesSchema::ensure();
+        abort_unless((string) Setting::get('pos_enable_tables', '1') !== '0', 403);
+
+        $data = $request->validate([
+            'sitting_area_id' => ['required', 'integer', 'exists:tenant.pos_sitting_areas,id'],
+            'name' => [
+                'required',
+                'string',
+                'max:60',
+                Rule::unique('tenant.pos_tables', 'name')->where(fn ($q) => $q->where('sitting_area_id', $request->integer('sitting_area_id'))),
+            ],
         ]);
 
         PosTable::query()->firstOrCreate([
+            'sitting_area_id' => (int) $data['sitting_area_id'],
             'name' => trim($data['name']),
         ], [
             'active' => true,
@@ -201,7 +246,7 @@ class SettingsController extends Controller
 
     public function destroyPosTable(PosTable $posTable): RedirectResponse
     {
-        $this->ensurePosTablesSchema();
+        PosTablesSchema::ensure();
         abort_unless((string) Setting::get('pos_enable_tables', '1') !== '0', 403);
 
         $inUse = PosOrder::query()
@@ -217,22 +262,6 @@ class SettingsController extends Controller
         $posTable->delete();
 
         return redirect()->route('settings.index', ['tab' => 'pos'])->with('status', 'Table deleted.');
-    }
-
-    private function ensurePosTablesSchema(): void
-    {
-        try {
-            if (! Schema::hasTable('pos_tables')) {
-                Schema::create('pos_tables', function (Blueprint $table) {
-                    $table->id();
-                    $table->string('name', 60)->unique();
-                    $table->boolean('active')->default(true);
-                    $table->timestamps();
-                });
-            }
-        } catch (\Throwable $e) {
-            report($e);
-        }
     }
 
     /**

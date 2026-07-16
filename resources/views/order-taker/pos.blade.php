@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=46">
-<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=12">
+<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=13">
 @endpush
 
 @section('content')
@@ -117,32 +117,39 @@
                 <button type="button" class="btn btn-sm ot-quick-type" data-service="delivery">Delivery</button>
             </div>
             <div class="ot-table-board-body ot-table-board-body--split">
-                <div class="ot-table-grid" id="otTableGrid">
-                    @foreach($tableBoard as $t)
-                        <button type="button"
-                                class="ot-table-box ot-table-box--{{ $t['status'] }}"
-                                data-table-id="{{ $t['id'] }}"
-                                data-table-name="{{ $t['name'] }}"
-                                data-status="{{ $t['status'] }}"
-                                data-order-id="{{ $t['order_id'] ?? '' }}"
-                                data-amendable="{{ $t['amendable'] ? '1' : '0' }}"
-                                aria-label="Table {{ $t['name'] }} — {{ $t['status'] === 'free' ? 'free' : 'reserved' }}">
-                            <span class="ot-table-shape" aria-hidden="true">
-                                <span class="ot-chair ot-chair--n"></span>
-                                <span class="ot-chair ot-chair--e"></span>
-                                <span class="ot-chair ot-chair--s"></span>
-                                <span class="ot-chair ot-chair--w"></span>
-                                <span class="ot-table-top">
-                                    <span class="ot-table-box-no">{{ $t['name'] }}</span>
-                                </span>
-                            </span>
-                            @if($t['status'] === 'occupied')
-                                <span class="ot-table-box-meta">{{ $t['order_no'] }}</span>
-                                <span class="ot-table-box-meta">{{ $t['items_count'] }} items</span>
-                            @else
-                                <span class="ot-table-box-meta ot-table-box-meta--free">Available</span>
-                            @endif
-                        </button>
+                <div class="ot-table-areas" id="otTableGrid">
+                    @foreach(($tableBoardGroups ?? []) as $area)
+                        <section class="ot-sitting-area">
+                            <h3 class="ot-sitting-area-title">{{ $area['name'] }}</h3>
+                            <div class="ot-table-grid">
+                                @foreach($area['tables'] as $t)
+                                    <button type="button"
+                                            class="ot-table-box ot-table-box--{{ $t['status'] }}"
+                                            data-table-id="{{ $t['id'] }}"
+                                            data-table-name="{{ $t['name'] }}"
+                                            data-status="{{ $t['status'] }}"
+                                            data-order-id="{{ $t['order_id'] ?? '' }}"
+                                            data-amendable="{{ $t['amendable'] ? '1' : '0' }}"
+                                            aria-label="{{ $area['name'] }} — Table {{ $t['name'] }} — {{ $t['status'] === 'free' ? 'free' : 'reserved' }}">
+                                        <span class="ot-table-shape" aria-hidden="true">
+                                            <span class="ot-chair ot-chair--n"></span>
+                                            <span class="ot-chair ot-chair--e"></span>
+                                            <span class="ot-chair ot-chair--s"></span>
+                                            <span class="ot-chair ot-chair--w"></span>
+                                            <span class="ot-table-top">
+                                                <span class="ot-table-box-no">{{ $t['name'] }}</span>
+                                            </span>
+                                        </span>
+                                        @if($t['status'] === 'occupied')
+                                            <span class="ot-table-box-meta">{{ $t['order_no'] }}</span>
+                                            <span class="ot-table-box-meta">{{ $t['items_count'] }} items</span>
+                                        @else
+                                            <span class="ot-table-box-meta ot-table-box-meta--free">Available</span>
+                                        @endif
+                                    </button>
+                                @endforeach
+                            </div>
+                        </section>
                     @endforeach
                 </div>
 

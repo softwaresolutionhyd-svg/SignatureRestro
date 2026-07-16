@@ -4,32 +4,27 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class PosTable extends Model
+class PosSittingArea extends Model
 {
     protected $connection = 'tenant';
 
     use HasFactory;
 
     protected $fillable = [
-        'sitting_area_id',
         'name',
+        'sort_order',
         'active',
     ];
 
     protected $casts = [
         'active' => 'bool',
+        'sort_order' => 'int',
     ];
 
-    public function sittingArea(): BelongsTo
+    public function tables(): HasMany
     {
-        return $this->belongsTo(PosSittingArea::class, 'sitting_area_id');
-    }
-
-    public function orders(): HasMany
-    {
-        return $this->hasMany(PosOrder::class, 'table_id');
+        return $this->hasMany(PosTable::class, 'sitting_area_id')->orderBy('name');
     }
 }

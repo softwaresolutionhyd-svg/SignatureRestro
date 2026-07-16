@@ -155,11 +155,18 @@
                         @if($posSettings['enable_tables'] ?? false)
                             <select id="rpTable" class="form-select form-select-sm" aria-label="Table No.">
                                 <option value="">Table…</option>
-                                @foreach($tableBoard as $t)
-                                    <option value="{{ $t['id'] }}"
-                                            class="rp-table--{{ $t['status'] === 'occupied' ? 'occupied' : 'free' }}"
-                                            data-status="{{ $t['status'] === 'occupied' ? 'occupied' : 'free' }}"
-                                            @selected(($posSettings['resume_table_id'] ?? null) === (int) $t['id'])>{{ $t['name'] }}</option>
+                                @php
+                                    $rpTableGroups = collect($tableBoard ?? [])->groupBy(fn ($t) => $t['sitting_area_name'] ?? 'Other');
+                                @endphp
+                                @foreach($rpTableGroups as $areaName => $areaTables)
+                                    <optgroup label="{{ $areaName }}">
+                                        @foreach($areaTables as $t)
+                                            <option value="{{ $t['id'] }}"
+                                                    class="rp-table--{{ $t['status'] === 'occupied' ? 'occupied' : 'free' }}"
+                                                    data-status="{{ $t['status'] === 'occupied' ? 'occupied' : 'free' }}"
+                                                    @selected(($posSettings['resume_table_id'] ?? null) === (int) $t['id'])>{{ $t['name'] }}</option>
+                                        @endforeach
+                                    </optgroup>
                                 @endforeach
                             </select>
                         @else
