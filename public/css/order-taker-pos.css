@@ -502,40 +502,49 @@
     max-height: none !important;
     border-left: none;
     border-top: none;
-    overflow: hidden !important;
+    overflow-y: auto !important;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
 }
 
 .order-taker-pos-app.rp-view-cart #otOrderScreen .rp-checkout-head {
     flex: 0 0 auto;
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    background: linear-gradient(180deg, rgba(30, 36, 46, 0.99) 0%, rgba(30, 36, 46, 0.95) 100%);
 }
 
+/* Items list — sirf apni height le, poora screen na khaye */
 .order-taker-pos-app.rp-view-cart #otOrderScreen .rp-cart-lines {
-    flex: 1 1 0 !important;
-    min-height: 0 !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
-    touch-action: pan-y;
-    padding-bottom: 0.5rem;
-}
-
-.order-taker-pos-app.rp-view-cart #otOrderScreen .rp-empty {
     flex: 0 0 auto !important;
-    min-height: 6rem;
-    padding: 1.25rem 0.75rem;
+    order: 1;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding-bottom: 0.35rem;
 }
 
+.order-taker-pos-app.rp-view-cart #otOrderScreen .rp-cart-lines .rp-empty,
+.restaurant-pos-app.order-taker-pos-app.rp-view-cart .rp-cart-lines .rp-empty {
+    flex: 0 0 auto !important;
+    min-height: 5rem;
+    padding: 1rem 0.75rem;
+}
+
+/* Bill instructions items ke neeche turant — bottom pe chipak kar hide na hon */
 .order-taker-pos-app.rp-view-cart #otOrderScreen .rp-bill-kitchen-notes-wrap {
     display: block !important;
     flex: 0 0 auto !important;
     flex-shrink: 0 !important;
+    order: 2;
     position: relative;
     z-index: 6;
-    margin-top: 0;
-    padding: 0.65rem 0.85rem calc(0.85rem + env(safe-area-inset-bottom, 0px)) !important;
+    margin-top: 0.25rem;
+    padding: 0.65rem 0.85rem 1rem !important;
     border-top: 1px solid rgba(232, 176, 74, 0.22);
     background: #141820;
-    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+    box-shadow: none;
 }
 
 .order-taker-pos-app.rp-view-cart #otOrderScreen .rp-bill-kitchen-label {
