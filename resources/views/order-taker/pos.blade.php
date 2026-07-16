@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=46">
-<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=10">
+<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=11">
 @endpush
 
 @section('content')
@@ -146,21 +146,20 @@
                     @endforeach
                 </div>
 
-                <aside class="ot-my-orders" id="otMyOrders" aria-label="Mere punched orders">
+                <aside class="ot-my-orders" id="otMyOrders" aria-label="All pending orders">
                     <div class="ot-my-orders-head">
-                        <span class="ot-my-orders-title"><i class="bi bi-receipt"></i> Mere Orders</span>
-                        <span class="ot-my-orders-count">{{ count($myOrders ?? []) }}</span>
+                        <span class="ot-my-orders-title"><i class="bi bi-receipt"></i> All Orders</span>
+                        <span class="ot-my-orders-count">{{ count($allOrders ?? []) }}</span>
                     </div>
                     <div class="ot-my-orders-list" id="otMyOrdersList">
-                        @forelse(($myOrders ?? []) as $mo)
+                        @forelse(($allOrders ?? []) as $mo)
                             <button type="button"
-                                    class="ot-my-order-row{{ ($mo['amendable'] ?? false) ? ' ot-my-order-row--live' : '' }}{{ ($mo['status'] ?? '') === 'paid' ? ' ot-my-order-row--paid' : '' }}"
+                                    class="ot-my-order-row ot-my-order-row--live"
                                     data-order-id="{{ $mo['id'] }}"
-                                    data-amendable="{{ ($mo['amendable'] ?? false) ? '1' : '0' }}"
-                                    data-status="{{ $mo['status'] }}"
-                                    @if(!($mo['amendable'] ?? false)) disabled @endif>
+                                    data-amendable="1">
                                 <span class="ot-my-order-main">
                                     <span class="ot-my-order-no">{{ $mo['order_no'] }}</span>
+                                    <span class="ot-my-order-by">by: {{ $mo['punched_by'] ?? '—' }}</span>
                                     <span class="ot-my-order-meta">
                                         @if(!empty($mo['table_name']))
                                             {{ $mo['table_name'] }} ·
@@ -172,17 +171,11 @@
                                 <span class="ot-my-order-side">
                                     <span class="ot-my-order-time">{{ $mo['punched_at'] }}</span>
                                     <span class="ot-my-order-total">{{ $currency }}{{ number_format((float) $mo['grand_total'], 0) }}</span>
-                                    @if(($mo['status'] ?? '') === 'paid')
-                                        <span class="ot-my-order-badge">Paid</span>
-                                    @elseif($mo['amendable'] ?? false)
-                                        <span class="ot-my-order-badge ot-my-order-badge--open">Open</span>
-                                    @else
-                                        <span class="ot-my-order-badge">Sent</span>
-                                    @endif
+                                    <span class="ot-my-order-badge ot-my-order-badge--open">Pending</span>
                                 </span>
                             </button>
                         @empty
-                            <div class="ot-my-orders-empty">Abhi koi order punch nahi hua.</div>
+                            <div class="ot-my-orders-empty">Koi pending order nahi.</div>
                         @endforelse
                     </div>
                 </aside>
@@ -328,7 +321,7 @@
         'products' => $productJs,
         'menuCategories' => $menuCategories,
         'tableBoard' => $tableBoard,
-        'myOrders' => $myOrders ?? [],
+        'allOrders' => $allOrders ?? [],
         'settings' => [
             'tax_mode' => $taxMode,
             'default_tax_rate' => $defaultTaxRate,
@@ -362,5 +355,5 @@
 <script>
 window.ORDER_TAKER_BOOTSTRAP = @json($otBootstrap);
 </script>
-<script src="{{ asset('js/order-taker-app.js') }}?v=10"></script>
+<script src="{{ asset('js/order-taker-app.js') }}?v=11"></script>
 @endsection

@@ -294,6 +294,15 @@
     line-height: 1.2;
 }
 
+.order-taker-pos-app .ot-my-order-by {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #f5d08a;
+    line-height: 1.25;
+    opacity: 0.95;
+}
+
 .order-taker-pos-app .ot-my-order-meta {
     font-size: 0.65rem;
     color: var(--rp-text-soft);

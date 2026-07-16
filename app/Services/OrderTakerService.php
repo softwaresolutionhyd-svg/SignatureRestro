@@ -311,7 +311,7 @@ final class OrderTakerService
     }
 
     /**
-     * Orders punched by the logged-in order taker (today + still-open drafts).
+     * All pending order-taker bills (kis ne bhi punch kiye hon) — sidebar list.
      *
      * @return list<array{
      *   id: int,
@@ -321,10 +321,62 @@ final class OrderTakerService
      *   table_name: ?string,
      *   items_count: int,
      *   grand_total: float,
-     *   status: string,
+     *   punched_by: string,
      *   amendable: bool,
      *   punched_at: string
      * }>
+     */
+    public function allPendingOrdersForOrderTaker(): array
+    {
+        if (! Schema::hasColumn('pos_orders', 'order_source')) {
+            return [];
+        }
+
+        $session = $this->openPosSession();
+        $today = now()->toDateString();
+
+        $orders = PosOrder::query()
+            ->where('status', 'draft')
+            ->where('order_source', self::SOURCE_ORDER_TAKER)
+            ->where(function ($q) use ($session, $today) {
+                if ($session) {
+                    $q->where('session_id', $session->id)
+                        ->orWhere(function ($w) use ($today) {
+                            $w->whereNull('session_id')
+                                ->whereDate('created_at', $today);
+                        });
+                } else {
+                    $q->whereDate('created_at', $today);
+                }
+            })
+            ->with(['table:id,name', 'user:id,name'])
+            ->withCount('items')
+            ->latest('id')
+            ->limit(60)
+            ->get();
+
+        return $orders->map(function (PosOrder $order) {
+            $when = $order->ready_for_pos_at ?? $order->created_at;
+
+            return [
+                'id' => (int) $order->id,
+                'order_no' => (string) $order->order_no,
+                'service_type' => $order->serviceTypeKey(),
+                'service_label' => $order->serviceTypeLabel() ?: 'Order',
+                'table_name' => $order->table?->name ? (string) $order->table->name : null,
+                'items_count' => (int) $order->items_count,
+                'grand_total' => (float) $order->grand_total,
+                'punched_by' => trim((string) ($order->user?->name ?? '')) ?: '—',
+                'amendable' => $this->isPendingAmendable($order),
+                'punched_at' => $when?->format('h:i A') ?? '',
+            ];
+        })->values()->all();
+    }
+
+    /**
+     * @deprecated Use allPendingOrdersForOrderTaker() — kept for compatibility.
+     *
+     * @return list<array<string, mixed>>
      */
     public function myPunchedOrders(?int $userId = null): array
     {
@@ -386,7 +438,8 @@ final class OrderTakerService
             return false;
         }
 
-        if ($order->isReadyForPosPickup()) {
+        // Koi bhi order taker kisi ki bhi pending bill edit kar sakta hai.
+        if ($order->isFromOrderTaker()) {
             return true;
         }
 
@@ -395,9 +448,6 @@ final class OrderTakerService
         }
 
         $source = (string) ($order->order_source ?? 'pos');
-        if ($source === self::SOURCE_ORDER_TAKER) {
-            return false;
-        }
 
         return $order->session_id !== null && in_array($source, ['pos', ''], true);
     }
