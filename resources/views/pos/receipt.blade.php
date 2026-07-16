@@ -35,23 +35,29 @@
         .r-meta-label { font-weight: 700; }
         .r-info { margin: 4px 0; }
         .r-info .tot-row { padding: 2px 0; }
-        table.items { width: 100%; border-collapse: separate; border-spacing: 0 6px; }
+        table.items { width: 100%; border-collapse: separate; border-spacing: 0 4px; }
         table.items thead td {
             font-weight: 800;
             font-size: 10px;
             text-transform: uppercase;
-            padding: 0 1px 4px;
+            padding: 0 0 4px;
             border-bottom: 1px dashed #000;
             vertical-align: bottom;
         }
         table.items tbody td {
-            padding: 5px 1px;
+            padding: 3px 0;
             vertical-align: top;
         }
-        table.items td.item-name { word-break: break-word; padding-right: 4px; width: 42%; }
-        table.items td.item-qty { white-space: nowrap; text-align: center; width: 14%; font-size: 10px; }
-        table.items td.item-rate { white-space: nowrap; text-align: right; width: 20%; font-size: 10px; }
-        table.items td.amt { text-align: right; white-space: nowrap; width: 24%; }
+        table.items td.item-name {
+            word-break: break-word;
+            padding-right: 2px;
+            width: 50%;
+            line-height: 1.25;
+            letter-spacing: -0.02em;
+        }
+        table.items td.item-qty { white-space: nowrap; text-align: center; width: 10%; font-size: 10px; padding-left: 0; }
+        table.items td.item-rate { white-space: nowrap; text-align: right; width: 18%; font-size: 10px; padding-left: 0; }
+        table.items td.amt { text-align: right; white-space: nowrap; width: 22%; padding-left: 0; }
         table.items td.item-note { font-size: 10px; padding-top: 0; padding-bottom: 2px; color: #333; }
         .tot-row { display: flex; justify-content: space-between; padding: 2px 0; }
         .totals-block { margin-top: 2px; }
@@ -60,13 +66,16 @@
         .r-grand-total {
             margin-top: 10px;
             margin-bottom: 4px;
-            font-size: 13px;
-            letter-spacing: 0.04em;
+            font-size: 15px;
+            letter-spacing: 0;
+            line-height: 1.2;
         }
         .r-grand-amount {
-            font-size: 16px;
+            font-size: 20px;
             font-weight: 800;
             margin-top: 2px;
+            line-height: 1.15;
+            letter-spacing: 0;
         }
         .r-bill-status {
             margin-top: 14px;

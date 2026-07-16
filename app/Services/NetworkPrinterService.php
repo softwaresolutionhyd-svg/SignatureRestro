@@ -450,12 +450,12 @@ final class NetworkPrinterService
             $rate = number_format((float) ($item->unit_price ?? 0), 0);
             $amount = number_format((float) $item->total, 0);
             $out .= self::BOLD_ON;
-            $out .= $this->itemRow4(
+            $out .= $this->itemRows4(
                 (string) ($item->product?->name ?? $item->name ?? 'Item'),
                 $qty,
                 $rate,
                 $amount
-            ) . "\n";
+            );
             $out .= self::BOLD_OFF;
 
             $itemNotes = trim((string) ($item->notes ?? ''));
@@ -481,9 +481,9 @@ final class NetworkPrinterService
 
         $grandLabel = $isPaid ? 'Grand Total' : 'AMOUNT DUE';
         $grandAmount = $currency . number_format((float) $order->grand_total, 0);
-        $out .= "\n" . self::ALIGN_CENTER . self::BOLD_ON . self::SIZE_TALL;
-        $out .= $this->clip($grandLabel) . "\n";
-        $out .= $this->clip($grandAmount) . "\n";
+        $out .= "\n" . self::ALIGN_CENTER . self::BOLD_ON . self::SIZE_WIDE;
+        $out .= $this->clipWide($grandLabel) . "\n";
+        $out .= $this->clipWide($grandAmount) . "\n";
         $out .= self::SIZE_NORMAL . self::BOLD_OFF;
 
         // Payment / Received / Change (paid slip)
@@ -717,11 +717,112 @@ final class NetworkPrinterService
     /** ITEMS | QTY | RATE | AMOUNT — 48-char thermal line; QTY centered under header. */
     private function itemRow4(string $name, string $qty, string $rate, string $amount): string
     {
-        $qtyW = 6;
-        $rateW = 9;
-        $amtW = 10;
+        [$qtyW, $rateW, $amtW, $nameW] = $this->itemColumnWidths();
+
+        return $this->itemRow4Line($name, $qty, $rate, $amount, $qtyW, $rateW, $amtW, $nameW);
+    }
+
+    /**
+     * Item row(s) with wrapped name lines so long product names print in full.
+     */
+    private function itemRows4(string $name, string $qty, string $rate, string $amount): string
+    {
+        [$qtyW, $rateW, $amtW, $nameW] = $this->itemColumnWidths();
+        $name = $this->compactItemName($name);
+        $lines = $this->wrapText($name, $nameW);
+        $out = '';
+
+        foreach ($lines as $i => $line) {
+            if ($i === 0) {
+                $out .= $this->itemRow4Line($line, $qty, $rate, $amount, $qtyW, $rateW, $amtW, $nameW) . "\n";
+            } else {
+                $out .= $this->itemRow4Line($line, '', '', '', $qtyW, $rateW, $amtW, $nameW) . "\n";
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return array{0: int, 1: int, 2: int, 3: int}
+     */
+    private function itemColumnWidths(): array
+    {
+        $qtyW = 4;
+        $rateW = 7;
+        $amtW = 8;
         $nameW = self::WIDTH - $qtyW - $rateW - $amtW;
 
+        return [$qtyW, $rateW, $amtW, $nameW];
+    }
+
+    private function compactItemName(string $name): string
+    {
+        $name = preg_replace('/\s+/', ' ', trim($name)) ?? '';
+        $name = preg_replace('/\s*-\s*/', '-', $name) ?? $name;
+        $name = preg_replace('/\s*\(\s*/', ' (', $name) ?? $name;
+
+        return trim($name);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function wrapText(string $text, int $width): array
+    {
+        if ($width < 1 || $text === '') {
+            return [''];
+        }
+        if (mb_strlen($text) <= $width) {
+            return [$text];
+        }
+
+        $words = preg_split('/\s+/', $text) ?: [];
+        $lines = [];
+        $current = '';
+
+        foreach ($words as $word) {
+            if ($word === '') {
+                continue;
+            }
+
+            $test = $current === '' ? $word : $current . ' ' . $word;
+            if (mb_strlen($test) <= $width) {
+                $current = $test;
+
+                continue;
+            }
+
+            if ($current !== '') {
+                $lines[] = $current;
+                $current = '';
+            }
+
+            while (mb_strlen($word) > $width) {
+                $lines[] = mb_substr($word, 0, $width);
+                $word = mb_substr($word, $width);
+            }
+
+            $current = $word;
+        }
+
+        if ($current !== '') {
+            $lines[] = $current;
+        }
+
+        return $lines !== [] ? $lines : [''];
+    }
+
+    private function itemRow4Line(
+        string $name,
+        string $qty,
+        string $rate,
+        string $amount,
+        int $qtyW,
+        int $rateW,
+        int $amtW,
+        int $nameW
+    ): string {
         $name = mb_substr($name, 0, $nameW);
         $name = $name . str_repeat(' ', max(0, $nameW - mb_strlen($name)));
 
