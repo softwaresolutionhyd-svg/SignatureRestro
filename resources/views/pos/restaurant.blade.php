@@ -156,7 +156,9 @@
                             <select id="rpTable" class="form-select form-select-sm" aria-label="Table No.">
                                 <option value="">Table…</option>
                                 @php
-                                    $rpTableGroups = collect($tableBoard ?? [])->groupBy(fn ($t) => $t['sitting_area_name'] ?? 'Other');
+                                    $rpTableGroups = collect($tableBoard ?? [])
+                                        ->groupBy(fn ($t) => $t['sitting_area_name'] ?? 'Other')
+                                        ->map(fn ($rows) => collect($rows)->sort(fn ($a, $b) => strnatcasecmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? '')))->values());
                                 @endphp
                                 @foreach($rpTableGroups as $areaName => $areaTables)
                                     <optgroup label="{{ $areaName }}">

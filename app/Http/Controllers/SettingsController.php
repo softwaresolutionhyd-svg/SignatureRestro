@@ -81,10 +81,14 @@ class SettingsController extends Controller
         $settings = array_merge(self::DEFAULTS, Setting::all_map());
         $posSittingAreas = PosSittingArea::query()
             ->where('active', true)
-            ->with(['tables' => fn ($q) => $q->where('active', true)->orderBy('name')])
+            ->with(['tables' => fn ($q) => $q->where('active', true)])
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get(['id', 'name', 'sort_order']);
+
+        $posSittingAreas->each(function (PosSittingArea $area) {
+            $area->setRelation('tables', PosTable::sortByNaturalName($area->tables));
+        });
 
         return view('settings.index', compact('settings', 'posSittingAreas'));
     }

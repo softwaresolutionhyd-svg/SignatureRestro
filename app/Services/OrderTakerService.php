@@ -252,7 +252,6 @@ final class OrderTakerService
         }
 
         return $query
-            ->orderBy('name')
             ->get($hasArea ? ['id', 'name', 'sitting_area_id'] : ['id', 'name'])
             ->map(function (\App\Models\PosTable $table) use ($occupied, $hasArea) {
                 /** @var PosOrder|null $order */
@@ -273,11 +272,17 @@ final class OrderTakerService
                     'grand_total' => $order ? (float) $order->grand_total : 0.0,
                 ];
             })
-            ->sortBy([
-                ['sitting_area_sort', 'asc'],
-                ['sitting_area_name', 'asc'],
-                ['name', 'asc'],
-            ])
+            ->sort(function (array $a, array $b) {
+                if ($a['sitting_area_sort'] !== $b['sitting_area_sort']) {
+                    return $a['sitting_area_sort'] <=> $b['sitting_area_sort'];
+                }
+                $areaCmp = strcasecmp($a['sitting_area_name'], $b['sitting_area_name']);
+                if ($areaCmp !== 0) {
+                    return $areaCmp;
+                }
+
+                return \App\Models\PosTable::naturalNameCompare($a['name'], $b['name']);
+            })
             ->values()
             ->all();
     }

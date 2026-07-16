@@ -32,4 +32,23 @@ class PosTable extends Model
     {
         return $this->hasMany(PosOrder::class, 'table_id');
     }
+
+    /**
+     * Natural ascending compare: GR1, GR2 … GR10 (not GR1, GR10, GR2).
+     */
+    public static function naturalNameCompare(string $a, string $b): int
+    {
+        return strnatcasecmp(trim($a), trim($b));
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, self>|iterable<self>  $tables
+     * @return \Illuminate\Support\Collection<int, self>
+     */
+    public static function sortByNaturalName(iterable $tables): \Illuminate\Support\Collection
+    {
+        return collect($tables)
+            ->sort(fn (self $x, self $y) => self::naturalNameCompare((string) $x->name, (string) $y->name))
+            ->values();
+    }
 }
