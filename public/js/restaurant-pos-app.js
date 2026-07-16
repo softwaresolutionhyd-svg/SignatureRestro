@@ -171,6 +171,9 @@
         syncServiceDetailPanels();
         syncWhatsappButton();
         renderTotals();
+        if (type === 'takeaway') {
+            setTimeout(() => $('#rpTakeawayContact')?.focus(), 0);
+        }
     }
 
     function syncServiceDetailPanels() {
@@ -1379,6 +1382,12 @@
                 alert('Address enter karein.');
                 return false;
             }
+        } else if (serviceType === 'takeaway') {
+            if (!($('#rpTakeawayContact')?.value || '').trim()) {
+                alert('Contact No. enter karein.');
+                $('#rpTakeawayContact')?.focus();
+                return false;
+            }
         }
 
         if (isCreditMode && mode === 'checkout' && !selectedContactId) {
@@ -1436,6 +1445,12 @@
             form.querySelector('[name="guest_name"]').value = ($('#rpDeliveryName')?.value || '').trim();
             form.querySelector('[name="room_no"]').value = ($('#rpDeliveryPhone')?.value || '').trim();
             form.querySelector('[name="order_notes"]').value = ($('#rpDeliveryAddress')?.value || '').trim();
+        } else if (serviceType === 'takeaway') {
+            const contact = ($('#rpTakeawayContact')?.value || '').trim();
+            form.querySelector('[name="table_id"]').value = '';
+            form.querySelector('[name="guest_name"]').value = contact;
+            form.querySelector('[name="room_no"]').value = contact;
+            form.querySelector('[name="order_notes"]').value = '';
         } else {
             form.querySelector('[name="table_id"]').value = '';
             form.querySelector('[name="guest_name"]').value = '';
@@ -1777,6 +1792,7 @@
         if ($('#rpDeliveryName')) $('#rpDeliveryName').value = '';
         if ($('#rpDeliveryPhone')) $('#rpDeliveryPhone').value = '';
         if ($('#rpDeliveryAddress')) $('#rpDeliveryAddress').value = '';
+        if ($('#rpTakeawayContact')) $('#rpTakeawayContact').value = '';
         if ($('#rpBillKitchenNotes')) $('#rpBillKitchenNotes').value = '';
         selectedContactId = null;
         $('#rpSelectedContactWrap')?.classList.add('d-none');
@@ -2573,6 +2589,9 @@
     function init() {
         if (settings.resume_service_type) {
             setServiceType(settings.resume_service_type);
+            if (settings.resume_service_type === 'takeaway' && settings.resume_room_no && $('#rpTakeawayContact')) {
+                $('#rpTakeawayContact').value = settings.resume_room_no;
+            }
         } else {
             syncServiceDetailPanels();
         }

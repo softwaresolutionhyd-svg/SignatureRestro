@@ -168,6 +168,11 @@
                                    placeholder="Table No." aria-label="Table No.">
                         @endif
                     </div>
+                    <div class="rp-service-panel rp-service-panel--inline d-none" id="rpTakeawayPanel" data-service="takeaway">
+                        <input type="tel" id="rpTakeawayContact" class="form-control form-control-sm" maxlength="50"
+                               value="{{ old('room_no', ($posSettings['resume_service_type'] ?? '') === 'takeaway' ? ($posSettings['resume_room_no'] ?? '') : '') }}"
+                               placeholder="Contact No." aria-label="Contact No." inputmode="tel">
+                    </div>
                     <div class="rp-service-panel rp-service-panel--inline rp-service-panel--delivery d-none" id="rpDeliveryPanel" data-service="delivery">
                         <input type="text" id="rpDeliveryName" class="form-control form-control-sm" maxlength="120"
                                value="{{ old('guest_name', $posSettings['resume_guest_name'] ?? '') }}"
@@ -447,5 +452,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=56"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=57"></script>
 @endsection

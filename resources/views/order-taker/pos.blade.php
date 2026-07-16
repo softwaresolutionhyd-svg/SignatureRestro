@@ -235,6 +235,11 @@
                                 <input type="text" id="otTableNo" class="form-control form-control-sm" maxlength="50" placeholder="Table No." aria-label="Table No.">
                             @endif
                         </div>
+                        <div class="rp-service-panel rp-service-panel--inline{{ $defaultServiceType === 'takeaway' ? '' : ' d-none' }}" id="otTakeawayPanel" data-service="takeaway">
+                            <input type="tel" id="otTakeawayContact" class="form-control form-control-sm" maxlength="50"
+                                   value="{{ old('room_no', ($resumedOrder?->serviceTypeKey() ?? $defaultServiceType) === 'takeaway' ? ($resumedOrder?->room_no ?? '') : '') }}"
+                                   placeholder="Contact No." aria-label="Contact No." inputmode="tel">
+                        </div>
                         <div class="rp-service-panel rp-service-panel--inline rp-service-panel--delivery{{ $defaultServiceType === 'delivery' ? '' : ' d-none' }}" id="otDeliveryPanel" data-service="delivery">
                             <input type="text" id="otDeliveryName" class="form-control form-control-sm" maxlength="120"
                                    value="{{ old('guest_name', $resumedOrder?->guest_name ?? '') }}"
@@ -356,5 +361,5 @@
 <script>
 window.ORDER_TAKER_BOOTSTRAP = @json($otBootstrap);
 </script>
-<script src="{{ asset('js/order-taker-app.js') }}?v=12"></script>
+<script src="{{ asset('js/order-taker-app.js') }}?v=13"></script>
 @endsection

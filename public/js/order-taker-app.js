@@ -68,6 +68,9 @@
         syncServiceDetailPanels();
         updateOrderHeader();
         renderTotals();
+        if (type === 'takeaway') {
+            setTimeout(() => $('#otTakeawayContact')?.focus(), 0);
+        }
     }
 
     function syncServiceDetailPanels() {
@@ -522,9 +525,14 @@
         lockServiceTypeFields(pendingMode);
         if (pendingMode) {
             setServiceType(boot.resumeServiceType || 'dine_in');
-            if (boot.resumeGuestName && $('#otDeliveryName')) $('#otDeliveryName').value = boot.resumeGuestName;
-            if (boot.resumeRoomNo && $('#otDeliveryPhone')) $('#otDeliveryPhone').value = boot.resumeRoomNo;
-            if (boot.resumeOrderNotes && $('#otDeliveryAddress')) $('#otDeliveryAddress').value = boot.resumeOrderNotes;
+            if (boot.resumeServiceType === 'takeaway') {
+                if (boot.resumeRoomNo && $('#otTakeawayContact')) $('#otTakeawayContact').value = boot.resumeRoomNo;
+                else if (boot.resumeGuestName && $('#otTakeawayContact')) $('#otTakeawayContact').value = boot.resumeGuestName;
+            } else {
+                if (boot.resumeGuestName && $('#otDeliveryName')) $('#otDeliveryName').value = boot.resumeGuestName;
+                if (boot.resumeRoomNo && $('#otDeliveryPhone')) $('#otDeliveryPhone').value = boot.resumeRoomNo;
+                if (boot.resumeOrderNotes && $('#otDeliveryAddress')) $('#otDeliveryAddress').value = boot.resumeOrderNotes;
+            }
             if ($('#otTableNo') && boot.resumeGuestName) $('#otTableNo').value = boot.resumeGuestName;
             if ($('#otBillKitchenNotes') && boot.resumeKitchenNotes !== undefined) {
                 $('#otBillKitchenNotes').value = boot.resumeKitchenNotes || '';
@@ -616,6 +624,12 @@
                     $('#otDeliveryPhone')?.focus();
                     return;
                 }
+            } else if (serviceType === 'takeaway') {
+                if (!($('#otTakeawayContact')?.value || '').trim()) {
+                    alert('Contact No. likhein.');
+                    $('#otTakeawayContact')?.focus();
+                    return;
+                }
             }
         }
 
@@ -650,6 +664,10 @@
             guestName = ($('#otDeliveryName')?.value || '').trim();
             roomNo = ($('#otDeliveryPhone')?.value || '').trim();
             orderNotes = ($('#otDeliveryAddress')?.value || '').trim();
+        } else if (serviceType === 'takeaway') {
+            const contact = ($('#otTakeawayContact')?.value || '').trim();
+            guestName = contact;
+            roomNo = contact;
         }
 
         $('#otFormServiceType').value = serviceType;
