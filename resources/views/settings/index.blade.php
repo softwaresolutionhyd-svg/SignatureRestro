@@ -558,7 +558,7 @@
                             @enderror
                             <div class="d-flex flex-wrap gap-1">
                                 @forelse($posTables ?? [] as $t)
-                                    <span class="badge rounded-pill text-bg-white border d-inline-flex align-items-center gap-1 py-1 px-2">
+                                    <span class="badge rounded-pill bg-white border text-dark fw-semibold d-inline-flex align-items-center gap-1 py-1 px-2">
                                         {{ $t->name }}
                                         <button type="submit" form="posTableDeleteForm-{{ $t->id }}" class="btn btn-sm btn-link text-danger p-0 lh-1" title="Delete table" @disabled((string) ($settings['pos_enable_tables'] ?? '0') !== '1') onclick="return confirm('Delete table {{ $t->name }}?');">×</button>
                                     </span>
