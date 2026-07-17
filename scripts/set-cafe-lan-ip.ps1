@@ -75,8 +75,30 @@ if ($ping) {
 
 Write-Host "Setting static IP on '$AdapterName'..." -ForegroundColor Green
 netsh interface ip set address name="$AdapterName" static $StaticIp 255.255.255.0 $Gateway
-netsh interface ip set dns name="$AdapterName" static $Dns1
-netsh interface ip add dns name="$AdapterName" $Dns2 index=2 2>$null
+
+function Set-AdapterDns {
+    param([string]$Name, [string[]]$Servers)
+    $index = 1
+    foreach ($server in $Servers) {
+        $server = $server.Trim()
+        if ($server -eq '') { continue }
+        if ($index -eq 1) {
+            $null = netsh interface ip set dns name="$Name" static $server 2>&1
+        } else {
+            $null = netsh interface ip add dns name="$Name" $server index=$index 2>&1
+        }
+        $index++
+    }
+}
+
+$dnsCandidates = @($Dns1, $Dns2, '8.8.8.8', '1.1.1.1') | Where-Object { $_ -and $_.Trim() -ne '' } | Select-Object -Unique
+try {
+    Set-AdapterDns -Name $AdapterName -Servers $dnsCandidates
+    Write-Host "DNS set: $($dnsCandidates -join ', ')" -ForegroundColor Green
+} catch {
+    Write-Host "DNS set nahi hui (internet issue ho sakta hai). IP/Firewall theek hai — POS LAN par chalega." -ForegroundColor Yellow
+    Write-Host "Baad mein: Settings -> Network -> Ethernet -> DNS = 8.8.8.8" -ForegroundColor DarkGray
+}
 
 $ports = @($HttpPort) + @(8080, 80) | Select-Object -Unique
 foreach ($port in $ports) {
