@@ -12,13 +12,13 @@
     const label = document.getElementById('sync-status-label');
     let syncing = false;
     let pullTick = 0;
-    let lastStatus = { online: false, pending: 0 };
+    let lastStatus = { online: true, pending: 0 };
 
     function paint(status) {
         if (!dot || !label) return;
-        lastStatus = status;
-        const online = !!status.online;
         const pending = Number(status.pending || 0);
+        const online = status.online === undefined ? !!lastStatus.online : !!status.online;
+        lastStatus = { online: online, pending: pending };
         if (!navigator.onLine) {
             dot.style.background = '#f59e0b';
             label.textContent = pending > 0 ? ('Offline · ' + pending) : 'Offline';
@@ -56,7 +56,6 @@
 
             const pending = Number(data.pending || 0);
             if (pending > 0) {
-                // Fast path: push only (no heavy pull)
                 syncNow(true, false);
                 return;
             }
@@ -67,7 +66,7 @@
                 syncNow(false, true);
             }
         } catch (e) {
-            paint({ online: false, pending: lastStatus.pending || 0 });
+            // Keep last known state — don't flash No net on status glitches
         }
     }
 
@@ -89,15 +88,20 @@
                 credentials: 'same-origin'
             });
             const data = await res.json().catch(() => ({}));
+            // Prefer explicit online; if missing, keep previous (avoid false No net)
+            const online = (typeof data.online === 'boolean') ? data.online : lastStatus.online;
             paint({
-                online: data.online !== false,
+                online: online,
                 pending: data.pending ?? lastStatus.pending ?? 0
             });
-            if (Number(data.pulled || 0) > 0 && label) {
+            if (Number(data.pulled || 0) > 0 && label && online) {
                 label.textContent = 'Pulled ' + data.pulled;
             }
         } catch (e) {
-            paint({ online: false, pending: lastStatus.pending || 0 });
+            // Network blip on local request — re-check status instead of forcing No net
+            syncing = false;
+            refreshStatus();
+            return;
         } finally {
             syncing = false;
         }
@@ -115,7 +119,6 @@
 
     if (badge) {
         badge.addEventListener('click', function () {
-            // Manual: full two-way
             syncNow(true, true);
         });
     }

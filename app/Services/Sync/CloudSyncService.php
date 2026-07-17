@@ -45,23 +45,39 @@ class CloudSyncService
             return false;
         }
 
-        $cacheSeconds = max(5, (int) config('sync.remote_ping_cache_seconds', 45));
+        $cacheSeconds = max(5, (int) config('sync.remote_ping_cache_seconds', 60));
         $cacheKey = 'sync:remote_reachable:'.md5($url);
 
         try {
-            return (bool) \Illuminate\Support\Facades\Cache::remember($cacheKey, $cacheSeconds, function () use ($url, $token) {
-                return $this->pingRemote($url, $token);
-            });
+            $cached = \Illuminate\Support\Facades\Cache::get($cacheKey);
+            // Only trust positive cache — never stick on "No net" after one failed ping.
+            if ($cached === true) {
+                return true;
+            }
         } catch (\Throwable) {
-            return $this->pingRemote($url, $token);
+            // fall through to live ping
         }
+
+        $ok = $this->pingRemote($url, $token);
+
+        try {
+            if ($ok) {
+                \Illuminate\Support\Facades\Cache::put($cacheKey, true, $cacheSeconds);
+            } else {
+                \Illuminate\Support\Facades\Cache::put($cacheKey, false, 5);
+            }
+        } catch (\Throwable) {
+            // ignore
+        }
+
+        return $ok;
     }
 
     private function pingRemote(string $url, string $token): bool
     {
         try {
-            $response = Http::timeout(3)
-                ->connectTimeout(2)
+            $response = Http::timeout(5)
+                ->connectTimeout(3)
                 ->withToken($token)
                 ->acceptJson()
                 ->get($url.'/api/sync/ping');
@@ -746,8 +762,13 @@ class CloudSyncService
             $pull = $this->pull($force, $resetPullCursors);
         }
 
-        $online = (bool) ($pull['online'] ?? $this->remoteReachable());
-        $ok = (($push['ok'] ?? false) || (($push['pending'] ?? 0) === 0)) && ($pull['ok'] ?? false);
+        $online = (bool) ($pull['online'] ?? false) || (bool) ($push['ok'] ?? false);
+        if (! $online) {
+            $online = $this->remoteReachable();
+        }
+        // Push debounce skip is not a connectivity failure.
+        $ok = ((($push['ok'] ?? false) || (($push['pending'] ?? 0) === 0)) && ($pull['ok'] ?? false))
+            || $online;
 
         return [
             'ok' => $ok,
@@ -828,15 +849,16 @@ class CloudSyncService
             if ($multi !== null) {
                 $pulled += $multi['pulled'];
                 $failed += $multi['failed'];
-                if ($multi['fatal'] !== null) {
-                    return [
-                        'ok' => false,
-                        'pulled' => $pulled,
-                        'failed' => $failed,
-                        'message' => $multi['fatal'],
-                        'online' => $multi['online'],
-                    ];
-                }
+                    if ($multi['fatal'] !== null) {
+                        return [
+                            'ok' => false,
+                            'pulled' => $pulled,
+                            'failed' => $failed,
+                            'message' => $multi['fatal'],
+                            // Hosting answered (even with error) — do not show "No net"
+                            'online' => $multi['online'] || $this->remoteReachable(),
+                        ];
+                    }
             } else {
                 // Hosting without pull-multi: fall back to a few parallel single-table calls
                 $fallback = $this->pullViaParallel($tables, $url, $token, $pullTimeout, $limit, $posOrderIds);
@@ -848,7 +870,7 @@ class CloudSyncService
                         'pulled' => $pulled,
                         'failed' => $failed,
                         'message' => $fallback['fatal'],
-                        'online' => $fallback['online'],
+                        'online' => $fallback['online'] || $this->remoteReachable(),
                     ];
                 }
             }
@@ -864,7 +886,7 @@ class CloudSyncService
                 'pulled' => $pulled,
                 'failed' => $failed,
                 'message' => 'Pull error: '.$e->getMessage(),
-                'online' => false,
+                'online' => $this->remoteReachable(),
             ];
         }
 
@@ -931,11 +953,12 @@ class CloudSyncService
             }
 
             if (! $response->successful()) {
+                // Got an HTTP response from hosting — network is up
                 return [
                     'pulled' => $pulled,
                     'failed' => $failed,
                     'fatal' => 'Hosting pull-multi failed: HTTP '.$response->status(),
-                    'online' => false,
+                    'online' => true,
                 ];
             }
 
@@ -1112,7 +1135,7 @@ class CloudSyncService
                 'pulled' => 0,
                 'failed' => 0,
                 'fatal' => 'Hosting pull failed: HTTP '.$response->status().' — hosting par latest code deploy karein (/api/sync/pull).',
-                'online' => false,
+                'online' => true,
             ];
         }
 
@@ -1176,7 +1199,7 @@ class CloudSyncService
                     'pulled' => $pulled,
                     'failed' => $failed,
                     'fatal' => 'Hosting pull failed: HTTP '.$follow->status(),
-                    'online' => false,
+                    'online' => true,
                 ];
             }
             $body = $follow->json();
