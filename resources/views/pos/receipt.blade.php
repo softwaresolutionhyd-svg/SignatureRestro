@@ -64,18 +64,10 @@
         .totals-block .tot-row + .tot-row { padding-top: 3px; }
         .totals-block .pay-heading { font-weight: 700; margin: 6px 0 2px; font-size: 11px; }
         .r-grand-total {
-            margin-top: 10px;
-            margin-bottom: 4px;
-            font-size: 15px;
-            letter-spacing: 0;
-            line-height: 1.2;
-        }
-        .r-grand-amount {
-            font-size: 20px;
+            margin-top: 6px;
+            padding-top: 4px;
+            font-size: 12px;
             font-weight: 800;
-            margin-top: 2px;
-            line-height: 1.15;
-            letter-spacing: 0;
         }
         .r-bill-status {
             margin-top: 14px;
@@ -204,21 +196,21 @@
 
     <div class="totals-block">
         <div class="tot-row"><span class="muted">Subtotal</span><span>{{ $currency }}{{ fmt_num((float) $order->subtotal, 2) }}</span></div>
-        @if((float) $order->discount_total > 0)
-            <div class="tot-row"><span class="muted">Discount</span><span>-{{ $currency }}{{ fmt_num((float) $order->discount_total, 2) }}</span></div>
-        @endif
         @if((float) ($order->service_charge_total ?? 0) > 0)
             <div class="tot-row">
                 <span class="muted">Service Charges</span>
                 <span>{{ $currency }}{{ fmt_num((float) $order->service_charge_total, 2) }}</span>
             </div>
         @endif
+        @if((float) $order->discount_total > 0)
+            <div class="tot-row"><span class="muted">Discount</span><span>-{{ $currency }}{{ fmt_num((float) $order->discount_total, 2) }}</span></div>
+        @endif
         @if((float) $order->tax_total > 0)
             <div class="tot-row"><span class="muted">Tax</span><span>{{ $currency }}{{ fmt_num((float) $order->tax_total, 2) }}</span></div>
         @endif
-        <div class="r-grand-total center bold">
-            <div>{{ !empty($isUnpaid) ? 'AMOUNT DUE' : 'Grand Total' }}</div>
-            <div class="r-grand-amount">{{ $currency }}{{ fmt_num((float) $order->grand_total, 2) }}</div>
+        <div class="tot-row r-grand-total">
+            <span>{{ !empty($isUnpaid) ? 'AMOUNT DUE' : 'Grand Total' }}</span>
+            <span>{{ $currency }}{{ fmt_num((float) $order->grand_total, 2) }}</span>
         </div>
         @if(empty($isUnpaid) && !$order->is_credit && $order->payments->isNotEmpty())
             <div class="pay-heading">Payment</div>

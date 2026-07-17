@@ -469,22 +469,19 @@ final class NetworkPrinterService
         // Totals
         $money = static fn (float $n): string => $currency . number_format($n, 0);
         $out .= $this->twoCol('Subtotal', $money((float) $order->subtotal)) . "\n";
-        if ((float) $order->discount_total > 0) {
-            $out .= $this->twoCol('Discount', '-' . $money((float) $order->discount_total)) . "\n";
-        }
         if ((float) ($order->service_charge_total ?? 0) > 0) {
             $out .= $this->twoCol('Service Charges', $money((float) $order->service_charge_total)) . "\n";
+        }
+        if ((float) $order->discount_total > 0) {
+            $out .= $this->twoCol('Discount', '-' . $money((float) $order->discount_total)) . "\n";
         }
         if ((float) $order->tax_total > 0) {
             $out .= $this->twoCol('Tax', $money((float) $order->tax_total)) . "\n";
         }
 
         $grandLabel = $isPaid ? 'Grand Total' : 'AMOUNT DUE';
-        $grandAmount = $currency . number_format((float) $order->grand_total, 0);
-        $out .= "\n" . self::ALIGN_CENTER . self::BOLD_ON . self::SIZE_WIDE;
-        $out .= $this->clipWide($grandLabel) . "\n";
-        $out .= $this->clipWide($grandAmount) . "\n";
-        $out .= self::SIZE_NORMAL . self::BOLD_OFF;
+        $grandAmount = $money((float) $order->grand_total);
+        $out .= self::BOLD_ON . $this->twoCol($grandLabel, $grandAmount) . self::BOLD_OFF . "\n";
 
         // Payment / Received / Change (paid slip)
         if ($isPaid && ! $order->is_credit) {
