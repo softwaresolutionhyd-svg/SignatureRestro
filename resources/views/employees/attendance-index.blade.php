@@ -65,6 +65,34 @@
     color: #6c757d;
     font-weight: 500;
 }
+.attendance-grid th.att-today-col,
+.attendance-grid td.att-today-col {
+    background: #fff7ed !important;
+    box-shadow: inset 0 0 0 2px #f97316;
+}
+.attendance-grid thead th.att-today-col {
+    background: #ffedd5 !important;
+    color: #c2410c;
+}
+.attendance-grid thead th.att-today-col small {
+    color: #ea580c;
+    font-weight: 700;
+}
+.attendance-grid thead th.att-today-col .att-today-badge {
+    display: block;
+    font-size: 0.58rem;
+    font-weight: 800;
+    color: #fff;
+    background: #f97316;
+    border-radius: 3px;
+    padding: 0 3px;
+    margin-top: 2px;
+    line-height: 1.3;
+}
+.attendance-grid select.att-cell.att-today-cell {
+    border-color: #f97316;
+    box-shadow: 0 0 0 1px #fdba74;
+}
 .attendance-grid select.att-cell {
     width: 44px;
     min-width: 44px;
@@ -98,6 +126,7 @@
 @include('hr.partials.subnav')
 @php
     $attEmployeeNoQs = $employeeNo !== '' ? '&employee_no='.urlencode($employeeNo) : '';
+    $todayKey = now()->format('Y-m-d');
 @endphp
 
     @if (session('status'))
@@ -181,9 +210,13 @@
                     <tr>
                         <th class="att-sticky-col">Employee</th>
                         @foreach($dates as $date)
-                            <th class="att-day-head">
+                            @php $dateKey = $date->format('Y-m-d'); $isToday = $dateKey === $todayKey; @endphp
+                            <th class="att-day-head {{ $isToday ? 'att-today-col' : '' }}">
                                 {{ $date->format('d') }}
                                 <small>{{ $date->format('D') }}</small>
+                                @if($isToday)
+                                    <span class="att-today-badge">Aaj</span>
+                                @endif
                             </th>
                         @endforeach
                         <th class="att-sticky-summary">P</th>
@@ -214,10 +247,14 @@
                             @foreach($dates as $date)
                                 @php
                                     $dateKey = $date->format('Y-m-d');
+                                    $isToday = $dateKey === $todayKey;
                                     $val = $rowGrid[$dateKey] ?? '';
                                     $cls = $val === 'P' ? 'att-p' : ($val === 'A' ? 'att-a' : ($val === 'H' ? 'att-h' : ''));
+                                    if ($isToday) {
+                                        $cls .= ' att-today-cell';
+                                    }
                                 @endphp
-                                <td>
+                                <td class="{{ $isToday ? 'att-today-col' : '' }}">
                                     <select class="form-select form-select-sm att-cell {{ $cls }}"
                                             data-att-cell
                                             data-employee-id="{{ $employee->id }}"
@@ -304,6 +341,14 @@
         });
         if (jsonInput) jsonInput.value = JSON.stringify(payload);
     });
+
+    const wrap = document.querySelector('.attendance-grid-wrap');
+    const todayHead = document.querySelector('th.att-today-col');
+    if (wrap && todayHead) {
+        const stickyWidth = document.querySelector('.attendance-grid .att-sticky-col')?.offsetWidth || 160;
+        const targetLeft = todayHead.offsetLeft - stickyWidth - 12;
+        wrap.scrollLeft = Math.max(0, targetLeft);
+    }
 })();
 </script>
 @endsection
