@@ -101,9 +101,6 @@ class LoginController extends Controller
     {
         WebAuthSession::establish($request, $user);
         $this->authenticated($request, $user);
-
-        $username = $user->loginUsername() ?? $user->email;
-        session()->flash('success', "Signed in as {$username} ({$user->name}).");
     }
 
     public function logout(Request $request)

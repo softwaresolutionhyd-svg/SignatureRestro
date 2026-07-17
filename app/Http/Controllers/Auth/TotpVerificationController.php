@@ -76,9 +76,6 @@ class TotpVerificationController extends Controller
             session()->flash('warning', 'Security: pehle naya password set karein.');
         }
 
-        $username = $result['user']->loginUsername() ?? $result['user']->email;
-        session()->flash('success', "Signed in as {$username} ({$result['user']->name}).");
-
         return redirect()->intended('/dashboard');
     }
 }
