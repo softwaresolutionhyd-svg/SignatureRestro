@@ -115,22 +115,17 @@ if (Ensure-ApacheLine -Path $HttpdConf -Pattern '^\s*LoadModule\s+ssl_module' -I
 if (Ensure-ApacheLine -Path $HttpdConf -Pattern '^\s*Listen\s+443\s*$' -InsertAfter '^\s*Listen\s+80\s*$' -NewLine 'Listen 443') { $changed = $true }
 
 $vhost = @"
-# Signature LAN HTTPS — auto-generated
+# Signature LAN HTTPS — auto-generated (HTTP redirect OFF — pehle HTTPS test karein)
 <VirtualHost *:443>
     ServerName $ServerIp
     DocumentRoot "$ProjectRoot"
     SSLEngine on
-    SSLCertificateFile "$SslDir/signature-lan.pem"
-    SSLCertificateKeyFile "$SslDir/signature-lan-key.pem"
+    SSLCertificateFile "C:/laragon/etc/ssl/signature-lan/signature-lan.pem"
+    SSLCertificateKeyFile "C:/laragon/etc/ssl/signature-lan/signature-lan-key.pem"
     <Directory "$ProjectRoot">
         AllowOverride All
         Require all granted
     </Directory>
-</VirtualHost>
-
-<VirtualHost *:80>
-    ServerName $ServerIp
-    Redirect permanent / https://${ServerIp}/
 </VirtualHost>
 "@
 
