@@ -62,6 +62,23 @@ class CloudSyncController extends Controller
         return response()->json($result);
     }
 
+    /** Hosting → cafe: many tables + per-table cursors in one request (fast). */
+    public function pullMulti(Request $request, CloudSyncService $sync): JsonResponse
+    {
+        $data = $request->validate([
+            'cursors' => ['required', 'array', 'min:1', 'max:120'],
+            'cursors.*' => ['nullable', 'string', 'max:40'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:500'],
+        ]);
+
+        $result = $sync->exportPullMulti(
+            $data['cursors'],
+            (int) ($data['limit'] ?? 400)
+        );
+
+        return response()->json($result);
+    }
+
     /** Hosting → cafe: export specific rows by id (related POS orders for credit sales). */
     public function pullIds(Request $request, CloudSyncService $sync): JsonResponse
     {

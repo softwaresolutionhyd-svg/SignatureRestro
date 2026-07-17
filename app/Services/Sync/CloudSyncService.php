@@ -529,6 +529,152 @@ class CloudSyncService
     }
 
     /**
+     * Hosting: export many tables in one response using per-table cursors (fast pull).
+     *
+     * @param  array<string, ?string>  $cursors  table => since iso/null
+     * @return array{ok: bool, changes: list<array<string, mixed>>, cursors: array<string, string>, has_more: bool, message: string}
+     */
+    public function exportPullMulti(array $cursors, int $limit = 400): array
+    {
+        if (! $this->isCloudRole()) {
+            return [
+                'ok' => false,
+                'changes' => [],
+                'cursors' => [],
+                'has_more' => false,
+                'message' => 'Pull export only runs on cloud role.',
+            ];
+        }
+
+        $limit = max(1, min(500, $limit));
+        $lookbackDays = max(7, (int) config('sync.pull_lookback_days', 120));
+        $lookback = now()->subDays($lookbackDays);
+        $changes = [];
+        $nextCursors = [];
+        $hasMore = false;
+        $remaining = $limit;
+
+        $order = [
+            'companies', 'users', 'settings', 'contacts',
+            'inventory_products', 'inventory_product_stocks',
+            'pos_orders', 'pos_order_items', 'pos_payments', 'credit_ledger',
+        ];
+        $tables = array_keys($cursors);
+        usort($tables, function ($a, $b) use ($order) {
+            $ia = array_search($a, $order, true);
+            $ib = array_search($b, $order, true);
+
+            return ($ia === false ? 100 : $ia) <=> ($ib === false ? 100 : $ib);
+        });
+
+        foreach ($tables as $table) {
+            if (! is_string($table) || $table === '' || $this->recorder->isExcluded($table)) {
+                continue;
+            }
+
+            $sinceRaw = $cursors[$table] ?? null;
+            $sinceAt = null;
+            if (is_string($sinceRaw) && trim($sinceRaw) !== '') {
+                try {
+                    $sinceAt = \Carbon\Carbon::parse($sinceRaw);
+                } catch (Throwable) {
+                    $sinceAt = null;
+                }
+            }
+            $hasSinceCursor = $sinceAt !== null;
+            if ($sinceAt === null) {
+                $sinceAt = $lookback->copy();
+            }
+
+            $tableNext = $sinceAt->copy();
+
+            if ($remaining <= 0) {
+                $hasMore = true;
+                $nextCursors[$table] = $sinceAt->toIso8601String();
+
+                continue;
+            }
+
+            $connection = $this->connectionForTable($table);
+            if ($connection === null) {
+                $nextCursors[$table] = $sinceAt->toIso8601String();
+
+                continue;
+            }
+
+            $schema = Schema::connection($connection->getName());
+            if (! $schema->hasTable($table) || ! $schema->hasColumn($table, 'id')) {
+                $nextCursors[$table] = $sinceAt->toIso8601String();
+
+                continue;
+            }
+
+            $q = $connection->table($table);
+            if ($schema->hasColumn($table, 'updated_at')) {
+                $q->where('updated_at', '>', $sinceAt->toDateTimeString())
+                    ->orderBy('updated_at')
+                    ->orderBy('id');
+            } elseif ($schema->hasColumn($table, 'created_at')) {
+                $q->where('created_at', '>', $sinceAt->toDateTimeString())
+                    ->orderBy('created_at')
+                    ->orderBy('id');
+            } else {
+                if ($hasSinceCursor) {
+                    $nextCursors[$table] = $sinceAt->toIso8601String();
+
+                    continue;
+                }
+                $q->orderBy('id');
+            }
+
+            $rows = $q->limit($remaining + 1)->get();
+            if ($rows->count() > $remaining) {
+                $hasMore = true;
+                $rows = $rows->take($remaining);
+            }
+
+            foreach ($rows as $row) {
+                $attrs = (array) $row;
+                $id = $attrs['id'] ?? null;
+                if ($id === null) {
+                    continue;
+                }
+                $changes[] = [
+                    'id' => 0,
+                    'table' => $table,
+                    'key' => (string) $id,
+                    'action' => 'upsert',
+                    'payload' => $attrs,
+                ];
+                $stamp = $attrs['updated_at'] ?? $attrs['created_at'] ?? null;
+                if ($stamp) {
+                    try {
+                        $ts = \Carbon\Carbon::parse($stamp);
+                        if ($ts->gt($tableNext)) {
+                            $tableNext = $ts;
+                        }
+                    } catch (Throwable) {
+                        // ignore
+                    }
+                }
+                $remaining--;
+            }
+
+            $nextCursors[$table] = $tableNext->toIso8601String();
+        }
+
+        return [
+            'ok' => true,
+            'changes' => $changes,
+            'cursors' => $nextCursors,
+            'has_more' => $hasMore,
+            'message' => count($changes) > 0
+                ? 'Exported '.count($changes).' row(s).'
+                : 'No newer rows.',
+        ];
+    }
+
+    /**
      * @param  list<int>  $ids
      * @return array{ok: bool, changes: list<array<string, mixed>>, message: string}
      */
@@ -581,11 +727,11 @@ class CloudSyncService
     }
 
     /**
-     * Push local outbox then pull hosting changes (full two-way when auto_pull on).
+     * Push local outbox then optionally pull hosting changes.
      *
      * @return array{ok: bool, pushed: int, pending: int, pulled: int, failed: int, message: string, online: bool}
      */
-    public function syncBoth(bool $force = false, bool $resetPullCursors = false): array
+    public function syncBoth(bool $force = false, bool $resetPullCursors = false, bool $withPull = true): array
     {
         $push = $this->push($force);
         $pull = [
@@ -596,11 +742,11 @@ class CloudSyncService
             'online' => $this->remoteReachable(),
         ];
 
-        if (config('sync.auto_pull', true)) {
+        if ($withPull && config('sync.auto_pull', true)) {
             $pull = $this->pull($force, $resetPullCursors);
         }
 
-        $online = (bool) ($pull['online'] ?? false);
+        $online = (bool) ($pull['online'] ?? $this->remoteReachable());
         $ok = (($push['ok'] ?? false) || (($push['pending'] ?? 0) === 0)) && ($pull['ok'] ?? false);
 
         return [
@@ -674,66 +820,36 @@ class CloudSyncService
         $pulled = 0;
         $failed = 0;
         $posOrderIds = [];
-        $pullTimeout = max(12, (int) config('sync.push_timeout_seconds', 20));
-        $limit = max(100, min(400, (int) config('sync.batch_size', 250)));
-        $parallel = max(1, min(8, (int) config('sync.pull_parallel', 6)));
+        $pullTimeout = max(10, (int) config('sync.push_timeout_seconds', 20));
+        $limit = max(150, min(500, (int) config('sync.batch_size', 250)));
 
         try {
-            $chunkIndex = 0;
-            foreach (array_chunk($tables, $parallel) as $chunk) {
-                if ($chunkIndex > 0) {
-                    usleep(150000); // 150ms between parallel batches — avoid hosting 429
+            $multi = $this->pullViaMulti($tables, $url, $token, $pullTimeout, $limit, $posOrderIds);
+            if ($multi !== null) {
+                $pulled += $multi['pulled'];
+                $failed += $multi['failed'];
+                if ($multi['fatal'] !== null) {
+                    return [
+                        'ok' => false,
+                        'pulled' => $pulled,
+                        'failed' => $failed,
+                        'message' => $multi['fatal'],
+                        'online' => $multi['online'],
+                    ];
                 }
-                $chunkIndex++;
-
-                $responses = Http::pool(function ($pool) use ($chunk, $url, $token, $pullTimeout, $limit) {
-                    foreach ($chunk as $table) {
-                        $since = $this->getMeta('last_pull_at:'.$table);
-                        $pool->as($table)
-                            ->timeout($pullTimeout)
-                            ->connectTimeout(2)
-                            ->withToken($token)
-                            ->acceptJson()
-                            ->get($url.'/api/sync/pull', [
-                                'since' => $since,
-                                'tables' => [$table],
-                                'limit' => $limit,
-                            ]);
-                    }
-                });
-
-                foreach ($chunk as $table) {
-                    $response = $responses[$table] ?? null;
-                    if ($response instanceof \Illuminate\Http\Client\Response && $response->status() === 429) {
-                        usleep(800000);
-                        $response = Http::timeout($pullTimeout)
-                            ->connectTimeout(2)
-                            ->withToken($token)
-                            ->acceptJson()
-                            ->get($url.'/api/sync/pull', [
-                                'since' => $this->getMeta('last_pull_at:'.$table),
-                                'tables' => [$table],
-                                'limit' => $limit,
-                            ]);
-                    }
-                    if (! $response instanceof \Illuminate\Http\Client\Response) {
-                        $failed++;
-
-                        continue;
-                    }
-
-                    $apply = $this->consumePullResponse($response, $table, $url, $token, $pullTimeout, $limit, $posOrderIds);
-                    if ($apply['fatal'] !== null) {
-                        return [
-                            'ok' => false,
-                            'pulled' => $pulled + $apply['pulled'],
-                            'failed' => $failed + $apply['failed'],
-                            'message' => $apply['fatal'],
-                            'online' => $apply['online'],
-                        ];
-                    }
-                    $pulled += $apply['pulled'];
-                    $failed += $apply['failed'];
+            } else {
+                // Hosting without pull-multi: fall back to a few parallel single-table calls
+                $fallback = $this->pullViaParallel($tables, $url, $token, $pullTimeout, $limit, $posOrderIds);
+                $pulled += $fallback['pulled'];
+                $failed += $fallback['failed'];
+                if ($fallback['fatal'] !== null) {
+                    return [
+                        'ok' => false,
+                        'pulled' => $pulled,
+                        'failed' => $failed,
+                        'message' => $fallback['fatal'],
+                        'online' => $fallback['online'],
+                    ];
                 }
             }
 
@@ -766,6 +882,176 @@ class CloudSyncService
     }
 
     /**
+     * One HTTP round-trip for many tables (requires hosting /api/sync/pull-multi).
+     *
+     * @param  list<string>  $tables
+     * @param  array<int, int>  $posOrderIds
+     * @return array{pulled: int, failed: int, fatal: ?string, online: bool}|null  null = endpoint missing
+     */
+    protected function pullViaMulti(array $tables, string $url, string $token, int $pullTimeout, int $limit, array &$posOrderIds): ?array
+    {
+        $pulled = 0;
+        $failed = 0;
+        $loops = 0;
+
+        do {
+            $loops++;
+            $cursors = [];
+            foreach ($tables as $table) {
+                $cursors[$table] = $this->getMeta('last_pull_at:'.$table);
+            }
+
+            try {
+                $response = Http::timeout($pullTimeout)
+                    ->connectTimeout(2)
+                    ->withToken($token)
+                    ->acceptJson()
+                    ->post($url.'/api/sync/pull-multi', [
+                        'cursors' => $cursors,
+                        'limit' => $limit,
+                    ]);
+            } catch (Throwable) {
+                return null;
+            }
+
+            if ($response->status() === 404 || $response->status() === 405) {
+                return null;
+            }
+
+            if ($response->status() === 429) {
+                usleep(500000);
+                $response = Http::timeout($pullTimeout)
+                    ->connectTimeout(2)
+                    ->withToken($token)
+                    ->acceptJson()
+                    ->post($url.'/api/sync/pull-multi', [
+                        'cursors' => $cursors,
+                        'limit' => $limit,
+                    ]);
+            }
+
+            if (! $response->successful()) {
+                return [
+                    'pulled' => $pulled,
+                    'failed' => $failed,
+                    'fatal' => 'Hosting pull-multi failed: HTTP '.$response->status(),
+                    'online' => false,
+                ];
+            }
+
+            $body = $response->json();
+            if (! is_array($body) || ($body['ok'] ?? false) !== true) {
+                return [
+                    'pulled' => $pulled,
+                    'failed' => $failed,
+                    'fatal' => (string) ($body['message'] ?? 'Hosting pull-multi rejected.'),
+                    'online' => true,
+                ];
+            }
+
+            $changes = is_array($body['changes'] ?? null) ? $body['changes'] : [];
+            $changes = $this->filterPullChangesSkippingLocalPending($changes);
+            if ($changes !== []) {
+                $result = $this->applyIncoming($changes);
+                $pulled += count($result['applied']);
+                $failed += count($result['failed']);
+                foreach ($changes as $change) {
+                    if (($change['table'] ?? '') === 'credit_ledger' && is_array($change['payload'] ?? null)) {
+                        $oid = (int) ($change['payload']['pos_order_id'] ?? 0);
+                        if ($oid > 0) {
+                            $posOrderIds[$oid] = $oid;
+                        }
+                    }
+                }
+            }
+
+            $nextCursors = is_array($body['cursors'] ?? null) ? $body['cursors'] : [];
+            foreach ($nextCursors as $table => $since) {
+                if (! is_string($table) || ! is_string($since) || $since === '') {
+                    continue;
+                }
+                $this->setMeta('last_pull_at:'.$table, $since);
+                $this->setMeta('last_pull_at', $since);
+            }
+
+            $hasMore = (bool) ($body['has_more'] ?? false);
+        } while ($hasMore && $loops < 20);
+
+        return ['pulled' => $pulled, 'failed' => $failed, 'fatal' => null, 'online' => true];
+    }
+
+    /**
+     * @param  list<string>  $tables
+     * @param  array<int, int>  $posOrderIds
+     * @return array{pulled: int, failed: int, fatal: ?string, online: bool}
+     */
+    protected function pullViaParallel(array $tables, string $url, string $token, int $pullTimeout, int $limit, array &$posOrderIds): array
+    {
+        $pulled = 0;
+        $failed = 0;
+        $parallel = max(1, min(4, (int) config('sync.pull_parallel', 3)));
+        $chunkIndex = 0;
+
+        foreach (array_chunk($tables, $parallel) as $chunk) {
+            if ($chunkIndex > 0) {
+                usleep(80000);
+            }
+            $chunkIndex++;
+
+            $responses = Http::pool(function ($pool) use ($chunk, $url, $token, $pullTimeout, $limit) {
+                foreach ($chunk as $table) {
+                    $since = $this->getMeta('last_pull_at:'.$table);
+                    $pool->as($table)
+                        ->timeout($pullTimeout)
+                        ->connectTimeout(2)
+                        ->withToken($token)
+                        ->acceptJson()
+                        ->get($url.'/api/sync/pull', [
+                            'since' => $since,
+                            'tables' => [$table],
+                            'limit' => $limit,
+                        ]);
+                }
+            });
+
+            foreach ($chunk as $table) {
+                $response = $responses[$table] ?? null;
+                if ($response instanceof \Illuminate\Http\Client\Response && $response->status() === 429) {
+                    usleep(400000);
+                    $response = Http::timeout($pullTimeout)
+                        ->connectTimeout(2)
+                        ->withToken($token)
+                        ->acceptJson()
+                        ->get($url.'/api/sync/pull', [
+                            'since' => $this->getMeta('last_pull_at:'.$table),
+                            'tables' => [$table],
+                            'limit' => $limit,
+                        ]);
+                }
+                if (! $response instanceof \Illuminate\Http\Client\Response) {
+                    $failed++;
+
+                    continue;
+                }
+
+                $apply = $this->consumePullResponse($response, $table, $url, $token, $pullTimeout, $limit, $posOrderIds);
+                if ($apply['fatal'] !== null) {
+                    return [
+                        'pulled' => $pulled + $apply['pulled'],
+                        'failed' => $failed + $apply['failed'],
+                        'fatal' => $apply['fatal'],
+                        'online' => $apply['online'],
+                    ];
+                }
+                $pulled += $apply['pulled'];
+                $failed += $apply['failed'];
+            }
+        }
+
+        return ['pulled' => $pulled, 'failed' => $failed, 'fatal' => null, 'online' => true];
+    }
+
+    /**
      * Background: hot tables every cycle + rotate cold tables.
      * Force: every syncable table.
      *
@@ -789,7 +1075,7 @@ class CloudSyncService
         }
 
         $cold = array_values(array_diff($all, $hot));
-        $perCycle = max(4, (int) config('sync.pull_cold_per_cycle', 12));
+        $perCycle = max(3, (int) config('sync.pull_cold_per_cycle', 5));
         if ($cold === []) {
             return $hot !== [] ? $hot : $all;
         }

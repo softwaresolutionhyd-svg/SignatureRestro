@@ -4,12 +4,14 @@
     const statusUrl = @json(route('sync.status'));
     const pushUrl = @json(route('sync.push'));
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-    const heartbeatMs = {{ max(10, (int) config('sync.heartbeat_seconds', 20)) * 1000 }};
+    const heartbeatMs = {{ max(8, (int) config('sync.heartbeat_seconds', 12)) * 1000 }};
     const autoPush = {{ config('sync.auto_push_heartbeat') ? 'true' : 'false' }};
+    const pullEvery = {{ max(2, (int) config('sync.heartbeat_pull_every', 4)) }};
     const badge = document.getElementById('sync-status-badge');
     const dot = document.getElementById('sync-status-dot');
     const label = document.getElementById('sync-status-label');
     let syncing = false;
+    let pullTick = 0;
     let lastStatus = { online: false, pending: 0 };
 
     function paint(status) {
@@ -50,22 +52,34 @@
             if (!res.ok) return;
             const data = await res.json();
             paint(data);
-            // Full two-way sync on heartbeat (server debounce ~15s keeps it light)
-            if (autoPush && navigator.onLine && data.online && !syncing) {
-                // Pending changes: sync immediately. Idle: still pull hot tables.
-                pushNow(Number(data.pending || 0) > 0);
+            if (!autoPush || !navigator.onLine || !data.online || syncing) return;
+
+            const pending = Number(data.pending || 0);
+            if (pending > 0) {
+                // Fast path: push only (no heavy pull)
+                syncNow(true, false);
+                return;
+            }
+
+            pullTick++;
+            if (pullTick >= pullEvery) {
+                pullTick = 0;
+                syncNow(false, true);
             }
         } catch (e) {
             paint({ online: false, pending: lastStatus.pending || 0 });
         }
     }
 
-    async function pushNow(force) {
+    async function syncNow(force, withPull) {
         if (syncing || !navigator.onLine) return;
         syncing = true;
         paint({ online: true, pending: lastStatus.pending || 0 });
         try {
-            const res = await fetch(pushUrl + (force ? '?force=1' : ''), {
+            const qs = new URLSearchParams();
+            if (force) qs.set('force', '1');
+            qs.set('pull', withPull ? '1' : '0');
+            const res = await fetch(pushUrl + '?' + qs.toString(), {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
@@ -101,7 +115,8 @@
 
     if (badge) {
         badge.addEventListener('click', function () {
-            pushNow(true);
+            // Manual: full two-way
+            syncNow(true, true);
         });
     }
 

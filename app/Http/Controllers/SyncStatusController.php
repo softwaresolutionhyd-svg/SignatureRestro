@@ -23,7 +23,9 @@ class SyncStatusController extends Controller
         }
 
         $force = $request->boolean('force');
-        $result = $sync->syncBoth($force, false);
+        // Default: pull with sync. pass pull=0 for push-only (fast path after local saves).
+        $withPull = $request->has('pull') ? $request->boolean('pull') : (bool) config('sync.auto_pull', true);
+        $result = $sync->syncBoth($force, false, $withPull);
 
         return response()->json([
             'ok' => $result['ok'] || (($result['pending'] ?? 0) === 0 && ($result['online'] ?? false)),

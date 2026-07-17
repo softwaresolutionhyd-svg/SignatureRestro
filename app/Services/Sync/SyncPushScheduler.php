@@ -20,7 +20,8 @@ class SyncPushScheduler
 
         app()->terminating(function () {
             try {
-                app(CloudSyncService::class)->syncBoth(false);
+                // Push-only on request end — keep UI/API snappy; pull runs via heartbeat/scheduler.
+                app(CloudSyncService::class)->push(false);
             } catch (\Throwable) {
                 // Browser heartbeat / scheduler will retry.
             } finally {
