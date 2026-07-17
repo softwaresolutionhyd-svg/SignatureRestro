@@ -571,7 +571,7 @@ final class OrderTakerService
         $order->fill($updatePayload);
         $order->save();
 
-        $order->items()->delete();
+        \App\Services\Sync\SyncAwareDelete::relation($order->items());
         foreach ($itemsWithKitchenFlags as $line) {
             PosOrderItem::create(['order_id' => $order->id] + $line);
         }

@@ -8,6 +8,7 @@ use App\Models\ManufacturingBom;
 use App\Models\ManufacturingBomLine;
 use App\Models\ManufacturingOrder;
 use App\Models\Setting;
+use App\Services\Sync\SyncAwareDelete;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -168,7 +169,7 @@ class BomController extends Controller
 
         DB::connection('tenant')->transaction(function () use ($bom, $data, $lines) {
             $bom->update($data);
-            $bom->lines()->delete();
+            SyncAwareDelete::relation($bom->lines());
             $this->syncLines($bom, $lines);
             $bom->refresh()->load(['lines.component.uomConversions']);
             $bom->syncFinishedProductStandardCost();

@@ -92,6 +92,119 @@ class SyncOutboxRecorder
         app(SyncPushScheduler::class)->schedule();
     }
 
+    /** Queue delete for a table row by primary key (when Eloquent events will not fire). */
+    public function recordDeleteKey(string $table, string|int $key): void
+    {
+        if (! $this->shouldRecord() || $this->isExcluded($table) || ! $this->syncQueueExists()) {
+            return;
+        }
+
+        $key = (string) $key;
+        if ($key === '') {
+            return;
+        }
+
+        $this->writeQueueItem($table, $key, 'delete', null);
+    }
+
+    /**
+     * Queue upsert for a raw table row (pivots / Query Builder writes).
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    public function recordUpsertRow(string $table, string|int $key, array $payload): void
+    {
+        if (! $this->shouldRecord() || $this->isExcluded($table) || ! $this->syncQueueExists()) {
+            return;
+        }
+
+        $key = (string) $key;
+        if ($key === '') {
+            return;
+        }
+
+        foreach ($payload as $k => $v) {
+            if ($v instanceof \DateTimeInterface) {
+                $payload[$k] = $v->format('Y-m-d H:i:s');
+            } elseif (is_object($v)) {
+                $payload[$k] = (string) $v;
+            }
+        }
+
+        $this->writeQueueItem($table, $key, 'upsert', $payload);
+    }
+
+    /**
+     * After a BelongsToMany::sync(), re-queue all pivot rows for the parent so cloud matches.
+     *
+     * @param  list<int|string>  $oldPivotIds
+     */
+    public function resyncPivotTable(string $table, string $foreignKey, int|string $foreignId, array $oldPivotIds = []): void
+    {
+        if (! $this->shouldRecord() || $this->isExcluded($table) || ! $this->syncQueueExists()) {
+            return;
+        }
+
+        if (! Schema::hasTable($table)) {
+            return;
+        }
+
+        $newRows = \Illuminate\Support\Facades\DB::table($table)
+            ->where($foreignKey, $foreignId)
+            ->get();
+
+        $newIds = $newRows->pluck('id')->map(fn ($id) => (string) $id)->all();
+        foreach ($oldPivotIds as $oldId) {
+            $oldId = (string) $oldId;
+            if ($oldId !== '' && ! in_array($oldId, $newIds, true)) {
+                $this->recordDeleteKey($table, $oldId);
+            }
+        }
+
+        foreach ($newRows as $row) {
+            $attrs = (array) $row;
+            $id = $attrs['id'] ?? null;
+            if ($id === null) {
+                continue;
+            }
+            $this->recordUpsertRow($table, $id, $attrs);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $payload
+     */
+    private function writeQueueItem(string $table, string $key, string $action, ?array $payload): void
+    {
+        $pending = SyncQueueItem::query()
+            ->whereNull('synced_at')
+            ->where('table_name', $table)
+            ->where('record_key', $key)
+            ->orderByDesc('id')
+            ->first();
+
+        if ($pending) {
+            $pending->fill([
+                'action' => $action,
+                'payload' => $payload,
+                'last_error' => null,
+            ])->save();
+
+            app(SyncPushScheduler::class)->schedule();
+
+            return;
+        }
+
+        SyncQueueItem::query()->create([
+            'table_name' => $table,
+            'record_key' => $key,
+            'action' => $action,
+            'payload' => $payload,
+        ]);
+
+        app(SyncPushScheduler::class)->schedule();
+    }
+
     public function isExcluded(string $table): bool
     {
         return in_array($table, config('sync.exclude_tables', []), true);

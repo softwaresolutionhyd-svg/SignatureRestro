@@ -8,6 +8,7 @@ use App\Models\JournalEntry;
 use App\Models\JournalEntryLine;
 use App\Models\Setting;
 use App\Services\DefaultChartOfAccounts;
+use App\Services\Sync\SyncAwareDelete;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -126,7 +127,7 @@ class JournalEntryController extends Controller
             $entry->fill($data);
             $entry->save();
 
-            $entry->lines()->delete();
+            SyncAwareDelete::relation($entry->lines());
             $this->syncLines($entry, $lines);
             $entry->recalculateTotals();
             $entry->save();

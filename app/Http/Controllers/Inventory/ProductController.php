@@ -17,6 +17,8 @@ use App\Models\ManufacturingBom;
 use App\Support\ProductCosting;
 use App\Services\ProductImageService;
 use App\Services\InventoryStockService;
+use App\Services\Sync\SyncAwareDelete;
+use App\Services\Sync\SyncOutboxRecorder;
 use App\Models\ManufacturingBomLine;
 use App\Models\PosOrderItem;
 use App\Models\PurchaseOrderLine;
@@ -915,7 +917,9 @@ class ProductController extends Controller
             $product->refresh();
 
             if ($request->has('conversions')) {
-                InventoryProductUomConversion::query()->where('product_id', $product->id)->delete();
+                SyncAwareDelete::query(
+                    InventoryProductUomConversion::query()->where('product_id', $product->id)
+                );
 
                 $conversions = $request->input('conversions', []);
                 foreach ($conversions as $c) {
@@ -1159,8 +1163,23 @@ class ProductController extends Controller
             $syncData[$departmentId] = ['company_id' => $companyId];
         }
 
+        $oldPivotIds = [];
+        if (\Illuminate\Support\Facades\Schema::hasTable('inventory_product_department')) {
+            $oldPivotIds = \Illuminate\Support\Facades\DB::table('inventory_product_department')
+                ->where('product_id', $product->id)
+                ->pluck('id')
+                ->all();
+        }
+
         $product->departments()->sync($syncData);
         $product->update(['department_id' => $departmentIds[0] ?? null]);
+
+        app(SyncOutboxRecorder::class)->resyncPivotTable(
+            'inventory_product_department',
+            'product_id',
+            $product->id,
+            $oldPivotIds
+        );
     }
 
     /**

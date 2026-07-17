@@ -133,7 +133,9 @@ final class PurchaseCreditLedgerService
 
     private function removeEntriesForOrder(int $orderId): void
     {
-        CreditLedger::query()->where('purchase_order_id', $orderId)->delete();
+        \App\Services\Sync\SyncAwareDelete::query(
+            CreditLedger::query()->where('purchase_order_id', $orderId)
+        );
     }
 
     private function balanceExcluding(int $contactId, ?int $excludeLedgerId): float

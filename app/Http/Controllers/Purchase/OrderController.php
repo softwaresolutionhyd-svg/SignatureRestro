@@ -13,6 +13,7 @@ use App\Models\PurchaseVendor;
 use App\Models\Setting;
 use App\Services\AutoJournalService;
 use App\Services\PurchaseCreditLedgerService;
+use App\Services\Sync\SyncAwareDelete;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -288,7 +289,9 @@ class OrderController extends Controller
 
     private function syncLinesAndTotals(PurchaseOrder $order, array $lines): void
     {
-        PurchaseOrderLine::query()->where('purchase_order_id', $order->id)->delete();
+        SyncAwareDelete::query(
+            PurchaseOrderLine::query()->where('purchase_order_id', $order->id)
+        );
 
         $subtotal = 0.0;
         $taxTotal = 0.0;

@@ -40,6 +40,7 @@ use App\Services\NetworkPrinterService;
 use App\Services\OrderTakerService;
 use App\Services\PosPendingBillsService;
 use App\Services\PosSessionSummaryService;
+use App\Services\Sync\SyncAwareDelete;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
@@ -1295,7 +1296,7 @@ class PosController extends Controller
                     'user_id' => Auth::id(),
                 ]);
                 $order = $existingDraft;
-                $order->items()->delete();
+                SyncAwareDelete::relation($order->items());
             } else {
                 $order = PosOrder::create([
                     'order_no'   => DailyOrderNumber::next(),
@@ -1308,8 +1309,8 @@ class PosController extends Controller
                 $this->applyInventoryForPos($order, $item);
             }
 
-            CreditLedger::query()->where('pos_order_id', $order->id)->delete();
-            $order->payments()->delete();
+            SyncAwareDelete::query(CreditLedger::query()->where('pos_order_id', $order->id));
+            SyncAwareDelete::relation($order->payments());
 
             if ($isCredit) {
                 $contact        = Contact::findOrFail($contactId);
@@ -1630,7 +1631,7 @@ class PosController extends Controller
                         'session_id' => $session->id,
                         'user_id' => Auth::id(),
                     ]);
-                    $existing->items()->delete();
+                    SyncAwareDelete::relation($existing->items());
                     foreach ($itemsWithKitchenFlags as $item) {
                         PosOrderItem::create(['order_id' => $existing->id] + $item);
                     }
@@ -1734,8 +1735,8 @@ class PosController extends Controller
                 }
 
                 $this->reversePaidOrderInventory($locked);
-                CreditLedger::query()->where('pos_order_id', $locked->id)->delete();
-                $locked->payments()->delete();
+                SyncAwareDelete::query(CreditLedger::query()->where('pos_order_id', $locked->id));
+                SyncAwareDelete::relation($locked->payments());
                 $this->deletePosJournalEntries($locked);
 
                 $locked->update([
@@ -1865,7 +1866,7 @@ class PosController extends Controller
 
             $locked->update($payload);
 
-            $locked->payments()->delete();
+            SyncAwareDelete::relation($locked->payments());
             PosPayment::create([
                 'order_id' => $locked->id,
                 'method' => $paymentMethod,
@@ -2475,12 +2476,13 @@ class PosController extends Controller
 
             InventoryMove::query()
                 ->where('reference', $order->order_no)
-                ->delete();
+                ->get()
+                ->each(fn (InventoryMove $move) => $move->delete());
 
-            CreditLedger::query()->where('pos_order_id', $order->id)->delete();
+            SyncAwareDelete::query(CreditLedger::query()->where('pos_order_id', $order->id));
             $this->deletePosJournalEntries($order);
-            $order->payments()->delete();
-            $order->items()->delete();
+            SyncAwareDelete::relation($order->payments());
+            SyncAwareDelete::relation($order->items());
             $order->delete();
         });
     }
@@ -2510,7 +2512,7 @@ class PosController extends Controller
             ->where('source', 'pos')
             ->where('source_id', $order->id)
             ->each(function (JournalEntry $entry) {
-                $entry->lines()->delete();
+                SyncAwareDelete::relation($entry->lines());
                 $entry->delete();
             });
     }
@@ -3041,7 +3043,7 @@ class PosController extends Controller
                 'service_charge_percent' => ($best['service'] ?? 0) > 0 ? PosServiceCharge::percent() : null,
                 'grand_total' => $best['grand'],
             ]);
-            $order->items()->delete();
+            SyncAwareDelete::relation($order->items());
             foreach ($best['itemsData'] as $item) {
                 PosOrderItem::create(['order_id' => $order->id] + $item);
             }

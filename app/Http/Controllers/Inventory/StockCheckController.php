@@ -8,6 +8,7 @@ use App\Models\Setting;
 use App\Models\StockCheck;
 use App\Models\StockCheckLine;
 use App\Services\StockCheckApprovalService;
+use App\Services\Sync\SyncAwareDelete;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -97,7 +98,9 @@ class StockCheckController extends Controller
         $data = $this->validatedLinesRequest($request);
 
         DB::connection('tenant')->transaction(function () use ($stockCheck, $data) {
-            StockCheckLine::query()->where('stock_check_id', $stockCheck->id)->delete();
+            SyncAwareDelete::query(
+                StockCheckLine::query()->where('stock_check_id', $stockCheck->id)
+            );
             $stockCheck->update(['title' => $data['title'] ?? null]);
             $this->syncLines($stockCheck, $data['lines']);
         });

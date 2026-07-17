@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use App\Http\Requests\InventoryMoveStoreRequest;
 use App\Notifications\StockUpdated;
 use App\Services\InventoryStockService;
+use App\Services\Sync\SyncAwareDelete;
 
 class MoveController extends Controller
 {
@@ -110,7 +111,9 @@ class MoveController extends Controller
                 $this->refreshProductCostFromLayers($product->id);
             } elseif ($data['type'] === 'adjust') {
                 // reset layers to single layer at current product cost
-                InventoryCostLayer::query()->where('product_id', $product->id)->delete();
+                SyncAwareDelete::query(
+                    InventoryCostLayer::query()->where('product_id', $product->id)
+                );
                 if ($qtyBase > 0) {
                     InventoryCostLayer::create([
                         'product_id' => $product->id,

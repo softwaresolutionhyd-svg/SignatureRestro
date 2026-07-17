@@ -8,6 +8,7 @@ use App\Models\InventoryProduct;
 use App\Models\MaintenanceDemand;
 use App\Models\MaintenanceDemandLine;
 use App\Models\MaintenanceIssue;
+use App\Services\Sync\SyncAwareDelete;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -199,7 +200,7 @@ class MaintenanceController extends Controller
             $demand->save();
 
             if ($existingDemand) {
-                $demand->lines()->delete();
+                SyncAwareDelete::relation($demand->lines());
             }
 
             $sumQtyUom = 0.0;
