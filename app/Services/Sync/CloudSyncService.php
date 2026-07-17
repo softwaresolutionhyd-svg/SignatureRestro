@@ -605,73 +605,82 @@ class CloudSyncService
 
         $this->markPullAttempted();
 
-        $since = $this->getMeta('last_pull_at');
+        // Force = full lookback re-pull (fixes bad global cursor that skipped credit_ledger).
+        if ($force) {
+            $this->resetPullCursors();
+        }
+
         $tables = config('sync.pull_tables', ['contacts', 'credit_ledger']);
+        $tables = array_values(array_filter($tables, fn ($t) => is_string($t) && $t !== ''));
         $pulled = 0;
         $failed = 0;
         $posOrderIds = [];
-        $loops = 0;
 
         try {
-            do {
-                $loops++;
-                $response = Http::timeout(max(8, (int) config('sync.push_timeout_seconds', 12)))
-                    ->connectTimeout(3)
-                    ->withToken($token)
-                    ->acceptJson()
-                    ->get($url.'/api/sync/pull', [
-                        'since' => $since,
-                        'tables' => $tables,
-                        'limit' => max(50, min(300, (int) config('sync.batch_size', 100) * 2)),
-                    ]);
+            foreach ($tables as $table) {
+                $since = $this->getMeta('last_pull_at:'.$table);
+                $loops = 0;
+                do {
+                    $loops++;
+                    $response = Http::timeout(max(8, (int) config('sync.push_timeout_seconds', 12)))
+                        ->connectTimeout(3)
+                        ->withToken($token)
+                        ->acceptJson()
+                        ->get($url.'/api/sync/pull', [
+                            'since' => $since,
+                            'tables' => [$table],
+                            'limit' => max(50, min(300, (int) config('sync.batch_size', 100) * 2)),
+                        ]);
 
-                if (! $response->successful()) {
-                    return [
-                        'ok' => false,
-                        'pulled' => $pulled,
-                        'failed' => $failed,
-                        'message' => 'Hosting pull failed: HTTP '.$response->status().' — hosting par latest code deploy karein (/api/sync/pull).',
-                        'online' => false,
-                    ];
-                }
+                    if (! $response->successful()) {
+                        return [
+                            'ok' => false,
+                            'pulled' => $pulled,
+                            'failed' => $failed,
+                            'message' => 'Hosting pull failed: HTTP '.$response->status().' — hosting par latest code deploy karein (/api/sync/pull).',
+                            'online' => false,
+                        ];
+                    }
 
-                $body = $response->json();
-                if (! is_array($body) || ($body['ok'] ?? false) !== true) {
-                    return [
-                        'ok' => false,
-                        'pulled' => $pulled,
-                        'failed' => $failed,
-                        'message' => (string) ($body['message'] ?? 'Hosting pull rejected.'),
-                        'online' => true,
-                    ];
-                }
+                    $body = $response->json();
+                    if (! is_array($body) || ($body['ok'] ?? false) !== true) {
+                        return [
+                            'ok' => false,
+                            'pulled' => $pulled,
+                            'failed' => $failed,
+                            'message' => (string) ($body['message'] ?? 'Hosting pull rejected.'),
+                            'online' => true,
+                        ];
+                    }
 
-                $changes = is_array($body['changes'] ?? null) ? $body['changes'] : [];
-                $changes = $this->filterPullChangesSkippingLocalPending($changes);
+                    $changes = is_array($body['changes'] ?? null) ? $body['changes'] : [];
+                    $changes = $this->filterPullChangesSkippingLocalPending($changes);
 
-                if ($changes !== []) {
-                    $result = $this->applyIncoming($changes);
-                    $pulled += count($result['applied']);
-                    $failed += count($result['failed']);
+                    if ($changes !== []) {
+                        $result = $this->applyIncoming($changes);
+                        $pulled += count($result['applied']);
+                        $failed += count($result['failed']);
 
-                    foreach ($changes as $change) {
-                        if (($change['table'] ?? '') === 'credit_ledger' && is_array($change['payload'] ?? null)) {
-                            $oid = (int) ($change['payload']['pos_order_id'] ?? 0);
-                            if ($oid > 0) {
-                                $posOrderIds[$oid] = $oid;
+                        foreach ($changes as $change) {
+                            if (($change['table'] ?? '') === 'credit_ledger' && is_array($change['payload'] ?? null)) {
+                                $oid = (int) ($change['payload']['pos_order_id'] ?? 0);
+                                if ($oid > 0) {
+                                    $posOrderIds[$oid] = $oid;
+                                }
                             }
                         }
                     }
-                }
 
-                $next = $body['next_since'] ?? null;
-                if (is_string($next) && $next !== '') {
-                    $since = $next;
-                    $this->setMeta('last_pull_at', $next);
-                }
+                    $next = $body['next_since'] ?? null;
+                    if (is_string($next) && $next !== '') {
+                        $since = $next;
+                        $this->setMeta('last_pull_at:'.$table, $next);
+                        $this->setMeta('last_pull_at', $next);
+                    }
 
-                $hasMore = (bool) ($body['has_more'] ?? false);
-            } while ($hasMore && $loops < 25);
+                    $hasMore = (bool) ($body['has_more'] ?? false);
+                } while ($hasMore && $loops < 40);
+            }
 
             if ($posOrderIds !== []) {
                 $related = $this->pullRelatedPosSales(array_values($posOrderIds), $url, $token);
@@ -699,6 +708,21 @@ class CloudSyncService
                 : ($failed > 0 ? "{$failed} pull row(s) failed." : 'Local already has latest credit book from hosting.'),
             'online' => true,
         ];
+    }
+
+    /** Clear pull cursors so next pull uses lookback window again. */
+    public function resetPullCursors(): void
+    {
+        if (! Schema::hasTable('sync_meta')) {
+            return;
+        }
+
+        DB::table('sync_meta')
+            ->where(function ($q) {
+                $q->where('meta_key', 'last_pull_at')
+                    ->orWhere('meta_key', 'like', 'last_pull_at:%');
+            })
+            ->delete();
     }
 
     /**
