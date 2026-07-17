@@ -20,7 +20,7 @@ class SyncPushScheduler
 
         app()->terminating(function () {
             try {
-                app(CloudSyncService::class)->push();
+                app(CloudSyncService::class)->syncBoth(false);
             } catch (\Throwable) {
                 // Browser heartbeat / scheduler will retry.
             } finally {

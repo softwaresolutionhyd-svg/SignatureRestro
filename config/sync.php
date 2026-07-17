@@ -30,28 +30,29 @@ return [
     // Seconds between status checks in the browser (push is separate / less frequent)
     'heartbeat_seconds' => (int) env('SYNC_HEARTBEAT_SECONDS', 60),
 
-    // Browser auto-push on load / interval (false = faster LAN; click badge or run sync:cloud)
-    'auto_push_heartbeat' => (bool) env('SYNC_AUTO_PUSH_HEARTBEAT', false),
+    // Browser auto push+pull on heartbeat (recommended for full two-way sync)
+    'auto_push_heartbeat' => (bool) env('SYNC_AUTO_PUSH_HEARTBEAT', true),
 
     // Cache hosting ping result (seconds) — avoids 8s wait every status poll
     'remote_ping_cache_seconds' => (int) env('SYNC_REMOTE_PING_CACHE_SECONDS', 45),
 
-    // HTTP timeout for push batches (seconds)
-    'push_timeout_seconds' => (int) env('SYNC_PUSH_TIMEOUT_SECONDS', 12),
+    // HTTP timeout for push/pull batches (seconds)
+    'push_timeout_seconds' => (int) env('SYNC_PUSH_TIMEOUT_SECONDS', 30),
 
-    // Min seconds between background push attempts (web terminating + heartbeat)
-    'push_debounce_seconds' => (int) env('SYNC_PUSH_DEBOUNCE_SECONDS', 90),
+    // Min seconds between background push/pull attempts (web terminating + heartbeat)
+    'push_debounce_seconds' => (int) env('SYNC_PUSH_DEBOUNCE_SECONDS', 60),
 
-    // Local pulls these tables from hosting (online → cafe PC)
+    // Local pulls these tables from hosting (online → cafe PC).
+    // Use "*" for full database (all syncable tables).
     'pull_tables' => array_values(array_filter(array_map('trim', explode(',', (string) env(
         'SYNC_PULL_TABLES',
-        'contacts,pos_orders,pos_order_items,pos_payments,credit_ledger'
+        '*'
     ))))),
 
     // First pull without cursor: only rows newer than this many days
     'pull_lookback_days' => (int) env('SYNC_PULL_LOOKBACK_DAYS', 120),
 
-    // Auto pull when sync badge is clicked / heartbeat push runs
+    // Auto pull after push / on heartbeat / schedule
     'auto_pull' => (bool) env('SYNC_AUTO_PULL', true),
 
     // Tables never synced (local-only / framework)

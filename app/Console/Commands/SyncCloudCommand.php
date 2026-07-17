@@ -10,9 +10,10 @@ class SyncCloudCommand extends Command
     protected $signature = 'sync:cloud
                             {--snapshot : Queue a full database snapshot before push}
                             {--pull : Also force pull from hosting (default when auto_pull on)}
+                            {--reset-pull : Reset pull cursors (re-pull lookback window)}
                             {--status : Show sync status only}';
 
-    protected $description = 'Push local changes to hosting and pull online credit book to cafe PC';
+    protected $description = 'Push local changes to hosting and pull full hosting DB to cafe PC';
 
     public function handle(CloudSyncService $sync): int
     {
@@ -37,22 +38,13 @@ class SyncCloudCommand extends Command
             $this->info("Queued {$n} row(s).");
         }
 
-        $ok = true;
+        $this->info('Syncing both ways (local ↔ hosting)…');
+        $this->line('Pull tables: '.count($sync->resolvePullTables()).' (full DB when SYNC_PULL_TABLES=*)');
 
-        $this->info('Pushing to hosting…');
-        $push = $sync->push(true);
-        $this->{$push['ok'] ? 'info' : 'error'}($push['message']);
-        $this->line("Pushed: {$push['pushed']} | Pending: {$push['pending']}");
-        $ok = $ok && ($push['ok'] || ($push['pending'] ?? 0) === 0);
+        $result = $sync->syncBoth(true, (bool) $this->option('reset-pull'));
+        $this->{$result['ok'] ? 'info' : 'error'}($result['message']);
+        $this->line("Pushed: {$result['pushed']} | Pending: {$result['pending']} | Pulled: {$result['pulled']} | Failed: {$result['failed']}");
 
-        if ($this->option('pull') || config('sync.auto_pull', true)) {
-            $this->info('Pulling credit book / sales from hosting…');
-            $pull = $sync->pull(true);
-            $this->{$pull['ok'] ? 'info' : 'error'}($pull['message']);
-            $this->line("Pulled: {$pull['pulled']} | Failed: {$pull['failed']}");
-            $ok = $ok && $pull['ok'];
-        }
-
-        return $ok ? self::SUCCESS : self::FAILURE;
+        return $result['ok'] ? self::SUCCESS : self::FAILURE;
     }
 }

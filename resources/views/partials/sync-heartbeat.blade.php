@@ -50,7 +50,8 @@
             if (!res.ok) return;
             const data = await res.json();
             paint(data);
-            if (autoPush && navigator.onLine && data.online && Number(data.pending || 0) > 0 && !syncing) {
+            // Full two-way sync: push pending + pull hosting changes (server debounce applies)
+            if (autoPush && navigator.onLine && data.online && !syncing) {
                 pushNow(false);
             }
         } catch (e) {

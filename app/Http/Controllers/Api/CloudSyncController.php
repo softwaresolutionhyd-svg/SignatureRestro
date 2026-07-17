@@ -48,7 +48,7 @@ class CloudSyncController extends Controller
     {
         $data = $request->validate([
             'since' => ['nullable', 'string', 'max:40'],
-            'tables' => ['nullable', 'array', 'max:20'],
+            'tables' => ['nullable', 'array', 'max:100'],
             'tables.*' => ['string', 'max:128'],
             'limit' => ['nullable', 'integer', 'min:1', 'max:500'],
         ]);

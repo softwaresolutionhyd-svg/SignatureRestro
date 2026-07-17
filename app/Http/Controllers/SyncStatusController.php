@@ -23,27 +23,18 @@ class SyncStatusController extends Controller
         }
 
         $force = $request->boolean('force');
-        $push = $sync->push($force);
-
-        $pull = ['ok' => true, 'pulled' => 0, 'failed' => 0, 'message' => 'Pull skipped.', 'online' => $sync->remoteReachable()];
-        if (config('sync.auto_pull', true)) {
-            $pull = $sync->pull($force);
-        }
-
-        $online = (bool) ($pull['online'] ?? $sync->remoteReachable());
-        $pending = $push['pending'] ?? $sync->pendingCount();
-        $httpOk = ($push['ok'] ?? false) || (($pull['pulled'] ?? 0) > 0) || (($pull['ok'] ?? false) && $pending === 0);
+        $result = $sync->syncBoth($force, false);
 
         return response()->json([
-            'ok' => $httpOk,
-            'online' => $online,
-            'pending' => $pending,
-            'pushed' => $push['pushed'] ?? 0,
-            'pulled' => $pull['pulled'] ?? 0,
-            'message' => trim(($push['message'] ?? '').' '.($pull['message'] ?? '')),
-            'push' => $push,
-            'pull' => $pull,
-        ], $httpOk || $online ? 200 : 503);
+            'ok' => $result['ok'] || (($result['pending'] ?? 0) === 0 && ($result['online'] ?? false)),
+            'online' => $result['online'] ?? false,
+            'pending' => $result['pending'] ?? 0,
+            'pushed' => $result['pushed'] ?? 0,
+            'pulled' => $result['pulled'] ?? 0,
+            'message' => $result['message'] ?? '',
+            'push' => $result['push'] ?? null,
+            'pull' => $result['pull'] ?? null,
+        ], ($result['ok'] ?? false) || ($result['online'] ?? false) ? 200 : 503);
     }
 
     public function pull(Request $request, CloudSyncService $sync): JsonResponse
@@ -55,7 +46,7 @@ class SyncStatusController extends Controller
             ], 400);
         }
 
-        $result = $sync->pull($request->boolean('force'));
+        $result = $sync->pull($request->boolean('force'), $request->boolean('reset'));
 
         return response()->json($result, $result['ok'] ? 200 : 503);
     }

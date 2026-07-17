@@ -418,19 +418,21 @@ class CloudSyncService
             ];
         }
 
-        $tables = $tables ?: config('sync.pull_tables', ['contacts', 'credit_ledger']);
+        $tables = $tables ?: $this->resolvePullTables();
         $tables = array_values(array_filter($tables, fn ($t) => is_string($t) && $t !== '' && ! $this->recorder->isExcluded($t)));
         $limit = max(1, min(500, $limit));
         $lookbackDays = max(7, (int) config('sync.pull_lookback_days', 120));
 
+        $sinceRaw = is_string($since) ? trim($since) : '';
         $sinceAt = null;
-        if (is_string($since) && trim($since) !== '') {
+        if ($sinceRaw !== '') {
             try {
-                $sinceAt = \Carbon\Carbon::parse($since);
+                $sinceAt = \Carbon\Carbon::parse($sinceRaw);
             } catch (Throwable) {
                 $sinceAt = null;
             }
         }
+        $hasSinceCursor = $sinceAt !== null;
         if ($sinceAt === null) {
             $sinceAt = now()->subDays($lookbackDays);
         }
@@ -439,7 +441,11 @@ class CloudSyncService
         $nextSince = $sinceAt->copy();
         $hasMore = false;
 
-        $order = ['contacts', 'pos_orders', 'pos_order_items', 'pos_payments', 'credit_ledger'];
+        $order = [
+            'companies', 'users', 'settings', 'contacts',
+            'inventory_units', 'inventory_unit_conversions', 'inventory_categories', 'inventory_departments', 'inventory_products',
+            'pos_sitting_areas', 'pos_tables', 'pos_sessions', 'pos_orders', 'pos_order_items', 'pos_payments', 'credit_ledger',
+        ];
         usort($tables, function ($a, $b) use ($order) {
             $ia = array_search($a, $order, true);
             $ib = array_search($b, $order, true);
@@ -476,6 +482,10 @@ class CloudSyncService
                     ->orderBy('created_at')
                     ->orderBy('id');
             } else {
+                // No timestamps: only full export when cursor empty (avoid re-sending whole table every minute)
+                if ($hasSinceCursor) {
+                    continue;
+                }
                 $q->orderBy('id');
             }
 
@@ -577,11 +587,67 @@ class CloudSyncService
     }
 
     /**
-     * Cafe PC: pull online credit book / sales into local DB.
+     * Push local outbox then pull hosting changes (full two-way when auto_pull on).
+     *
+     * @return array{ok: bool, pushed: int, pending: int, pulled: int, failed: int, message: string, online: bool}
+     */
+    public function syncBoth(bool $force = false, bool $resetPullCursors = false): array
+    {
+        $push = $this->push($force);
+        $pull = [
+            'ok' => true,
+            'pulled' => 0,
+            'failed' => 0,
+            'message' => 'Pull skipped.',
+            'online' => $this->remoteReachable(),
+        ];
+
+        if (config('sync.auto_pull', true)) {
+            $pull = $this->pull($force, $resetPullCursors);
+        }
+
+        $online = (bool) ($pull['online'] ?? false);
+        $ok = (($push['ok'] ?? false) || (($push['pending'] ?? 0) === 0)) && ($pull['ok'] ?? false);
+
+        return [
+            'ok' => $ok,
+            'pushed' => (int) ($push['pushed'] ?? 0),
+            'pending' => (int) ($push['pending'] ?? $this->pendingCount()),
+            'pulled' => (int) ($pull['pulled'] ?? 0),
+            'failed' => (int) ($pull['failed'] ?? 0),
+            'message' => trim(($push['message'] ?? '').' '.($pull['message'] ?? '')),
+            'online' => $online,
+            'push' => $push,
+            'pull' => $pull,
+        ];
+    }
+
+    /**
+     * Tables to pull from hosting. "*" / "all" / empty = every syncable table.
+     *
+     * @return list<string>
+     */
+    public function resolvePullTables(): array
+    {
+        $configured = config('sync.pull_tables', ['*']);
+        if (! is_array($configured) || $configured === []) {
+            return $this->syncableTables();
+        }
+
+        $normalized = array_values(array_filter($configured, fn ($t) => is_string($t) && $t !== ''));
+        if ($normalized === [] || in_array('*', $normalized, true) || in_array('all', $normalized, true)) {
+            return $this->syncableTables();
+        }
+
+        return array_values(array_filter($normalized, fn ($t) => ! $this->recorder->isExcluded($t)));
+    }
+
+    /**
+     * Cafe PC: pull hosting DB changes into local (full DB when pull_tables=*).
      *
      * @return array{ok: bool, pulled: int, failed: int, message: string, online: bool}
      */
-    public function pull(bool $force = false): array
+    public function pull(bool $force = false, bool $resetCursors = false): array
     {
         if (! $this->isLocalRole()) {
             return ['ok' => false, 'pulled' => 0, 'failed' => 0, 'message' => 'Pull only runs on local role.', 'online' => false];
@@ -605,16 +671,15 @@ class CloudSyncService
 
         $this->markPullAttempted();
 
-        // Force = full lookback re-pull (fixes bad global cursor that skipped credit_ledger).
-        if ($force) {
+        if ($resetCursors) {
             $this->resetPullCursors();
         }
 
-        $tables = config('sync.pull_tables', ['contacts', 'credit_ledger']);
-        $tables = array_values(array_filter($tables, fn ($t) => is_string($t) && $t !== ''));
+        $tables = $this->resolvePullTables();
         $pulled = 0;
         $failed = 0;
         $posOrderIds = [];
+        $pullTimeout = max(20, (int) config('sync.push_timeout_seconds', 30));
 
         try {
             foreach ($tables as $table) {
@@ -622,7 +687,7 @@ class CloudSyncService
                 $loops = 0;
                 do {
                     $loops++;
-                    $response = Http::timeout(max(8, (int) config('sync.push_timeout_seconds', 12)))
+                    $response = Http::timeout($pullTimeout)
                         ->connectTimeout(3)
                         ->withToken($token)
                         ->acceptJson()
@@ -705,7 +770,7 @@ class CloudSyncService
             'failed' => $failed,
             'message' => $pulled > 0
                 ? "Pulled {$pulled} online row(s) to local.".($failed > 0 ? " {$failed} failed." : '')
-                : ($failed > 0 ? "{$failed} pull row(s) failed." : 'Local already has latest credit book from hosting.'),
+                : ($failed > 0 ? "{$failed} pull row(s) failed." : 'Local DB already matches hosting (incremental).'),
             'online' => true,
         ];
     }
@@ -923,8 +988,9 @@ class CloudSyncService
             'last_push_at' => $this->getMeta('last_push_at'),
             'last_receive_at' => $this->getMeta('last_receive_at'),
             'last_pull_at' => $this->getMeta('last_pull_at'),
-            'auto_push' => (bool) config('sync.auto_push_heartbeat', false),
+            'auto_push' => (bool) config('sync.auto_push_heartbeat', true),
             'auto_pull' => (bool) config('sync.auto_pull', true),
+            'pull_tables' => count($this->resolvePullTables()),
         ];
     }
 
