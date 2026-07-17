@@ -30,11 +30,6 @@ class PayrollController extends Controller
         private readonly SyncPayrollQueueService $syncPayrollQueue,
     ) {}
 
-    private function autoSyncPayrollOnView(): bool
-    {
-        return ! $this->cloudSync->isCloudRole();
-    }
-
     public function index(Request $request)
     {
         abort_unless($request->user()?->canManagePayroll(), 403);
@@ -46,11 +41,6 @@ class PayrollController extends Controller
         }
         $employeeNo = trim((string) $request->query('employee_no', ''));
 
-        if ($this->autoSyncPayrollOnView()) {
-            $this->payrollSalary->syncPayrollPeriod($period, $request->user()?->id, true);
-            $this->foodBillSettlement->syncUnsettledForPeriod($period, $request->user()?->id);
-        }
-
         $entries = PayrollEntry::query()
             ->with(['employee:id,name,employee_no,salary,designation_id', 'employee.designation:id,name'])
             ->join('employees', 'payroll_entries.employee_id', '=', 'employees.id')
@@ -61,10 +51,19 @@ class PayrollController extends Controller
             ->paginate(Setting::pageSize('employees_per_page', 30))
             ->withQueryString();
 
-        $totalNet = (float) PayrollEntry::query()->where('period', $period)->sum('net_pay');
-        $paidNet = (float) PayrollEntry::query()->where('period', $period)->where('status', 'paid')->sum('net_pay');
+        $employeeIds = $entries->getCollection()->pluck('employee_id')->filter()->unique()->values()->all();
+        $workingDays = $this->payrollSalary->workingDaysMapForEmployees($employeeIds, $period);
 
-        return view('employees.payroll-index', compact('entries', 'period', 'employeeNo', 'totalNet', 'paidNet'));
+        $totals = PayrollEntry::query()
+            ->where('period', $period)
+            ->selectRaw('COALESCE(SUM(net_pay), 0) as total_net')
+            ->selectRaw("COALESCE(SUM(CASE WHEN status = 'paid' THEN net_pay ELSE 0 END), 0) as paid_net")
+            ->first();
+
+        $totalNet = (float) ($totals->total_net ?? 0);
+        $paidNet = (float) ($totals->paid_net ?? 0);
+
+        return view('employees.payroll-index', compact('entries', 'period', 'employeeNo', 'totalNet', 'paidNet', 'workingDays'));
     }
 
     public function generate(Request $request)
@@ -85,6 +84,7 @@ class PayrollController extends Controller
 
         $before = PayrollEntry::query()->where('period', $period)->count();
         $this->payrollSalary->syncPayrollPeriod($period, $request->user()->id, true);
+        $this->foodBillSettlement->syncUnsettledForPeriod($period, $request->user()->id);
         $this->syncPayrollQueue->queuePayrollData($period);
         app(SyncPushScheduler::class)->schedule();
         $after = PayrollEntry::query()->where('period', $period)->count();

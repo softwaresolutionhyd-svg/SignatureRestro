@@ -40,6 +40,7 @@
     </div>
 
     <div class="alert alert-info small py-2">
+        Attendance / food bill update ke liye <strong>Generate / Refresh</strong> dabayein.
         Employees auto <strong>Contacts</strong> mein link hain — is month ki <strong>credit sale</strong> Food Bill mein deduct hoti hai.
         <strong>Loan</strong> active employee loan se auto monthly instalment deduct hoti hai (loan month se nahi, agle month se).
         Final = Basic + Bonus − Deduction − Food Bill − Loan
@@ -64,7 +65,6 @@
                 </tr>
                 </thead>
                 <tbody>
-                @php $payrollSalary = app(\App\Services\PayrollSalaryService::class); @endphp
                 @forelse($entries as $entry)
                     @if($entry->status === 'draft')
                         @php $pf = 'payroll-upd-'.$entry->id; @endphp
@@ -74,7 +74,7 @@
                                 <div class="small text-secondary">{{ $entry->employee?->employee_no }} · {{ $entry->employee?->designation?->name ?? '—' }}</div>
                             </td>
                             <td>{{ number_format((float)$entry->base_salary, 2) }}</td>
-                            <td>{{ $payrollSalary->workingDaysForEmployee($entry->employee_id, $period) }}</td>
+                            <td>{{ $workingDays[$entry->employee_id] ?? 0 }}</td>
                             <td style="min-width: 95px;">
                                 <input type="number" step="0.01" min="0" name="deduction" form="{{ $pf }}" value="{{ old('deduction', $entry->deduction) }}" class="form-control form-control-sm">
                             </td>
@@ -116,7 +116,7 @@
                                 <div class="small text-secondary">{{ $entry->employee?->employee_no }} · {{ $entry->employee?->designation?->name ?? '—' }}</div>
                             </td>
                             <td>{{ number_format((float)$entry->base_salary, 2) }}</td>
-                            <td>{{ $payrollSalary->workingDaysForEmployee($entry->employee_id, $period) }}</td>
+                            <td>{{ $workingDays[$entry->employee_id] ?? 0 }}</td>
                             <td>{{ number_format((float)$entry->deduction, 2) }}</td>
                             <td>{{ number_format((float)($entry->food_bill ?? 0), 2) }}</td>
                             <td>{{ number_format((float)($entry->loan ?? 0), 2) }}</td>

@@ -3,13 +3,27 @@
 namespace App\Support;
 
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 
 trait EnsuresPayrollSchema
 {
+    private const PAYROLL_SCHEMA_CACHE = 'payroll_schema:ensured:v1';
+
     protected function ensurePayrollSchema(?string $connection = null): void
     {
-        $schema = Schema::connection($connection ?? 'tenant');
+        $conn = $connection ?? 'tenant';
+        $cacheKey = self::PAYROLL_SCHEMA_CACHE.':'.$conn;
+
+        try {
+            if (Cache::get($cacheKey)) {
+                return;
+            }
+        } catch (\Throwable) {
+            // run ensure below
+        }
+
+        $schema = Schema::connection($conn);
 
         if (! $schema->hasTable('employees')) {
             return;
@@ -35,6 +49,12 @@ trait EnsuresPayrollSchema
             $schema->table('payroll_entries', function (Blueprint $table) {
                 $table->decimal('loan', 14, 2)->default(0)->after('food_bill');
             });
+        }
+
+        try {
+            Cache::put($cacheKey, true, now()->addHours(12));
+        } catch (\Throwable) {
+            // ignore
         }
     }
 }

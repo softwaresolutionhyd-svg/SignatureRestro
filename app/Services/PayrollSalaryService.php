@@ -29,9 +29,16 @@ class PayrollSalaryService
 
     public function workingDaysForEmployee(int $employeeId, string $period): int
     {
-        $counts = $this->attendancePayroll->monthCountsForEmployee($employeeId, $period);
+        return $this->workingDaysMapForEmployees([$employeeId], $period)[$employeeId] ?? 0;
+    }
 
-        return $counts['present'] + $counts['holiday'];
+    /**
+     * @param  list<int>  $employeeIds
+     * @return array<int, int>
+     */
+    public function workingDaysMapForEmployees(array $employeeIds, string $period): array
+    {
+        return $this->attendancePayroll->workingDaysMapForEmployees($employeeIds, $period);
     }
 
     public function foodBillForEmployee(Employee $employee, string $period): float
@@ -52,12 +59,17 @@ class PayrollSalaryService
             ->sum('amount'), 2);
     }
 
-    public function syncPayrollEntryForEmployee(Employee $employee, string $period, ?int $createdBy = null): PayrollEntry
-    {
+    public function syncPayrollEntryForEmployee(
+        Employee $employee,
+        string $period,
+        ?int $createdBy = null,
+        ?int $absentDays = null,
+        ?float $foodBill = null,
+    ): PayrollEntry {
         $base = (float) ($employee->salary ?? 0);
-        $absentDays = $this->attendancePayroll->countAbsentDays($employee->id, $period);
+        $absentDays = $absentDays ?? $this->attendancePayroll->countAbsentDays($employee->id, $period);
         $deduction = $this->attendancePayroll->absentDeductionAmount($base, $absentDays);
-        $foodBill = $this->foodBillForEmployee($employee, $period);
+        $foodBill = $foodBill ?? $this->foodBillForEmployee($employee, $period);
 
         $entry = PayrollEntry::query()
             ->where('employee_id', $employee->id)
@@ -92,10 +104,6 @@ class PayrollSalaryService
 
         app(PayrollFoodBillSettlementService::class)->settle($entry, $createdBy);
 
-        if (config('sync.enabled') && config('sync.role') === 'local') {
-            app(\App\Services\Sync\SyncPushScheduler::class)->schedule();
-        }
-
         return $entry;
     }
 
@@ -109,9 +117,59 @@ class PayrollSalaryService
             $query->where('active', true);
         }
 
-        $query->get()->each(function (Employee $employee) use ($period, $createdBy) {
-            $this->syncPayrollEntryForEmployee($employee, $period, $createdBy);
-        });
+        $employees = $query->get();
+        $employeeIds = $employees->pluck('id')->all();
+        $absentMap = $this->attendancePayroll->absentDaysMapForEmployees($employeeIds, $period);
+        $foodBillMap = $this->foodBillMapForEmployees($employees, $period);
+
+        foreach ($employees as $employee) {
+            $this->syncPayrollEntryForEmployee(
+                $employee,
+                $period,
+                $createdBy,
+                (int) ($absentMap[$employee->id] ?? 0),
+                (float) ($foodBillMap[$employee->id] ?? 0),
+            );
+        }
+
+        if (config('sync.enabled') && config('sync.role') === 'local') {
+            app(\App\Services\Sync\SyncPushScheduler::class)->schedule();
+        }
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Employee>|iterable<Employee>  $employees
+     * @return array<int, float>
+     */
+    private function foodBillMapForEmployees(iterable $employees, string $period): array
+    {
+        [$start, $end] = $this->periodBounds($period);
+        $contactToEmployee = [];
+
+        foreach ($employees as $employee) {
+            if ($employee->contact_id) {
+                $contactToEmployee[(int) $employee->contact_id] = (int) $employee->id;
+            }
+        }
+
+        if ($contactToEmployee === []) {
+            return [];
+        }
+
+        $sums = CreditLedger::query()
+            ->whereIn('contact_id', array_keys($contactToEmployee))
+            ->where('type', 'credit')
+            ->whereBetween('entry_date', [$start, $end])
+            ->selectRaw('contact_id, COALESCE(SUM(amount), 0) as total')
+            ->groupBy('contact_id')
+            ->pluck('total', 'contact_id');
+
+        $map = [];
+        foreach ($contactToEmployee as $contactId => $employeeId) {
+            $map[$employeeId] = round((float) ($sums[$contactId] ?? 0), 2);
+        }
+
+        return $map;
     }
 
     /**

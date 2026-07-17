@@ -64,13 +64,63 @@ class AttendancePayrollService
 
     public function countAbsentDays(int $employeeId, string $month): int
     {
+        return $this->absentDaysMapForEmployees([$employeeId], $month)[$employeeId] ?? 0;
+    }
+
+    /**
+     * @param  list<int>  $employeeIds
+     * @return array<int, int>
+     */
+    public function absentDaysMapForEmployees(array $employeeIds, string $month): array
+    {
+        if ($employeeIds === []) {
+            return [];
+        }
+
         [$start, $end] = $this->monthBounds($month);
 
-        return EmployeeAttendance::query()
-            ->where('employee_id', $employeeId)
+        $counts = EmployeeAttendance::query()
+            ->whereIn('employee_id', $employeeIds)
             ->whereBetween('attendance_date', [$start, $end])
             ->where('status', self::STATUS_ABSENT)
-            ->count();
+            ->selectRaw('employee_id, COUNT(*) as cnt')
+            ->groupBy('employee_id')
+            ->pluck('cnt', 'employee_id');
+
+        $map = array_fill_keys($employeeIds, 0);
+        foreach ($counts as $employeeId => $cnt) {
+            $map[(int) $employeeId] = (int) $cnt;
+        }
+
+        return $map;
+    }
+
+    /**
+     * @param  list<int>  $employeeIds
+     * @return array<int, int>
+     */
+    public function workingDaysMapForEmployees(array $employeeIds, string $month): array
+    {
+        if ($employeeIds === []) {
+            return [];
+        }
+
+        [$start, $end] = $this->monthBounds($month);
+
+        $rows = EmployeeAttendance::query()
+            ->whereIn('employee_id', $employeeIds)
+            ->whereBetween('attendance_date', [$start, $end])
+            ->get(['employee_id', 'status']);
+
+        $map = array_fill_keys($employeeIds, 0);
+        foreach ($rows as $row) {
+            $code = self::codeFromStatus($row->status);
+            if ($code === 'P' || $code === 'H') {
+                $map[(int) $row->employee_id] = ($map[(int) $row->employee_id] ?? 0) + 1;
+            }
+        }
+
+        return $map;
     }
 
     /**
