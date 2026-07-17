@@ -45,8 +45,23 @@ class CloudSyncService
             return false;
         }
 
+        $cacheSeconds = max(5, (int) config('sync.remote_ping_cache_seconds', 45));
+        $cacheKey = 'sync:remote_reachable:'.md5($url);
+
         try {
-            $response = Http::timeout(8)
+            return (bool) \Illuminate\Support\Facades\Cache::remember($cacheKey, $cacheSeconds, function () use ($url, $token) {
+                return $this->pingRemote($url, $token);
+            });
+        } catch (\Throwable) {
+            return $this->pingRemote($url, $token);
+        }
+    }
+
+    private function pingRemote(string $url, string $token): bool
+    {
+        try {
+            $response = Http::timeout(3)
+                ->connectTimeout(2)
                 ->withToken($token)
                 ->acceptJson()
                 ->get($url.'/api/sync/ping');
@@ -62,7 +77,7 @@ class CloudSyncService
      *
      * @return array{ok: bool, pushed: int, pending: int, message: string}
      */
-    public function push(): array
+    public function push(bool $force = false): array
     {
         if (! $this->isLocalRole()) {
             return ['ok' => false, 'pushed' => 0, 'pending' => 0, 'message' => 'Sync only runs on local role.'];
@@ -76,15 +91,24 @@ class CloudSyncService
         }
 
         $batchSize = max(1, (int) config('sync.batch_size', 100));
+        $pushTimeout = max(3, (int) config('sync.push_timeout_seconds', 12));
         $pushed = 0;
 
-        $this->schemaService->ensureAll();
+        if (! $this->shouldRunPushNow($force)) {
+            return [
+                'ok' => false,
+                'pushed' => 0,
+                'pending' => $this->pendingCount(),
+                'message' => 'Push skipped (debounce). Click sync badge or run php artisan sync:cloud.',
+            ];
+        }
+
+        $this->markPushAttempted();
+
+        $this->ensureTargetSchemaOnce();
 
         try {
-            Http::timeout(8)
-                ->withToken($token)
-                ->acceptJson()
-                ->get($url.'/api/sync/ping');
+            $this->pingRemote($url, $token);
         } catch (Throwable) {
             // hosting may be on older build; push will still attempt
         }
@@ -111,7 +135,8 @@ class CloudSyncService
             ];
 
             try {
-                $response = Http::timeout(60)
+                $response = Http::timeout($pushTimeout)
+                    ->connectTimeout(3)
                     ->withToken($token)
                     ->acceptJson()
                     ->post($url.'/api/sync/push', $payload);
@@ -460,7 +485,53 @@ class CloudSyncService
             'remote_url' => (string) config('sync.remote_url'),
             'last_push_at' => $this->getMeta('last_push_at'),
             'last_receive_at' => $this->getMeta('last_receive_at'),
+            'auto_push' => (bool) config('sync.auto_push_heartbeat', false),
         ];
+    }
+
+    private function shouldRunPushNow(bool $force = false): bool
+    {
+        if ($force) {
+            return true;
+        }
+
+        $debounce = max(10, (int) config('sync.push_debounce_seconds', 90));
+
+        try {
+            $last = \Illuminate\Support\Facades\Cache::get('sync:last_push_attempt');
+
+            return ! is_numeric($last) || (time() - (int) $last) >= $debounce;
+        } catch (\Throwable) {
+            return true;
+        }
+    }
+
+    private function markPushAttempted(): void
+    {
+        try {
+            \Illuminate\Support\Facades\Cache::put('sync:last_push_attempt', time(), now()->addHours(2));
+        } catch (\Throwable) {
+            // ignore
+        }
+    }
+
+    private function ensureTargetSchemaOnce(): void
+    {
+        try {
+            if (\Illuminate\Support\Facades\Cache::get('sync:schema_ensured')) {
+                return;
+            }
+        } catch (\Throwable) {
+            // run ensure below
+        }
+
+        $this->schemaService->ensureAll();
+
+        try {
+            \Illuminate\Support\Facades\Cache::put('sync:schema_ensured', true, now()->addHours(6));
+        } catch (\Throwable) {
+            // ignore
+        }
     }
 
     protected function setMeta(string $key, string $value): void

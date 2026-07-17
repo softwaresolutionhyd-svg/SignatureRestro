@@ -4,14 +4,17 @@
     const statusUrl = @json(route('sync.status'));
     const pushUrl = @json(route('sync.push'));
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-    const heartbeatMs = {{ max(10, (int) config('sync.heartbeat_seconds', 15)) * 1000 }};
+    const heartbeatMs = {{ max(30, (int) config('sync.heartbeat_seconds', 60)) * 1000 }};
+    const autoPush = {{ config('sync.auto_push_heartbeat') ? 'true' : 'false' }};
     const badge = document.getElementById('sync-status-badge');
     const dot = document.getElementById('sync-status-dot');
     const label = document.getElementById('sync-status-label');
     let syncing = false;
+    let lastStatus = { online: false, pending: 0 };
 
     function paint(status) {
         if (!dot || !label) return;
+        lastStatus = status;
         const online = !!status.online;
         const pending = Number(status.pending || 0);
         if (!navigator.onLine) {
@@ -47,20 +50,20 @@
             if (!res.ok) return;
             const data = await res.json();
             paint(data);
-            if (navigator.onLine && Number(data.pending || 0) > 0 && !syncing) {
-                pushNow();
+            if (autoPush && navigator.onLine && data.online && Number(data.pending || 0) > 0 && !syncing) {
+                pushNow(false);
             }
         } catch (e) {
-            paint({ online: false, pending: 0 });
+            paint({ online: false, pending: lastStatus.pending || 0 });
         }
     }
 
-    async function pushNow() {
+    async function pushNow(force) {
         if (syncing || !navigator.onLine) return;
         syncing = true;
-        paint({ online: true, pending: 0 });
+        paint({ online: true, pending: lastStatus.pending || 0 });
         try {
-            const res = await fetch(pushUrl, {
+            const res = await fetch(pushUrl + (force ? '?force=1' : ''), {
                 method: 'POST',
                 headers: {
                     'Accept': 'application/json',
@@ -72,46 +75,33 @@
             const data = await res.json().catch(() => ({}));
             paint({
                 online: data.online !== false,
-                pending: data.pending ?? 0
+                pending: data.pending ?? lastStatus.pending ?? 0
             });
         } catch (e) {
-            paint({ online: false, pending: 0 });
+            paint({ online: false, pending: lastStatus.pending || 0 });
         } finally {
             syncing = false;
-            refreshStatus();
         }
     }
 
-    window.addEventListener('online', function () {
-        pushNow();
-    });
+    window.addEventListener('online', refreshStatus);
     window.addEventListener('offline', function () {
-        paint({ online: false, pending: 0 });
-        refreshStatus();
+        paint({ online: false, pending: lastStatus.pending || 0 });
     });
     document.addEventListener('visibilitychange', function () {
-        if (document.visibilityState === 'visible' && navigator.onLine) {
-            pushNow();
+        if (document.visibilityState === 'visible') {
+            refreshStatus();
         }
     });
 
     if (badge) {
         badge.addEventListener('click', function () {
-            pushNow();
+            pushNow(true);
         });
     }
 
     refreshStatus();
-    if (navigator.onLine) {
-        pushNow();
-    }
-    setInterval(function () {
-        if (navigator.onLine) {
-            pushNow();
-        } else {
-            refreshStatus();
-        }
-    }, heartbeatMs);
+    setInterval(refreshStatus, heartbeatMs);
 })();
 </script>
 @endif

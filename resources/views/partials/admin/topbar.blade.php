@@ -117,7 +117,7 @@
                         <div id="notifList" style="max-height: 380px; overflow: auto;"></div>
                     </li>
                     <li class="px-3 py-2 border-top text-secondary small bg-light">
-                        Auto-updates every 10s
+                        Opens list when bell is clicked
                     </li>
                 </ul>
             </div>
@@ -213,6 +213,8 @@
         });
 
         loadNotifs();
-        setInterval(loadNotifs, 10000);
+        const notifBtn = document.getElementById('notifBtn');
+        notifBtn?.closest('.dropdown')?.addEventListener('show.bs.dropdown', loadNotifs);
+        setInterval(loadNotifs, 60000);
     })();
 </script>

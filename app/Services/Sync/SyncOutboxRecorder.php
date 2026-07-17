@@ -14,6 +14,8 @@ class SyncOutboxRecorder
 {
     public static bool $applyingRemote = false;
 
+    private static ?bool $syncQueueTableExists = null;
+
     public function shouldRecord(): bool
     {
         if (self::$applyingRemote) {
@@ -38,7 +40,7 @@ class SyncOutboxRecorder
             return;
         }
 
-        if (! Schema::hasTable('sync_queue')) {
+        if (! $this->syncQueueExists()) {
             return;
         }
 
@@ -125,5 +127,16 @@ class SyncOutboxRecorder
         }
 
         return $payload;
+    }
+
+    private function syncQueueExists(): bool
+    {
+        if (self::$syncQueueTableExists !== null) {
+            return self::$syncQueueTableExists;
+        }
+
+        self::$syncQueueTableExists = Schema::hasTable('sync_queue');
+
+        return self::$syncQueueTableExists;
     }
 }

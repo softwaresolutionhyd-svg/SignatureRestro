@@ -5,11 +5,36 @@ namespace App\Support;
 use App\Models\PosSittingArea;
 use App\Models\PosTable;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 
 final class PosTablesSchema
 {
+    private const CACHE_KEY = 'pos_tables_schema:ensured:v1';
+
     public static function ensure(): void
+    {
+        try {
+            if (Cache::get(self::CACHE_KEY)) {
+                return;
+            }
+        } catch (\Throwable) {
+            // run ensure below
+        }
+
+        try {
+            self::runEnsure();
+            try {
+                Cache::put(self::CACHE_KEY, true, now()->addHours(12));
+            } catch (\Throwable) {
+                // ignore
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
+    }
+
+    private static function runEnsure(): void
     {
         try {
             $schema = Schema::connection('tenant');
@@ -68,7 +93,7 @@ final class PosTablesSchema
 
             self::backfillOrphanTables($schema);
         } catch (\Throwable $e) {
-            report($e);
+            throw $e;
         }
     }
 

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 
 class PasswordResetRequest extends Model
@@ -13,7 +14,13 @@ class PasswordResetRequest extends Model
     /** True when the migration has been applied (avoids 500s before migrate). */
     public static function tableExists(): bool
     {
-        return Schema::connection('mysql')->hasTable('password_reset_requests');
+        try {
+            return (bool) Cache::rememberForever('schema:mysql:password_reset_requests', function () {
+                return Schema::connection('mysql')->hasTable('password_reset_requests');
+            });
+        } catch (\Throwable) {
+            return Schema::connection('mysql')->hasTable('password_reset_requests');
+        }
     }
 
     protected $fillable = [

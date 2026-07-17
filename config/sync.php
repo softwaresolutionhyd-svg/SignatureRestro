@@ -27,8 +27,20 @@ return [
     // Max rows per HTTP request
     'batch_size' => (int) env('SYNC_BATCH_SIZE', 100),
 
-    // Seconds between automatic push attempts (web heartbeat)
-    'heartbeat_seconds' => (int) env('SYNC_HEARTBEAT_SECONDS', 15),
+    // Seconds between status checks in the browser (push is separate / less frequent)
+    'heartbeat_seconds' => (int) env('SYNC_HEARTBEAT_SECONDS', 60),
+
+    // Browser auto-push on load / interval (false = faster LAN; click badge or run sync:cloud)
+    'auto_push_heartbeat' => (bool) env('SYNC_AUTO_PUSH_HEARTBEAT', false),
+
+    // Cache hosting ping result (seconds) — avoids 8s wait every status poll
+    'remote_ping_cache_seconds' => (int) env('SYNC_REMOTE_PING_CACHE_SECONDS', 45),
+
+    // HTTP timeout for push batches (seconds)
+    'push_timeout_seconds' => (int) env('SYNC_PUSH_TIMEOUT_SECONDS', 12),
+
+    // Min seconds between background push attempts (web terminating + heartbeat)
+    'push_debounce_seconds' => (int) env('SYNC_PUSH_DEBOUNCE_SECONDS', 90),
 
     // Tables never synced (local-only / framework)
     'exclude_tables' => [

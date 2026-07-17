@@ -22,7 +22,7 @@ class SyncStatusController extends Controller
             ], 400);
         }
 
-        $result = $sync->push();
+        $result = $sync->push($request->boolean('force'));
 
         return response()->json($result, $result['ok'] ? 200 : 503);
     }
