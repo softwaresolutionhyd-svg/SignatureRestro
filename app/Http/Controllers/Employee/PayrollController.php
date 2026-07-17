@@ -45,7 +45,10 @@ class PayrollController extends Controller
             ->with(['employee:id,name,employee_no,salary,designation_id', 'employee.designation:id,name'])
             ->join('employees', 'payroll_entries.employee_id', '=', 'employees.id')
             ->where('payroll_entries.period', $period)
-            ->when($employeeNo !== '', fn ($q) => $q->where('employees.employee_no', 'like', '%'.$employeeNo.'%'))
+            ->when($employeeNo !== '', fn ($q) => $q->whereHas(
+                'employee',
+                fn ($eq) => $eq->matchingSearch($employeeNo)
+            ))
             ->orderBy('employees.employee_no')
             ->select('payroll_entries.*')
             ->paginate(Setting::pageSize('employees_per_page', 30))
@@ -112,8 +115,7 @@ class PayrollController extends Controller
 
         $rows = $this->payrollSalary->salaryRowsForPeriod($period, true);
         if ($employeeNo !== '') {
-            $needle = mb_strtolower($employeeNo, 'UTF-8');
-            $rows = array_values(array_filter($rows, fn ($row) => str_contains(mb_strtolower((string) ($row['employee_no'] ?? ''), 'UTF-8'), $needle)));
+            $rows = \App\Models\Employee::filterRowsByEmployeeSearch($rows, $employeeNo);
         }
         $periodLabel = $this->payrollSalary->periodLabel($period);
         $companyName = $this->payrollSalary->brandName();

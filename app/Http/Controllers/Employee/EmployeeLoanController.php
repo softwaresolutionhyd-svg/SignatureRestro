@@ -29,7 +29,7 @@ class EmployeeLoanController extends Controller
             ->when($status !== 'all', fn ($q) => $q->where('status', $status))
             ->when($employeeNo !== '', fn ($q) => $q->whereHas(
                 'employee',
-                fn ($eq) => $eq->where('employee_no', 'like', '%'.$employeeNo.'%')
+                fn ($eq) => $eq->matchingSearch($employeeNo)
             ))
             ->join('employees', 'employee_loans.employee_id', '=', 'employees.id')
             ->orderBy('employees.employee_no')

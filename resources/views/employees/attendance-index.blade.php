@@ -156,7 +156,7 @@
                     @if($activeOnly)
                         <input type="hidden" name="active_only" value="1">
                     @endif
-                    <input type="text" name="employee_no" value="{{ $employeeNo }}" class="form-control form-control-sm" placeholder="Employee ID" style="max-width: 150px;">
+                    <input type="text" name="employee_no" value="{{ $employeeNo }}" class="form-control form-control-sm" placeholder="ID ya naam" style="max-width: 170px;">
                     <button class="btn btn-sm btn-outline-primary" type="submit">Filter</button>
                     @if($employeeNo !== '')
                         <a class="btn btn-sm btn-outline-secondary" href="{{ route('employees.attendance.index', array_filter(['month' => $month, 'active_only' => $activeOnly ? 1 : null])) }}">Clear</a>

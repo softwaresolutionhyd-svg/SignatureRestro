@@ -91,6 +91,43 @@ class Employee extends Model
         });
     }
 
+    /** Match employee ID (employee_no) or name — partial, case-insensitive on name. */
+    public function scopeMatchingSearch(Builder $query, ?string $term): Builder
+    {
+        $term = trim((string) $term);
+        if ($term === '') {
+            return $query;
+        }
+
+        $like = '%'.$term.'%';
+
+        return $query->where(function (Builder $sub) use ($like, $term) {
+            $sub->where('employee_no', 'like', $like)
+                ->orWhere('name', 'like', $like);
+        });
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @return list<array<string, mixed>>
+     */
+    public static function filterRowsByEmployeeSearch(array $rows, string $term): array
+    {
+        $term = trim($term);
+        if ($term === '') {
+            return $rows;
+        }
+
+        $needle = mb_strtolower($term, 'UTF-8');
+
+        return array_values(array_filter($rows, function (array $row) use ($needle) {
+            $id = mb_strtolower((string) ($row['employee_no'] ?? ''), 'UTF-8');
+            $name = mb_strtolower((string) ($row['name'] ?? ''), 'UTF-8');
+
+            return str_contains($id, $needle) || str_contains($name, $needle);
+        }));
+    }
+
     public static function generateNextEmployeeNo(int $companyId): string
     {
         $max = 0;

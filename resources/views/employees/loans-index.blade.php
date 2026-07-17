@@ -15,7 +15,7 @@
     <div class="card shadow-sm mb-3">
         <div class="card-body d-flex flex-wrap gap-2 align-items-center justify-content-between">
             <form class="d-flex flex-wrap gap-2 align-items-center" method="GET" action="{{ route('employees.loans.index') }}">
-                <input type="text" name="employee_no" value="{{ $employeeNo }}" class="form-control form-control-sm" placeholder="Employee ID" style="max-width: 150px;">
+                <input type="text" name="employee_no" value="{{ $employeeNo }}" class="form-control form-control-sm" placeholder="ID ya naam" style="max-width: 170px;">
                 <select name="status" class="form-select form-select-sm" style="max-width: 140px;">
                     <option value="active" @selected($status === 'active')>Active</option>
                     <option value="completed" @selected($status === 'completed')>Completed</option>

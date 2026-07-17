@@ -62,7 +62,7 @@
         <a href="{{ route('employees.payroll.index', array_filter(['period' => $period, 'employee_no' => ($employeeNo ?? '') ?: null])) }}">Back to Payroll</a>
         <form method="GET" action="{{ route('employees.payroll.print') }}" style="display:inline-flex; gap:8px; align-items:center; margin-left:8px;">
             <input type="hidden" name="period" value="{{ $period }}">
-            <input type="text" name="employee_no" value="{{ $employeeNo ?? '' }}" placeholder="Employee ID" style="padding:6px 8px; border:1px solid #666; border-radius:6px;">
+            <input type="text" name="employee_no" value="{{ $employeeNo ?? '' }}" placeholder="ID ya naam" style="padding:6px 8px; border:1px solid #666; border-radius:6px;">
             <button type="submit">Filter</button>
             @if(!empty($employeeNo))
                 <a href="{{ route('employees.payroll.print', ['period' => $period]) }}">Clear</a>

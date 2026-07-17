@@ -38,7 +38,7 @@ class AttendanceController extends Controller
             $staffQuery->where('active', true);
         }
         if ($employeeNo !== '') {
-            $staffQuery->where('employee_no', 'like', '%'.$employeeNo.'%');
+            $staffQuery->matchingSearch($employeeNo);
         }
         $employees = $staffQuery->get(['id', 'name', 'employee_no', 'active', 'salary']);
 
