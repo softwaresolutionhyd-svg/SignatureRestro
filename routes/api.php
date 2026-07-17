@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CloudSyncController;
 use App\Http\Controllers\Api\OrderTakerApiController;
+use App\Http\Controllers\Api\ServerConfigController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -19,6 +20,8 @@ Route::middleware('sync.token')->prefix('sync')->group(function () {
     Route::get('/ping', [CloudSyncController::class, 'ping']);
     Route::post('/push', [CloudSyncController::class, 'push']);
 });
+
+Route::get('/server-config', [ServerConfigController::class, 'show']);
 
 Route::post('/login', [AuthController::class, 'login']);
 

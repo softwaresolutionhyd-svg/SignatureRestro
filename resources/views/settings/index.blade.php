@@ -713,6 +713,64 @@
             </div>
         </div>
 
+        <div class="card shadow-sm mt-4 border-success border-opacity-25">
+            <div class="card-header bg-white fw-semibold">
+                <i class="bi bi-wifi me-1"></i> Mobile & Tablet — LAN Server IP
+            </div>
+            <div class="card-body">
+                <p class="text-secondary small mb-3">
+                    Cafe / restaurant PC ka jo <strong>fixed LAN IP</strong> hai woh yahan likhein.
+                    Same WiFi par mobile, tablet aur Order Taker app isi address se connect karenge.
+                    (PC par pehle static IP set karein — <code>scripts/set-cafe-lan-ip.ps1</code>)
+                </p>
+                <div class="row g-3">
+                    <div class="col-md-5">
+                        <label class="form-label">LAN Server IP</label>
+                        <input type="text" name="lan_server_ip" id="lan_server_ip" class="form-control font-monospace"
+                               value="{{ old('lan_server_ip', $settings['lan_server_ip']) }}"
+                               placeholder="192.168.3.50"
+                               autocomplete="off">
+                        <div class="form-text">IPv4 address — router / PC ka local IP</div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Port <span class="text-secondary fw-normal">(optional)</span></label>
+                        <input type="number" name="lan_server_port" id="lan_server_port" class="form-control font-monospace"
+                               value="{{ old('lan_server_port', $settings['lan_server_port']) }}"
+                               placeholder="8080" min="1" max="65535">
+                        <div class="form-text">Khali = port 80</div>
+                    </div>
+                </div>
+
+                <div class="mt-4 p-3 bg-light rounded-3 border">
+                    <div class="fw-semibold small text-secondary mb-2">DEVICE URLs (same network)</div>
+                    <div class="vstack gap-2 small">
+                        @php
+                            $lanRows = [
+                                ['key' => 'order_taker_app', 'label' => 'Order Taker App (API)', 'url' => $lanLinks['order_taker_app'] ?? ''],
+                                ['key' => 'order_taker_web', 'label' => 'Order Taker (Browser)', 'url' => $lanLinks['order_taker_web'] ?? ''],
+                                ['key' => 'pos', 'label' => 'Cashier POS', 'url' => $lanLinks['pos'] ?? ''],
+                                ['key' => 'kitchen', 'label' => 'Kitchen Display', 'url' => $lanLinks['kitchen'] ?? ''],
+                                ['key' => 'order_status', 'label' => 'Order Status', 'url' => $lanLinks['order_status'] ?? ''],
+                            ];
+                        @endphp
+                        @foreach ($lanRows as $row)
+                            <div class="d-flex flex-wrap align-items-center gap-2 lan-url-row" data-lan-path="{{ parse_url($row['url'], PHP_URL_PATH) ?: '/' }}">
+                                <span class="text-secondary" style="min-width:11rem;">{{ $row['label'] }}:</span>
+                                <code class="flex-grow-1 lan-url-text user-select-all" id="lanUrl-{{ $row['key'] }}">{{ $row['url'] }}</code>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-copy-lan-url="{{ $row['key'] }}">
+                                    <i class="bi bi-clipboard"></i> Copy
+                                </button>
+                            </div>
+                        @endforeach
+                    </div>
+                    <div class="form-text mt-2 mb-0">
+                        Mobile app login par <strong>Server URL</strong> mein upar wala API address use karein.
+                        App pehli dafa <code>/api/server-config</code> se bhi yeh IP le sakti hai.
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="card shadow-sm mt-4">
             <div class="card-header bg-white fw-semibold">Database Information</div>
             <div class="card-body">
@@ -948,12 +1006,70 @@ document.querySelector('[name="invoice_prefix"]')?.addEventListener('input', e =
 
 (function () {
     const tab = new URLSearchParams(window.location.search).get('tab');
-    if (tab === 'pos') {
-        const btn = document.querySelector('[data-bs-target="#tab-pos"]');
+    const tabMap = { pos: '#tab-pos', system: '#tab-system' };
+    const target = tabMap[tab];
+    if (target) {
+        const btn = document.querySelector('[data-bs-target="' + target + '"]');
         if (btn && typeof bootstrap !== 'undefined') {
             bootstrap.Tab.getOrCreateInstance(btn).show();
         }
     }
+})();
+
+(function () {
+    const ipInput = document.getElementById('lan_server_ip');
+    const portInput = document.getElementById('lan_server_port');
+    if (!ipInput) return;
+
+    function buildBaseUrl() {
+        let ip = (ipInput.value || '').trim().replace(/^https?:\/\//i, '');
+        ip = ip.split('/')[0];
+        let port = (portInput?.value || '').trim();
+        if (ip.includes(':')) {
+            const parts = ip.split(':');
+            ip = parts[0];
+            if (!port && parts[1]) port = parts[1];
+        }
+        if (!ip) return '';
+        const p = parseInt(port, 10);
+        if (p > 0 && p !== 80) return 'http://' + ip + ':' + p;
+        return 'http://' + ip;
+    }
+
+    function refreshLanUrls() {
+        const base = buildBaseUrl();
+        document.querySelectorAll('.lan-url-row').forEach(function (row) {
+            const path = row.getAttribute('data-lan-path') || '/';
+            const code = row.querySelector('.lan-url-text');
+            if (!code) return;
+            if (!base) {
+                code.textContent = '— IP save karein —';
+                return;
+            }
+            const suffix = path === '/' ? '' : path;
+            code.textContent = base + suffix;
+        });
+    }
+
+    document.querySelectorAll('[data-copy-lan-url]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const key = btn.getAttribute('data-copy-lan-url');
+            const el = document.getElementById('lanUrl-' + key);
+            const text = el?.textContent?.trim() || '';
+            if (!text || text.startsWith('—')) return;
+            navigator.clipboard.writeText(text).then(function () {
+                const icon = btn.querySelector('i');
+                if (icon) {
+                    icon.className = 'bi bi-check2';
+                    setTimeout(function () { icon.className = 'bi bi-clipboard'; }, 1500);
+                }
+            });
+        });
+    });
+
+    ipInput.addEventListener('input', refreshLanUrls);
+    portInput?.addEventListener('input', refreshLanUrls);
+    refreshLanUrls();
 })();
 
 (function () {

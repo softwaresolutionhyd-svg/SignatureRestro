@@ -8,6 +8,7 @@ use App\Models\InventoryProduct;
 use App\Models\PosOrder;
 use App\Models\PosTable;
 use App\Models\Setting;
+use App\Support\LanServerUrl;
 use App\Support\ServeMealSchedule;
 use App\Services\OrderTakerService;
 use Illuminate\Http\JsonResponse;
@@ -37,7 +38,7 @@ class OrderTakerApiController extends Controller
 
         $waiters = Employee::query()->where('active', true)->waiters()->orderBy('name')->get(['id', 'name']);
 
-        return response()->json([
+        return response()->json(array_merge([
             'currency' => Setting::get('currency_symbol', 'Rs.'),
             'tables_enabled' => $tablesEnabled,
             'products' => $products->map(fn (InventoryProduct $p) => [
@@ -59,7 +60,7 @@ class OrderTakerApiController extends Controller
                 ['key' => 'booking', 'label' => 'In-House'],
                 ['key' => 'ast_offr', 'label' => PosOrder::MESS_BILL_LABEL],
             ],
-        ]);
+        ], LanServerUrl::apiPayload()));
     }
 
     public function pending(): JsonResponse

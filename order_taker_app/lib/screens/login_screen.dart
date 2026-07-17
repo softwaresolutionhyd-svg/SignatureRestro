@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 
 import '../config/server_config.dart';
@@ -24,12 +27,35 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       final session = context.read<Session>();
       if (session.baseUrl.isNotEmpty) {
         _baseUrlCtrl.text = session.baseUrl;
+        return;
       }
+      await _discoverServerUrl();
     });
+  }
+
+  Future<void> _discoverServerUrl() async {
+    for (final tryUrl in [kDefaultServerUrl]) {
+      try {
+        final uri = Uri.parse('$tryUrl/api/server-config');
+        final res = await http
+            .get(uri, headers: {'Accept': 'application/json'})
+            .timeout(const Duration(seconds: 4));
+        if (res.statusCode != 200) continue;
+        final data = jsonDecode(res.body);
+        if (data is! Map<String, dynamic>) continue;
+        final url = (data['server_url'] as String?)?.trim();
+        if (url != null && url.isNotEmpty && mounted) {
+          setState(() => _baseUrlCtrl.text = url);
+        }
+        return;
+      } catch (_) {
+        // try next / keep default
+      }
+    }
   }
 
   @override

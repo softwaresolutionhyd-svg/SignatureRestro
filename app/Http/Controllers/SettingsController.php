@@ -7,6 +7,7 @@ use App\Models\PosSittingArea;
 use App\Models\PosTable;
 use App\Models\Setting;
 use App\Support\ActivityLogger;
+use App\Support\LanServerUrl;
 use App\Support\PosTablesSchema;
 use App\Services\PublicStorageMirror;
 use Illuminate\Http\RedirectResponse;
@@ -73,6 +74,8 @@ class SettingsController extends Controller
         'hr_leave_per_page'                 => '20',
         'hr_annual_leave_days'              => '14',
         'product_extra_cost_fields'         => '[{"key":"gas_charges","label":"Gas charges","rate":20,"operator":"plus","base":"cost","target":"effective_cost"}]',
+        'lan_server_ip'                     => '',
+        'lan_server_port'                   => '',
     ];
 
     public function index()
@@ -90,7 +93,9 @@ class SettingsController extends Controller
             $area->setRelation('tables', PosTable::sortByNaturalName($area->tables));
         });
 
-        return view('settings.index', compact('settings', 'posSittingAreas'));
+        $lanLinks = LanServerUrl::mobileLinks();
+
+        return view('settings.index', compact('settings', 'posSittingAreas', 'lanLinks'));
     }
 
     public function update(Request $request)
@@ -133,6 +138,8 @@ class SettingsController extends Controller
             'employees_ref_per_page' => ['required', 'integer', 'min:5', 'max:100'],
             'hr_leave_per_page' => ['required', 'integer', 'min:5', 'max:100'],
             'hr_annual_leave_days' => ['required', 'integer', 'min:0', 'max:365'],
+            'lan_server_ip' => ['nullable', 'string', 'max:120'],
+            'lan_server_port' => ['nullable', 'integer', 'min:1', 'max:65535'],
             'product_extra_cost_fields' => ['nullable', 'array', 'max:20'],
             'product_extra_cost_fields.*.label' => ['nullable', 'string', 'max:60'],
             'product_extra_cost_fields.*.rate' => ['nullable', 'numeric', 'min:0', 'max:999999'],
@@ -142,6 +149,25 @@ class SettingsController extends Controller
         ]);
 
         $this->validateProductExtraCostFieldReferences($request->input('product_extra_cost_fields', []));
+
+        $lanIpRaw = trim((string) ($data['lan_server_ip'] ?? ''));
+        if ($lanIpRaw !== '') {
+            $parsed = LanServerUrl::parseInput($lanIpRaw);
+            if ($parsed['ip'] === '' || ! filter_var($parsed['ip'], FILTER_VALIDATE_IP)) {
+                throw ValidationException::withMessages([
+                    'lan_server_ip' => ['Valid LAN IP likhein (e.g. 192.168.3.50).'],
+                ]);
+            }
+            $data['lan_server_ip'] = $parsed['ip'];
+            if ($parsed['port'] !== null && empty($data['lan_server_port'])) {
+                $data['lan_server_port'] = (string) $parsed['port'];
+            }
+        } else {
+            $data['lan_server_ip'] = '';
+        }
+
+        $portRaw = trim((string) ($data['lan_server_port'] ?? ''));
+        $data['lan_server_port'] = $portRaw === '' ? '' : (string) (int) $portRaw;
 
         foreach ([
             'pos_open_receipt_after_sale',
