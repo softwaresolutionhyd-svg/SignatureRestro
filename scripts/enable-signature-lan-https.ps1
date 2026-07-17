@@ -112,7 +112,7 @@ if (-not (Test-Path $HttpdConf)) {
 
 $changed = $false
 if (Ensure-ApacheLine -Path $HttpdConf -Pattern '^\s*LoadModule\s+ssl_module' -InsertAfter '^\s*#LoadModule\s+ssl_module' -NewLine 'LoadModule ssl_module modules/mod_ssl.so') { $changed = $true }
-if (Ensure-ApacheLine -Path $HttpdConf -Pattern '^\s*Listen\s+443\s*$' -InsertAfter '^\s*Listen\s+80\s*$' -NewLine 'Listen 443') { $changed = $true }
+# Listen 443 mat add karein — Laragon httpd-ssl.conf mein pehle se hai (duplicate = Apache fail)
 
 $vhost = @"
 # Signature LAN HTTPS — auto-generated (HTTP redirect OFF — pehle HTTPS test karein)
