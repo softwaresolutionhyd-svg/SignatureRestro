@@ -76,6 +76,7 @@ class SettingsController extends Controller
         'product_extra_cost_fields'         => '[{"key":"gas_charges","label":"Gas charges","rate":20,"operator":"plus","base":"cost","target":"effective_cost"}]',
         'lan_server_ip'                     => '',
         'lan_server_port'                   => '',
+        'lan_server_https'                  => '0',
     ];
 
     public function index()
@@ -182,6 +183,7 @@ class SettingsController extends Controller
             'pos_allow_bill_print',
             'pos_enable_tables',
             'pos_service_charge_enabled',
+            'lan_server_https',
             'inventory_show_low_stock_banner',
             'expenses_require_receipt_on_submit',
             'accounts_auto_journal',

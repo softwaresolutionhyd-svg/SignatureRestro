@@ -96,11 +96,13 @@ class LanServerUrl
         $ip = self::ip($companyId);
         if ($ip) {
             $port = self::port($companyId);
-            if ($port === null || $port === 80) {
-                return 'http://'.$ip;
+            $scheme = (string) self::setting('lan_server_https', '0', $companyId) === '1' ? 'https' : 'http';
+
+            if ($port === null || ($scheme === 'http' && $port === 80) || ($scheme === 'https' && $port === 443)) {
+                return $scheme.'://'.$ip;
             }
 
-            return 'http://'.$ip.':'.$port;
+            return $scheme.'://'.$ip.':'.$port;
         }
 
         if (! app()->runningInConsole() && request()) {

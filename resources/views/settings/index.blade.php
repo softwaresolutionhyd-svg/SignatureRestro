@@ -739,6 +739,13 @@
                                placeholder="8080" min="1" max="65535">
                         <div class="form-text">Khali = port 80</div>
                     </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <div class="form-check mb-2">
+                            <input type="checkbox" class="form-check-input" name="lan_server_https" id="lan_server_https" value="1"
+                                {{ old('lan_server_https', $settings['lan_server_https']) === '1' ? 'checked' : '' }}>
+                            <label class="form-check-label" for="lan_server_https">HTTPS use karein (secure lock)</label>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="mt-4 p-3 bg-light rounded-3 border">
@@ -1025,15 +1032,18 @@ document.querySelector('[name="invoice_prefix"]')?.addEventListener('input', e =
         let ip = (ipInput.value || '').trim().replace(/^https?:\/\//i, '');
         ip = ip.split('/')[0];
         let port = (portInput?.value || '').trim();
+        const https = document.getElementById('lan_server_https')?.checked;
         if (ip.includes(':')) {
             const parts = ip.split(':');
             ip = parts[0];
             if (!port && parts[1]) port = parts[1];
         }
         if (!ip) return '';
+        const scheme = https ? 'https' : 'http';
         const p = parseInt(port, 10);
-        if (p > 0 && p !== 80) return 'http://' + ip + ':' + p;
-        return 'http://' + ip;
+        const defaultPort = https ? 443 : 80;
+        if (p > 0 && p !== defaultPort) return scheme + '://' + ip + ':' + p;
+        return scheme + '://' + ip;
     }
 
     function refreshLanUrls() {
@@ -1069,6 +1079,7 @@ document.querySelector('[name="invoice_prefix"]')?.addEventListener('input', e =
 
     ipInput.addEventListener('input', refreshLanUrls);
     portInput?.addEventListener('input', refreshLanUrls);
+    document.getElementById('lan_server_https')?.addEventListener('change', refreshLanUrls);
     refreshLanUrls();
 })();
 
