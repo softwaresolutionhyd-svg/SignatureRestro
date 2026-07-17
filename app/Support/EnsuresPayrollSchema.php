@@ -8,12 +8,10 @@ use Illuminate\Support\Facades\Schema;
 
 trait EnsuresPayrollSchema
 {
-    private const PAYROLL_SCHEMA_CACHE = 'payroll_schema:ensured:v1';
-
     protected function ensurePayrollSchema(?string $connection = null): void
     {
         $conn = $connection ?? 'tenant';
-        $cacheKey = self::PAYROLL_SCHEMA_CACHE.':'.$conn;
+        $cacheKey = 'payroll_schema:ensured:v1:'.$conn;
 
         try {
             if (Cache::get($cacheKey)) {
