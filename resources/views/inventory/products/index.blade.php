@@ -123,10 +123,10 @@
                                     {{ $p->active ? 'Active' : 'Inactive' }}
                                 </span>
                                 @if($p->for_pos ?? true)
-                                    <span class="badge text-bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">POS</span>
+                                    <span class="badge text-bg-primary text-white">POS</span>
                                 @endif
                                 @if($p->for_purchase ?? true)
-                                    <span class="badge text-bg-secondary">Purchase</span>
+                                    <span class="badge text-bg-secondary text-white">Purchase</span>
                                 @endif
                             </td>
                             <td class="text-end">
