@@ -335,6 +335,42 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     display: none !important;
 }
 
+.restaurant-pos-app .rp-table-select-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-width: 12.5rem;
+    max-width: 16rem;
+    width: 100%;
+}
+
+.restaurant-pos-app .rp-table-select-icon {
+    position: absolute;
+    left: 0.7rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1.4rem;
+    height: 1.4rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: rgba(232, 176, 74, 0.15);
+    color: var(--rp-gold-dark);
+    font-size: 0.8rem;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.restaurant-pos-app #rpTable.rp-table-select {
+    min-width: 12.5rem;
+    max-width: 16rem;
+    width: 100%;
+    padding-left: 2.5rem;
+    padding-right: 1.9rem;
+    font-weight: 700;
+}
+
 .restaurant-pos-app #rpTable option.rp-table--free {
     background-color: #166534;
     color: #fff;
@@ -374,6 +410,11 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     width: auto;
     min-width: 6.5rem;
     max-width: 9rem;
+}
+
+.restaurant-pos-app .rp-order-bar-fields .rp-table-select-wrap .form-select-sm {
+    min-width: 12.5rem;
+    max-width: 16rem;
 }
 
 .restaurant-pos-app .rp-credit-inline {

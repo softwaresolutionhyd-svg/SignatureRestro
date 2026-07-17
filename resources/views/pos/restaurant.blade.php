@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=46">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=47">
 @endpush
 
 @section('content')
@@ -153,24 +153,27 @@
                 <div class="rp-order-bar-fields" id="rpServiceDetails">
                     <div class="rp-service-panel rp-service-panel--inline d-none" id="rpDineInPanel" data-service="dine_in">
                         @if($posSettings['enable_tables'] ?? false)
-                            <select id="rpTable" class="form-select form-select-sm" aria-label="Table No.">
-                                <option value="">Table…</option>
-                                @php
-                                    $rpTableGroups = collect($tableBoard ?? [])
-                                        ->groupBy(fn ($t) => $t['sitting_area_name'] ?? 'Other')
-                                        ->map(fn ($rows) => collect($rows)->sort(fn ($a, $b) => strnatcasecmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? '')))->values());
-                                @endphp
-                                @foreach($rpTableGroups as $areaName => $areaTables)
-                                    <optgroup label="{{ $areaName }}">
-                                        @foreach($areaTables as $t)
-                                            <option value="{{ $t['id'] }}"
-                                                    class="rp-table--{{ $t['status'] === 'occupied' ? 'occupied' : 'free' }}"
-                                                    data-status="{{ $t['status'] === 'occupied' ? 'occupied' : 'free' }}"
-                                                    @selected(($posSettings['resume_table_id'] ?? null) === (int) $t['id'])>{{ $t['name'] }}</option>
-                                        @endforeach
-                                    </optgroup>
-                                @endforeach
-                            </select>
+                            <div class="rp-table-select-wrap">
+                                <span class="rp-table-select-icon" aria-hidden="true"><i class="bi bi-table"></i></span>
+                                <select id="rpTable" class="form-select form-select-sm rp-table-select" aria-label="Table No.">
+                                    <option value="">Table…</option>
+                                    @php
+                                        $rpTableGroups = collect($tableBoard ?? [])
+                                            ->groupBy(fn ($t) => $t['sitting_area_name'] ?? 'Other')
+                                            ->map(fn ($rows) => collect($rows)->sort(fn ($a, $b) => strnatcasecmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? '')))->values());
+                                    @endphp
+                                    @foreach($rpTableGroups as $areaName => $areaTables)
+                                        <optgroup label="{{ $areaName }}">
+                                            @foreach($areaTables as $t)
+                                                <option value="{{ $t['id'] }}"
+                                                        class="rp-table--{{ $t['status'] === 'occupied' ? 'occupied' : 'free' }}"
+                                                        data-status="{{ $t['status'] === 'occupied' ? 'occupied' : 'free' }}"
+                                                        @selected(($posSettings['resume_table_id'] ?? null) === (int) $t['id'])>Table  {{ $t['name'] }}</option>
+                                            @endforeach
+                                        </optgroup>
+                                    @endforeach
+                                </select>
+                            </div>
                         @else
                             <input type="text" id="rpTableNo" class="form-control form-control-sm" maxlength="50"
                                    value="{{ old('guest_name', $posSettings['resume_guest_name'] ?? '') }}"
