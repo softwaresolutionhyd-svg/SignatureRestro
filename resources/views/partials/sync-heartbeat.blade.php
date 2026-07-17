@@ -4,7 +4,7 @@
     const statusUrl = @json(route('sync.status'));
     const pushUrl = @json(route('sync.push'));
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-    const heartbeatMs = {{ max(30, (int) config('sync.heartbeat_seconds', 60)) * 1000 }};
+    const heartbeatMs = {{ max(10, (int) config('sync.heartbeat_seconds', 20)) * 1000 }};
     const autoPush = {{ config('sync.auto_push_heartbeat') ? 'true' : 'false' }};
     const badge = document.getElementById('sync-status-badge');
     const dot = document.getElementById('sync-status-dot');
@@ -50,9 +50,10 @@
             if (!res.ok) return;
             const data = await res.json();
             paint(data);
-            // Full two-way sync: push pending + pull hosting changes (server debounce applies)
+            // Full two-way sync on heartbeat (server debounce ~15s keeps it light)
             if (autoPush && navigator.onLine && data.online && !syncing) {
-                pushNow(false);
+                // Pending changes: sync immediately. Idle: still pull hot tables.
+                pushNow(Number(data.pending || 0) > 0);
             }
         } catch (e) {
             paint({ online: false, pending: lastStatus.pending || 0 });

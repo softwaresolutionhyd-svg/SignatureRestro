@@ -13,7 +13,7 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         if (config('sync.enabled') && config('sync.role') === 'local') {
-            $schedule->command('sync:cloud')->everyMinute()->withoutOverlapping();
+            $schedule->command('sync:cloud')->everyMinute()->withoutOverlapping(2);
         }
     }
 

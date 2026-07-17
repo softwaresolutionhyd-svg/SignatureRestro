@@ -39,7 +39,10 @@ class SyncCloudCommand extends Command
         }
 
         $this->info('Syncing both ways (local ↔ hosting)…');
-        $this->line('Pull tables: '.count($sync->resolvePullTables()).' (full DB when SYNC_PULL_TABLES=*)');
+        $tables = $this->option('reset-pull')
+            ? $sync->resolvePullTables()
+            : $sync->tablesForPullCycle(false);
+        $this->line('Pull this cycle: '.count($tables).' table(s)');
 
         $result = $sync->syncBoth(true, (bool) $this->option('reset-pull'));
         $this->{$result['ok'] ? 'info' : 'error'}($result['message']);

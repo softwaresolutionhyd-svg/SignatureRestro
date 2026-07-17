@@ -90,8 +90,8 @@ class CloudSyncService
             return ['ok' => false, 'pushed' => 0, 'pending' => $this->pendingCount(), 'message' => 'SYNC_REMOTE_URL / SYNC_TOKEN missing.'];
         }
 
-        $batchSize = max(1, (int) config('sync.batch_size', 100));
-        $pushTimeout = max(3, (int) config('sync.push_timeout_seconds', 12));
+        $batchSize = max(1, (int) config('sync.batch_size', 250));
+        $pushTimeout = max(3, (int) config('sync.push_timeout_seconds', 20));
         $pushed = 0;
 
         if (! $this->shouldRunPushNow($force)) {
@@ -106,12 +106,6 @@ class CloudSyncService
         $this->markPushAttempted();
 
         $this->ensureTargetSchemaOnce();
-
-        try {
-            $this->pingRemote($url, $token);
-        } catch (Throwable) {
-            // hosting may be on older build; push will still attempt
-        }
 
         while (true) {
             $items = SyncQueueItem::query()
@@ -675,76 +669,72 @@ class CloudSyncService
             $this->resetPullCursors();
         }
 
-        $tables = $this->resolvePullTables();
+        // Reset cursors = full table list; normal/background = hot + rotated cold (fast)
+        $tables = $this->tablesForPullCycle($resetCursors);
         $pulled = 0;
         $failed = 0;
         $posOrderIds = [];
-        $pullTimeout = max(20, (int) config('sync.push_timeout_seconds', 30));
+        $pullTimeout = max(12, (int) config('sync.push_timeout_seconds', 20));
+        $limit = max(100, min(400, (int) config('sync.batch_size', 250)));
+        $parallel = max(1, min(8, (int) config('sync.pull_parallel', 6)));
 
         try {
-            foreach ($tables as $table) {
-                $since = $this->getMeta('last_pull_at:'.$table);
-                $loops = 0;
-                do {
-                    $loops++;
-                    $response = Http::timeout($pullTimeout)
-                        ->connectTimeout(3)
-                        ->withToken($token)
-                        ->acceptJson()
-                        ->get($url.'/api/sync/pull', [
-                            'since' => $since,
-                            'tables' => [$table],
-                            'limit' => max(50, min(300, (int) config('sync.batch_size', 100) * 2)),
-                        ]);
+            $chunkIndex = 0;
+            foreach (array_chunk($tables, $parallel) as $chunk) {
+                if ($chunkIndex > 0) {
+                    usleep(150000); // 150ms between parallel batches — avoid hosting 429
+                }
+                $chunkIndex++;
 
-                    if (! $response->successful()) {
+                $responses = Http::pool(function ($pool) use ($chunk, $url, $token, $pullTimeout, $limit) {
+                    foreach ($chunk as $table) {
+                        $since = $this->getMeta('last_pull_at:'.$table);
+                        $pool->as($table)
+                            ->timeout($pullTimeout)
+                            ->connectTimeout(2)
+                            ->withToken($token)
+                            ->acceptJson()
+                            ->get($url.'/api/sync/pull', [
+                                'since' => $since,
+                                'tables' => [$table],
+                                'limit' => $limit,
+                            ]);
+                    }
+                });
+
+                foreach ($chunk as $table) {
+                    $response = $responses[$table] ?? null;
+                    if ($response instanceof \Illuminate\Http\Client\Response && $response->status() === 429) {
+                        usleep(800000);
+                        $response = Http::timeout($pullTimeout)
+                            ->connectTimeout(2)
+                            ->withToken($token)
+                            ->acceptJson()
+                            ->get($url.'/api/sync/pull', [
+                                'since' => $this->getMeta('last_pull_at:'.$table),
+                                'tables' => [$table],
+                                'limit' => $limit,
+                            ]);
+                    }
+                    if (! $response instanceof \Illuminate\Http\Client\Response) {
+                        $failed++;
+
+                        continue;
+                    }
+
+                    $apply = $this->consumePullResponse($response, $table, $url, $token, $pullTimeout, $limit, $posOrderIds);
+                    if ($apply['fatal'] !== null) {
                         return [
                             'ok' => false,
-                            'pulled' => $pulled,
-                            'failed' => $failed,
-                            'message' => 'Hosting pull failed: HTTP '.$response->status().' — hosting par latest code deploy karein (/api/sync/pull).',
-                            'online' => false,
+                            'pulled' => $pulled + $apply['pulled'],
+                            'failed' => $failed + $apply['failed'],
+                            'message' => $apply['fatal'],
+                            'online' => $apply['online'],
                         ];
                     }
-
-                    $body = $response->json();
-                    if (! is_array($body) || ($body['ok'] ?? false) !== true) {
-                        return [
-                            'ok' => false,
-                            'pulled' => $pulled,
-                            'failed' => $failed,
-                            'message' => (string) ($body['message'] ?? 'Hosting pull rejected.'),
-                            'online' => true,
-                        ];
-                    }
-
-                    $changes = is_array($body['changes'] ?? null) ? $body['changes'] : [];
-                    $changes = $this->filterPullChangesSkippingLocalPending($changes);
-
-                    if ($changes !== []) {
-                        $result = $this->applyIncoming($changes);
-                        $pulled += count($result['applied']);
-                        $failed += count($result['failed']);
-
-                        foreach ($changes as $change) {
-                            if (($change['table'] ?? '') === 'credit_ledger' && is_array($change['payload'] ?? null)) {
-                                $oid = (int) ($change['payload']['pos_order_id'] ?? 0);
-                                if ($oid > 0) {
-                                    $posOrderIds[$oid] = $oid;
-                                }
-                            }
-                        }
-                    }
-
-                    $next = $body['next_since'] ?? null;
-                    if (is_string($next) && $next !== '') {
-                        $since = $next;
-                        $this->setMeta('last_pull_at:'.$table, $next);
-                        $this->setMeta('last_pull_at', $next);
-                    }
-
-                    $hasMore = (bool) ($body['has_more'] ?? false);
-                } while ($hasMore && $loops < 40);
+                    $pulled += $apply['pulled'];
+                    $failed += $apply['failed'];
+                }
             }
 
             if ($posOrderIds !== []) {
@@ -775,6 +765,140 @@ class CloudSyncService
         ];
     }
 
+    /**
+     * Background: hot tables every cycle + rotate cold tables.
+     * Force: every syncable table.
+     *
+     * @return list<string>
+     */
+    public function tablesForPullCycle(bool $full = false): array
+    {
+        $all = $this->resolvePullTables();
+        if ($full || $all === []) {
+            return $all;
+        }
+
+        $hotCfg = config('sync.pull_hot_tables', []);
+        $hot = [];
+        if (is_array($hotCfg)) {
+            foreach ($hotCfg as $t) {
+                if (is_string($t) && in_array($t, $all, true)) {
+                    $hot[] = $t;
+                }
+            }
+        }
+
+        $cold = array_values(array_diff($all, $hot));
+        $perCycle = max(4, (int) config('sync.pull_cold_per_cycle', 12));
+        if ($cold === []) {
+            return $hot !== [] ? $hot : $all;
+        }
+
+        $offset = (int) ($this->getMeta('pull_rotate_offset') ?: '0');
+        $n = count($cold);
+        $slice = [];
+        for ($i = 0; $i < min($perCycle, $n); $i++) {
+            $slice[] = $cold[($offset + $i) % $n];
+        }
+        $this->setMeta('pull_rotate_offset', (string) (($offset + $perCycle) % $n));
+
+        return array_values(array_unique(array_merge($hot, $slice)));
+    }
+
+    /**
+     * @param  array<int, int>  $posOrderIds
+     * @return array{pulled: int, failed: int, fatal: ?string, online: bool}
+     */
+    protected function consumePullResponse(
+        \Illuminate\Http\Client\Response $response,
+        string $table,
+        string $url,
+        string $token,
+        int $pullTimeout,
+        int $limit,
+        array &$posOrderIds
+    ): array {
+        $pulled = 0;
+        $failed = 0;
+
+        if (! $response->successful()) {
+            return [
+                'pulled' => 0,
+                'failed' => 0,
+                'fatal' => 'Hosting pull failed: HTTP '.$response->status().' — hosting par latest code deploy karein (/api/sync/pull).',
+                'online' => false,
+            ];
+        }
+
+        $since = $this->getMeta('last_pull_at:'.$table);
+        $loops = 0;
+        $body = $response->json();
+
+        while (true) {
+            $loops++;
+            if (! is_array($body) || ($body['ok'] ?? false) !== true) {
+                return [
+                    'pulled' => $pulled,
+                    'failed' => $failed,
+                    'fatal' => (string) ($body['message'] ?? 'Hosting pull rejected.'),
+                    'online' => true,
+                ];
+            }
+
+            $changes = is_array($body['changes'] ?? null) ? $body['changes'] : [];
+            $changes = $this->filterPullChangesSkippingLocalPending($changes);
+
+            if ($changes !== []) {
+                $result = $this->applyIncoming($changes);
+                $pulled += count($result['applied']);
+                $failed += count($result['failed']);
+
+                foreach ($changes as $change) {
+                    if (($change['table'] ?? '') === 'credit_ledger' && is_array($change['payload'] ?? null)) {
+                        $oid = (int) ($change['payload']['pos_order_id'] ?? 0);
+                        if ($oid > 0) {
+                            $posOrderIds[$oid] = $oid;
+                        }
+                    }
+                }
+            }
+
+            $next = $body['next_since'] ?? null;
+            if (is_string($next) && $next !== '') {
+                $since = $next;
+                $this->setMeta('last_pull_at:'.$table, $next);
+                $this->setMeta('last_pull_at', $next);
+            }
+
+            $hasMore = (bool) ($body['has_more'] ?? false);
+            if (! $hasMore || $loops >= 40) {
+                break;
+            }
+
+            $follow = Http::timeout($pullTimeout)
+                ->connectTimeout(2)
+                ->withToken($token)
+                ->acceptJson()
+                ->get($url.'/api/sync/pull', [
+                    'since' => $since,
+                    'tables' => [$table],
+                    'limit' => $limit,
+                ]);
+
+            if (! $follow->successful()) {
+                return [
+                    'pulled' => $pulled,
+                    'failed' => $failed,
+                    'fatal' => 'Hosting pull failed: HTTP '.$follow->status(),
+                    'online' => false,
+                ];
+            }
+            $body = $follow->json();
+        }
+
+        return ['pulled' => $pulled, 'failed' => $failed, 'fatal' => null, 'online' => true];
+    }
+
     /** Clear pull cursors so next pull uses lookback window again. */
     public function resetPullCursors(): void
     {
@@ -785,7 +909,8 @@ class CloudSyncService
         DB::table('sync_meta')
             ->where(function ($q) {
                 $q->where('meta_key', 'last_pull_at')
-                    ->orWhere('meta_key', 'like', 'last_pull_at:%');
+                    ->orWhere('meta_key', 'like', 'last_pull_at:%')
+                    ->orWhere('meta_key', 'pull_rotate_offset');
             })
             ->delete();
     }
@@ -883,7 +1008,7 @@ class CloudSyncService
 
     private function shouldRunPullNow(): bool
     {
-        $debounce = max(15, (int) config('sync.push_debounce_seconds', 90));
+        $debounce = max(5, (int) config('sync.pull_debounce_seconds', config('sync.push_debounce_seconds', 15)));
         try {
             $last = \Illuminate\Support\Facades\Cache::get('sync:last_pull_attempt');
 
@@ -1000,7 +1125,7 @@ class CloudSyncService
             return true;
         }
 
-        $debounce = max(10, (int) config('sync.push_debounce_seconds', 90));
+        $debounce = max(5, (int) config('sync.push_debounce_seconds', 15));
 
         try {
             $last = \Illuminate\Support\Facades\Cache::get('sync:last_push_attempt');
