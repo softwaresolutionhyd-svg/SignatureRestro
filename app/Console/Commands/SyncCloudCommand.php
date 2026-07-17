@@ -9,9 +9,10 @@ class SyncCloudCommand extends Command
 {
     protected $signature = 'sync:cloud
                             {--snapshot : Queue a full database snapshot before push}
+                            {--pull : Also force pull from hosting (default when auto_pull on)}
                             {--status : Show sync status only}';
 
-    protected $description = 'Push pending local changes to hosting (online/offline sync)';
+    protected $description = 'Push local changes to hosting and pull online credit book to cafe PC';
 
     public function handle(CloudSyncService $sync): int
     {
@@ -36,11 +37,22 @@ class SyncCloudCommand extends Command
             $this->info("Queued {$n} row(s).");
         }
 
-        $this->info('Pushing to hosting…');
-        $result = $sync->push();
-        $this->{$result['ok'] ? 'info' : 'error'}($result['message']);
-        $this->line("Pushed: {$result['pushed']} | Pending: {$result['pending']}");
+        $ok = true;
 
-        return $result['ok'] ? self::SUCCESS : self::FAILURE;
+        $this->info('Pushing to hosting…');
+        $push = $sync->push(true);
+        $this->{$push['ok'] ? 'info' : 'error'}($push['message']);
+        $this->line("Pushed: {$push['pushed']} | Pending: {$push['pending']}");
+        $ok = $ok && ($push['ok'] || ($push['pending'] ?? 0) === 0);
+
+        if ($this->option('pull') || config('sync.auto_pull', true)) {
+            $this->info('Pulling credit book / sales from hosting…');
+            $pull = $sync->pull(true);
+            $this->{$pull['ok'] ? 'info' : 'error'}($pull['message']);
+            $this->line("Pulled: {$pull['pulled']} | Failed: {$pull['failed']}");
+            $ok = $ok && $pull['ok'];
+        }
+
+        return $ok ? self::SUCCESS : self::FAILURE;
     }
 }

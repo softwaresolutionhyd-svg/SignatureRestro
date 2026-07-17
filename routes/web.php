@@ -107,6 +107,7 @@ Route::middleware('guest')->group(function () {
 Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
     Route::get('/sync/status', [SyncStatusController::class, 'status'])->name('sync.status');
     Route::post('/sync/push', [SyncStatusController::class, 'push'])->name('sync.push');
+    Route::post('/sync/pull', [SyncStatusController::class, 'pull'])->name('sync.pull');
 
     Route::middleware(['tenant', 'company', 'companyTenantReady'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

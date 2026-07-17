@@ -77,6 +77,9 @@
                 online: data.online !== false,
                 pending: data.pending ?? lastStatus.pending ?? 0
             });
+            if (Number(data.pulled || 0) > 0 && label) {
+                label.textContent = 'Pulled ' + data.pulled;
+            }
         } catch (e) {
             paint({ online: false, pending: lastStatus.pending || 0 });
         } finally {

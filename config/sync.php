@@ -42,6 +42,18 @@ return [
     // Min seconds between background push attempts (web terminating + heartbeat)
     'push_debounce_seconds' => (int) env('SYNC_PUSH_DEBOUNCE_SECONDS', 90),
 
+    // Local pulls these tables from hosting (online → cafe PC)
+    'pull_tables' => array_values(array_filter(array_map('trim', explode(',', (string) env(
+        'SYNC_PULL_TABLES',
+        'contacts,pos_orders,pos_order_items,pos_payments,credit_ledger'
+    ))))),
+
+    // First pull without cursor: only rows newer than this many days
+    'pull_lookback_days' => (int) env('SYNC_PULL_LOOKBACK_DAYS', 120),
+
+    // Auto pull when sync badge is clicked / heartbeat push runs
+    'auto_pull' => (bool) env('SYNC_AUTO_PULL', true),
+
     // Tables never synced (local-only / framework)
     'exclude_tables' => [
         'migrations',

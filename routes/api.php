@@ -19,6 +19,8 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('sync.token')->prefix('sync')->group(function () {
     Route::get('/ping', [CloudSyncController::class, 'ping']);
     Route::post('/push', [CloudSyncController::class, 'push']);
+    Route::get('/pull', [CloudSyncController::class, 'pull']);
+    Route::post('/pull-ids', [CloudSyncController::class, 'pullIds']);
 });
 
 Route::get('/server-config', [ServerConfigController::class, 'show']);

@@ -42,4 +42,38 @@ class CloudSyncController extends Controller
             'failed' => $result['failed'],
         ]);
     }
+
+    /** Hosting → cafe: export rows changed since cursor (credit book / sales). */
+    public function pull(Request $request, CloudSyncService $sync): JsonResponse
+    {
+        $data = $request->validate([
+            'since' => ['nullable', 'string', 'max:40'],
+            'tables' => ['nullable', 'array', 'max:20'],
+            'tables.*' => ['string', 'max:128'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:500'],
+        ]);
+
+        $result = $sync->exportPullBatch(
+            $data['since'] ?? null,
+            $data['tables'] ?? null,
+            (int) ($data['limit'] ?? 200)
+        );
+
+        return response()->json($result);
+    }
+
+    /** Hosting → cafe: export specific rows by id (related POS orders for credit sales). */
+    public function pullIds(Request $request, CloudSyncService $sync): JsonResponse
+    {
+        $data = $request->validate([
+            'table' => ['required', 'string', 'max:128'],
+            'ids' => ['required', 'array', 'min:1', 'max:500'],
+            'ids.*' => ['integer', 'min:1'],
+            'by' => ['nullable', 'in:id,order_id'],
+        ]);
+
+        $result = $sync->exportRowsByIds($data['table'], $data['ids'], (string) ($data['by'] ?? 'id'));
+
+        return response()->json($result);
+    }
 }

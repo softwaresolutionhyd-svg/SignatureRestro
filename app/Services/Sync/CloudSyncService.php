@@ -401,6 +401,419 @@ class CloudSyncService
     }
 
     /**
+     * Hosting: export rows for cafe PC pull (online → offline).
+     *
+     * @param  list<string>|null  $tables
+     * @return array{ok: bool, changes: list<array<string, mixed>>, next_since: ?string, has_more: bool, message: string}
+     */
+    public function exportPullBatch(?string $since, ?array $tables, int $limit = 200): array
+    {
+        if (! $this->isCloudRole()) {
+            return [
+                'ok' => false,
+                'changes' => [],
+                'next_since' => $since,
+                'has_more' => false,
+                'message' => 'Pull export only runs on cloud role.',
+            ];
+        }
+
+        $tables = $tables ?: config('sync.pull_tables', ['contacts', 'credit_ledger']);
+        $tables = array_values(array_filter($tables, fn ($t) => is_string($t) && $t !== '' && ! $this->recorder->isExcluded($t)));
+        $limit = max(1, min(500, $limit));
+        $lookbackDays = max(7, (int) config('sync.pull_lookback_days', 120));
+
+        $sinceAt = null;
+        if (is_string($since) && trim($since) !== '') {
+            try {
+                $sinceAt = \Carbon\Carbon::parse($since);
+            } catch (Throwable) {
+                $sinceAt = null;
+            }
+        }
+        if ($sinceAt === null) {
+            $sinceAt = now()->subDays($lookbackDays);
+        }
+
+        $changes = [];
+        $nextSince = $sinceAt->copy();
+        $hasMore = false;
+
+        $order = ['contacts', 'pos_orders', 'pos_order_items', 'pos_payments', 'credit_ledger'];
+        usort($tables, function ($a, $b) use ($order) {
+            $ia = array_search($a, $order, true);
+            $ib = array_search($b, $order, true);
+            $ia = $ia === false ? 100 : $ia;
+            $ib = $ib === false ? 100 : $ib;
+
+            return $ia <=> $ib;
+        });
+
+        $remaining = $limit;
+        foreach ($tables as $table) {
+            if ($remaining <= 0) {
+                $hasMore = true;
+                break;
+            }
+
+            $connection = $this->connectionForTable($table);
+            if ($connection === null) {
+                continue;
+            }
+
+            $schema = Schema::connection($connection->getName());
+            if (! $schema->hasTable($table) || ! $schema->hasColumn($table, 'id')) {
+                continue;
+            }
+
+            $q = $connection->table($table);
+            if ($schema->hasColumn($table, 'updated_at')) {
+                $q->where('updated_at', '>', $sinceAt->toDateTimeString())
+                    ->orderBy('updated_at')
+                    ->orderBy('id');
+            } elseif ($schema->hasColumn($table, 'created_at')) {
+                $q->where('created_at', '>', $sinceAt->toDateTimeString())
+                    ->orderBy('created_at')
+                    ->orderBy('id');
+            } else {
+                $q->orderBy('id');
+            }
+
+            $rows = $q->limit($remaining + 1)->get();
+            if ($rows->count() > $remaining) {
+                $hasMore = true;
+                $rows = $rows->take($remaining);
+            }
+
+            foreach ($rows as $row) {
+                $attrs = (array) $row;
+                $id = $attrs['id'] ?? null;
+                if ($id === null) {
+                    continue;
+                }
+                $changes[] = [
+                    'id' => 0,
+                    'table' => $table,
+                    'key' => (string) $id,
+                    'action' => 'upsert',
+                    'payload' => $attrs,
+                ];
+                $stamp = $attrs['updated_at'] ?? $attrs['created_at'] ?? null;
+                if ($stamp) {
+                    try {
+                        $ts = \Carbon\Carbon::parse($stamp);
+                        if ($ts->gt($nextSince)) {
+                            $nextSince = $ts;
+                        }
+                    } catch (Throwable) {
+                        // ignore
+                    }
+                }
+                $remaining--;
+            }
+        }
+
+        return [
+            'ok' => true,
+            'changes' => $changes,
+            'next_since' => $nextSince->toIso8601String(),
+            'has_more' => $hasMore,
+            'message' => count($changes) > 0
+                ? 'Exported '.count($changes).' row(s).'
+                : 'No newer rows.',
+        ];
+    }
+
+    /**
+     * @param  list<int>  $ids
+     * @return array{ok: bool, changes: list<array<string, mixed>>, message: string}
+     */
+    public function exportRowsByIds(string $table, array $ids, string $by = 'id'): array
+    {
+        if (! $this->isCloudRole()) {
+            return ['ok' => false, 'changes' => [], 'message' => 'Pull export only runs on cloud role.'];
+        }
+
+        $table = trim($table);
+        if ($table === '' || $this->recorder->isExcluded($table)) {
+            return ['ok' => false, 'changes' => [], 'message' => 'Invalid table.'];
+        }
+
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), fn ($id) => $id > 0)));
+        if ($ids === []) {
+            return ['ok' => true, 'changes' => [], 'message' => 'No ids.'];
+        }
+
+        $connection = $this->connectionForTable($table);
+        if ($connection === null) {
+            return ['ok' => false, 'changes' => [], 'message' => "Table missing: {$table}"];
+        }
+
+        $schema = Schema::connection($connection->getName());
+        $column = $by === 'order_id' && $schema->hasColumn($table, 'order_id') ? 'order_id' : 'id';
+
+        $rows = $connection->table($table)->whereIn($column, $ids)->get();
+        $changes = [];
+        foreach ($rows as $row) {
+            $attrs = (array) $row;
+            $id = $attrs['id'] ?? null;
+            if ($id === null) {
+                continue;
+            }
+            $changes[] = [
+                'id' => 0,
+                'table' => $table,
+                'key' => (string) $id,
+                'action' => 'upsert',
+                'payload' => $attrs,
+            ];
+        }
+
+        return [
+            'ok' => true,
+            'changes' => $changes,
+            'message' => 'Exported '.count($changes).' row(s).',
+        ];
+    }
+
+    /**
+     * Cafe PC: pull online credit book / sales into local DB.
+     *
+     * @return array{ok: bool, pulled: int, failed: int, message: string, online: bool}
+     */
+    public function pull(bool $force = false): array
+    {
+        if (! $this->isLocalRole()) {
+            return ['ok' => false, 'pulled' => 0, 'failed' => 0, 'message' => 'Pull only runs on local role.', 'online' => false];
+        }
+
+        $url = config('sync.remote_url');
+        $token = config('sync.token');
+        if ($url === '' || $token === '') {
+            return ['ok' => false, 'pulled' => 0, 'failed' => 0, 'message' => 'SYNC_REMOTE_URL / SYNC_TOKEN missing.', 'online' => false];
+        }
+
+        if (! $force && ! $this->shouldRunPullNow()) {
+            return [
+                'ok' => true,
+                'pulled' => 0,
+                'failed' => 0,
+                'message' => 'Pull skipped (debounce).',
+                'online' => $this->remoteReachable(),
+            ];
+        }
+
+        $this->markPullAttempted();
+
+        $since = $this->getMeta('last_pull_at');
+        $tables = config('sync.pull_tables', ['contacts', 'credit_ledger']);
+        $pulled = 0;
+        $failed = 0;
+        $posOrderIds = [];
+        $loops = 0;
+
+        try {
+            do {
+                $loops++;
+                $response = Http::timeout(max(8, (int) config('sync.push_timeout_seconds', 12)))
+                    ->connectTimeout(3)
+                    ->withToken($token)
+                    ->acceptJson()
+                    ->get($url.'/api/sync/pull', [
+                        'since' => $since,
+                        'tables' => $tables,
+                        'limit' => max(50, min(300, (int) config('sync.batch_size', 100) * 2)),
+                    ]);
+
+                if (! $response->successful()) {
+                    return [
+                        'ok' => false,
+                        'pulled' => $pulled,
+                        'failed' => $failed,
+                        'message' => 'Hosting pull failed: HTTP '.$response->status().' — hosting par latest code deploy karein (/api/sync/pull).',
+                        'online' => false,
+                    ];
+                }
+
+                $body = $response->json();
+                if (! is_array($body) || ($body['ok'] ?? false) !== true) {
+                    return [
+                        'ok' => false,
+                        'pulled' => $pulled,
+                        'failed' => $failed,
+                        'message' => (string) ($body['message'] ?? 'Hosting pull rejected.'),
+                        'online' => true,
+                    ];
+                }
+
+                $changes = is_array($body['changes'] ?? null) ? $body['changes'] : [];
+                $changes = $this->filterPullChangesSkippingLocalPending($changes);
+
+                if ($changes !== []) {
+                    $result = $this->applyIncoming($changes);
+                    $pulled += count($result['applied']);
+                    $failed += count($result['failed']);
+
+                    foreach ($changes as $change) {
+                        if (($change['table'] ?? '') === 'credit_ledger' && is_array($change['payload'] ?? null)) {
+                            $oid = (int) ($change['payload']['pos_order_id'] ?? 0);
+                            if ($oid > 0) {
+                                $posOrderIds[$oid] = $oid;
+                            }
+                        }
+                    }
+                }
+
+                $next = $body['next_since'] ?? null;
+                if (is_string($next) && $next !== '') {
+                    $since = $next;
+                    $this->setMeta('last_pull_at', $next);
+                }
+
+                $hasMore = (bool) ($body['has_more'] ?? false);
+            } while ($hasMore && $loops < 25);
+
+            if ($posOrderIds !== []) {
+                $related = $this->pullRelatedPosSales(array_values($posOrderIds), $url, $token);
+                $pulled += $related['pulled'];
+                $failed += $related['failed'];
+            }
+        } catch (Throwable $e) {
+            return [
+                'ok' => false,
+                'pulled' => $pulled,
+                'failed' => $failed,
+                'message' => 'Pull error: '.$e->getMessage(),
+                'online' => false,
+            ];
+        }
+
+        $this->setMeta('last_pull_ok', $failed === 0 ? '1' : '0');
+
+        return [
+            'ok' => $failed === 0,
+            'pulled' => $pulled,
+            'failed' => $failed,
+            'message' => $pulled > 0
+                ? "Pulled {$pulled} online row(s) to local.".($failed > 0 ? " {$failed} failed." : '')
+                : ($failed > 0 ? "{$failed} pull row(s) failed." : 'Local already has latest credit book from hosting.'),
+            'online' => true,
+        ];
+    }
+
+    /**
+     * @param  list<int>  $orderIds
+     * @return array{pulled: int, failed: int}
+     */
+    protected function pullRelatedPosSales(array $orderIds, string $url, string $token): array
+    {
+        $pulled = 0;
+        $failed = 0;
+        $orderIds = array_values(array_unique(array_filter(array_map('intval', $orderIds))));
+        if ($orderIds === []) {
+            return compact('pulled', 'failed');
+        }
+
+        foreach ([
+            ['table' => 'pos_orders', 'by' => 'id'],
+            ['table' => 'pos_order_items', 'by' => 'order_id'],
+            ['table' => 'pos_payments', 'by' => 'order_id'],
+        ] as $spec) {
+            try {
+                $response = Http::timeout(max(8, (int) config('sync.push_timeout_seconds', 12)))
+                    ->connectTimeout(3)
+                    ->withToken($token)
+                    ->acceptJson()
+                    ->post($url.'/api/sync/pull-ids', [
+                        'table' => $spec['table'],
+                        'ids' => $orderIds,
+                        'by' => $spec['by'],
+                    ]);
+                if (! $response->successful()) {
+                    continue;
+                }
+                $body = $response->json();
+                $changes = is_array($body['changes'] ?? null) ? $body['changes'] : [];
+                $changes = $this->filterPullChangesSkippingLocalPending($changes);
+                if ($changes === []) {
+                    continue;
+                }
+                $result = $this->applyIncoming($changes);
+                $pulled += count($result['applied']);
+                $failed += count($result['failed']);
+            } catch (Throwable) {
+                // ignore one child table failure
+            }
+        }
+
+        return compact('pulled', 'failed');
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $changes
+     * @return list<array<string, mixed>>
+     */
+    protected function filterPullChangesSkippingLocalPending(array $changes): array
+    {
+        if (! Schema::hasTable('sync_queue')) {
+            return $changes;
+        }
+
+        $out = [];
+        foreach ($changes as $change) {
+            $table = (string) ($change['table'] ?? '');
+            $key = (string) ($change['key'] ?? '');
+            if ($table === '' || $key === '') {
+                continue;
+            }
+            $pending = SyncQueueItem::query()
+                ->whereNull('synced_at')
+                ->where('table_name', $table)
+                ->where('record_key', $key)
+                ->exists();
+            if ($pending) {
+                continue;
+            }
+            $out[] = $change;
+        }
+
+        return $out;
+    }
+
+    protected function connectionForTable(string $table): ?\Illuminate\Database\Connection
+    {
+        if (Schema::hasTable($table)) {
+            return DB::connection();
+        }
+        if (Schema::connection('tenant')->hasTable($table)) {
+            return DB::connection('tenant');
+        }
+
+        return null;
+    }
+
+    private function shouldRunPullNow(): bool
+    {
+        $debounce = max(15, (int) config('sync.push_debounce_seconds', 90));
+        try {
+            $last = \Illuminate\Support\Facades\Cache::get('sync:last_pull_attempt');
+
+            return ! is_numeric($last) || (time() - (int) $last) >= $debounce;
+        } catch (\Throwable) {
+            return true;
+        }
+    }
+
+    private function markPullAttempted(): void
+    {
+        try {
+            \Illuminate\Support\Facades\Cache::put('sync:last_pull_attempt', time(), now()->addHours(2));
+        } catch (\Throwable) {
+            // ignore
+        }
+    }
+
+    /**
      * Queue every existing row once (first-time full mirror to hosting).
      */
     public function queueFullSnapshot(): int
@@ -485,7 +898,9 @@ class CloudSyncService
             'remote_url' => (string) config('sync.remote_url'),
             'last_push_at' => $this->getMeta('last_push_at'),
             'last_receive_at' => $this->getMeta('last_receive_at'),
+            'last_pull_at' => $this->getMeta('last_pull_at'),
             'auto_push' => (bool) config('sync.auto_push_heartbeat', false),
+            'auto_pull' => (bool) config('sync.auto_pull', true),
         ];
     }
 
