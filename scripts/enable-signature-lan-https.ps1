@@ -22,11 +22,37 @@ if (-not $isAdmin) {
 
 function Find-Mkcert {
     $candidates = @(
+        (Join-Path $PSScriptRoot 'tools\mkcert.exe'),
         'C:\laragon\bin\mkcert\mkcert.exe',
         'C:\laragon\bin\laragon\util\mkcert.exe',
         (Get-Command mkcert -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source)
     ) | Where-Object { $_ -and (Test-Path $_) }
     return $candidates | Select-Object -First 1
+}
+
+function Install-Mkcert {
+    $destDir = Join-Path $PSScriptRoot 'tools'
+    $dest    = Join-Path $destDir 'mkcert.exe'
+    $url     = 'https://github.com/FiloSottile/mkcert/releases/download/v1.4.4/mkcert-v1.4.4-windows-amd64.exe'
+
+    New-Item -ItemType Directory -Force -Path $destDir | Out-Null
+
+    Write-Host 'mkcert download ho raha hai (GitHub)...' -ForegroundColor Yellow
+    try {
+        Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
+    } catch {
+        Write-Host 'Download fail. Manual:' -ForegroundColor Red
+        Write-Host "  Browser: $url" -ForegroundColor Yellow
+        Write-Host "  Save as: $dest" -ForegroundColor Yellow
+        throw
+    }
+
+    if (-not (Test-Path $dest)) {
+        throw 'mkcert download complete nahi hua.'
+    }
+
+    Write-Host "[OK] mkcert saved: $dest" -ForegroundColor Green
+    return $dest
 }
 
 function Ensure-ApacheLine {
@@ -37,14 +63,21 @@ function Ensure-ApacheLine {
 
     $updated = New-Object System.Collections.Generic.List[string]
     $inserted = $false
+    $uncommented = $false
     foreach ($line in $lines) {
+        if (-not $inserted -and $line -match '^\s*#LoadModule\s+ssl_module') {
+            $updated.Add(($line -replace '^\s*#', ''))
+            $uncommented = $true
+            $inserted = $true
+            continue
+        }
         $updated.Add($line)
         if (-not $inserted -and $line -match $InsertAfter) {
             $updated.Add($NewLine)
             $inserted = $true
         }
     }
-    if (-not $inserted) {
+    if (-not $inserted -and -not $uncommented) {
         $updated.Add($NewLine)
     }
     Set-Content -Path $Path -Value $updated -Encoding ASCII
@@ -57,9 +90,7 @@ Write-Host ''
 
 $mkcert = Find-Mkcert
 if (-not $mkcert) {
-    Write-Host 'mkcert nahi mila. Laragon mein SSL tools enable karein ya install:' -ForegroundColor Red
-    Write-Host '  choco install mkcert   (ya Laragon Menu -> Tools -> mkcert)' -ForegroundColor Yellow
-    exit 1
+    $mkcert = Install-Mkcert
 }
 Write-Host "[OK] mkcert: $mkcert" -ForegroundColor Green
 
