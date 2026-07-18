@@ -202,6 +202,37 @@
             + '?return=' + encodeURIComponent(returnPath);
     }
 
+    function preferredUomCode(code) {
+        const c = String(code || '').trim().toLowerCase();
+        if (['g', 'gm', 'gram', 'grams'].includes(c)) return 'g';
+        if (['kg', 'kgs', 'kilogram', 'kilograms'].includes(c)) return 'kg';
+        if (['ml', 'milliliter', 'millilitre', 'milliliters', 'millilitres'].includes(c)) return 'ml';
+        if (['l', 'ltr', 'lt', 'liter', 'litre', 'liters', 'litres'].includes(c)) return 'ltr';
+        return String(code || '').trim();
+    }
+
+    function collapseUomsForSelect(uoms, baseUom) {
+        const base = String(baseUom || '').trim();
+        const baseFam = preferredUomCode(base).toLowerCase();
+        const seen = new Set();
+        const out = [];
+        (uoms || []).forEach((u) => {
+            const raw = String(u?.uom || '').trim();
+            if (!raw) return;
+            const factor = Number(u.factor);
+            const fam = preferredUomCode(raw).toLowerCase();
+            if (seen.has(fam)) return;
+            seen.add(fam);
+            const isBase = (Number.isFinite(factor) && Math.abs(factor - 1) < 1e-9)
+                || fam === baseFam;
+            out.push({
+                uom: isBase ? (base || raw) : preferredUomCode(raw),
+                factor: Number.isFinite(factor) ? factor : 1,
+            });
+        });
+        return out;
+    }
+
     function fillUomSelect(tr, meta, selectedUom) {
         const sel = tr.querySelector('[data-line-uom]');
         if (!sel || !meta) {
@@ -209,10 +240,12 @@
             return;
         }
         const base = String(meta.base_uom || '');
-        const uoms = (meta.uoms || []).filter((u) => String(u?.uom || '').trim() !== '');
+        const uoms = collapseUomsForSelect(meta.uoms || [], base);
+        const selectedFam = preferredUomCode(selectedUom || '').toLowerCase();
         sel.innerHTML = uoms.map(u => {
             const code = String(u.uom).trim();
-            const selAttr = selectedUom && code.toLowerCase() === String(selectedUom).toLowerCase() ? ' selected' : '';
+            const fam = preferredUomCode(code).toLowerCase();
+            const selAttr = selectedFam && fam === selectedFam ? ' selected' : '';
             const factor = Number(u.factor);
             let label = code;
             if (Number.isFinite(factor) && Math.abs(factor - 1) > 1e-9 && base) {
@@ -221,14 +254,16 @@
             }
             return `<option value="${esc(code)}"${selAttr}>${esc(label)}</option>`;
         }).join('');
-        if (selectedUom && !Array.from(sel.options).some((o) => o.value.toLowerCase() === String(selectedUom).toLowerCase())) {
+        if (selectedUom && !Array.from(sel.options).some((o) => preferredUomCode(o.value).toLowerCase() === selectedFam)) {
             sel.insertAdjacentHTML('beforeend', `<option value="${esc(selectedUom)}" selected>${esc(selectedUom)}</option>`);
         }
     }
 
     function lineCost(meta, uom, qty) {
         if (!meta || !qty || qty <= 0) return null;
-        const u = meta.uoms.find(x => String(x.uom).toLowerCase() === String(uom).toLowerCase());
+        const fam = preferredUomCode(uom).toLowerCase();
+        const u = (meta.uoms || []).find((x) => preferredUomCode(x.uom).toLowerCase() === fam)
+            || (meta.uoms || []).find((x) => String(x.uom).toLowerCase() === String(uom).toLowerCase());
         const factor = u ? Number(u.factor) : 1;
         if (!Number.isFinite(factor)) return null;
         const baseQty = Number(qty) * factor;

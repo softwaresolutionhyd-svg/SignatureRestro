@@ -511,7 +511,16 @@ class ProductController extends Controller
             return [collect(), []];
         }
 
-        $units = InventoryUnit::query()->orderBy('code')->get(['id', 'code', 'name']);
+        $units = InventoryUnit::query()->orderBy('code')->get(['id', 'code', 'name'])
+            ->filter(function (InventoryUnit $unit) {
+                $code = InventoryUnit::normalizeCode((string) $unit->code);
+                $preferred = InventoryProduct::preferredUomCode($code);
+
+                // Hide alias spellings (gm/gram/grams) when preferred code (g) is the family key
+                // and this row is not itself the preferred spelling.
+                return $code === $preferred;
+            })
+            ->values();
 
         if (! Schema::connection('tenant')->hasTable('inventory_unit_conversions')) {
             return [$units, []];
@@ -521,10 +530,12 @@ class ProductController extends Controller
             ->with(['fromUnit:id,code', 'toUnit:id,code'])
             ->get()
             ->map(fn (InventoryUnitConversion $c) => [
-                'from' => $c->fromUnit->code,
-                'to' => $c->toUnit->code,
+                'from' => InventoryProduct::preferredUomCode((string) ($c->fromUnit->code ?? '')),
+                'to' => InventoryProduct::preferredUomCode((string) ($c->toUnit->code ?? '')),
                 'factor' => (float) $c->factor,
             ])
+            ->filter(fn (array $r) => $r['from'] !== '' && $r['to'] !== '')
+            ->unique(fn (array $r) => $r['from'].'|'.$r['to'])
             ->values()
             ->all();
 

@@ -13,7 +13,6 @@ class UomLibrarySeeder extends Seeder
         $defs = [
             ['code' => 'kg', 'name' => 'Kilogram'],
             ['code' => 'g', 'name' => 'Gram'],
-            ['code' => 'gm', 'name' => 'Gram (alias)'],
             ['code' => 'ltr', 'name' => 'Litre'],
             ['code' => 'ml', 'name' => 'Millilitre'],
             ['code' => 'pcs', 'name' => 'Pieces'],
@@ -32,7 +31,6 @@ class UomLibrarySeeder extends Seeder
 
         $rules = [
             ['from' => 'g', 'to' => 'kg', 'factor' => 0.001, 'note' => '1 g = 0.001 kg'],
-            ['from' => 'gm', 'to' => 'kg', 'factor' => 0.001, 'note' => 'Same as g → kg'],
             ['from' => 'ml', 'to' => 'ltr', 'factor' => 0.001, 'note' => '1 ml = 0.001 ltr'],
         ];
 

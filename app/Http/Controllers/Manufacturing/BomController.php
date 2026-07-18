@@ -282,12 +282,27 @@ class BomController extends Controller
             ->orderBy('name')
             ->get()
             ->map(function (InventoryProduct $p) {
+                $uoms = collect($p->uomsForForms())
+                    ->map(function (array $row) {
+                        $raw = trim((string) ($row['uom'] ?? ''));
+                        $factor = (float) ($row['factor'] ?? 0);
+                        $isBase = abs($factor - 1.0) < 1e-9;
+
+                        return [
+                            'uom' => $isBase ? $raw : InventoryProduct::preferredUomCode($raw),
+                            'factor' => $factor,
+                        ];
+                    })
+                    ->unique(fn (array $row) => InventoryProduct::equivalentUomFamily($row['uom']))
+                    ->values()
+                    ->all();
+
                 return [
                     'id' => $p->id,
                     'label' => $p->sku.' — '.$p->name.' ('.$p->uom.')',
                     'base_uom' => $p->uom,
                     'cost' => (float) $p->cost,
-                    'uoms' => $p->uomsForForms(),
+                    'uoms' => $uoms,
                 ];
             })
             ->values()

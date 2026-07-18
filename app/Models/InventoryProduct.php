@@ -428,6 +428,40 @@ class InventoryProduct extends Model
             $add($from, $factor);
         }
 
+        return self::collapseAliasUomRows($out);
+    }
+
+    /**
+     * Final pass: one row per unit family (g/gm/gram/grams → g).
+     *
+     * @param  list<array{uom: string, factor: float}>  $rows
+     * @return list<array{uom: string, factor: float}>
+     */
+    private static function collapseAliasUomRows(array $rows): array
+    {
+        $out = [];
+        $seen = [];
+        foreach ($rows as $i => $row) {
+            $raw = trim((string) ($row['uom'] ?? ''));
+            if ($raw === '') {
+                continue;
+            }
+            $factor = (float) ($row['factor'] ?? 0);
+            if ($factor <= 0) {
+                continue;
+            }
+            $family = self::equivalentUomFamily($raw);
+            if (isset($seen[$family])) {
+                continue;
+            }
+            $seen[$family] = true;
+            // Keep the product's own base spelling on the first row; preferred code for the rest.
+            $out[] = [
+                'uom' => $i === 0 ? $raw : self::preferredUomCode($raw),
+                'factor' => $factor,
+            ];
+        }
+
         return $out;
     }
 
