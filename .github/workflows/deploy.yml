@@ -25,16 +25,23 @@ jobs:
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           server-dir: ${{ secrets.FTP_SERVER_DIR }}
+          timeout: 600000
           exclude: |
             **/.git*
             **/.git*/**
+            **/.cursor/**
+            **/.cursor*/**
             **/node_modules/**
             **/.env
             **/.env.*
             **/backup/**
+            **/dist/**
+            **/order_taker_app/**
             **/storage/logs/**
             **/storage/framework/sessions/**
             **/storage/framework/cache/**
+            **/.ftp-deploy-sync-state.json
+            **/scripts/tools/mkcert.exe
 
       - name: Run migrations on server
         continue-on-error: true
