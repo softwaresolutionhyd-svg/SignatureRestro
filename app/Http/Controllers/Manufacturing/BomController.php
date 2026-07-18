@@ -9,9 +9,11 @@ use App\Models\ManufacturingBomLine;
 use App\Models\ManufacturingOrder;
 use App\Models\Setting;
 use App\Services\Sync\SyncAwareDelete;
+use App\Support\IngredientsCategory;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class BomController extends Controller
@@ -98,24 +100,43 @@ class BomController extends Controller
 
     public function create(Request $request): View
     {
-        $products = InventoryProduct::query()
-            ->where('active', true)
-            ->orderBy('name')
-            ->get(['id', 'sku', 'name', 'uom']);
-        $productOptions = $products->map(fn ($p) => [
+        IngredientsCategory::assignWarehouseProducts();
+
+        $finishedProducts = $this->bomFinishedProducts();
+        $ingredientProducts = $this->bomIngredientProducts();
+        $finishedProductsMeta = $this->bomProductsMetaFrom($finishedProducts);
+        $ingredientProductsMeta = $this->bomProductsMetaFrom($ingredientProducts);
+        // Line costing / UOM lookup: ingredients (+ finished for header search).
+        $bomProductsMeta = collect($finishedProductsMeta)
+            ->keyBy('id')
+            ->union(collect($ingredientProductsMeta)->keyBy('id'))
+            ->values()
+            ->all();
+
+        $products = $finishedProducts;
+        $productOptions = $finishedProducts->map(fn ($p) => [
             'id' => $p->id,
             'label' => $p->sku.' — '.$p->name.' ('.$p->uom.')',
         ])->values();
-        $bomProductsMeta = $this->bomProductsMeta();
 
         $prefillFinishedId = old('finished_product_id', $request->integer('finished_product_id')) ?: null;
-        if ($prefillFinishedId && !$products->contains('id', (int) $prefillFinishedId)) {
+        if ($prefillFinishedId && ! $finishedProducts->contains('id', (int) $prefillFinishedId)) {
             $prefillFinishedId = null;
         }
 
         $bomReturnPath = $this->safeInternalReturnUrl($request->query('return'));
 
-        return view('manufacturing.boms.create', compact('products', 'productOptions', 'bomProductsMeta', 'prefillFinishedId', 'bomReturnPath'));
+        return view('manufacturing.boms.create', compact(
+            'products',
+            'productOptions',
+            'finishedProducts',
+            'ingredientProducts',
+            'bomProductsMeta',
+            'finishedProductsMeta',
+            'ingredientProductsMeta',
+            'prefillFinishedId',
+            'bomReturnPath'
+        ));
     }
 
     public function store(Request $request): RedirectResponse
@@ -146,19 +167,39 @@ class BomController extends Controller
 
     public function edit(Request $request, ManufacturingBom $bom): View
     {
+        IngredientsCategory::assignWarehouseProducts();
+
         $bom->load(['lines.component']);
-        $products = InventoryProduct::query()
-            ->where('active', true)
-            ->orderBy('name')
-            ->get(['id', 'sku', 'name', 'uom']);
-        $productOptions = $products->map(fn ($p) => [
+        $finishedProducts = $this->bomFinishedProducts();
+        $ingredientProducts = $this->bomIngredientProducts(
+            $bom->lines->pluck('component_product_id')->map(fn ($id) => (int) $id)->all()
+        );
+        $finishedProductsMeta = $this->bomProductsMetaFrom($finishedProducts);
+        $ingredientProductsMeta = $this->bomProductsMetaFrom($ingredientProducts);
+        $bomProductsMeta = collect($finishedProductsMeta)
+            ->keyBy('id')
+            ->union(collect($ingredientProductsMeta)->keyBy('id'))
+            ->values()
+            ->all();
+
+        $products = $finishedProducts;
+        $productOptions = $finishedProducts->map(fn ($p) => [
             'id' => $p->id,
             'label' => $p->sku.' — '.$p->name.' ('.$p->uom.')',
         ])->values();
-        $bomProductsMeta = $this->bomProductsMeta();
         $bomReturnPath = $this->safeInternalReturnUrl($request->query('return'));
 
-        return view('manufacturing.boms.edit', compact('bom', 'products', 'productOptions', 'bomProductsMeta', 'bomReturnPath'));
+        return view('manufacturing.boms.edit', compact(
+            'bom',
+            'products',
+            'productOptions',
+            'finishedProducts',
+            'ingredientProducts',
+            'bomProductsMeta',
+            'finishedProductsMeta',
+            'ingredientProductsMeta',
+            'bomReturnPath'
+        ));
     }
 
     public function update(Request $request, ManufacturingBom $bom): RedirectResponse
@@ -178,7 +219,7 @@ class BomController extends Controller
         return $this->redirectAfterBom($request, 'BoM updated.');
     }
 
-    public function destroy(ManufacturingBom $bom): RedirectResponse
+    public function destroy(Request $request, ManufacturingBom $bom): RedirectResponse
     {
         if (ManufacturingOrder::query()->where('bom_id', $bom->id)->where('status', ManufacturingOrder::STATUS_DONE)->exists()) {
             return redirect()->back()->withErrors('Cannot delete a BoM that has completed production orders.');
@@ -197,16 +238,27 @@ class BomController extends Controller
      */
     private function validated(Request $request): array
     {
+        $ingredientIds = IngredientsCategory::categoryIds();
         $finishedRule = ['required', 'integer', 'exists:tenant.inventory_products,id'];
+        $componentRule = [
+            'required',
+            'integer',
+            'exists:tenant.inventory_products,id',
+            Rule::exists('tenant.inventory_products', 'id')->where(function ($q) use ($ingredientIds) {
+                $q->whereIn('category_id', $ingredientIds)->where('active', true);
+            }),
+        ];
         $data = $request->validate([
             'finished_product_id' => $finishedRule,
             'name' => ['required', 'string', 'max:120'],
             'batch_qty' => ['required', 'numeric', 'min:0.001'],
             'notes' => ['nullable', 'string', 'max:500'],
             'lines' => ['required', 'array', 'min:1'],
-            'lines.*.component_product_id' => ['required', 'integer', 'exists:tenant.inventory_products,id'],
+            'lines.*.component_product_id' => $componentRule,
             'lines.*.qty' => ['required', 'numeric', 'min:0.001'],
             'lines.*.uom' => ['required', 'string', 'max:30'],
+        ], [
+            'lines.*.component_product_id.exists' => 'Recipe lines mein sirf Ingredients category ke products allowed hain.',
         ]);
 
         $data['active'] = $request->boolean('active');
@@ -231,7 +283,7 @@ class BomController extends Controller
                     break;
                 }
             }
-            if (!$ok) {
+            if (! $ok) {
                 abort(422, 'Invalid unit "'.$u.'" for component '.$comp->sku.'. Allowed: '.implode(', ', $allowed));
             }
         }
@@ -246,7 +298,7 @@ class BomController extends Controller
         }
 
         $product = InventoryProduct::query()->findOrFail($finishedId);
-        if (!$product->active) {
+        if (! $product->active) {
             abort(422, 'Finished product must be active.');
         }
 
@@ -254,7 +306,7 @@ class BomController extends Controller
     }
 
     /**
-     * @param  list<array{component_product_id: int, qty: float|int|string}>  $lines
+     * @param  list<array{component_product_id: int, qty: float|int|string, uom?: string}>  $lines
      */
     private function syncLines(ManufacturingBom $bom, array $lines): void
     {
@@ -272,16 +324,51 @@ class BomController extends Controller
     }
 
     /**
-     * @return list<array{id:int,label:string,base_uom:string,cost:float,uoms:list<array{uom:string,factor:float}>}>
+     * Finished goods picker — active products (not limited to Ingredients).
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, InventoryProduct>
      */
-    private function bomProductsMeta(): array
+    private function bomFinishedProducts()
     {
         return InventoryProduct::query()
             ->where('active', true)
-            ->with(['uomConversions' => fn ($q) => $q->where('active', true)])
             ->orderBy('name')
-            ->get()
+            ->get(['id', 'sku', 'name', 'uom', 'cost', 'category_id']);
+    }
+
+    /**
+     * Recipe components — Ingredients category only (+ optional legacy IDs for edit).
+     *
+     * @param  list<int>  $alsoIncludeIds
+     * @return \Illuminate\Database\Eloquent\Collection<int, InventoryProduct>
+     */
+    private function bomIngredientProducts(array $alsoIncludeIds = [])
+    {
+        $categoryIds = IngredientsCategory::categoryIds();
+        $alsoIncludeIds = array_values(array_unique(array_filter(array_map('intval', $alsoIncludeIds))));
+
+        return InventoryProduct::query()
+            ->where('active', true)
+            ->where(function ($q) use ($categoryIds, $alsoIncludeIds) {
+                $q->whereIn('category_id', $categoryIds);
+                if ($alsoIncludeIds !== []) {
+                    $q->orWhereIn('id', $alsoIncludeIds);
+                }
+            })
+            ->with(['uomConversions' => fn ($c) => $c->where('active', true)])
+            ->orderBy('name')
+            ->get(['id', 'sku', 'name', 'uom', 'cost', 'category_id']);
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, InventoryProduct>  $products
+     * @return list<array{id:int,label:string,base_uom:string,cost:float,uoms:list<array{uom:string,factor:float}>}>
+     */
+    private function bomProductsMetaFrom($products): array
+    {
+        return $products
             ->map(function (InventoryProduct $p) {
+                $p->loadMissing(['uomConversions' => fn ($q) => $q->where('active', true)]);
                 $uoms = collect($p->uomsForForms())
                     ->map(function (array $row) {
                         $raw = trim((string) ($row['uom'] ?? ''));

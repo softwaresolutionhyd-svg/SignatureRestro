@@ -45,7 +45,7 @@
                 <input type="hidden" name="finished_product_id" id="finishedProductIdInput" value="{{ $selectedFinishedId }}">
                 <input type="text"
                        id="finishedProductSearch"
-                       list="bomProductList"
+                       list="bomFinishedProductList"
                        class="form-control @error('finished_product_id') is-invalid @enderror"
                        value="{{ $selectedFinishedLabel }}"
                        placeholder="Type SKU or name and select suggestion"
@@ -108,8 +108,8 @@
         <div class="card-body p-0">
             <p class="small text-secondary px-3 pt-3 mb-0">
                 <strong>Unit</strong> column = is line ki qty kis naap mein hai.
-                Component base <code>kg</code> ho aur aapne product / Units library mein <code>g</code> (1000 g = 1 kg) set kiya ho to yahan <strong>g</strong> choose karke grams mein likho — e.g. <strong>25 g</strong>.
-                Agar unit <code>kg</code> hi chhora to 25 = <strong>25 kg</strong> samjha jayega.
+                Component list mein sirf <strong>Ingredients</strong> category ke warehouse products dikhte hain.
+                Component base <code>kg</code> ho aur Units library mein <code>g</code> set ho to <strong>g</strong> choose karke grams likho — e.g. <strong>25 g</strong>.
             </p>
             <div class="table-responsive">
                 <table class="table mb-0 align-middle" id="linesTable">
@@ -134,8 +134,13 @@
     </div>
 </form>
 
-<datalist id="bomProductList">
-    @foreach($products as $p)
+<datalist id="bomFinishedProductList">
+    @foreach(($finishedProducts ?? $products) as $p)
+        <option value="{{ $p->sku }} — {{ $p->name }} ({{ $p->uom }})" data-id="{{ $p->id }}"></option>
+    @endforeach
+</datalist>
+<datalist id="bomIngredientList">
+    @foreach(($ingredientProducts ?? collect()) as $p)
         <option value="{{ $p->sku }} — {{ $p->name }} ({{ $p->uom }})" data-id="{{ $p->id }}"></option>
     @endforeach
 </datalist>
@@ -154,6 +159,8 @@
 <script>
 (function () {
     const productsMeta = @json($bomProductsMeta);
+    const finishedMeta = @json($finishedProductsMeta ?? $bomProductsMeta);
+    const ingredientMeta = @json($ingredientProductsMeta ?? []);
     const productEditBaseUrl = @json(url('inventory/products'));
     const body = document.getElementById('linesBody');
     let idx = 0;
@@ -171,18 +178,20 @@
         return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
     }
 
-    function metaById(id) {
-        return productsMeta.find(p => String(p.id) === String(id)) || null;
+    function metaById(id, list) {
+        const src = list || productsMeta;
+        return src.find(p => String(p.id) === String(id)) || null;
     }
 
-    function metaByLabel(label) {
+    function metaByLabel(label, list) {
         const norm = String(label || '').trim().toLowerCase();
         if (!norm) return null;
-        return productsMeta.find(p => String(p.label || '').trim().toLowerCase() === norm) || null;
+        const src = list || productsMeta;
+        return src.find(p => String(p.label || '').trim().toLowerCase() === norm) || null;
     }
 
     function labelById(id) {
-        const m = metaById(id);
+        const m = metaById(id, ingredientMeta) || metaById(id, productsMeta);
         return m ? m.label : '';
     }
 
@@ -192,7 +201,7 @@
         return `<tr data-line>
             <td>
                 <input type="hidden" name="lines[${i}][component_product_id]" class="bom-comp-id" value="${esc(selId || '')}">
-                <input type="text" class="form-control form-control-sm bom-comp-search" list="bomProductList" placeholder="Type component" autocomplete="off" required value="${esc(selectedLabel)}">
+                <input type="text" class="form-control form-control-sm bom-comp-search" list="bomIngredientList" placeholder="Type ingredient" autocomplete="off" required value="${esc(selectedLabel)}">
             </td>
             <td><select name="lines[${i}][uom]" class="form-select form-select-sm bom-uom" required data-line-uom></select></td>
             <td><input type="number" name="lines[${i}][qty]" class="form-control form-control-sm bom-qty" step="0.001" min="0.001" required value="${q}"></td>
@@ -288,7 +297,7 @@
             const compId = tr.querySelector('.bom-comp-id');
             const uomSel = tr.querySelector('.bom-uom');
             const qtyInp = tr.querySelector('.bom-qty');
-            const meta = metaById(compId && compId.value);
+            const meta = metaById(compId && compId.value, ingredientMeta) || metaById(compId && compId.value, productsMeta);
             const v = meta && uomSel && qtyInp ? lineCost(meta, uomSel.value, parseFloat(qtyInp.value)) : null;
             if (v != null && Number.isFinite(v)) sum += v;
         });
@@ -307,7 +316,7 @@
         const uomSel = tr.querySelector('.bom-uom');
         const qtyInp = tr.querySelector('.bom-qty');
         const out = tr.querySelector('[data-line-cost]');
-        const meta = metaById(compId && compId.value);
+        const meta = metaById(compId && compId.value, ingredientMeta) || metaById(compId && compId.value, productsMeta);
         if (!meta || !uomSel || !qtyInp || !out) {
             updateBomTotals();
             return;
@@ -339,13 +348,14 @@
             editBtn.title = 'Edit this component';
         };
         if (compId.value) {
-            const m = metaById(compId.value);
+            const m = metaById(compId.value, ingredientMeta) || metaById(compId.value, productsMeta);
             fillUomSelect(tr, m, presetUom || (m && m.base_uom));
         }
         const resolveComponent = () => {
-            const m = metaByLabel(compSearch.value);
+            const m = metaByLabel(compSearch.value, ingredientMeta);
             compId.value = m ? String(m.id) : '';
-            fillUomSelect(tr, m, m && m.base_uom);
+            const preferG = m && collapseUomsForSelect(m.uoms || [], m.base_uom).some(u => preferredUomCode(u.uom).toLowerCase() === 'g');
+            fillUomSelect(tr, m, preferG ? 'g' : (m && m.base_uom));
             refreshEditButton();
             updateLineCost(tr);
         };
@@ -395,7 +405,7 @@
     const finishedIdInput = document.getElementById('finishedProductIdInput');
     function syncFinishedProduct() {
         if (!finishedSearch || !finishedIdInput) return;
-        const m = metaByLabel(finishedSearch.value);
+        const m = metaByLabel(finishedSearch.value, finishedMeta);
         finishedIdInput.value = m ? String(m.id) : '';
     }
     finishedSearch?.addEventListener('change', syncFinishedProduct);
