@@ -25,8 +25,20 @@ jobs:
           tools: composer:v2
           coverage: none
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
       - name: Install Composer dependencies
         run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+      - name: Build frontend (public/build Vite manifest)
+        run: |
+          npm ci
+          npm run build
+          test -f public/build/manifest.json
 
       - name: Zip vendor for reliable single-file upload
         run: |
@@ -86,6 +98,7 @@ jobs:
           echo "vendor.zip uploaded"
 
       - name: Extract vendor on hosting
+        continue-on-error: true
         run: |
           curl -sfS --retry 5 --retry-delay 3 \
             "https://signature.softwaresolutions.pk/extract-vendor.php" \
