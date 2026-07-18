@@ -20,6 +20,9 @@ if (! class_exists('ZipArchive')) {
 if (! is_dir($target)) {
     mkdir($target, 0775, true);
 }
+if (! is_dir($target.'/assets')) {
+    mkdir($target.'/assets', 0775, true);
+}
 
 $zip = new ZipArchive();
 if ($zip->open($zipPath) !== true) {
@@ -28,16 +31,18 @@ if ($zip->open($zipPath) !== true) {
     exit;
 }
 
-// Clear old hashed assets so stale hashes cannot 404
-$assetsDir = $target.'/assets';
-if (is_dir($assetsDir)) {
-    foreach (glob($assetsDir.'/*') ?: [] as $f) {
-        @unlink($f);
-    }
+echo "ZIP_ENTRIES={$zip->numFiles}\n";
+for ($i = 0; $i < min(10, $zip->numFiles); $i++) {
+    echo 'ENTRY '.$zip->getNameIndex($i)."\n";
 }
 
 $ok = $zip->extractTo($target);
 $zip->close();
+if (! $ok) {
+    http_response_code(500);
+    echo "Extract failed\n";
+    exit;
+}
 
 $manifest = $target.'/manifest.json';
 $cssOk = false;
@@ -50,17 +55,17 @@ if (is_file($manifest)) {
                 continue;
             }
             $path = $target.'/'.$entry['file'];
+            $exists = is_file($path);
             if (str_ends_with($entry['file'], '.css')) {
-                $cssOk = is_file($path);
-                echo (is_file($path) ? 'OK  ' : 'MISS').' '.$entry['file'].' ('.(is_file($path) ? filesize($path) : 0).")\n";
+                $cssOk = $exists;
             }
             if (str_ends_with($entry['file'], '.js')) {
-                $jsOk = is_file($path);
-                echo (is_file($path) ? 'OK  ' : 'MISS').' '.$entry['file'].' ('.(is_file($path) ? filesize($path) : 0).")\n";
+                $jsOk = $exists;
             }
+            echo ($exists ? 'OK  ' : 'MISS').' '.$entry['file'].' ('.($exists ? filesize($path) : 0).")\n";
         }
     }
 }
 
 echo is_file($manifest) ? "OK  manifest.json\n" : "MISS manifest.json\n";
-echo ($ok && $cssOk && $jsOk) ? "DONE design assets restored\n" : "FAIL incomplete extract\n";
+echo ($cssOk && $jsOk) ? "DONE design assets restored\n" : "FAIL incomplete extract\n";

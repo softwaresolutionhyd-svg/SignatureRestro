@@ -46,6 +46,13 @@ jobs:
           zip -r -q vendor.zip vendor
           ls -lh vendor.zip
 
+      - name: Zip public/build for reliable CSS/JS upload
+        run: |
+          rm -f public/build-assets.zip
+          (cd public/build && zip -r -q ../build-assets.zip .)
+          ls -lh public/build-assets.zip
+          unzip -l public/build-assets.zip | head -20
+
       - name: Deploy code via FTP (exclude vendor folder — zip uploaded separately)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
@@ -104,6 +111,13 @@ jobs:
             "https://signature.softwaresolutions.pk/extract-vendor.php" \
             | tee /tmp/extract-out.txt
           grep -q "OK vendor/autoload.php" /tmp/extract-out.txt
+
+      - name: Extract Vite build assets on hosting
+        run: |
+          curl -sfS --retry 5 --retry-delay 3 \
+            "https://signature.softwaresolutions.pk/extract-build.php" \
+            | tee /tmp/extract-build.txt
+          grep -q "DONE design assets restored" /tmp/extract-build.txt
 
       - name: Run migrations on server
         continue-on-error: true
