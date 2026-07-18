@@ -368,6 +368,7 @@ class InventoryProduct extends Model
      * Rows for dropdowns: base + product conversions + matching global library rules (to = product base).
      * Product-specific factors override library when the same “from” code exists.
      * Built-in metric fallbacks (g→kg, ml→ltr, …) so recipe/BoM always gets grams when base is kg.
+     * Alias units (gm/gram/grams, etc.) collapse to one preferred code so dropdowns stay clean.
      *
      * @return list<array{uom: string, factor: float}>
      */
@@ -380,15 +381,19 @@ class InventoryProduct extends Model
         }
 
         $out = [['uom' => $baseRaw !== '' ? $baseRaw : $baseNorm, 'factor' => 1.0]];
-        $seen = [$baseNorm => true];
+        $seen = [self::equivalentUomFamily($baseNorm) => true];
 
         $add = function (string $uom, float $factor) use (&$out, &$seen): void {
             $code = InventoryUnit::normalizeCode($uom);
-            if ($code === '' || $factor <= 0 || isset($seen[$code])) {
+            if ($code === '' || $factor <= 0) {
                 return;
             }
-            $out[] = ['uom' => $code, 'factor' => $factor];
-            $seen[$code] = true;
+            $family = self::equivalentUomFamily($code);
+            if (isset($seen[$family])) {
+                return;
+            }
+            $out[] = ['uom' => self::preferredUomCode($code), 'factor' => $factor];
+            $seen[$family] = true;
         };
 
         $this->loadMissing(['uomConversions' => fn ($q) => $q->where('active', true)]);
@@ -412,7 +417,8 @@ class InventoryProduct extends Model
             if (! $lib->fromUnit || ! $lib->toUnit) {
                 continue;
             }
-            if (InventoryUnit::normalizeCode($lib->toUnit->code) !== $baseNorm) {
+            if (InventoryUnit::normalizeCode($lib->toUnit->code) !== $baseNorm
+                && self::equivalentUomFamily((string) $lib->toUnit->code) !== self::equivalentUomFamily($baseNorm)) {
                 continue;
             }
             $add((string) $lib->fromUnit->code, (float) $lib->factor);
@@ -448,11 +454,14 @@ class InventoryProduct extends Model
         }
 
         $this->loadMissing(['uomConversions' => fn ($q) => $q->where('active', true)]);
+        $fromNorm = InventoryUnit::normalizeCode($uomCode);
+        $fromFamily = self::equivalentUomFamily($fromNorm);
         foreach ($this->uomConversions as $c) {
             if (! $c->active) {
                 continue;
             }
-            if (strcasecmp((string) $c->uom, $uomCode) === 0) {
+            $convNorm = InventoryUnit::normalizeCode((string) $c->uom);
+            if ($convNorm === $fromNorm || self::equivalentUomFamily($convNorm) === $fromFamily) {
                 $factor = (float) $c->factor_to_base;
 
                 return $factor > 0 ? $factor : null;
@@ -460,16 +469,18 @@ class InventoryProduct extends Model
         }
 
         $baseNorm = InventoryUnit::normalizeCode((string) $this->uom);
-        $fromNorm = InventoryUnit::normalizeCode($uomCode);
+        $baseFamily = self::equivalentUomFamily($baseNorm);
 
         foreach (self::allLibraryUnitConversions() as $lib) {
             if (! $lib->fromUnit || ! $lib->toUnit) {
                 continue;
             }
-            if (InventoryUnit::normalizeCode($lib->fromUnit->code) !== $fromNorm) {
+            $libFrom = InventoryUnit::normalizeCode($lib->fromUnit->code);
+            $libTo = InventoryUnit::normalizeCode($lib->toUnit->code);
+            if (self::equivalentUomFamily($libFrom) !== $fromFamily) {
                 continue;
             }
-            if (InventoryUnit::normalizeCode($lib->toUnit->code) !== $baseNorm) {
+            if ($libTo !== $baseNorm && self::equivalentUomFamily($libTo) !== $baseFamily) {
                 continue;
             }
             $factor = (float) $lib->factor;
@@ -479,35 +490,57 @@ class InventoryProduct extends Model
 
         $builtIn = self::builtInMetricFactorsToBase($baseNorm);
 
-        return $builtIn[$fromNorm] ?? null;
+        return $builtIn[$fromNorm]
+            ?? $builtIn[$fromFamily]
+            ?? $builtIn[self::preferredUomCode($fromNorm)]
+            ?? null;
+    }
+
+    /**
+     * Collapse common unit aliases so dropdowns show one option (e.g. only g, not gm/gram/grams).
+     */
+    public static function equivalentUomFamily(string $code): string
+    {
+        $code = InventoryUnit::normalizeCode($code);
+
+        return match ($code) {
+            'g', 'gm', 'gram', 'grams' => 'g',
+            'kg', 'kgs', 'kilogram', 'kilograms' => 'kg',
+            'ml', 'milliliter', 'millilitre', 'milliliters', 'millilitres' => 'ml',
+            'l', 'ltr', 'lt', 'liter', 'litre', 'liters', 'litres' => 'ltr',
+            default => $code,
+        };
+    }
+
+    /** Preferred spelling for a unit family (library / UI). */
+    public static function preferredUomCode(string $code): string
+    {
+        return self::equivalentUomFamily($code);
     }
 
     /**
      * Always-available metric pairs when library/product conversion rows are missing.
+     * Only preferred codes are listed (aliases still resolve via {@see equivalentUomFamily}).
      * Values = how many base units equal 1 of the from-unit.
      *
      * @return array<string, float> from_code => factor_to_base
      */
     private static function builtInMetricFactorsToBase(string $baseNorm): array
     {
-        $baseNorm = InventoryUnit::normalizeCode($baseNorm);
+        $baseFamily = self::equivalentUomFamily($baseNorm);
 
-        return match ($baseNorm) {
+        return match ($baseFamily) {
             'kg' => [
                 'g' => 0.001,
-                'gm' => 0.001,
-                'gram' => 0.001,
-                'grams' => 0.001,
             ],
-            'g', 'gm', 'gram', 'grams' => [
+            'g' => [
                 'kg' => 1000.0,
             ],
-            'ltr', 'l', 'liter', 'litre' => [
+            'ltr' => [
                 'ml' => 0.001,
             ],
             'ml' => [
                 'ltr' => 1000.0,
-                'l' => 1000.0,
             ],
             default => [],
         };
