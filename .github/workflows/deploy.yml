@@ -8,12 +8,12 @@ on:
 
 concurrency:
   group: deploy-production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -25,10 +25,16 @@ jobs:
           tools: composer:v2
           coverage: none
 
-      - name: Install Composer dependencies (vendor required on hosting)
+      - name: Install Composer dependencies
         run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
-      - name: Deploy via FTP
+      - name: Zip vendor for reliable single-file upload
+        run: |
+          rm -f vendor.zip
+          zip -r -q vendor.zip vendor
+          ls -lh vendor.zip
+
+      - name: Deploy code via FTP (exclude vendor folder — zip uploaded separately)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -42,6 +48,8 @@ jobs:
             **/.cursor/**
             **/.cursor*/**
             **/node_modules/**
+            **/vendor/**
+            **/vendor.zip
             **/.env
             **/.env.*
             **/backup/**
@@ -52,6 +60,37 @@ jobs:
             **/storage/framework/cache/**
             **/.ftp-deploy-sync-state.json
             **/scripts/tools/mkcert.exe
+
+      - name: Upload vendor.zip with FTP retries
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+          DIR="${FTP_SERVER_DIR:-/}"
+          DIR="${DIR%/}"
+          lftp -c "
+            set ftp:ssl-allow no;
+            set net:max-retries 30;
+            set net:reconnect-interval-base 5;
+            set net:timeout 120;
+            set xfer:clobber on;
+            open -u ${FTP_USERNAME},${FTP_PASSWORD} ftp://${FTP_SERVER};
+            cd ${DIR};
+            put -O . vendor.zip;
+            bye
+          "
+          echo "vendor.zip uploaded"
+
+      - name: Extract vendor on hosting
+        run: |
+          curl -sfS --retry 5 --retry-delay 3 \
+            "https://signature.softwaresolutions.pk/extract-vendor.php" \
+            | tee /tmp/extract-out.txt
+          grep -q "OK vendor/autoload.php" /tmp/extract-out.txt
 
       - name: Run migrations on server
         continue-on-error: true
