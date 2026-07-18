@@ -248,10 +248,7 @@
             const selAttr = selectedFam && fam === selectedFam ? ' selected' : '';
             const factor = Number(u.factor);
             let label = code;
-            if (Number.isFinite(factor) && Math.abs(factor - 1) > 1e-9 && base) {
-                const perBase = Math.round((1 / factor) * 1000) / 1000;
-                label = `${code} (${perBase} ${code} = 1 ${base})`;
-            }
+            // Show short unit code only (aliases already collapsed to preferred e.g. g).
             return `<option value="${esc(code)}"${selAttr}>${esc(label)}</option>`;
         }).join('');
         if (selectedUom && !Array.from(sel.options).some((o) => preferredUomCode(o.value).toLowerCase() === selectedFam)) {
@@ -339,7 +336,21 @@
         compSearch.addEventListener('input', resolveComponent);
         uom.addEventListener('change', () => updateLineCost(tr));
         qty.addEventListener('input', () => updateLineCost(tr));
-        tr.querySelector('.rm').addEventListener('click', () => { tr.remove(); updateBomTotals(); });
+        qty.addEventListener('keydown', (e) => {
+            if (e.key !== 'Tab' || e.shiftKey) return;
+            const val = parseFloat(qty.value);
+            if (!Number.isFinite(val) || val <= 0) return;
+            const rows = Array.from(body.querySelectorAll('tr[data-line]'));
+            if (tr !== rows[rows.length - 1]) return;
+            e.preventDefault();
+            addRow();
+            body.lastElementChild?.querySelector('.bom-comp-search')?.focus();
+        });
+        tr.querySelector('.rm').addEventListener('click', () => {
+            tr.remove();
+            if (!body.querySelector('tr[data-line]')) addRow();
+            updateBomTotals();
+        });
         refreshEditButton();
         updateLineCost(tr);
     }
@@ -350,7 +361,7 @@
     }
 
     document.getElementById('addLine').addEventListener('click', addRow);
-    for (let k = 0; k < 3; k++) addRow();
+    addRow();
 
     const batchQtyInput = document.querySelector('#bomForm input[name="batch_qty"]');
     if (batchQtyInput) {
@@ -372,8 +383,18 @@
     updateBomTotals();
 
     document.getElementById('bomForm').addEventListener('submit', function (e) {
+        // Drop trailing / blank lines that were auto-added via Tab.
+        Array.from(body.querySelectorAll('tr[data-line]')).forEach((tr) => {
+            const idInp = tr.querySelector('.bom-comp-id');
+            const qtyInp = tr.querySelector('.bom-qty');
+            const hasId = idInp && idInp.value;
+            const qty = parseFloat(qtyInp?.value || '');
+            const hasQty = Number.isFinite(qty) && qty > 0;
+            if (!hasId && !hasQty) tr.remove();
+        });
         if (!body.querySelector('tr[data-line]')) {
             e.preventDefault();
+            addRow();
             alert('Add at least one component line.');
             return;
         }
