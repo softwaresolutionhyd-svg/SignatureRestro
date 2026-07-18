@@ -239,6 +239,10 @@ class SyncOutboxRecorder
             }
         }
 
+        if (in_array($table, ['inventory_products', 'settings'], true)) {
+            $payload = SyncMediaFiles::attachToPayload($table, $payload);
+        }
+
         return $payload;
     }
 

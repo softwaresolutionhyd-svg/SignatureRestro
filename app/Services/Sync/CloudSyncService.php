@@ -333,6 +333,8 @@ class CloudSyncService
                             throw new \InvalidArgumentException('Empty payload.');
                         }
 
+                        $payload = SyncMediaFiles::restoreFromPayload($payload);
+
                         if ($table === 'inventory_units') {
                             $this->upsertInventoryUnitByCode($connection, $payload);
                         } elseif ($table === 'inventory_unit_conversions') {
