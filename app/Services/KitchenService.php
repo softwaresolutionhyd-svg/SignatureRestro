@@ -153,13 +153,17 @@ final class KitchenService
             $productId = (int) $item->product_id;
             $uom = (string) $item->uom;
             $notes = trim((string) ($item->notes ?? ''));
+            $itemName = trim((string) ($item->item_name ?? ''));
+            $isCustom = (bool) $item->is_custom;
         } else {
             $productId = (int) ($item['product_id'] ?? 0);
             $uom = (string) ($item['uom'] ?? '');
             $notes = trim((string) ($item['notes'] ?? ''));
+            $itemName = trim((string) ($item['item_name'] ?? ''));
+            $isCustom = filter_var($item['is_custom'] ?? false, FILTER_VALIDATE_BOOLEAN);
         }
 
-        return implode('|', [$productId, $uom, $notes]);
+        return implode('|', [$productId, $uom, $notes, $isCustom ? '1' : '0', $itemName]);
     }
 
     /**
@@ -562,12 +566,13 @@ final class KitchenService
             foreach ($this->itemsForKitchenDisplay($order) as $item) {
                 $productId = (int) $item->product_id;
                 $uom = (string) $item->uom;
-                $key = $productId.'|'.$uom;
+                $itemName = trim((string) ($item->item_name ?? ''));
+                $key = $productId.'|'.$uom.'|'.((bool) $item->is_custom ? '1' : '0').'|'.$itemName;
 
                 if (! isset($totals[$key])) {
                     $totals[$key] = [
                         'product_id' => $productId,
-                        'name' => (string) ($item->product?->name ?? 'Item'),
+                        'name' => $item->displayName(),
                         'uom' => $uom,
                         'qty' => 0.0,
                     ];
@@ -655,6 +660,10 @@ final class KitchenService
         $totals = [];
 
         foreach ($itemList as $item) {
+            if ((bool) ($item->is_custom ?? false)) {
+                continue;
+            }
+
             $product = $item->product;
             if ($product === null) {
                 continue;

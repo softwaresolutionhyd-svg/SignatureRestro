@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class PosCheckoutRequest extends FormRequest
 {
@@ -123,6 +124,8 @@ class PosCheckoutRequest extends FormRequest
                 ],
                 'items' => ['required', 'array', 'min:1'],
                 'items.*.product_id' => ['required', 'integer', 'exists:tenant.inventory_products,id'],
+                'items.*.is_custom' => ['nullable', 'boolean'],
+                'items.*.item_name' => ['nullable', 'string', 'max:255'],
                 'items.*.uom' => ['required', 'string', 'max:30'],
                 'items.*.qty' => ['required', 'numeric', 'gt:0'],
                 'items.*.unit_price' => ['required', 'numeric', 'min:0'],
@@ -150,11 +153,15 @@ class PosCheckoutRequest extends FormRequest
                 'kitchen_voids.*.uom' => ['required', 'string', 'max:30'],
                 'kitchen_voids.*.qty' => ['required', 'numeric', 'gt:0'],
                 'kitchen_voids.*.reason' => ['required', 'string', 'min:3', 'max:500'],
+                'kitchen_voids.*.item_name' => ['nullable', 'string', 'max:255'],
+                'kitchen_voids.*.is_custom' => ['nullable', 'boolean'],
                 'item_reductions' => ['nullable', 'array'],
                 'item_reductions.*.product_id' => ['required', 'integer', 'exists:tenant.inventory_products,id'],
                 'item_reductions.*.uom' => ['required', 'string', 'max:30'],
                 'item_reductions.*.qty' => ['required', 'numeric', 'gt:0'],
                 'item_reductions.*.reason' => ['required', 'string', 'min:3', 'max:500'],
+                'item_reductions.*.item_name' => ['nullable', 'string', 'max:255'],
+                'item_reductions.*.is_custom' => ['nullable', 'boolean'],
             ];
         }
 
@@ -182,6 +189,8 @@ class PosCheckoutRequest extends FormRequest
             'table_id' => ['nullable', 'integer', 'exists:tenant.pos_tables,id'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'integer', 'exists:tenant.inventory_products,id'],
+            'items.*.is_custom' => ['nullable', 'boolean'],
+            'items.*.item_name' => ['nullable', 'string', 'max:255'],
             'items.*.uom' => ['required', 'string', 'max:30'],
             'items.*.qty' => ['required', 'numeric', 'gt:0'],
             'items.*.unit_price' => ['required', 'numeric', 'min:0'],
@@ -203,5 +212,23 @@ class PosCheckoutRequest extends FormRequest
             'cash_tendered' => ['nullable', 'numeric', 'min:0'],
             'cash_change' => ['nullable', 'numeric', 'min:0'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            foreach ((array) $this->input('items', []) as $i => $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+                $isCustom = filter_var($item['is_custom'] ?? false, FILTER_VALIDATE_BOOLEAN);
+                if (! $isCustom) {
+                    continue;
+                }
+                if (trim((string) ($item['item_name'] ?? '')) === '') {
+                    $validator->errors()->add("items.{$i}.item_name", 'On Demand product name required hai.');
+                }
+            }
+        });
     }
 }

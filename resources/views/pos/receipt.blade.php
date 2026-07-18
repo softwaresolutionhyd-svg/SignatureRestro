@@ -178,7 +178,7 @@
         <tbody>
             @foreach($order->items as $line)
                 <tr>
-                    <td class="item-name bold">{{ $line->product->name ?? 'Item' }}</td>
+                    <td class="item-name bold">{{ $line->displayName() }}</td>
                     <td class="item-qty">{{ fmt_num((float) $line->qty, 3) }}</td>
                     <td class="item-rate">{{ fmt_num((float) $line->unit_price, 2) }}</td>
                     <td class="amt bold">{{ fmt_num((float) $line->total, 2) }}</td>

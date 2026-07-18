@@ -399,15 +399,12 @@ class ReportsController extends Controller
         $orderCount    = $orders->count();
         $avgOrder      = $orderCount ? $totalRevenue / $orderCount : 0;
 
-        // Top products
-        $topProducts = PosOrderItem::with('product')
-            ->whereHas('order', fn($q) => $q->where('status', 'paid')
-                ->whereBetween('created_at', [$from . ' 00:00:00', $to . ' 23:59:59']))
-            ->selectRaw('product_id, SUM(qty) as total_qty, SUM(total) as total_revenue')
-            ->groupBy('product_id')
-            ->orderByDesc('total_revenue')
-            ->limit(10)
-            ->get();
+        // Top products (On Demand lines group by custom name)
+        $topProducts = PosOrderItem::topSellingGrouped(
+            fn ($q) => $q->where('status', 'paid')
+                ->whereBetween('created_at', [$from . ' 00:00:00', $to . ' 23:59:59']),
+            10
+        );
 
         // Daily chart
         $dailySales = PosOrder::where('status', 'paid')

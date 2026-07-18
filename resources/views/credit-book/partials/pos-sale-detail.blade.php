@@ -41,7 +41,7 @@
                 @forelse($order->items as $line)
                     <tr>
                         <td>
-                            <div class="fw-semibold">{{ $line->product->name ?? 'Item' }}</div>
+                            <div class="fw-semibold">{{ $line->displayName() }}</div>
                             @if(!empty($line->product?->sku))
                                 <div class="small text-secondary">SKU: {{ $line->product->sku }}</div>
                             @endif

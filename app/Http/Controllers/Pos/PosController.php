@@ -31,6 +31,7 @@ use App\Support\DailyOrderNumber;
 use App\Support\EnsuresKitchenAgentSchema;
 use App\Support\PosServiceCharge;
 use App\Support\PosRuntimeSchema;
+use App\Support\PosCustomProduct;
 use App\Support\PosTablesSchema;
 use App\Support\ActivityLogger;
 use App\Services\KitchenService;
@@ -177,8 +178,10 @@ class PosController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        $customProduct = PosCustomProduct::ensure();
+
         $products = InventoryProduct::query()
-            ->where(function ($q) use ($resumeProductIds) {
+            ->where(function ($q) use ($resumeProductIds, $customProduct) {
                 $q->where(function ($w) {
                     $w->where('active', true)
                         ->where(function ($inner) {
@@ -189,6 +192,7 @@ class PosController extends Controller
                 if ($resumeProductIds !== []) {
                     $q->orWhereIn('id', $resumeProductIds);
                 }
+                $q->orWhere('id', $customProduct->id);
             })
             ->orderBy('name')
             ->with(['uomConversions' => fn ($q) => $q->where('active', true)])
@@ -236,6 +240,8 @@ class PosController extends Controller
             'resume_sale_mode' => $resumedOrder
                 ? ($resumedOrder->sale_mode === 'staff' ? 'staff' : 'customer')
                 : null,
+            'custom_product_id' => (int) $customProduct->id,
+            'custom_product_sku' => PosCustomProduct::SKU,
         ];
 
         if ($resumedOrder !== null && $resumedOrder->bill_tax_percent !== null) {
@@ -2239,6 +2245,10 @@ class PosController extends Controller
             ->keyBy('id');
 
         foreach ($items as $item) {
+            if (filter_var($item['is_custom'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+                continue;
+            }
+
             $pid = (int) ($item['product_id'] ?? 0);
             $product = $products->get($pid);
             if ($product === null) {
@@ -2352,19 +2362,35 @@ class PosController extends Controller
             $price = (float) $item['unit_price'];
             $taxPct = (float) ($item['tax_percent'] ?? 0);
             $pid = (int) $item['product_id'];
+            $isCustom = filter_var($item['is_custom'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $itemName = $this->nullableText($item['item_name'] ?? null);
 
             $lineSub = $qty * $price;
 
             $product = $products->get($pid);
-            $factor = $product ? $product->factorToBaseForUom((string) $item['uom']) : null;
-            if ($product === null || $factor === null || $factor <= 0) {
-                abort(422, 'Invalid UOM or product for a cart line.');
+            if ($isCustom) {
+                if ($itemName === null) {
+                    abort(422, 'On Demand product name required hai.');
+                }
+                $uom = 'unit';
+                $factor = 1.0;
+                if ($product === null || ! PosCustomProduct::isCustomSku($product->sku ?? null)) {
+                    abort(422, 'Invalid On Demand product line.');
+                }
+            } else {
+                $uom = (string) $item['uom'];
+                $factor = $product ? $product->factorToBaseForUom($uom) : null;
+                if ($product === null || $factor === null || $factor <= 0) {
+                    abort(422, 'Invalid UOM or product for a cart line.');
+                }
             }
 
             $subtotal += $lineSub;
             $rawLines[] = [
                 'product_id' => $pid,
-                'uom' => $item['uom'],
+                'item_name' => $isCustom ? $itemName : null,
+                'is_custom' => $isCustom,
+                'uom' => $isCustom ? 'unit' : $uom,
                 'qty' => $qty,
                 'unit_price' => $price,
                 'line_sub' => $lineSub,
@@ -2416,6 +2442,8 @@ class PosController extends Controller
 
             $lines[] = [
                 'product_id' => $raw['product_id'],
+                'item_name' => $raw['item_name'],
+                'is_custom' => $raw['is_custom'],
                 'uom' => $raw['uom'],
                 'qty' => $raw['qty'],
                 'unit_price' => $raw['unit_price'],
@@ -2502,6 +2530,7 @@ class PosController extends Controller
                 'product_id' => (int) $line->product_id,
                 'uom' => (string) $line->uom,
                 'qty' => (float) $line->qty,
+                'is_custom' => (bool) $line->is_custom,
             ]);
         }
     }
@@ -2519,10 +2548,19 @@ class PosController extends Controller
 
     private function applyInventoryForPos(PosOrder $order, array $item): void
     {
+        if (filter_var($item['is_custom'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            return;
+        }
+
         $product = InventoryProduct::query()
             ->with('uomConversions')
             ->withExists(['manufacturingBoms' => fn ($q) => $q->where('active', true)])
             ->findOrFail($item['product_id']);
+
+        if (PosCustomProduct::isCustomSku($product->sku ?? null)) {
+            return;
+        }
+
         $factor = $product->factorToBaseForUom((string) $item['uom']);
         if ($factor === null || $factor <= 0) {
             abort(422, 'Invalid UOM for '.$product->name);
@@ -2739,6 +2777,7 @@ class PosController extends Controller
     private function ensurePosOrderItemsSchema(): void
     {
         PosRuntimeSchema::ensureOrderItemsTable();
+        PosCustomProduct::ensure();
     }
 
     private function nullableText(mixed $value): ?string
@@ -2903,7 +2942,9 @@ class PosController extends Controller
             'timeline' => $order->orderTimelineSteps(),
             'items' => $order->items->map(fn (PosOrderItem $item) => [
                 'product_id' => (int) $item->product_id,
-                'name' => $item->product->name ?? 'Item',
+                'name' => $item->displayName(),
+                'item_name' => $item->item_name,
+                'is_custom' => (bool) $item->is_custom,
                 'qty' => fmt_num((float) $item->qty, 3),
                 'uom' => $item->uom,
                 'unit_price' => (float) $item->unit_price,
@@ -3245,6 +3286,21 @@ class PosController extends Controller
         bool $staffIncludeGas,
         bool $trustClientPrices = false,
     ): array {
+        $customProduct = PosCustomProduct::ensure();
+        foreach ($items as $i => $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+            $isCustom = filter_var($item['is_custom'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            if (! $isCustom) {
+                continue;
+            }
+            $items[$i]['is_custom'] = true;
+            $items[$i]['product_id'] = (int) $customProduct->id;
+            $items[$i]['uom'] = 'unit';
+            $items[$i]['item_name'] = trim((string) ($item['item_name'] ?? ''));
+        }
+
         $itemsNormalized = $this->canonicalizePosLineUoms($items);
 
         if ($customerType === 'ast_offr') {
@@ -3291,6 +3347,10 @@ class PosController extends Controller
             ->keyBy('id');
 
         foreach ($items as &$item) {
+            if (filter_var($item['is_custom'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+                continue;
+            }
+
             $productId = (int) ($item['product_id'] ?? 0);
             $product = $pricingByProduct->get($productId);
             if (! $product) {
@@ -3434,6 +3494,8 @@ class PosController extends Controller
                 'reason' => $reason,
                 'notes' => trim((string) ($void['notes'] ?? '')),
                 'name' => trim((string) ($void['name'] ?? '')),
+                'item_name' => trim((string) ($void['item_name'] ?? '')),
+                'is_custom' => filter_var($void['is_custom'] ?? false, FILTER_VALIDATE_BOOLEAN),
             ];
         }
 
@@ -3462,6 +3524,8 @@ class PosController extends Controller
                 'reason' => $reason,
                 'notes' => trim((string) ($row['notes'] ?? '')),
                 'name' => trim((string) ($row['name'] ?? '')),
+                'item_name' => trim((string) ($row['item_name'] ?? '')),
+                'is_custom' => filter_var($row['is_custom'] ?? false, FILTER_VALIDATE_BOOLEAN),
             ];
         }
 

@@ -106,7 +106,7 @@
                     @foreach($kitchen->itemsForKitchenDisplay($order) as $line)
                         <li class="kitchen-item-row" data-item-id="{{ $line->id }}">
                             <div class="kitchen-item-main">
-                                <div class="kitchen-item-name">{{ $line->product->name ?? 'Item' }}</div>
+                                <div class="kitchen-item-name">{{ $line->displayName() }}</div>
                                 <div class="kitchen-item-qty">{{ fmt_num((float) $line->qty, 3) }} {{ $line->uom }}</div>
                                 @if(trim((string) ($line->notes ?? '')) !== '')
                                     <div class="kitchen-item-note">{{ $line->notes }}</div>

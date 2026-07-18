@@ -83,7 +83,7 @@
                         <tbody>
                         @forelse($topProducts as $item)
                         <tr>
-                            <td class="small">{{ optional($item->product)->name ?? '—' }}</td>
+                            <td class="small">{{ $item->display_name ?? optional($item->product)->name ?? '—' }}</td>
                             <td class="text-end small">{{ fmt_num($item->total_qty,2) }}</td>
                             <td class="text-end small fw-semibold">{{ $currency }} {{ fmt_num($item->total_revenue,2) }}</td>
                         </tr>

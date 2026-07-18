@@ -62,6 +62,8 @@ class ProductController extends Controller
     {
         $q            = trim((string) $request->query('q', ''));
         $stockFilter  = $request->query('stock_filter', '');
+        $purchaseFilter = $request->query('for_purchase', '');
+        $posFilter = $request->query('for_pos', '');
         $categoryId   = (int) $request->query('category_id', 0);
         $categoryId   = $categoryId > 0 ? $categoryId : null;
         $departmentId = (int) $request->query('department_id', 0);
@@ -114,6 +116,10 @@ class ProductController extends Controller
             ->when($stockFilter === 'low', fn ($q) => $q->where('for_purchase', true)->where('reorder_level', '>', 0)->whereRaw('qty_on_hand <= reorder_level')->excludingActiveBomFinishedProducts())
             ->when($stockFilter === 'zero', fn ($q) => $q->where('for_purchase', true)->where('qty_on_hand', '<=', 0))
             ->when($stockFilter === 'ok', fn ($q) => $q->where('for_purchase', true)->where(fn ($sub) => $sub->where('reorder_level', 0)->orWhereRaw('qty_on_hand > reorder_level')))
+            ->when($purchaseFilter === '1', fn ($q) => $q->where('for_purchase', true))
+            ->when($purchaseFilter === '0', fn ($q) => $q->where('for_purchase', false))
+            ->when($posFilter === '1', fn ($q) => $q->where('for_pos', true))
+            ->when($posFilter === '0', fn ($q) => $q->where('for_pos', false))
             ->orderByDesc('is_starred_sort')
             ->orderBy('name')
             ->paginate(Setting::pageSize('inventory_products_per_page', 20))
@@ -236,7 +242,20 @@ class ProductController extends Controller
 
         $showLowStockBanner = Setting::get('inventory_show_low_stock_banner', '1') === '1';
 
-        return view('inventory.products.index', compact('products', 'q', 'categories', 'categoryId', 'departments', 'departmentId', 'lowStockCount', 'outOfStockCount', 'canManufacturing', 'showLowStockBanner'));
+        return view('inventory.products.index', compact(
+            'products',
+            'q',
+            'categories',
+            'categoryId',
+            'departments',
+            'departmentId',
+            'purchaseFilter',
+            'posFilter',
+            'lowStockCount',
+            'outOfStockCount',
+            'canManufacturing',
+            'showLowStockBanner'
+        ));
     }
 
     public function toggleStar(InventoryProduct $product)

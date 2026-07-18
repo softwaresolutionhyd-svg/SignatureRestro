@@ -1265,6 +1265,31 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     opacity: 0.9;
 }
 
+.restaurant-pos-app .rp-checkout-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+}
+
+.restaurant-pos-app .rp-checkout-head-actions #rpOnDemandBtn {
+    font-size: 0.68rem;
+    font-weight: 600;
+    white-space: nowrap;
+    padding: 0.2rem 0.45rem;
+}
+
+.restaurant-pos-app .rp-on-demand-tag {
+    display: inline-block;
+    margin-left: 0.25rem;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--rp-gold, #c9a227);
+    opacity: 0.9;
+}
+
 .restaurant-pos-app .rp-cart-count {
     display: inline-flex;
     align-items: center;

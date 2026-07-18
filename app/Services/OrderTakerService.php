@@ -749,6 +749,8 @@ final class OrderTakerService
             $pid = (int) ($item['product_id'] ?? 0);
             $qty = (float) ($item['qty'] ?? 0);
             $uom = trim((string) ($item['uom'] ?? ''));
+            $isCustom = filter_var($item['is_custom'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $itemName = trim((string) ($item['item_name'] ?? ''));
             if ($pid <= 0 || $qty <= 0 || $uom === '') {
                 continue;
             }
@@ -758,12 +760,20 @@ final class OrderTakerService
                 throw new RuntimeException("Product #{$pid} not found.");
             }
 
-            $factor = $product->factorToBaseForUom($uom);
-            if ($factor === null || $factor <= 0) {
-                throw new RuntimeException("Invalid UOM \"{$uom}\" for {$product->name}.");
+            if ($isCustom) {
+                if ($itemName === '') {
+                    throw new RuntimeException('On Demand product name required hai.');
+                }
+                $uom = 'unit';
+                $unitPrice = round((float) ($item['unit_price'] ?? 0), 2);
+            } else {
+                $factor = $product->factorToBaseForUom($uom);
+                if ($factor === null || $factor <= 0) {
+                    throw new RuntimeException("Invalid UOM \"{$uom}\" for {$product->name}.");
+                }
+                $unitPrice = round((float) $product->price * $factor, 2);
             }
 
-            $unitPrice = round((float) $product->price * $factor, 2);
             $lineSub = round($qty * $unitPrice, 2);
             $lineTax = $taxMode === 'line' ? round($lineSub * ($billTaxPct / 100), 2) : 0.0;
             $lineTotal = round($lineSub + $lineTax, 2);
@@ -773,6 +783,8 @@ final class OrderTakerService
 
             $lines[] = [
                 'product_id' => $pid,
+                'item_name' => $isCustom ? $itemName : null,
+                'is_custom' => $isCustom,
                 'uom' => $uom,
                 'qty' => $qty,
                 'unit_price' => $unitPrice,

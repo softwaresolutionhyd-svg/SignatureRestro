@@ -23,44 +23,56 @@
     @endif
 
     <div class="card shadow-sm">
-        <div class="card-header bg-white d-flex flex-wrap gap-2 align-items-center justify-content-between">
-            <form class="d-flex gap-2 flex-wrap" method="GET" action="{{ route('inventory.products.index') }}">
-                <input type="text" name="q" value="{{ $q }}" class="form-control" placeholder="Search SKU, barcode or name..." style="max-width: 260px;">
-                <select name="department_id" class="form-select" style="max-width:200px;">
-                    <option value="">All Departments</option>
-                    @foreach($departments as $dep)
-                        <option value="{{ $dep->id }}" {{ (string) $departmentId === (string) $dep->id ? 'selected' : '' }}>
-                            {{ $dep->name }}{{ $dep->active ? '' : ' (inactive)' }}
-                        </option>
-                    @endforeach
-                </select>
-                <select name="category_id" class="form-select" style="max-width:220px;">
-                    <option value="">All Categories</option>
-                    @foreach($categories as $cat)
-                        <option value="{{ $cat->id }}" {{ (string) $categoryId === (string) $cat->id ? 'selected' : '' }}>
-                            @if($cat->parent_id)
-                                {{ $cat->parent?->name }} › {{ $cat->name }}
-                            @else
-                                {{ $cat->name }}
-                            @endif
-                        </option>
-                    @endforeach
-                </select>
-                <select name="stock_filter" class="form-select" style="max-width:160px;">
-                    <option value="" {{ !request('stock_filter') ? 'selected' : '' }}>All Products</option>
-                    <option value="low"  {{ request('stock_filter')==='low'  ? 'selected' : '' }}>Low Stock</option>
-                    <option value="zero" {{ request('stock_filter')==='zero' ? 'selected' : '' }}>Out of Stock</option>
-                    <option value="ok"   {{ request('stock_filter')==='ok'   ? 'selected' : '' }}>Stock OK</option>
-                </select>
-                <button class="btn btn-outline-primary" type="submit"><i class="bi bi-search me-1"></i> Filter</button>
-                @if($q !== '' || request('stock_filter') || !empty($categoryId) || !empty($departmentId))
-                    <a class="btn btn-outline-secondary" href="{{ route('inventory.products.index') }}">Clear</a>
-                @endif
-            </form>
+        <div class="card-header bg-white py-2">
+            <div class="d-flex flex-nowrap align-items-center gap-2 overflow-auto">
+                <form class="d-flex flex-nowrap align-items-center gap-2 flex-grow-1 min-w-0" method="GET" action="{{ route('inventory.products.index') }}">
+                    <input type="text" name="q" value="{{ $q }}" class="form-control form-control-sm" placeholder="Search SKU, barcode or name..." style="min-width:160px;max-width:220px;flex:1 1 180px;">
+                    <select name="department_id" class="form-select form-select-sm" style="min-width:130px;max-width:160px;">
+                        <option value="">All Departments</option>
+                        @foreach($departments as $dep)
+                            <option value="{{ $dep->id }}" {{ (string) $departmentId === (string) $dep->id ? 'selected' : '' }}>
+                                {{ $dep->name }}{{ $dep->active ? '' : ' (inactive)' }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <select name="category_id" class="form-select form-select-sm" style="min-width:130px;max-width:180px;">
+                        <option value="">All Categories</option>
+                        @foreach($categories as $cat)
+                            <option value="{{ $cat->id }}" {{ (string) $categoryId === (string) $cat->id ? 'selected' : '' }}>
+                                @if($cat->parent_id)
+                                    {{ $cat->parent?->name }} › {{ $cat->name }}
+                                @else
+                                    {{ $cat->name }}
+                                @endif
+                            </option>
+                        @endforeach
+                    </select>
+                    <select name="stock_filter" class="form-select form-select-sm" style="min-width:110px;max-width:140px;">
+                        <option value="" {{ !request('stock_filter') ? 'selected' : '' }}>All Stock</option>
+                        <option value="low"  {{ request('stock_filter')==='low'  ? 'selected' : '' }}>Low Stock</option>
+                        <option value="zero" {{ request('stock_filter')==='zero' ? 'selected' : '' }}>Out of Stock</option>
+                        <option value="ok"   {{ request('stock_filter')==='ok'   ? 'selected' : '' }}>Stock OK</option>
+                    </select>
+                    <select name="for_purchase" class="form-select form-select-sm" style="min-width:120px;max-width:150px;" title="Purchased item">
+                        <option value="" {{ ($purchaseFilter ?? '') === '' ? 'selected' : '' }}>Purchase: All</option>
+                        <option value="1" {{ ($purchaseFilter ?? '') === '1' ? 'selected' : '' }}>Purchased Item</option>
+                        <option value="0" {{ ($purchaseFilter ?? '') === '0' ? 'selected' : '' }}>Not Purchased</option>
+                    </select>
+                    <select name="for_pos" class="form-select form-select-sm" style="min-width:100px;max-width:130px;" title="POS">
+                        <option value="" {{ ($posFilter ?? '') === '' ? 'selected' : '' }}>POS: All</option>
+                        <option value="1" {{ ($posFilter ?? '') === '1' ? 'selected' : '' }}>POS Only</option>
+                        <option value="0" {{ ($posFilter ?? '') === '0' ? 'selected' : '' }}>Not POS</option>
+                    </select>
+                    <button class="btn btn-outline-primary btn-sm text-nowrap" type="submit"><i class="bi bi-search me-1"></i> Filter</button>
+                    @if($q !== '' || request('stock_filter') || !empty($categoryId) || !empty($departmentId) || ($purchaseFilter ?? '') !== '' || ($posFilter ?? '') !== '')
+                        <a class="btn btn-outline-secondary btn-sm text-nowrap" href="{{ route('inventory.products.index') }}">Clear</a>
+                    @endif
+                </form>
 
-            <a href="{{ route('inventory.products.create') }}" class="btn btn-primary">
-                <i class="bi bi-plus-circle me-1"></i> New Product
-            </a>
+                <a href="{{ route('inventory.products.create') }}" class="btn btn-primary btn-sm text-nowrap flex-shrink-0 ms-auto">
+                    <i class="bi bi-plus-circle me-1"></i> New Product
+                </a>
+            </div>
         </div>
 
         <div class="card-body p-0">

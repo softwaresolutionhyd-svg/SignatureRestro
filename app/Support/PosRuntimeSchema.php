@@ -13,7 +13,7 @@ final class PosRuntimeSchema
      * Bump this whenever the ensure* methods below add a NEW column, so the
      * per-request skip-cache is invalidated. (Deploy/optimize also clears cache.)
      */
-    private const SCHEMA_VERSION = '2026_07_13_1';
+    private const SCHEMA_VERSION = '2026_07_18_1';
 
     /**
      * Run an ensure routine at most once per cache window (avoids hitting
@@ -275,8 +275,8 @@ final class PosRuntimeSchema
 
     public static function ensureOrderItemsTable(?string $connection = null): void
     {
-        // v2: includes kitchen_printed_at (bump key so older once-cache cannot skip column ensure)
-        self::once('order_items_v2:' . ($connection ?? 'tenant'), fn () => self::runOrderItemsTable($connection));
+        // v3: includes item_name / is_custom for On Demand lines
+        self::once('order_items_v3:' . ($connection ?? 'tenant'), fn () => self::runOrderItemsTable($connection));
     }
 
     private static function runOrderItemsTable(?string $connection = null): bool
@@ -288,6 +288,16 @@ final class PosRuntimeSchema
         }
 
         try {
+            if (! $schema->hasColumn('pos_order_items', 'item_name')) {
+                $schema->table('pos_order_items', function (Blueprint $table) {
+                    $table->string('item_name', 255)->nullable()->after('product_id');
+                });
+            }
+            if (! $schema->hasColumn('pos_order_items', 'is_custom')) {
+                $schema->table('pos_order_items', function (Blueprint $table) {
+                    $table->boolean('is_custom')->default(false)->after('item_name');
+                });
+            }
             if (! $schema->hasColumn('pos_order_items', 'notes')) {
                 $schema->table('pos_order_items', function (Blueprint $table) {
                     $table->string('notes', 255)->nullable()->after('tax_percent');

@@ -102,17 +102,15 @@ class AnalyticsController extends Controller
         $monthly12Purch = $months12->map(fn($m) => (float)($monthlyPurchRaw[$m->format('Y-m')] ?? 0));
 
         /* ── 3. Top 10 products by revenue (last 30 days) ── */
-        $topProducts = PosOrderItem::with('product')
-            ->whereHas('order', fn($q) => $q->where('status','paid')
-                ->where('created_at', '>=', now()->subDays(29)->startOfDay()))
-            ->selectRaw('product_id, SUM(qty) as total_qty, SUM(total) as total_revenue')
-            ->groupBy('product_id')
-            ->orderByDesc('total_revenue')
-            ->limit(10)->get();
+        $topProducts = PosOrderItem::topSellingGrouped(
+            fn ($q) => $q->where('status', 'paid')
+                ->where('created_at', '>=', now()->subDays(29)->startOfDay()),
+            10
+        );
 
-        $topProdLbl = $topProducts->map(fn($p) => $p->product?->name ?? 'Unknown');
-        $topProdRev = $topProducts->map(fn($p) => (float)$p->total_revenue);
-        $topProdQty = $topProducts->map(fn($p) => (float)$p->total_qty);
+        $topProdLbl = $topProducts->map(fn ($p) => $p->display_name ?? $p->product?->name ?? 'Unknown');
+        $topProdRev = $topProducts->map(fn ($p) => (float) $p->total_revenue);
+        $topProdQty = $topProducts->map(fn ($p) => (float) $p->total_qty);
 
         /* ── 4. Expense by category ── */
         $expByCat = Expense::with('category')

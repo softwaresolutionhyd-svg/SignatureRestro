@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=47">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=48">
 @endpush
 
 @section('content')
@@ -61,6 +61,9 @@
         ->all();
     $resumeItems = collect($resumedOrder?->items ?? [])->map(fn ($i) => [
         'product_id' => $i->product_id,
+        'name' => $i->displayName(),
+        'item_name' => $i->item_name,
+        'is_custom' => (bool) $i->is_custom,
         'uom' => $i->uom,
         'qty' => (float) $i->qty,
         'unit_price' => (float) $i->unit_price,
@@ -68,6 +71,7 @@
         'notes' => (string) ($i->notes ?? ''),
         'kitchen_served' => $i->isKitchenServed(),
         'kitchen_pending' => (bool) $i->kitchen_pending,
+        'kitchen_printed' => $i->kitchen_printed_at !== null,
     ])->values();
     $resumeStub = str_replace('999999999', '__ID__', route('restaurant-pos.resume', ['order' => 999999999]));
 
@@ -237,9 +241,14 @@
                     <span>Your order</span>
                     <span class="rp-cart-count" id="rpCartCount">0</span>
                 </div>
-                <button type="button" class="btn btn-sm rp-cart-view-btn" id="rpToggleCartView" title="Cart full view">
-                    <i class="bi bi-arrows-fullscreen"></i>
-                </button>
+                <div class="rp-checkout-head-actions">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="rpOnDemandBtn" title="Custom product (name + price)">
+                        <i class="bi bi-plus-circle"></i> On Demand
+                    </button>
+                    <button type="button" class="btn btn-sm rp-cart-view-btn" id="rpToggleCartView" title="Cart full view">
+                        <i class="bi bi-arrows-fullscreen"></i>
+                    </button>
+                </div>
             </div>
 
             <div class="rp-cart-lines" id="rpCartLines"></div>
@@ -342,6 +351,44 @@
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-danger" id="rpRemoveConfirm">
                     <i class="bi bi-check-lg"></i> Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="rpOnDemandModal" tabindex="-1" aria-labelledby="rpOnDemandModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-pay-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold" id="rpOnDemandModalLabel">On Demand</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <p class="small text-secondary mb-3">Custom product — inventory mein nahi jayega, bill aur reports mein dikhega.</p>
+                <div class="mb-3">
+                    <label for="rpOnDemandName" class="form-label fw-semibold mb-1">Product name</label>
+                    <input type="text" class="form-control" id="rpOnDemandName" maxlength="255" placeholder="e.g. Custom Cake" autocomplete="off">
+                </div>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label for="rpOnDemandPrice" class="form-label fw-semibold mb-1">Price</label>
+                        <div class="input-group">
+                            <span class="input-group-text">Rs.</span>
+                            <input type="number" class="form-control" id="rpOnDemandPrice" min="0" step="0.01" inputmode="decimal" placeholder="0.00" autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <label for="rpOnDemandQty" class="form-label fw-semibold mb-1">Qty</label>
+                        <input type="number" class="form-control" id="rpOnDemandQty" min="0.001" step="0.001" value="1" inputmode="decimal" autocomplete="off">
+                    </div>
+                </div>
+                <p class="text-danger small mb-0 mt-2 d-none" id="rpOnDemandError">Name aur price dono required hain.</p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-rp-primary" id="rpOnDemandAdd">
+                    <i class="bi bi-cart-plus"></i> Add to cart
                 </button>
             </div>
         </div>
@@ -464,5 +511,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=58"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=59"></script>
 @endsection

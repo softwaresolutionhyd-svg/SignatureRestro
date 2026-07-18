@@ -18,6 +18,8 @@ class PosOrderItem extends Model
         'company_id',
         'order_id',
         'product_id',
+        'item_name',
+        'is_custom',
         'uom',
         'qty',
         'unit_price',
@@ -42,10 +44,21 @@ class PosOrderItem extends Model
         'discount_amount' => 'decimal:2',
         'tax_amount' => 'decimal:2',
         'total' => 'decimal:2',
+        'is_custom' => 'bool',
         'kitchen_pending' => 'bool',
         'kitchen_served_at' => 'datetime',
         'kitchen_printed_at' => 'datetime',
     ];
+
+    public function displayName(): string
+    {
+        $custom = trim((string) ($this->item_name ?? ''));
+        if ($this->is_custom && $custom !== '') {
+            return $custom;
+        }
+
+        return (string) ($this->product?->name ?? ($custom !== '' ? $custom : 'Item'));
+    }
 
     public function isKitchenServed(): bool
     {
@@ -75,5 +88,74 @@ class PosOrderItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(InventoryProduct::class, 'product_id');
+    }
+
+    /**
+     * Top-selling lines for reports: inventory products by product_id,
+     * On Demand customs grouped by item_name.
+     *
+     * @param  callable(\Illuminate\Database\Eloquent\Builder): mixed  $orderConstraint
+     * @return \Illuminate\Support\Collection<int, self>
+     */
+    public static function topSellingGrouped(callable $orderConstraint, int $limit = 10)
+    {
+        $query = static::query()->whereHas('order', $orderConstraint);
+
+        $model = new static;
+        $schema = \Illuminate\Support\Facades\Schema::connection($model->getConnectionName());
+
+        if ($schema->hasColumn($model->getTable(), 'is_custom')) {
+            $rows = $query
+                ->selectRaw("
+                    CASE WHEN COALESCE(is_custom, 0) = 1
+                        THEN CONCAT('c:', COALESCE(item_name, ''))
+                        ELSE CONCAT('p:', product_id)
+                    END as grp_key,
+                    MAX(product_id) as product_id,
+                    MAX(CASE WHEN COALESCE(is_custom, 0) = 1 THEN 1 ELSE 0 END) as is_custom,
+                    MAX(item_name) as item_name,
+                    SUM(qty) as total_qty,
+                    SUM(total) as total_revenue
+                ")
+                ->groupBy('grp_key')
+                ->orderByDesc('total_revenue')
+                ->limit($limit)
+                ->get();
+        } else {
+            $rows = $query
+                ->with('product')
+                ->selectRaw('product_id, SUM(qty) as total_qty, SUM(total) as total_revenue')
+                ->groupBy('product_id')
+                ->orderByDesc('total_revenue')
+                ->limit($limit)
+                ->get();
+        }
+
+        $productIds = $rows
+            ->filter(fn ($row) => ! (bool) ($row->is_custom ?? false))
+            ->pluck('product_id')
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $products = $productIds === []
+            ? collect()
+            : InventoryProduct::query()->whereIn('id', $productIds)->get()->keyBy('id');
+
+        return $rows->map(function ($row) use ($products) {
+            if ((bool) ($row->is_custom ?? false)) {
+                $name = trim((string) ($row->item_name ?? ''));
+                $row->setAttribute('display_name', $name !== '' ? 'On Demand: '.$name : 'On Demand');
+                $row->setRelation('product', null);
+            } else {
+                $product = $products->get((int) $row->product_id);
+                $row->setRelation('product', $product);
+                $row->setAttribute('display_name', (string) ($product?->name ?? '—'));
+            }
+
+            return $row;
+        });
     }
 }
