@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Signature hosting check</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 820px; margin: 24px auto; padding: 0 16px; }
+        .ok { color: #15803d; }
+        .bad { color: #b91c1c; }
+        pre { background: #111827; color: #e5e7eb; padding: 12px; overflow: auto; font-size: 12px; }
+        table { border-collapse: collapse; width: 100%; }
+        td, th { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
+        .warn { background: #fef3c7; padding: 10px; border-radius: 8px; margin-bottom: 16px; }
+    </style>
+</head>
+<body>
+    <h1>Signature hosting check</h1>
+    <div class="warn"><strong>Security:</strong> site theek hone ke baad is file ko DELETE kar do:
+        <code>public/check-hosting.php</code></div>
+
+    <h2>Config from .env</h2>
+    <pre>APP_URL=https://signature.softwaresolutions.pk
+DB_HOST=localhost
+DB_PORT=3306
+DB_DATABASE=signature-3135399970
+DB_USERNAME=softwaresolutions
+DB_PASSWORD=********</pre>
+
+    <h2>Checks</h2>
+    <table>
+        <tr><th>Check</th><th>Detail</th><th>Status</th></tr>
+                    <tr>
+                <td>PHP version</td>
+                <td><pre style="margin:0;background:#f8fafc;color:#111">8.3.32</pre></td>
+                <td class="ok">OK</td>
+            </tr>
+                    <tr>
+                <td>.env exists</td>
+                <td><pre style="margin:0;background:#f8fafc;color:#111">/home/sites/19a/7/738c6e814b/public_html/signature/.env</pre></td>
+                <td class="ok">OK</td>
+            </tr>
+                    <tr>
+                <td>storage writable</td>
+                <td><pre style="margin:0;background:#f8fafc;color:#111">/home/sites/19a/7/738c6e814b/public_html/signature/storage</pre></td>
+                <td class="ok">OK</td>
+            </tr>
+                    <tr>
+                <td>bootstrap/cache writable</td>
+                <td><pre style="margin:0;background:#f8fafc;color:#111">/home/sites/19a/7/738c6e814b/public_html/signature/bootstrap/cache</pre></td>
+                <td class="ok">OK</td>
+            </tr>
+                    <tr>
+                <td>vendor/autoload.php</td>
+                <td><pre style="margin:0;background:#f8fafc;color:#111">/home/sites/19a/7/738c6e814b/public_html/signature/vendor/autoload.php</pre></td>
+                <td class="ok">OK</td>
+            </tr>
+                    <tr>
+                <td>build/manifest.json</td>
+                <td><pre style="margin:0;background:#f8fafc;color:#111">/home/sites/19a/7/738c6e814b/public_html/signature/public/build/manifest.json</pre></td>
+                <td class="ok">OK</td>
+            </tr>
+                    <tr>
+                <td>MySQL connection</td>
+                <td><pre style="margin:0;background:#f8fafc;color:#111">host=localhost → SQLSTATE[HY000] [2002] No such file or directory
+host=127.0.0.1 → SQLSTATE[HY000] [2002] Connection refused</pre></td>
+                <td class="bad">FAIL</td>
+            </tr>
+            </table>
+
+    <h2>laravel.log (last lines)</h2>
+    <pre>#24 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(183): App\\Http\\Middleware\\VerifySyncToken-&gt;handle(Object(Illuminate\\Http\\Request), Object(Closure))
+#25 /home/sites/19a/7/738c6e814b/public_html/signature/app/Http/Middleware/EnsureCloudReadOnly.php(26): Illuminate\\Pipeline\\Pipeline-&gt;Illuminate\\Pipeline\\{closure}(Object(Illuminate\\Http\\Request))
+#26 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(183): App\\Http\\Middleware\\EnsureCloudReadOnly-&gt;handle(Object(Illuminate\\Http\\Request), Object(Closure))
+#27 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Routing/Middleware/SubstituteBindings.php(50): Illuminate\\Pipeline\\Pipeline-&gt;Illuminate\\Pipeline\\{closure}(Object(Illuminate\\Http\\Request))
+#28 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(183): Illuminate\\Routing\\Middleware\\SubstituteBindings-&gt;handle(Object(Illuminate\\Http\\Request), Object(Closure))
+#29 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Routing/Middleware/ThrottleRequests.php(159): Illuminate\\Pipeline\\Pipeline-&gt;Illuminate\\Pipeline\\{closure}(Object(Illuminate\\Http\\Request))
+#30 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Routing/Middleware/ThrottleRequests.php(125): Illuminate\\Routing\\Middleware\\ThrottleRequests-&gt;handleRequest(Object(Illuminate\\Http\\Request), Object(Closure), Array)
+#31 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Routing/Middleware/ThrottleRequests.php(87): Illuminate\\Routing\\Middleware\\ThrottleRequests-&gt;handleRequestUsingNamedLimiter(Object(Illuminate\\Http\\Request), Object(Closure), &#039;api&#039;, Object(Closure))
+#32 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(183): Illuminate\\Routing\\Middleware\\ThrottleRequests-&gt;handle(Object(Illuminate\\Http\\Request), Object(Closure), &#039;api&#039;)
+#33 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(119): Illuminate\\Pipeline\\Pipeline-&gt;Illuminate\\Pipeline\\{closure}(Object(Illuminate\\Http\\Request))
+#34 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Routing/Router.php(805): Illuminate\\Pipeline\\Pipeline-&gt;then(Object(Closure))
+#35 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Routing/Router.php(784): Illuminate\\Routing\\Router-&gt;runRouteWithinStack(Object(Illuminate\\Routing\\Route), Object(Illuminate\\Http\\Request))
+#36 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Routing/Router.php(748): Illuminate\\Routing\\Router-&gt;runRoute(Object(Illuminate\\Http\\Request), Object(Illuminate\\Routing\\Route))
+#37 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Routing/Router.php(737): Illuminate\\Routing\\Router-&gt;dispatchToRoute(Object(Illuminate\\Http\\Request))
+#38 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Foundation/Http/Kernel.php(200): Illuminate\\Routing\\Router-&gt;dispatch(Object(Illuminate\\Http\\Request))
+#39 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(144): Illuminate\\Foundation\\Http\\Kernel-&gt;Illuminate\\Foundation\\Http\\{closure}(Object(Illuminate\\Http\\Request))
+#40 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/TransformsRequest.php(21): Illuminate\\Pipeline\\Pipeline-&gt;Illuminate\\Pipeline\\{closure}(Object(Illuminate\\Http\\Request))
+#41 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/ConvertEmptyStringsToNull.php(31): Illuminate\\Foundation\\Http\\Middleware\\TransformsRequest-&gt;handle(Object(Illuminate\\Http\\Request), Object(Closure))
+#42 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(183): Illuminate\\Foundation\\Http\\Middleware\\ConvertEmptyStringsToNull-&gt;handle(Object(Illuminate\\Http\\Request), Object(Closure))
+#43 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/TransformsRequest.php(21): Illuminate\\Pipeline\\Pipeline-&gt;Illuminate\\Pipeline\\{closure}(Object(Illuminate\\Http\\Request))
+#44 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/TrimStrings.php(40): Illuminate\\Foundation\\Http\\Middleware\\TransformsRequest-&gt;handle(Object(Illuminate\\Http\\Request), Object(Closure))
+#45 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(183): Illuminate\\Foundation\\Http\\Middleware\\TrimStrings-&gt;handle(Object(Illuminate\\Http\\Request), Object(Closure))
+#46 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/ValidatePostSize.php(27): Illuminate\\Pipeline\\Pipeline-&gt;Illuminate\\Pipeline\\{closure}(Object(Illuminate\\Http\\Request))
+#47 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(183): Illuminate\\Foundation\\Http\\Middleware\\ValidatePostSize-&gt;handle(Object(Illuminate\\Http\\Request), Object(Closure))
+#48 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/PreventRequestsDuringMaintenance.php(99): Illuminate\\Pipeline\\Pipeline-&gt;Illuminate\\Pipeline\\{closure}(Object(Illuminate\\Http\\Request))
+#49 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(183): Illuminate\\Foundation\\Http\\Middleware\\PreventRequestsDuringMaintenance-&gt;handle(Object(Illuminate\\Http\\Request), Object(Closure))
+#50 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Http/Middleware/HandleCors.php(62): Illuminate\\Pipeline\\Pipeline-&gt;Illuminate\\Pipeline\\{closure}(Object(Illuminate\\Http\\Request))
+#51 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(183): Illuminate\\Http\\Middleware\\HandleCors-&gt;handle(Object(Illuminate\\Http\\Request), Object(Closure))
+#52 /home/sites/19a/7/738c6e814b/public_html/signature/app/Http/Middleware/SecurityHeaders.php(17): Illuminate\\Pipeline\\Pipeline-&gt;Illuminate\\Pipeline\\{closure}(Object(Illuminate\\Http\\Request))
+#53 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(183): App\\Http\\Middleware\\SecurityHeaders-&gt;handle(Object(Illuminate\\Http\\Request), Object(Closure))
+#54 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Http/Middleware/TrustProxies.php(39): Illuminate\\Pipeline\\Pipeline-&gt;Illuminate\\Pipeline\\{closure}(Object(Illuminate\\Http\\Request))
+#55 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(183): Illuminate\\Http\\Middleware\\TrustProxies-&gt;handle(Object(Illuminate\\Http\\Request), Object(Closure))
+#56 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(119): Illuminate\\Pipeline\\Pipeline-&gt;Illuminate\\Pipeline\\{closure}(Object(Illuminate\\Http\\Request))
+#57 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Foundation/Http/Kernel.php(175): Illuminate\\Pipeline\\Pipeline-&gt;then(Object(Closure))
+#58 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Foundation/Http/Kernel.php(144): Illuminate\\Foundation\\Http\\Kernel-&gt;sendRequestThroughRouter(Object(Illuminate\\Http\\Request))
+#59 /home/sites/19a/7/738c6e814b/public_html/signature/public/index.php(51): Illuminate\\Foundation\\Http\\Kernel-&gt;handle(Object(Illuminate\\Http\\Request))
+#60 {main}
+&quot;} 
+[2026-07-20 14:56:49] production.WARNING: sync.schema_ensure_failed {&quot;connection&quot;:&quot;mysql&quot;,&quot;error&quot;:&quot;SQLSTATE[HY000] [2002] No such file or directory (Connection: mysql, SQL: select table_name as `name`, (data_length + index_length) as `size`, table_comment as `comment`, engine as `engine`, table_collation as `collation` from information_schema.tables where table_schema = &#039;signature-3135399970&#039; and table_type in (&#039;BASE TABLE&#039;, &#039;SYSTEM VERSIONED&#039;) order by table_name)&quot;} 
+[2026-07-20 14:56:49] production.WARNING: sync.schema_ensure_failed {&quot;connection&quot;:&quot;tenant&quot;,&quot;error&quot;:&quot;SQLSTATE[HY000] [2002] No such file or directory (Connection: tenant, SQL: select table_name as `name`, (data_length + index_length) as `size`, table_comment as `comment`, engine as `engine`, table_collation as `collation` from information_schema.tables where table_schema = &#039;signature-3135399970&#039; and table_type in (&#039;BASE TABLE&#039;, &#039;SYSTEM VERSIONED&#039;) order by table_name)&quot;} 
+</pre>
+</body>
+</html>
