@@ -54,10 +54,21 @@ $checks[] = ['build/manifest.json', $root.'/public/build/manifest.json', is_file
 
 $dbOk = false;
 $dbMsg = '';
+$dbSocket = trim((string) ($env['DB_SOCKET'] ?? ''));
+
 $hostsToTry = array_values(array_unique(array_filter([
-    $dbHost,
+    $dbHost !== '(missing)' ? $dbHost : null,
     '127.0.0.1',
     'localhost',
+])));
+
+$socketsToTry = array_values(array_unique(array_filter([
+    $dbSocket !== '' ? $dbSocket : null,
+    ini_get('pdo_mysql.default_socket') ?: null,
+    ini_get('mysqli.default_socket') ?: null,
+    '/var/lib/mysql/mysql.sock',
+    '/var/run/mysqld/mysqld.sock',
+    '/tmp/mysql.sock',
 ])));
 
 foreach ($hostsToTry as $host) {
@@ -73,6 +84,25 @@ foreach ($hostsToTry as $host) {
         break;
     } catch (Throwable $e) {
         $dbMsg .= "host={$host} → ".$e->getMessage()."\n";
+    }
+}
+
+if (! $dbOk) {
+    foreach ($socketsToTry as $socket) {
+        try {
+            $dsn = "mysql:unix_socket={$socket};dbname={$dbName};charset=utf8mb4";
+            $pdo = new PDO($dsn, $dbUser, $dbPass, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_TIMEOUT => 5,
+            ]);
+            $count = (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn();
+            $dbOk = true;
+            $dbMsg = "OK via DB_SOCKET={$socket} — users table rows: {$count}\n";
+            $dbMsg .= "Hosting .env mein add karo:\nDB_HOST=localhost\nDB_SOCKET={$socket}";
+            break;
+        } catch (Throwable $e) {
+            $dbMsg .= "socket={$socket} → ".$e->getMessage()."\n";
+        }
     }
 }
 
