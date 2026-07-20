@@ -9,11 +9,11 @@ class SyncCloudCommand extends Command
 {
     protected $signature = 'sync:cloud
                             {--snapshot : Queue a full database snapshot before push}
-                            {--pull : Also force pull from hosting (default when auto_pull on)}
+                            {--pull : Also pull from hosting (requires SYNC_PULL_ENABLED)}
                             {--reset-pull : Reset pull cursors (re-pull lookback window)}
                             {--status : Show sync status only}';
 
-    protected $description = 'Push local changes to hosting and pull full hosting DB to cafe PC';
+    protected $description = 'Push cafe PC changes to hosting (one-way by default; pull optional)';
 
     public function handle(CloudSyncService $sync): int
     {
@@ -38,13 +38,18 @@ class SyncCloudCommand extends Command
             $this->info("Queued {$n} row(s).");
         }
 
-        $this->info('Syncing both ways (local ↔ hosting)…');
-        $tables = $this->option('reset-pull')
-            ? $sync->resolvePullTables()
-            : $sync->tablesForPullCycle(false);
-        $this->line('Pull this cycle: '.count($tables).' table(s)');
+        $pullEnabled = (bool) config('sync.pull_enabled', false);
+        $withPull = $pullEnabled && ($this->option('pull') || (bool) config('sync.auto_pull', false));
 
-        $result = $sync->syncBoth(true, (bool) $this->option('reset-pull'));
+        $this->info($withPull ? 'Syncing both ways (local ↔ hosting)…' : 'Pushing cafe → hosting (one-way)…');
+        if ($withPull) {
+            $tables = $this->option('reset-pull')
+                ? $sync->resolvePullTables()
+                : $sync->tablesForPullCycle(false);
+            $this->line('Pull this cycle: '.count($tables).' table(s)');
+        }
+
+        $result = $sync->syncBoth(true, (bool) $this->option('reset-pull'), $withPull);
         $this->{$result['ok'] ? 'info' : 'error'}($result['message']);
         $this->line("Pushed: {$result['pushed']} | Pending: {$result['pending']} | Pulled: {$result['pulled']} | Failed: {$result['failed']}");
 

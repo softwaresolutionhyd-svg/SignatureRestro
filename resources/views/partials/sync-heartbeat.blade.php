@@ -6,6 +6,7 @@
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     const heartbeatMs = {{ max(8, (int) config('sync.heartbeat_seconds', 12)) * 1000 }};
     const autoPush = {{ config('sync.auto_push_heartbeat') ? 'true' : 'false' }};
+    const pullEnabled = {{ config('sync.pull_enabled') ? 'true' : 'false' }};
     const pullEvery = {{ max(2, (int) config('sync.heartbeat_pull_every', 4)) }};
     const badge = document.getElementById('sync-status-badge');
     const dot = document.getElementById('sync-status-dot');
@@ -60,6 +61,7 @@
                 return;
             }
 
+            if (!pullEnabled) return;
             pullTick++;
             if (pullTick >= pullEvery) {
                 pullTick = 0;
@@ -72,12 +74,13 @@
 
     async function syncNow(force, withPull) {
         if (syncing || !navigator.onLine) return;
+        const doPull = !!(withPull && pullEnabled);
         syncing = true;
         paint({ online: true, pending: lastStatus.pending || 0 });
         try {
             const qs = new URLSearchParams();
             if (force) qs.set('force', '1');
-            qs.set('pull', withPull ? '1' : '0');
+            qs.set('pull', doPull ? '1' : '0');
             const res = await fetch(pushUrl + '?' + qs.toString(), {
                 method: 'POST',
                 headers: {
@@ -119,7 +122,8 @@
 
     if (badge) {
         badge.addEventListener('click', function () {
-            syncNow(true, true);
+            // One-way: badge click = force push only (pull only if SYNC_PULL_ENABLED)
+            syncNow(true, pullEnabled);
         });
     }
 

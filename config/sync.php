@@ -69,8 +69,14 @@ return [
     // First pull without cursor: only rows newer than this many days
     'pull_lookback_days' => (int) env('SYNC_PULL_LOOKBACK_DAYS', 120),
 
-    // Auto pull after push / on heartbeat / schedule
-    'auto_pull' => (bool) env('SYNC_AUTO_PULL', true),
+    // Auto pull after push / on heartbeat / schedule (local only; ignored when pull_enabled=false)
+    'auto_pull' => (bool) env('SYNC_AUTO_PULL', false),
+
+    // Master switch: online → offline pull. Default OFF (one-way: cafe → hosting only).
+    'pull_enabled' => (bool) env('SYNC_PULL_ENABLED', false),
+
+    // Hosting (SYNC_ROLE=cloud): block add/edit/delete in UI + Order Taker API. Sync push still allowed.
+    'cloud_read_only' => (bool) env('SYNC_CLOUD_READ_ONLY', true),
 
     // Tables never synced (local-only / framework)
     'exclude_tables' => [

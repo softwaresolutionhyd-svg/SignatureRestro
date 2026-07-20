@@ -33,6 +33,7 @@ use App\Support\PosServiceCharge;
 use App\Support\PosRuntimeSchema;
 use App\Support\PosCustomProduct;
 use App\Support\PosTablesSchema;
+use App\Support\MenuCategory;
 use App\Support\ActivityLogger;
 use App\Services\KitchenService;
 use App\Services\ManufacturingStockService;
@@ -100,6 +101,8 @@ class PosController extends Controller
      */
     private function posIndexViewData(Request $request, PosSession $session): array
     {
+        MenuCategory::assignPosProducts();
+
         $this->ensurePosTablesSchema();
         $this->ensurePosOrderSchemaForCheckout();
         $this->ensurePosOrderItemsSchema();

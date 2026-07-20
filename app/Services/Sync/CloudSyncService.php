@@ -760,7 +760,8 @@ class CloudSyncService
             'online' => $this->remoteReachable(),
         ];
 
-        if ($withPull && config('sync.auto_pull', true)) {
+        // Caller sets $withPull; master gate is SYNC_PULL_ENABLED (online → offline off by default).
+        if ($withPull && config('sync.pull_enabled', false)) {
             $pull = $this->pull($force, $resetPullCursors);
         }
 
@@ -814,6 +815,16 @@ class CloudSyncService
     {
         if (! $this->isLocalRole()) {
             return ['ok' => false, 'pulled' => 0, 'failed' => 0, 'message' => 'Pull only runs on local role.', 'online' => false];
+        }
+
+        if (! config('sync.pull_enabled', false)) {
+            return [
+                'ok' => true,
+                'pulled' => 0,
+                'failed' => 0,
+                'message' => 'Online → offline pull band hai (one-way sync: cafe → hosting only).',
+                'online' => $this->remoteReachable(),
+            ];
         }
 
         $url = config('sync.remote_url');
@@ -1425,7 +1436,9 @@ class CloudSyncService
             'last_receive_at' => $this->getMeta('last_receive_at'),
             'last_pull_at' => $this->getMeta('last_pull_at'),
             'auto_push' => (bool) config('sync.auto_push_heartbeat', true),
-            'auto_pull' => (bool) config('sync.auto_pull', true),
+            'auto_pull' => (bool) config('sync.pull_enabled', false) && (bool) config('sync.auto_pull', false),
+            'pull_enabled' => (bool) config('sync.pull_enabled', false),
+            'cloud_read_only' => config('sync.role') === 'cloud' && (bool) config('sync.cloud_read_only', true),
             'pull_tables' => count($this->resolvePullTables()),
         ];
     }

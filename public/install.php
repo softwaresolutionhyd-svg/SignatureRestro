@@ -154,6 +154,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['do_install'])) {
             $env = replace_or_append_env($env, 'SYNC_ROLE', $enableSync ? $syncRole : 'cloud');
             $env = replace_or_append_env($env, 'SYNC_TOKEN', $enableSync ? $syncToken : '');
             $env = replace_or_append_env($env, 'SYNC_REMOTE_URL', '');
+            $env = replace_or_append_env($env, 'SYNC_PULL_ENABLED', 'false');
+            $env = replace_or_append_env($env, 'SYNC_AUTO_PULL', 'false');
+            $env = replace_or_append_env($env, 'SYNC_CLOUD_READ_ONLY', 'true');
             if ($production) {
                 $env = replace_or_append_env($env, 'SESSION_SECURE_COOKIE', 'true');
             }

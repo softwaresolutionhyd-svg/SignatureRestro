@@ -15,6 +15,7 @@ use App\Models\InventoryUnit;
 use App\Models\InventoryUnitConversion;
 use App\Models\ManufacturingBom;
 use App\Support\ProductCosting;
+use App\Support\MenuCategory;
 use App\Services\ProductImageService;
 use App\Services\InventoryStockService;
 use App\Services\Sync\SyncAwareDelete;
@@ -60,6 +61,8 @@ class ProductController extends Controller
 
     public function index(Request $request)
     {
+        MenuCategory::assignPosProducts();
+
         $q            = trim((string) $request->query('q', ''));
         $stockFilter  = $request->query('stock_filter', '');
         $purchaseFilter = $request->query('for_purchase', '');

@@ -23,8 +23,9 @@ class SyncStatusController extends Controller
         }
 
         $force = $request->boolean('force');
-        // Default: pull with sync. pass pull=0 for push-only (fast path after local saves).
-        $withPull = $request->has('pull') ? $request->boolean('pull') : (bool) config('sync.auto_pull', true);
+        // One-way by default: pull only when SYNC_PULL_ENABLED (and request/auto_pull says so).
+        $pullEnabled = (bool) config('sync.pull_enabled', false);
+        $withPull = $pullEnabled && ($request->has('pull') ? $request->boolean('pull') : (bool) config('sync.auto_pull', false));
         $result = $sync->syncBoth($force, false, $withPull);
 
         return response()->json([
@@ -46,6 +47,16 @@ class SyncStatusController extends Controller
                 'ok' => false,
                 'message' => 'Pull only runs on the local (offline) install.',
             ], 400);
+        }
+
+        if (! config('sync.pull_enabled', false)) {
+            return response()->json([
+                'ok' => true,
+                'pulled' => 0,
+                'failed' => 0,
+                'message' => 'Online → offline pull band hai. Sirf cafe → hosting sync chalta hai.',
+                'online' => true,
+            ]);
         }
 
         $result = $sync->pull($request->boolean('force'), $request->boolean('reset'));
