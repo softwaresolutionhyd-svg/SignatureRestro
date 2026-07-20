@@ -149,6 +149,31 @@ DB_USERNAME=<?= h($dbUser) ?>
 
 DB_PASSWORD=<?= $dbPass === '' ? '(empty)' : '********' ?></pre>
 
+    <?php
+    $laravelDbHost = '(Laravel not booted)';
+    $configCache = $root.'/bootstrap/cache/config.php';
+    if (is_file($root.'/vendor/autoload.php')) {
+        try {
+            require $root.'/vendor/autoload.php';
+            $app = require $root.'/bootstrap/app.php';
+            $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+            $laravelDbHost = (string) config('database.connections.mysql.host');
+        } catch (Throwable $e) {
+            $laravelDbHost = 'boot failed: '.$e->getMessage();
+        }
+    }
+    ?>
+    <div class="warn">
+        Laravel cached DB_HOST: <code><?= h($laravelDbHost) ?></code>
+        <?php if ($laravelDbHost !== $dbHost && $dbHost !== '(missing)'): ?>
+            — <strong>mismatch!</strong> Open once:
+            <code>/clear-config.php</code> then delete that file.
+        <?php endif; ?>
+        <?php if (is_file($configCache)): ?>
+            Config cache file exists: <code>bootstrap/cache/config.php</code>
+        <?php endif; ?>
+    </div>
+
     <h2>Checks</h2>
     <table>
         <tr><th>Check</th><th>Detail</th><th>Status</th></tr>
