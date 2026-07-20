@@ -26,11 +26,6 @@
         @include('partials.admin.topbar')
 
         <main class="container-fluid @if(request()->routeIs('dashboard')) admin-main-dashboard @else py-4 admin-main @endif">
-            @if(config('sync.role') === 'cloud' && config('sync.cloud_read_only', true))
-                <div class="alert alert-info mx-3 mt-3 mb-0" role="status">
-                    Online view-only mode — add / edit / delete sirf cafe PC se. Changes sync se yahan dikhengi.
-                </div>
-            @endif
             @if (session('error'))
                 <div class="alert alert-danger alert-dismissible fade show mx-3 mt-3 mb-0" role="alert">
                     {{ session('error') }}
