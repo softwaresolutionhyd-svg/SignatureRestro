@@ -69,14 +69,6 @@
 
                 <p class="auth-heading">{{ __('Sign in to your account') }}</p>
 
-                @if(!empty($currentUser))
-                    <div class="alert alert-info py-2 small mb-3">
-                        Abhi signed in: <strong>{{ $currentUser->loginUsername() ?? $currentUser->email }}</strong>
-                        ({{ $currentUser->name }}).
-                        Doosra account kholne ke liye neeche username/password likhein — purana account replace ho jayega.
-                    </div>
-                @endif
-
                 @if (session('warning'))
                     <div class="alert alert-warning py-2 small">{{ session('warning') }}</div>
                 @endif
