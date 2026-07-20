@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Signature hosting check</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 820px; margin: 24px auto; padding: 0 16px; }
+        .ok { color: #15803d; }
+        .bad { color: #b91c1c; }
+        pre { background: #111827; color: #e5e7eb; padding: 12px; overflow: auto; font-size: 12px; }
+        table { border-collapse: collapse; width: 100%; }
+        td, th { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
+        .warn { background: #fef3c7; padding: 10px; border-radius: 8px; margin-bottom: 16px; }
+    </style>
+</head>
+<body>
+    <h1>Signature hosting check</h1>
+    <div class="warn"><strong>Security:</strong> site theek hone ke baad is file ko DELETE kar do:
+        <code>public/check-hosting.php</code></div>
+
+    <h2>Config from .env</h2>
+    <pre>APP_URL=
+DB_HOST=(missing)
+DB_PORT=3306
+DB_DATABASE=(missing)
+DB_USERNAME=(missing)
+DB_PASSWORD=(empty)</pre>
+
+    <h2>Checks</h2>
+    <table>
+        <tr><th>Check</th><th>Detail</th><th>Status</th></tr>
+                    <tr>
+                <td>PHP version</td>
+                <td><pre style="margin:0;background:#f8fafc;color:#111">8.3.32</pre></td>
+                <td class="ok">OK</td>
+            </tr>
+                    <tr>
+                <td>.env exists</td>
+                <td><pre style="margin:0;background:#f8fafc;color:#111">/home/sites/19a/7/738c6e814b/public_html/signature/.env</pre></td>
+                <td class="bad">FAIL</td>
+            </tr>
+                    <tr>
+                <td>storage writable</td>
+                <td><pre style="margin:0;background:#f8fafc;color:#111">/home/sites/19a/7/738c6e814b/public_html/signature/storage</pre></td>
+                <td class="ok">OK</td>
+            </tr>
+                    <tr>
+                <td>bootstrap/cache writable</td>
+                <td><pre style="margin:0;background:#f8fafc;color:#111">/home/sites/19a/7/738c6e814b/public_html/signature/bootstrap/cache</pre></td>
+                <td class="ok">OK</td>
+            </tr>
+                    <tr>
+                <td>vendor/autoload.php</td>
+                <td><pre style="margin:0;background:#f8fafc;color:#111">/home/sites/19a/7/738c6e814b/public_html/signature/vendor/autoload.php</pre></td>
+                <td class="ok">OK</td>
+            </tr>
+                    <tr>
+                <td>build/manifest.json</td>
+                <td><pre style="margin:0;background:#f8fafc;color:#111">/home/sites/19a/7/738c6e814b/public_html/signature/public/build/manifest.json</pre></td>
+                <td class="ok">OK</td>
+            </tr>
+                    <tr>
+                <td>MySQL connection</td>
+                <td><pre style="margin:0;background:#f8fafc;color:#111">host=(missing) → SQLSTATE[HY000] [2002] php_network_getaddresses: getaddrinfo for (missing) failed: Name or service not known
+host=127.0.0.1 → SQLSTATE[HY000] [2002] Connection refused
+host=localhost → SQLSTATE[HY000] [2002] No such file or directory</pre></td>
+                <td class="bad">FAIL</td>
+            </tr>
+            </table>
+
+    <h2>laravel.log (last lines)</h2>
+    <pre>#29 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(183): Illuminate\\Foundation\\Http\\Middleware\\TrimStrings-&gt;handle(Object(Illuminate\\Http\\Request), Object(Closure))
+#30 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/ValidatePostSize.php(27): Illuminate\\Pipeline\\Pipeline-&gt;Illuminate\\Pipeline\\{closure}(Object(Illuminate\\Http\\Request))
+#31 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(183): Illuminate\\Foundation\\Http\\Middleware\\ValidatePostSize-&gt;handle(Object(Illuminate\\Http\\Request), Object(Closure))
+#32 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Foundation/Http/Middleware/PreventRequestsDuringMaintenance.php(99): Illuminate\\Pipeline\\Pipeline-&gt;Illuminate\\Pipeline\\{closure}(Object(Illuminate\\Http\\Request))
+#33 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(183): Illuminate\\Foundation\\Http\\Middleware\\PreventRequestsDuringMaintenance-&gt;handle(Object(Illuminate\\Http\\Request), Object(Closure))
+#34 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Http/Middleware/HandleCors.php(49): Illuminate\\Pipeline\\Pipeline-&gt;Illuminate\\Pipeline\\{closure}(Object(Illuminate\\Http\\Request))
+#35 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(183): Illuminate\\Http\\Middleware\\HandleCors-&gt;handle(Object(Illuminate\\Http\\Request), Object(Closure))
+#36 /home/sites/19a/7/738c6e814b/public_html/signature/app/Http/Middleware/SecurityHeaders.php(17): Illuminate\\Pipeline\\Pipeline-&gt;Illuminate\\Pipeline\\{closure}(Object(Illuminate\\Http\\Request))
+#37 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(183): App\\Http\\Middleware\\SecurityHeaders-&gt;handle(Object(Illuminate\\Http\\Request), Object(Closure))
+#38 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Http/Middleware/TrustProxies.php(39): Illuminate\\Pipeline\\Pipeline-&gt;Illuminate\\Pipeline\\{closure}(Object(Illuminate\\Http\\Request))
+#39 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(183): Illuminate\\Http\\Middleware\\TrustProxies-&gt;handle(Object(Illuminate\\Http\\Request), Object(Closure))
+#40 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Pipeline/Pipeline.php(119): Illuminate\\Pipeline\\Pipeline-&gt;Illuminate\\Pipeline\\{closure}(Object(Illuminate\\Http\\Request))
+#41 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Foundation/Http/Kernel.php(175): Illuminate\\Pipeline\\Pipeline-&gt;then(Object(Closure))
+#42 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Foundation/Http/Kernel.php(144): Illuminate\\Foundation\\Http\\Kernel-&gt;sendRequestThroughRouter(Object(Illuminate\\Http\\Request))
+#43 /home/sites/19a/7/738c6e814b/public_html/signature/public/index.php(51): Illuminate\\Foundation\\Http\\Kernel-&gt;handle(Object(Illuminate\\Http\\Request))
+#44 {main}
+&quot;} 
+[2026-07-20 14:29:56] production.ERROR: No application encryption key has been specified. {&quot;exception&quot;:&quot;[object] (Illuminate\\Encryption\\MissingAppKeyException(code: 0): No application encryption key has been specified. at /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Encryption/EncryptionServiceProvider.php:79)
+[stacktrace]
+#0 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Support/helpers.php(320): Illuminate\\Encryption\\EncryptionServiceProvider-&gt;Illuminate\\Encryption\\{closure}(NULL)
+#1 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Encryption/EncryptionServiceProvider.php(77): tap(NULL, Object(Closure))
+#2 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Encryption/EncryptionServiceProvider.php(60): Illuminate\\Encryption\\EncryptionServiceProvider-&gt;key(Array)
+#3 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Encryption/EncryptionServiceProvider.php(32): Illuminate\\Encryption\\EncryptionServiceProvider-&gt;parseKey(Array)
+#4 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Container/Container.php(908): Illuminate\\Encryption\\EncryptionServiceProvider-&gt;Illuminate\\Encryption\\{closure}(Object(Illuminate\\Foundation\\Application), Array)
+#5 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Container/Container.php(795): Illuminate\\Container\\Container-&gt;build(Object(Closure))
+#6 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(986): Illuminate\\Container\\Container-&gt;resolve(&#039;encrypter&#039;, Array, true)
+#7 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Container/Container.php(731): Illuminate\\Foundation\\Application-&gt;resolve(&#039;encrypter&#039;, Array)
+#8 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(971): Illuminate\\Container\\Container-&gt;make(&#039;encrypter&#039;, Array)
+#9 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Container/Container.php(1066): Illuminate\\Foundation\\Application-&gt;make(&#039;encrypter&#039;)
+#10 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Container/Container.php(982): Illuminate\\Container\\Container-&gt;resolveClass(Object(ReflectionParameter))
+#11 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Container/Container.php(943): Illuminate\\Container\\Container-&gt;resolveDependencies(Array)
+#12 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Container/Container.php(795): Illuminate\\Container\\Container-&gt;build(&#039;App\\\\Http\\\\Middle...&#039;)
+#13 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(986): Illuminate\\Container\\Container-&gt;resolve(&#039;App\\\\Http\\\\Middle...&#039;, Array, true)
+#14 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Container/Container.php(731): Illuminate\\Foundation\\Application-&gt;resolve(&#039;App\\\\Http\\\\Middle...&#039;, Array)
+#15 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(971): Illuminate\\Container\\Container-&gt;make(&#039;App\\\\Http\\\\Middle...&#039;, Array)
+#16 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Foundation/Http/Kernel.php(255): Illuminate\\Foundation\\Application-&gt;make(&#039;App\\\\Http\\\\Middle...&#039;)
+#17 /home/sites/19a/7/738c6e814b/public_html/signature/vendor/laravel/framework/src/Illuminate/Foundation/Http/Kernel.php(213): Illuminate\\Foundation\\Http\\Kernel-&gt;terminateMiddleware(Object(Illuminate\\Http\\Request), Object(Illuminate\\Http\\Response))
+#18 /home/sites/19a/7/738c6e814b/public_html/signature/public/index.php(55): Illuminate\\Foundation\\Http\\Kernel-&gt;terminate(Object(Illuminate\\Http\\Request), Object(Illuminate\\Http\\Response))
+#19 {main}
+&quot;} 
+</pre>
+</body>
+</html>
