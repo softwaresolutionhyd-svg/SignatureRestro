@@ -8,7 +8,7 @@ $ErrorActionPreference = 'Stop'
 
 # --- Apni zaroorat par change karein (warna auto-detect bhi chalega) ---
 $AdapterName = 'Ethernet'       # aapke PC par: Ethernet
-$StaticIp    = '192.168.1.100'    # free IP — 192.168.1.50 printer ki hai, mat use karein
+$StaticIp    = '192.168.1.105'    # cafe server PC — 192.168.1.100 kisi aur device par hai (conflict)
 $Gateway     = '192.168.1.1'
 $Dns1        = '192.168.1.1'
 $Dns2        = '8.8.8.8'
@@ -60,15 +60,46 @@ if ($Gateway -eq '192.168.1.1') {
 
 $BaseUrl = if ($HttpPort -eq 80) { "http://${StaticIp}" } else { "http://${StaticIp}:$HttpPort" }
 
+function Test-IpUsedByOtherDevice {
+    param([string]$TargetIp, [string]$Adapter)
+
+    $myIp = (Get-NetIPAddress -InterfaceAlias $Adapter -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+        Where-Object { $_.PrefixOrigin -ne 'WellKnown' } | Select-Object -First 1).IPAddress
+    if ($myIp -eq $TargetIp) {
+        return $false
+    }
+
+    $myMac = (Get-NetAdapter -Name $Adapter -ErrorAction SilentlyContinue).MacAddress
+    if (-not (Test-Connection -ComputerName $TargetIp -Count 1 -Quiet -ErrorAction SilentlyContinue)) {
+        return $false
+    }
+
+    $null = ping -n 1 $TargetIp 2>$null
+    Start-Sleep -Milliseconds 300
+    $arp = arp -a $TargetIp 2>$null | Select-String '([0-9a-f]{2}-){5}[0-9a-f]{2}' -AllMatches
+    if (-not $arp) {
+        return $true
+    }
+
+    $remoteMac = ($arp.Matches | Select-Object -Last 1).Value -replace '-', ''
+    $localMac  = ($myMac -replace '-', '').ToUpper()
+    return ($remoteMac.ToUpper() -ne $localMac)
+}
+
 Write-Host ''
 Write-Host "Cafe LAN setup - fixed IP: $StaticIp on '$AdapterName'" -ForegroundColor Cyan
 Write-Host "Gateway: $Gateway" -ForegroundColor DarkGray
 
+if (Test-IpUsedByOtherDevice -TargetIp $StaticIp -Adapter $AdapterName) {
+    Write-Host "ERROR: $StaticIp kisi AUR device par hai (IP conflict)." -ForegroundColor Red
+    Write-Host "       192.168.1.100 bhi occupied hai — is script mein $StaticIp use ho rahi hai." -ForegroundColor Yellow
+    Write-Host "       Router mein DHCP reservation set karein ya script top par alag free IP likhein." -ForegroundColor Yellow
+    exit 1
+}
+
 $ping = Test-Connection -ComputerName $StaticIp -Count 1 -Quiet -ErrorAction SilentlyContinue
 if ($ping) {
-    Write-Host "WARNING: $StaticIp par koi device reply kar raha hai — IP conflict ho sakta hai." -ForegroundColor Yellow
-    $cont = Read-Host 'Phir bhi set karein? (y/N)'
-    if ($cont -notmatch '^[yY]') { exit 0 }
+    Write-Host "OK: $StaticIp yahi PC ka current IP hai — static set karenge." -ForegroundColor Green
 } else {
     Write-Host "OK: $StaticIp par koi reply nahi — IP free lag rahi hai." -ForegroundColor Green
 }

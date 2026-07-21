@@ -1,4 +1,4 @@
-# Signature LAN — HTTPS (192.168.1.100 par "Not secure" hatane ke liye)
+# Signature LAN — HTTPS (192.168.1.105 par "Not secure" hatane ke liye)
 # Run as Administrator:
 #   cd C:\laragon\www\signature\scripts
 #   .\enable-signature-lan-https.ps1
@@ -7,7 +7,7 @@
 
 $ErrorActionPreference = 'Stop'
 
-$ServerIp    = '192.168.1.100'
+$ServerIp    = '192.168.1.105'
 $ProjectRoot = 'C:/laragon/www/signature/public'
 $HttpdConf   = 'C:\laragon\bin\apache\httpd-2.4.54-win64-VS16\conf\httpd.conf'
 $ApacheBin   = 'C:\laragon\bin\apache\httpd-2.4.54-win64-VS16\bin\httpd.exe'
@@ -162,5 +162,5 @@ Write-Host "  Root CA file copy karein: $rootCa\rootCA.pem"
 Write-Host '  Android: Settings -> Security -> Install certificate -> CA certificate'
 Write-Host '  iPhone: AirDrop/email -> Profile install -> Settings -> General -> About -> Certificate Trust'
 Write-Host ''
-Write-Host 'Settings -> System -> LAN IP: https://192.168.1.100 (port khali)' -ForegroundColor Yellow
+Write-Host 'Settings -> System -> LAN IP: https://192.168.1.105 (port khali)' -ForegroundColor Yellow
 Write-Host ''

@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 
 $SignaturePort = 8080
 $EnvFile       = Join-Path (Split-Path $PSScriptRoot -Parent) '.env'
-$PreferredIp   = '192.168.3.50'
+$PreferredIp   = '192.168.1.105'
 
 Write-Host ''
 Write-Host '=== Signature LAN / Extender setup ===' -ForegroundColor Cyan
@@ -99,7 +99,7 @@ Write-Host ''
 Write-Host '--- WiFi Extender (important) ---' -ForegroundColor Yellow
 Write-Host '1. Extender ko Access Point / Repeater mode par rakhein — same WiFi name extend kare.'
 Write-Host '2. Router mode NA use karein (alag network ban jata hai, IP nahi chalega).'
-Write-Host '3. Server PC ko router mein Fixed IP / DHCP Reservation do (recommended: 192.168.3.50).'
+Write-Host '3. Server PC ko router mein Fixed IP / DHCP Reservation do (recommended: 192.168.1.105).'
 Write-Host '4. Laragon: Apache + MySQL GREEN; Apache port 8080 (Signature).'
 Write-Host '5. Fixed IP ke liye (optional): .\set-cafe-lan-ip.ps1'
 Write-Host ''

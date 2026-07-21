@@ -7,7 +7,7 @@ $HttpdConf   = 'C:\laragon\bin\apache\httpd-2.4.54-win64-VS16\conf\httpd.conf'
 $ApacheBin   = 'C:\laragon\bin\apache\httpd-2.4.54-win64-VS16\bin\httpd.exe'
 $SslVhost    = 'C:\laragon\etc\apache2\sites-enabled\auto.signature-lan-ssl.conf'
 $LanVhost    = 'C:\laragon\etc\apache2\sites-enabled\00-signature-lan-ip.conf'
-$ServerIp    = '192.168.1.100'
+$ServerIp    = '192.168.1.105'
 $ProjectRoot = 'C:/laragon/www/signature/public'
 
 Write-Host ''

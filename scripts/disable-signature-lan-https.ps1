@@ -3,7 +3,7 @@
 
 $ErrorActionPreference = 'Stop'
 
-$ServerIp    = '192.168.1.100'
+$ServerIp    = '192.168.1.105'
 $HttpdConf   = 'C:\laragon\bin\apache\httpd-2.4.54-win64-VS16\conf\httpd.conf'
 $ApacheBin   = 'C:\laragon\bin\apache\httpd-2.4.54-win64-VS16\bin\httpd.exe'
 $SslVhost    = 'C:\laragon\etc\apache2\sites-enabled\auto.signature-lan-ssl.conf'
