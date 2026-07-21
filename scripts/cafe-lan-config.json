@@ -1,0 +1,14 @@
+﻿{
+    "adapter":  "Ethernet",
+    "static_ip":  "192.168.1.105",
+    "gateway":  "192.168.1.1",
+    "subnet_mask":  "255.255.255.0",
+    "dns":  [
+                "192.168.1.1",
+                "8.8.8.8",
+                "1.1.1.1"
+            ],
+    "http_port":  8080,
+    "mac_address":  "84-A9-3E-65-C7-39",
+    "task_name":  "Signature Cafe IP Lock"
+}

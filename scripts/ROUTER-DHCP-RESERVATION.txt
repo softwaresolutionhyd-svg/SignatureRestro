@@ -1,0 +1,30 @@
+﻿Signature Cafe Server â€” Router DHCP Reservation (ZAROORI)
+========================================================
+
+Is PC ko SIRF yahi IP mile, doosri devices ko router se 105 na mile:
+
+  MAC Address : 84-A9-3E-65-C7-39  (router format: 84:a9:3e:65:c7:39)
+  Reserved IP : 192.168.1.105
+  Gateway     : 192.168.1.1
+
+Router steps (192.168.1.1 browser mein):
+  1. Login karein (admin password)
+  2. DHCP / LAN / Address Reservation dhoondein
+  3. Naya reservation add karein:
+       Device MAC = 84:a9:3e:65:c7:39
+       IP Address = 192.168.1.105
+  4. DHCP pool check karein â€” agar range 192.168.1.100-200 hai to
+     .105 ko exclude karein YA reservation ON rakhein
+  5. Save + router reboot (agar option ho)
+
+Is se:
+  - Router doosri device ko .105 nahi dega
+  - Sirf is cafe PC ko .105 milega (MAC binding)
+
+Note: Agar koi device MANUALLY static .105 set kare to conflict ho sakta hai â€”
+      router reservation + is PC par static IP sab se safe hai.
+
+Mobile/tablet URL:
+  http://192.168.1.105:8080/pos
+  http://192.168.1.105:8080/order-taker
+

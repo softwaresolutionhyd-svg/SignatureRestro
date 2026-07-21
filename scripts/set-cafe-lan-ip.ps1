@@ -1,4 +1,5 @@
 # Cafe server PC ko fixed LAN IP deta hai taake mobile/tablet hamesha same address use karein.
+# PERMANENT LOCK (recommended): lock-cafe-server-ip.bat  (Admin) — DHCP off + watchdog task
 # Run as Administrator: double-click set-cafe-lan-ip.bat
 #   ya: cd C:\laragon\www\signature\scripts ; .\set-cafe-lan-ip.ps1
 #
