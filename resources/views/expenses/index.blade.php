@@ -8,7 +8,7 @@
         <div class="text-secondary small">Track & manage employee expense claims</div>
     </div>
     <div class="d-flex gap-2">
-        @if(auth()->user()?->role === 'admin')
+        @if(auth()->user()?->bypassesModulePermissions() || in_array(auth()->user()?->role ?? '', ['admin'], true))
         <a href="{{ route('expenses.categories.index') }}" class="btn btn-outline-secondary btn-sm">
             <svg width="14" height="14" fill="none" viewBox="0 0 20 20" class="me-1"><rect x="2" y="2" width="7" height="7" rx="1.5" fill="currentColor" opacity=".7"/><rect x="11" y="2" width="7" height="7" rx="1.5" fill="currentColor"/><rect x="2" y="11" width="7" height="7" rx="1.5" fill="currentColor"/><rect x="11" y="11" width="7" height="7" rx="1.5" fill="currentColor" opacity=".7"/></svg>
             Categories

@@ -4,7 +4,8 @@
 @section('content')
 @php
     $s = $statusMap[$expense->status] ?? ['label' => $expense->status, 'color' => 'secondary'];
-    $isAdmin = auth()->user()?->role === 'admin';
+    $user = auth()->user();
+    $isAdmin = $user && ($user->bypassesModulePermissions() || in_array($user->role ?? '', ['admin'], true));
 @endphp
 
 {{-- Alerts --}}

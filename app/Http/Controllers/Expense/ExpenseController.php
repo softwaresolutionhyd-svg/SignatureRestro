@@ -150,6 +150,8 @@ class ExpenseController extends Controller
 
     public function approve(Expense $expense)
     {
+        $this->assertCanApproveExpenses();
+
         if ($expense->status !== Expense::STATUS_SUBMITTED) {
             return back()->with('error', 'Only submitted expenses can be approved.');
         }
@@ -163,6 +165,8 @@ class ExpenseController extends Controller
 
     public function refuse(Request $request, Expense $expense)
     {
+        $this->assertCanApproveExpenses();
+
         $request->validate(['refuse_reason' => 'required|string|max:500']);
         if (!in_array($expense->status, [Expense::STATUS_SUBMITTED, Expense::STATUS_APPROVED])) {
             return back()->with('error', 'Expense cannot be refused at this stage.');
@@ -176,6 +180,8 @@ class ExpenseController extends Controller
 
     public function markPaid(Expense $expense)
     {
+        $this->assertCanApproveExpenses();
+
         if ($expense->status !== Expense::STATUS_APPROVED) {
             return back()->with('error', 'Only approved expenses can be marked as paid.');
         }
@@ -187,6 +193,15 @@ class ExpenseController extends Controller
 
     // ---- Helpers ----
 
+    private function assertCanApproveExpenses(): void
+    {
+        $user = Auth::user();
+        abort_unless(
+            $user && ($user->bypassesModulePermissions() || in_array($user->role ?? '', ['admin'], true)),
+            403,
+            'Only admin can approve or pay expenses.'
+        );
+    }
     private function validated(Request $request, ?int $ignoreId = null): array
     {
         return $request->validate([
