@@ -34,11 +34,32 @@ class PosTable extends Model
     }
 
     /**
-     * Natural ascending compare: GR1, GR2 … GR10 (not GR1, GR10, GR2).
+     * Number-wise ascending compare: LG36 … LG45, L46 … L55; GR1 … GR10 (not GR1, GR10, GR2).
+     * Compares the numeric part first, then the letter prefix.
      */
     public static function naturalNameCompare(string $a, string $b): int
     {
-        return strnatcasecmp(trim($a), trim($b));
+        $a = trim($a);
+        $b = trim($b);
+
+        preg_match('/^(.*?)(\d+)\s*$/', $a, $ma);
+        preg_match('/^(.*?)(\d+)\s*$/', $b, $mb);
+
+        $numA = isset($ma[2]) ? (int) $ma[2] : null;
+        $numB = isset($mb[2]) ? (int) $mb[2] : null;
+
+        if ($numA !== null && $numB !== null && $numA !== $numB) {
+            return $numA <=> $numB;
+        }
+
+        $prefixA = isset($ma[1]) ? strtoupper($ma[1]) : strtoupper($a);
+        $prefixB = isset($mb[1]) ? strtoupper($mb[1]) : strtoupper($b);
+        $prefixCmp = strcmp($prefixA, $prefixB);
+        if ($prefixCmp !== 0) {
+            return $prefixCmp;
+        }
+
+        return strnatcasecmp($a, $b);
     }
 
     /**
