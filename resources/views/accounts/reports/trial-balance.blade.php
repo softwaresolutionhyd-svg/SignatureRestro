@@ -39,8 +39,16 @@
                 @forelse($rows as $row)
                 @php $acc = $row['account']; @endphp
                 <tr>
-                    <td class="fw-semibold">{{ $acc->code }}</td>
-                    <td>{{ $acc->name }}</td>
+                    <td class="fw-semibold">
+                        <a href="{{ route('accounts.journal-entries.index', ['account_id' => $acc->id, 'status' => 'posted']) }}" class="text-decoration-none">
+                            {{ $acc->code }}
+                        </a>
+                    </td>
+                    <td>
+                        <a href="{{ route('accounts.journal-entries.index', ['account_id' => $acc->id, 'status' => 'posted']) }}" class="text-decoration-none text-dark">
+                            {{ $acc->name }}
+                        </a>
+                    </td>
                     <td>{{ $typeLabels[$acc->type] ?? $acc->type }}</td>
                     <td class="text-end">{{ $row['debit'] > 0 ? $currency.' '.number_format($row['debit'], 2) : '—' }}</td>
                     <td class="text-end">{{ $row['credit'] > 0 ? $currency.' '.number_format($row['credit'], 2) : '—' }}</td>

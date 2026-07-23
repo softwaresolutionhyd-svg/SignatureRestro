@@ -9,9 +9,19 @@
 
 @include('accounts.partials.subnav')
 
+@if(!empty($filterAccount))
+<div class="alert alert-info py-2 mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <span>Showing journals for account <strong>{{ $filterAccount->code }} — {{ $filterAccount->name }}</strong></span>
+    <a href="{{ route('accounts.journal-entries.index') }}" class="btn btn-sm btn-outline-secondary">Clear account filter</a>
+</div>
+@endif
+
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body py-3">
         <form method="GET" class="row g-2 align-items-end">
+            @if(!empty($filterAccount))
+                <input type="hidden" name="account_id" value="{{ $filterAccount->id }}">
+            @endif
             <div class="col-md-2">
                 <label class="form-label small mb-1">Status</label>
                 <select name="status" class="form-select form-select-sm">

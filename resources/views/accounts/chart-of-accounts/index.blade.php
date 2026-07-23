@@ -56,15 +56,23 @@
             <tbody>
                 @forelse($accounts as $account)
                 <tr>
-                    <td class="fw-semibold">{{ $account->code }}</td>
+                    <td class="fw-semibold">
+                        <a href="{{ route('accounts.journal-entries.index', ['account_id' => $account->id, 'status' => 'posted']) }}" class="text-decoration-none">{{ $account->code }}</a>
+                    </td>
                     <td>
-                        {{ $account->name }}
+                        <a href="{{ route('accounts.journal-entries.index', ['account_id' => $account->id, 'status' => 'posted']) }}" class="text-decoration-none text-dark">
+                            {{ $account->name }}
+                        </a>
                         @if($account->is_system)
                             <span class="badge bg-light text-secondary border ms-1">System</span>
                         @endif
                     </td>
                     <td>{{ $typeLabels[$account->type] ?? $account->type }}</td>
-                    <td class="text-end">{{ $currency }} {{ number_format($account->postedBalance(), 2) }}</td>
+                    <td class="text-end">
+                        <a href="{{ route('accounts.journal-entries.index', ['account_id' => $account->id, 'status' => 'posted']) }}" class="text-decoration-none text-dark">
+                            {{ $currency }} {{ number_format($account->postedBalance(), 2) }}
+                        </a>
+                    </td>
                     <td>
                         @if($account->active)
                             <span class="badge bg-success-subtle text-success border">Active</span>

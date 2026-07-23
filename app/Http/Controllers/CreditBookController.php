@@ -6,16 +6,20 @@ use App\Models\Contact;
 use App\Models\CreditLedger;
 use App\Models\PosOrder;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseVendor;
 use App\Models\Setting;
+use App\Services\AutoJournalService;
 use App\Services\PosCreditLedgerSync;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class CreditBookController extends Controller
 {
     public function __construct(
-        private readonly PosCreditLedgerSync $posCreditLedgerSync
+        private readonly PosCreditLedgerSync $posCreditLedgerSync,
+        private readonly AutoJournalService $autoJournal,
     ) {}
 
     /** Master credit book — all contacts with outstanding balance */
@@ -114,11 +118,49 @@ class CreditBookController extends Controller
             ? $runningBalance + (float) $data['amount']
             : $runningBalance - (float) $data['amount'];
 
-        CreditLedger::create([
-            ...$data,
-            'balance_after' => $balAfter,
-            'created_by'    => Auth::id(),
-        ]);
+        $entry = DB::connection('tenant')->transaction(function () use ($data, $balAfter, $contact) {
+            $payload = [
+                ...$data,
+                'balance_after' => $balAfter,
+                'created_by' => Auth::id(),
+            ];
+
+            // Payment against a vendor contact: link matching unpaid credit PO (same amount)
+            if ($data['type'] === 'payment') {
+                $vendorIds = PurchaseVendor::query()->where('contact_id', $contact->id)->pluck('id');
+                if ($vendorIds->isNotEmpty()) {
+                    $po = PurchaseOrder::query()
+                        ->whereIn('vendor_id', $vendorIds)
+                        ->where('purchase_type', 'credit')
+                        ->where('status', 'received')
+                        ->where(function ($q) {
+                            $q->whereNull('payment_status')->orWhere('payment_status', '!=', 'paid');
+                        })
+                        ->whereRaw('ABS(grand_total - ?) < 0.02', [(float) $data['amount']])
+                        ->orderBy('id')
+                        ->first();
+
+                    if ($po) {
+                        $payload['purchase_order_id'] = $po->id;
+                        $po->payment_status = 'paid';
+                        $po->paid_at = $data['entry_date'];
+                        $po->save();
+                    }
+                }
+            }
+
+            return CreditLedger::create($payload);
+        });
+
+        if ($entry->type === 'payment') {
+            $this->autoJournal->postCreditBookPayment($entry->fresh());
+            if ($entry->purchase_order_id) {
+                $po = PurchaseOrder::query()->find($entry->purchase_order_id);
+                if ($po) {
+                    $this->autoJournal->postPurchasePaid($po);
+                }
+            }
+        }
 
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'balance' => $balAfter]);

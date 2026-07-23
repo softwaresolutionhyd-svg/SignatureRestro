@@ -45,12 +45,19 @@ class JournalEntryController extends Controller
                 ->orWhere('reference', 'like', $s)
                 ->orWhere('description', 'like', $s));
         }
+        if ($request->filled('account_id')) {
+            $accountId = (int) $request->account_id;
+            $query->whereHas('lines', fn ($q) => $q->where('account_id', $accountId));
+        }
 
         $entries = $query->paginate(Setting::pageSize('accounts_journal_per_page', 25))->withQueryString();
         $statusMap = JournalEntry::statusLabel();
         $currency = Setting::get('currency_symbol', 'Rs.');
+        $filterAccount = $request->filled('account_id')
+            ? Account::query()->find((int) $request->account_id)
+            : null;
 
-        return view('accounts.journal-entries.index', compact('entries', 'statusMap', 'currency'));
+        return view('accounts.journal-entries.index', compact('entries', 'statusMap', 'currency', 'filterAccount'));
     }
 
     public function create(): View

@@ -53,6 +53,24 @@ class AutoJournalService
         });
     }
 
+    /** Immediate post (no afterCommit) — backfill / repair. */
+    public function backfillPosSale(PosOrder $order): bool
+    {
+        if (! $this->isEnabled()) {
+            return false;
+        }
+
+        $order->loadMissing(['payments']);
+        if ($order->status !== 'paid') {
+            return false;
+        }
+
+        $before = JournalEntry::query()->where('source', 'pos')->where('source_id', $order->id)->exists();
+        $this->postPosSaleEntry($order);
+
+        return ! $before && JournalEntry::query()->where('source', 'pos')->where('source_id', $order->id)->exists();
+    }
+
     public function postExpensePaid(Expense $expense): void
     {
         if (! $this->isEnabled()) {
@@ -96,27 +114,21 @@ class AutoJournalService
                 return;
             }
 
-            $amount = round((float) $fresh->grand_total, 2);
-            if ($amount <= 0) {
-                return;
-            }
-
-            $creditAccount = $fresh->purchase_type === 'credit'
-                ? self::ACCOUNT_CODES['ap']
-                : self::ACCOUNT_CODES['cash'];
-
-            $this->createPostedEntry(
-                source: 'purchase',
-                sourceId: (int) $fresh->id,
-                reference: $fresh->number.'-RECV',
-                description: 'Purchase received — '.$fresh->number,
-                entryDate: $fresh->received_at?->toDateString() ?? now()->toDateString(),
-                lines: [
-                    ['code' => self::ACCOUNT_CODES['inventory'], 'debit' => $amount, 'description' => 'Inventory received'],
-                    ['code' => $creditAccount, 'credit' => $amount, 'description' => $fresh->purchase_type === 'credit' ? 'Accounts payable' : 'Cash purchase'],
-                ],
-            );
+            $this->postPurchaseReceivedEntry($fresh);
         });
+    }
+
+    public function backfillPurchaseReceived(PurchaseOrder $order): bool
+    {
+        if (! $this->isEnabled() || $order->status !== 'received') {
+            return false;
+        }
+
+        $ref = $order->number.'-RECV';
+        $before = $this->entryExists('purchase', (int) $order->id, $ref);
+        $this->postPurchaseReceivedEntry($order);
+
+        return ! $before && $this->entryExists('purchase', (int) $order->id, $ref);
     }
 
     public function postPurchasePaid(PurchaseOrder $order): void
@@ -131,23 +143,21 @@ class AutoJournalService
                 return;
             }
 
-            $amount = round((float) $fresh->grand_total, 2);
-            if ($amount <= 0) {
-                return;
-            }
-
-            $this->createPostedEntry(
-                source: 'purchase',
-                sourceId: (int) $fresh->id,
-                reference: $fresh->number.'-PAY',
-                description: 'Purchase payment — '.$fresh->number,
-                entryDate: $fresh->paid_at?->toDateString() ?? now()->toDateString(),
-                lines: [
-                    ['code' => self::ACCOUNT_CODES['ap'], 'debit' => $amount, 'description' => 'Clear accounts payable'],
-                    ['code' => self::ACCOUNT_CODES['cash'], 'credit' => $amount, 'description' => 'Vendor payment'],
-                ],
-            );
+            $this->postPurchasePaidEntry($fresh);
         });
+    }
+
+    public function backfillPurchasePaid(PurchaseOrder $order): bool
+    {
+        if (! $this->isEnabled() || $order->purchase_type !== 'credit' || $order->payment_status !== 'paid') {
+            return false;
+        }
+
+        $ref = $order->number.'-PAY';
+        $before = $this->entryExists('purchase', (int) $order->id, $ref);
+        $this->postPurchasePaidEntry($order);
+
+        return ! $before && $this->entryExists('purchase', (int) $order->id, $ref);
     }
 
     public function postPayrollPaid(PayrollEntry $entry): void
@@ -162,25 +172,198 @@ class AutoJournalService
                 return;
             }
 
-            $amount = round((float) $fresh->net_pay, 2);
-            if ($amount <= 0) {
-                return;
+            $this->postPayrollPaidEntry($fresh);
+        });
+    }
+
+    /**
+     * Credit Book payment → clear AR (customer) or AP (vendor purchase).
+     * @return list<string> journal references created
+     */
+    public function postCreditBookPayment(\App\Models\CreditLedger $entry): array
+    {
+        if (! $this->isEnabled() || $entry->type !== 'payment') {
+            return [];
+        }
+
+        $amount = round((float) $entry->amount, 2);
+        if ($amount <= 0) {
+            return [];
+        }
+
+        $created = [];
+        $entryDate = $entry->entry_date?->toDateString() ?? now()->toDateString();
+
+        // Payroll salary deduction: AR clear is posted inside postPayrollPaidEntry (with net pay).
+        // Historical rows without that link are repaired by accounts:repair-journals.
+        if ($entry->payroll_entry_id) {
+            return [];
+        }
+
+        // Purchase-linked payment clears AP
+        if ($entry->purchase_order_id) {
+            $ref = 'CB-'.$entry->id.'-AP-PAY';
+            // Prefer standard purchase PAY reference if PO already marked paid
+            $po = PurchaseOrder::query()->find($entry->purchase_order_id);
+            if ($po && $po->payment_status === 'paid') {
+                $payRef = $po->number.'-PAY';
+                if (! $this->entryExists('purchase', (int) $po->id, $payRef)) {
+                    $this->postPurchasePaidEntry($po);
+                    if ($this->entryExists('purchase', (int) $po->id, $payRef)) {
+                        $created[] = $payRef;
+                    }
+                }
+
+                return $created;
             }
 
-            $employeeName = $fresh->employee?->name ?? 'Employee';
-
-            $this->createPostedEntry(
-                source: 'payroll',
-                sourceId: (int) $fresh->id,
-                reference: 'PAYROLL-'.$fresh->period.'-'.$fresh->employee_id,
-                description: 'Payroll paid — '.$employeeName.' ('.$fresh->period.')',
-                entryDate: $fresh->paid_at?->toDateString() ?? now()->toDateString(),
+            $je = $this->createPostedEntry(
+                source: 'credit_book',
+                sourceId: (int) $entry->id,
+                reference: $ref,
+                description: 'Vendor payment — '.$entry->description,
+                entryDate: $entryDate,
                 lines: [
-                    ['code' => self::ACCOUNT_CODES['payroll'], 'debit' => $amount, 'description' => $employeeName],
-                    ['code' => self::ACCOUNT_CODES['cash'], 'credit' => $amount, 'description' => 'Salary payment'],
+                    ['code' => self::ACCOUNT_CODES['ap'], 'debit' => $amount, 'description' => 'Clear accounts payable'],
+                    ['code' => self::ACCOUNT_CODES['cash'], 'credit' => $amount, 'description' => 'Cash to vendor'],
                 ],
             );
-        });
+            if ($je) {
+                $created[] = $ref;
+            }
+
+            return $created;
+        }
+
+        // Manual / POS-linked customer payment clears AR
+        // Vendor contacts without a matched PO: still clear AP (manual vendor pay)
+        $isVendorContact = \App\Models\PurchaseVendor::query()->where('contact_id', $entry->contact_id)->exists();
+        if ($isVendorContact) {
+            $ref = 'CB-'.$entry->id.'-AP-PAY';
+            $je = $this->createPostedEntry(
+                source: 'credit_book',
+                sourceId: (int) $entry->id,
+                reference: $ref,
+                description: 'Vendor payment — '.$entry->description,
+                entryDate: $entryDate,
+                lines: [
+                    ['code' => self::ACCOUNT_CODES['ap'], 'debit' => $amount, 'description' => 'Clear accounts payable'],
+                    ['code' => self::ACCOUNT_CODES['cash'], 'credit' => $amount, 'description' => 'Cash to vendor'],
+                ],
+            );
+            if ($je) {
+                $created[] = $ref;
+            }
+
+            return $created;
+        }
+
+        $ref = 'CB-'.$entry->id.'-AR-PAY';
+        $je = $this->createPostedEntry(
+            source: 'credit_book',
+            sourceId: (int) $entry->id,
+            reference: $ref,
+            description: 'Customer credit payment — '.$entry->description,
+            entryDate: $entryDate,
+            lines: [
+                ['code' => self::ACCOUNT_CODES['cash'], 'debit' => $amount, 'description' => 'Cash received'],
+                ['code' => self::ACCOUNT_CODES['ar'], 'credit' => $amount, 'description' => 'Clear accounts receivable'],
+            ],
+        );
+        if ($je) {
+            $created[] = $ref;
+        }
+
+        return $created;
+    }
+
+    private function postPurchaseReceivedEntry(PurchaseOrder $order): void
+    {
+        $amount = round((float) $order->grand_total, 2);
+        if ($amount <= 0) {
+            return;
+        }
+
+        $creditAccount = $order->purchase_type === 'credit'
+            ? self::ACCOUNT_CODES['ap']
+            : self::ACCOUNT_CODES['cash'];
+
+        $this->createPostedEntry(
+            source: 'purchase',
+            sourceId: (int) $order->id,
+            reference: $order->number.'-RECV',
+            description: 'Purchase received — '.$order->number,
+            entryDate: $order->received_at?->toDateString() ?? now()->toDateString(),
+            lines: [
+                ['code' => self::ACCOUNT_CODES['inventory'], 'debit' => $amount, 'description' => 'Inventory received'],
+                ['code' => $creditAccount, 'credit' => $amount, 'description' => $order->purchase_type === 'credit' ? 'Accounts payable' : 'Cash purchase'],
+            ],
+        );
+    }
+
+    private function postPurchasePaidEntry(PurchaseOrder $order): void
+    {
+        $amount = round((float) $order->grand_total, 2);
+        if ($amount <= 0) {
+            return;
+        }
+
+        $this->createPostedEntry(
+            source: 'purchase',
+            sourceId: (int) $order->id,
+            reference: $order->number.'-PAY',
+            description: 'Purchase payment — '.$order->number,
+            entryDate: $order->paid_at?->toDateString() ?? now()->toDateString(),
+            lines: [
+                ['code' => self::ACCOUNT_CODES['ap'], 'debit' => $amount, 'description' => 'Clear accounts payable'],
+                ['code' => self::ACCOUNT_CODES['cash'], 'credit' => $amount, 'description' => 'Vendor payment'],
+            ],
+        );
+    }
+
+    private function postPayrollPaidEntry(PayrollEntry $fresh): void
+    {
+        $netPay = round((float) $fresh->net_pay, 2);
+        $foodBill = round((float) ($fresh->food_bill ?? 0), 2);
+        if ($netPay <= 0 && $foodBill <= 0) {
+            return;
+        }
+
+        $employeeName = $fresh->employee?->name ?? 'Employee';
+        $lines = [];
+
+        // Payroll expense = cash paid + food bill settled against AR
+        $payrollExpense = round($netPay + max(0, $foodBill), 2);
+        if ($payrollExpense > 0) {
+            $lines[] = [
+                'code' => self::ACCOUNT_CODES['payroll'],
+                'debit' => $payrollExpense,
+                'description' => $employeeName,
+            ];
+        }
+        if ($netPay > 0) {
+            $lines[] = [
+                'code' => self::ACCOUNT_CODES['cash'],
+                'credit' => $netPay,
+                'description' => 'Salary payment',
+            ];
+        }
+        if ($foodBill > 0) {
+            $lines[] = [
+                'code' => self::ACCOUNT_CODES['ar'],
+                'credit' => $foodBill,
+                'description' => 'Food bill deducted from salary',
+            ];
+        }
+
+        $this->createPostedEntry(
+            source: 'payroll',
+            sourceId: (int) $fresh->id,
+            reference: 'PAYROLL-'.$fresh->period.'-'.$fresh->employee_id,
+            description: 'Payroll paid — '.$employeeName.' ('.$fresh->period.')',
+            entryDate: $fresh->paid_at?->toDateString() ?? now()->toDateString(),
+            lines: $lines,
+        );
     }
 
     private function postPosSaleEntry(PosOrder $order): void
@@ -260,6 +443,20 @@ class AutoJournalService
             entryDate: $order->paid_at?->toDateString() ?? now()->toDateString(),
             lines: $lines,
         );
+    }
+
+    /**
+     * @param  list<array{code: string, debit?: float, credit?: float, description?: string}>  $lines
+     */
+    public function createPostedEntryPublic(
+        string $source,
+        int $sourceId,
+        string $reference,
+        string $description,
+        string $entryDate,
+        array $lines,
+    ): ?JournalEntry {
+        return $this->createPostedEntry($source, $sourceId, $reference, $description, $entryDate, $lines);
     }
 
     /**
