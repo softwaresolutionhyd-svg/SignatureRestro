@@ -22,6 +22,7 @@ class CreditBookController extends Controller
     public function index(Request $request)
     {
         $this->posCreditLedgerSync->syncMissing();
+        $this->purgeOrphanLedgerEntries();
 
         $query = Contact::query()
             ->withSum(['creditLedger as total_credit' => fn ($q) => $q->where('type', 'credit')], 'amount')
@@ -30,7 +31,12 @@ class CreditBookController extends Controller
 
         $filter = $request->get('filter', 'outstanding');
         if ($filter === 'outstanding') {
-            $query->whereHas('creditLedger');
+            // Only contacts with balance due > 0 (settled contacts hide)
+            $query->whereRaw(
+                '(SELECT COALESCE(SUM(CASE WHEN type = ? THEN amount WHEN type = ? THEN -amount ELSE 0 END), 0)
+                  FROM credit_ledger WHERE contact_id = contacts.id) > 0.009',
+                ['credit', 'payment']
+            );
         } else {
             $query->where('active', true);
         }
@@ -44,11 +50,17 @@ class CreditBookController extends Controller
             ->paginate(Setting::pageSize('credit_book_per_page', 20))
             ->withQueryString();
 
-        $totalOutstanding = (float) (CreditLedger::query()
+        // Sum only positive balances of existing contacts (ignore deleted-contact orphans)
+        $balanceRows = CreditLedger::query()
+            ->whereIn('contact_id', Contact::query()->select('id'))
+            ->select('contact_id')
             ->selectRaw('SUM(CASE WHEN type = ? THEN amount WHEN type = ? THEN -amount ELSE 0 END) as bal', ['credit', 'payment'])
-            ->value('bal') ?? 0);
+            ->groupBy('contact_id')
+            ->havingRaw('SUM(CASE WHEN type = ? THEN amount WHEN type = ? THEN -amount ELSE 0 END) > 0.009', ['credit', 'payment'])
+            ->get();
 
-        $totalContacts = Contact::query()->whereHas('creditLedger')->count();
+        $totalOutstanding = round((float) $balanceRows->sum('bal'), 2);
+        $totalContacts = $balanceRows->count();
 
         return view('credit-book.index', compact('contacts', 'totalOutstanding', 'totalContacts', 'filter'));
     }
@@ -114,6 +126,15 @@ class CreditBookController extends Controller
 
         return redirect()->route('contacts.show', $data['contact_id'])
             ->with('success', ucfirst($data['type']) . ' entry added.');
+    }
+
+    /** Remove ledger rows whose contact was deleted (ghost balances inflate totals). */
+    private function purgeOrphanLedgerEntries(): void
+    {
+        CreditLedger::query()
+            ->whereNotNull('contact_id')
+            ->whereNotIn('contact_id', Contact::query()->select('id'))
+            ->delete();
     }
 
     /** Delete a manual ledger entry (not POS-linked) */

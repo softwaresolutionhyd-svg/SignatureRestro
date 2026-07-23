@@ -128,6 +128,13 @@ class ContactController extends Controller
 
     public function destroy(Contact $contact)
     {
+        $balance = (float) $contact->balance;
+        if ($balance > 0.009) {
+            return back()->with('error', 'Contact delete nahi ho sakta — outstanding credit '.number_format($balance, 2).' hai. Pehle settle karein.');
+        }
+
+        // Settled / empty ledger rows hatao taake Credit Book totals mein ghost balance na aaye
+        $contact->creditLedger()->delete();
         $contact->delete();
 
         return redirect()->route('contacts.index')->with('success', 'Contact deleted.');

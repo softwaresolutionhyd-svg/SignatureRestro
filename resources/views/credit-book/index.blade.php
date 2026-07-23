@@ -26,7 +26,7 @@
     <div class="col-6 col-md-3">
         <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #7c3aed!important;">
             <div class="card-body py-3">
-                <div class="text-secondary small">Contacts with Credit</div>
+                <div class="text-secondary small">Contacts with Balance</div>
                 <div class="fw-bold fs-4 mt-1" style="color:#7c3aed;">{{ $totalContacts }}</div>
             </div>
         </div>
