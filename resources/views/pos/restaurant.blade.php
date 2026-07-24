@@ -341,10 +341,16 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body pt-2">
-                <p class="small text-secondary mb-2" id="rpRemoveReasonHint">Item kam ya khatam karne ka reason likhein:</p>
+                <p class="small text-secondary mb-2" id="rpRemoveReasonHint">Item kam ya khatam karne ka reason select karein:</p>
                 <p class="fw-semibold mb-2" id="rpRemoveItemName"></p>
+                <div class="d-flex flex-wrap gap-2 mb-3" id="rpRemoveReasonTemplates" role="group" aria-label="Reason templates">
+                    <button type="button" class="btn btn-sm btn-outline-secondary rp-reason-chip" data-reason="Guest Changed Mind - Customer decided not to order">Guest changed mind</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary rp-reason-chip" data-reason="Wrong item punched">Wrong item punched</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary rp-reason-chip" data-reason="Out of stock / kitchen unavailable">Out of stock</button>
+                    <button type="button" class="btn btn-sm btn-outline-primary rp-reason-chip" data-reason="" data-custom="1">Other (custom)</button>
+                </div>
                 <label for="rpRemoveReason" class="form-label fw-semibold mb-1">Reason</label>
-                <textarea class="form-control" id="rpRemoveReason" rows="3" maxlength="500" placeholder="Masalan: customer ne cancel kiya"></textarea>
+                <textarea class="form-control" id="rpRemoveReason" rows="3" maxlength="500" placeholder="Template select karein ya yahan custom reason likhein"></textarea>
                 <p class="text-danger small mb-0 mt-2 d-none" id="rpRemoveReasonError">Kam az kam 3 characters ka reason likhein.</p>
             </div>
             <div class="modal-footer border-0 pt-0">

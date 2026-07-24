@@ -791,8 +791,8 @@
             if (title) title.textContent = 'Item hataein';
             if (hint) {
                 hint.textContent = Number(row?.kitchen_locked_qty) > 0
-                    ? 'Kitchen item hataane ka reason likhein:'
-                    : 'Item hataane ka reason likhein:';
+                    ? 'Kitchen item hataane ka reason select karein:'
+                    : 'Item hataane ka reason select karein:';
             }
             if (confirmBtn) confirmBtn.innerHTML = '<i class="bi bi-trash"></i> Remove';
         } else {
@@ -801,8 +801,8 @@
             if (title) title.textContent = 'Quantity kam karein';
             if (hint) {
                 hint.textContent = action.voidKitchen
-                    ? 'Kitchen quantity kam karne ka reason likhein:'
-                    : 'Quantity kam karne ka reason likhein:';
+                    ? 'Kitchen quantity kam karne ka reason select karein:'
+                    : 'Quantity kam karne ka reason select karein:';
             }
             if (confirmBtn) confirmBtn.innerHTML = '<i class="bi bi-check-lg"></i> Confirm';
         }
@@ -811,10 +811,45 @@
         if (nameEl) nameEl.textContent = label;
 
         const input = $('#rpRemoveReason');
-        if (input) input.value = '';
+        if (input) {
+            input.value = '';
+            input.readOnly = false;
+        }
         $('#rpRemoveReasonError')?.classList.add('d-none');
+        document.querySelectorAll('.rp-reason-chip').forEach((btn) => {
+            btn.classList.remove('active', 'btn-primary', 'btn-secondary');
+            btn.classList.add(btn.dataset.custom === '1' ? 'btn-outline-primary' : 'btn-outline-secondary');
+        });
         getRemoveReasonModal()?.show();
         setTimeout(() => input?.focus(), 280);
+    }
+
+    function selectRemoveReasonTemplate(btn) {
+        if (!btn) return;
+        const input = $('#rpRemoveReason');
+        const isCustom = btn.dataset.custom === '1';
+        const reason = String(btn.dataset.reason || '');
+
+        document.querySelectorAll('.rp-reason-chip').forEach((chip) => {
+            const custom = chip.dataset.custom === '1';
+            chip.classList.remove('active', 'btn-primary', 'btn-secondary');
+            chip.classList.add(custom ? 'btn-outline-primary' : 'btn-outline-secondary');
+        });
+        btn.classList.remove('btn-outline-primary', 'btn-outline-secondary');
+        btn.classList.add('active', isCustom ? 'btn-primary' : 'btn-secondary');
+
+        if (!input) return;
+        if (isCustom) {
+            input.readOnly = false;
+            input.value = '';
+            input.placeholder = 'Apna reason yahan likhein…';
+            input.focus();
+            return;
+        }
+        input.readOnly = false;
+        input.value = reason;
+        input.placeholder = 'Template select karein ya yahan custom reason likhein';
+        $('#rpRemoveReasonError')?.classList.add('d-none');
     }
 
     async function confirmRemoveWithReason() {
@@ -2758,11 +2793,19 @@
         });
 
         $('#rpRemoveConfirm')?.addEventListener('click', () => confirmRemoveWithReason());
+        $('#rpRemoveReasonTemplates')?.addEventListener('click', (e) => {
+            const chip = e.target.closest('.rp-reason-chip');
+            if (!chip) return;
+            selectRemoveReasonTemplate(chip);
+        });
         $('#rpRemoveReason')?.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 confirmRemoveWithReason();
             }
+        });
+        $('#rpRemoveReason')?.addEventListener('input', () => {
+            $('#rpRemoveReasonError')?.classList.add('d-none');
         });
         $('#rpRemoveReasonModal')?.addEventListener('hidden.bs.modal', () => {
             pendingChangeAction = null;

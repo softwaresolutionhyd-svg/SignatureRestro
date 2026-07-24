@@ -10,6 +10,7 @@ use App\Models\Setting;
 use App\Support\EnsuresKitchenAgentSchema;
 use App\Support\PosRuntimeSchema;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use RuntimeException;
 
 /**
@@ -196,6 +197,180 @@ final class NetworkPrinterService
             'pending_item_ids' => $kitchenItems->pluck('id')->map(fn ($id) => (int) $id)->all(),
             'message' => $anyOk ? null : 'Kitchen print fail hua.',
         ];
+    }
+
+    /**
+     * Print "Removed Items (Don't make)" slips to each item's department printer.
+     *
+     * @param  list<array{product_id?: int, qty?: float|int|string, reason?: string, name?: string, item_name?: string, notes?: string, is_custom?: bool}>  $voids
+     * @return array{ok: bool, results: list<array{department: string, ok: bool, error?: string}>, unrouted: int, message?: string}
+     */
+    public function dispatchRemovedItemsPrints(PosOrder $order, array $voids): array
+    {
+        $this->ensureKitchenAgentSchema();
+
+        $voids = array_values(array_filter($voids, function ($void) {
+            return is_array($void)
+                && (float) ($void['qty'] ?? 0) > 0
+                && trim((string) ($void['reason'] ?? '')) !== '';
+        }));
+
+        if ($voids === []) {
+            return ['ok' => false, 'results' => [], 'unrouted' => 0, 'message' => 'No removed items.'];
+        }
+
+        $order->loadMissing(['user:id,name', 'table:id,name']);
+
+        $productIds = collect($voids)
+            ->map(fn (array $v) => (int) ($v['product_id'] ?? 0))
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        $products = $productIds === []
+            ? collect()
+            : InventoryProduct::query()
+                ->whereIn('id', $productIds)
+                ->with([
+                    'departments:id,name,printer_ip,printer_port',
+                    'department:id,name,printer_ip,printer_port',
+                ])
+                ->get(['id', 'name', 'sku', 'department_id'])
+                ->keyBy('id');
+
+        $groups = [];
+        $unrouted = 0;
+        foreach ($voids as $void) {
+            $productId = (int) ($void['product_id'] ?? 0);
+            $product = $productId > 0 ? $products->get($productId) : null;
+            $dept = $this->resolveItemDepartment($product);
+            if ($dept && ! empty($dept->printer_ip)) {
+                $groups[$dept->id]['dept'] = $dept;
+                $groups[$dept->id]['items'][] = $void;
+            } else {
+                $unrouted++;
+            }
+        }
+
+        if ($groups === []) {
+            return [
+                'ok' => false,
+                'results' => [],
+                'unrouted' => $unrouted,
+                'message' => 'Removed items ka department printer set nahi.',
+            ];
+        }
+
+        $permittedBy = Auth::user()?->name ?? $order->user?->name ?? 'Manager';
+        $results = [];
+
+        foreach ($groups as $group) {
+            /** @var InventoryDepartment $dept */
+            $dept = $group['dept'];
+            $payload = $this->buildRemovedItemsSlip(
+                $order,
+                (string) $dept->name,
+                $group['items'],
+                (string) $permittedBy
+            );
+
+            try {
+                $this->send((string) $dept->printer_ip, (int) ($dept->printer_port ?: 9100), $payload);
+                $results[] = ['department' => (string) $dept->name, 'ok' => true];
+            } catch (\Throwable $e) {
+                $results[] = [
+                    'department' => (string) $dept->name,
+                    'ok' => false,
+                    'error' => $e->getMessage(),
+                ];
+            }
+        }
+
+        $anyOk = collect($results)->contains(fn ($r) => $r['ok'] === true);
+
+        return [
+            'ok' => $anyOk,
+            'results' => $results,
+            'unrouted' => $unrouted,
+            'message' => $anyOk ? null : 'Removed items print fail hua.',
+        ];
+    }
+
+    /**
+     * @param  list<array{product_id?: int, qty?: float|int|string, reason?: string, name?: string, item_name?: string, notes?: string}>  $items
+     */
+    public function buildRemovedItemsSlip(
+        PosOrder $order,
+        string $departmentName,
+        array $items,
+        string $permittedBy
+    ): string {
+        $out = self::INIT;
+
+        $serviceTag = $this->kitchenServiceTag($order);
+        $header = $serviceTag !== '' ? $serviceTag : strtoupper(trim($departmentName));
+        if ($header === '') {
+            $header = 'KITCHEN';
+        }
+
+        $out .= self::ALIGN_CENTER . self::SIZE_DOUBLE . self::BOLD_ON;
+        $out .= $this->clipWide($header) . "\n";
+        $out .= self::SIZE_NORMAL . self::BOLD_OFF;
+
+        $out .= self::ALIGN_LEFT;
+        $when = now()->format('D, M jS, g:iA');
+        $out .= $this->twoCol('Placed:', $when) . "\n";
+        if ($order->user?->name) {
+            $out .= $this->line('Served By: ' . $order->user->name) . "\n";
+        }
+        $guests = 1;
+        if (isset($order->guest_count) && (int) $order->guest_count > 0) {
+            $guests = (int) $order->guest_count;
+        }
+        $out .= $this->line('Guests Served: ' . $guests) . "\n";
+
+        $tableNo = $this->kitchenTableLabel($order);
+        if ($tableNo !== '') {
+            $out .= "\n" . self::ALIGN_CENTER . self::SIZE_DOUBLE . self::BOLD_ON;
+            $out .= $this->clipWide($tableNo) . "\n";
+            $out .= self::SIZE_NORMAL . self::BOLD_OFF;
+        }
+
+        $out .= self::ALIGN_LEFT . $this->rule();
+        $out .= self::ALIGN_CENTER . self::BOLD_ON;
+        $out .= $this->clip('- Removed Items (Don\'t make)') . "\n";
+        $out .= self::BOLD_OFF . self::ALIGN_LEFT;
+        $out .= $this->rule();
+
+        foreach ($items as $item) {
+            $qty = rtrim(rtrim(number_format((float) ($item['qty'] ?? 0), 3, '.', ''), '0'), '.');
+            $name = trim((string) ($item['name'] ?? ''));
+            if ($name === '') {
+                $name = trim((string) ($item['item_name'] ?? ''));
+            }
+            if ($name === '') {
+                $name = 'Item';
+            }
+            $reason = trim((string) ($item['reason'] ?? ''));
+
+            $out .= self::BOLD_ON;
+            $out .= $this->line('-'.$qty.'x '.$name) . "\n";
+            $out .= self::BOLD_OFF;
+            if ($reason !== '') {
+                $out .= $this->line('** Reason: '.$reason) . "\n";
+            }
+            $out .= $this->line('**Permitted By '.$permittedBy.'.**') . "\n";
+            $out .= "\n";
+        }
+
+        $out .= "\n";
+        $out .= self::ALIGN_CENTER . self::BOLD_ON;
+        $out .= "END\n";
+        $out .= self::BOLD_OFF . self::ALIGN_LEFT;
+        $out .= self::CUT;
+
+        return $out;
     }
 
     /**

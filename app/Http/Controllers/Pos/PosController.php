@@ -3583,7 +3583,7 @@ class PosController extends Controller
                 ->whereIn('id', $productIds)
                 ->pluck('name', 'id');
 
-        foreach ($kitchenVoids as $void) {
+        foreach ($kitchenVoids as &$void) {
             $label = trim((string) ($void['name'] ?? ''));
             $productId = (int) ($void['product_id'] ?? 0);
             if ($label === '' && $productId > 0) {
@@ -3605,6 +3605,13 @@ class PosController extends Controller
                 $order,
                 ['void' => $void]
             );
+        }
+        unset($void);
+
+        try {
+            app(NetworkPrinterService::class)->dispatchRemovedItemsPrints($order, $kitchenVoids);
+        } catch (\Throwable $e) {
+            report($e);
         }
     }
 
