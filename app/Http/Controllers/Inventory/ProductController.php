@@ -783,7 +783,7 @@ class ProductController extends Controller
     }
 
     /**
-     * When an active recipe exists, cost + sale price follow recipe rollup and settings rules.
+     * When an active recipe exists, cost follows recipe rollup; sale price stays as submitted.
      *
      * @param  array<string, mixed>  $data
      */

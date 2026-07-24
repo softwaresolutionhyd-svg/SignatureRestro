@@ -96,21 +96,23 @@ final class ProductCosting
     }
 
     /**
-     * Apply recipe-driven cost + derived selling price to a product model (unsaved fields).
+     * Apply recipe-driven cost to a finished product.
+     * Sale price (rate) is never changed — only cost / extras / profit update.
      */
     public static function applyRecipeCostToProduct(\App\Models\InventoryProduct $product, float $recipeCost): bool
     {
         $recipeCost = round(max($recipeCost, 0), 2);
-        $previousEffective = (float) $product->total;
+        $existingPrice = round(max((float) $product->price, 0), 2);
         $costing = self::computeFromCost(
             $recipeCost,
-            (float) $product->price,
+            $existingPrice,
             recipeDriven: true,
-            previousEffectiveCost: $previousEffective,
+            previousEffectiveCost: (float) $product->total,
         );
 
+        $newProfit = round($existingPrice - $costing['effective_cost'], 2);
         $changed = abs((float) $product->cost - $recipeCost) >= 0.0000001
-            || abs((float) $product->price - $costing['price']) >= 0.0000001
+            || abs((float) $product->profit - $newProfit) >= 0.0000001
             || $product->extra_costs != $costing['extra_costs'];
 
         if (! $changed) {
@@ -120,8 +122,9 @@ final class ProductCosting
         $product->cost = $recipeCost;
         $product->extra_costs = $costing['extra_costs'];
         $product->gas_charges = $costing['gas_charges'];
-        $product->price = $costing['price'];
-        $product->profit = $costing['profit'];
+        // Keep menu / POS rate — recipe only drives cost
+        $product->price = $existingPrice;
+        $product->profit = $newProfit;
         $product->service_charges = 0;
 
         return true;

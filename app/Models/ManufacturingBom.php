@@ -61,7 +61,7 @@ class ManufacturingBom extends Model
         return round($this->materialCostPerBatch() / $batch, 6);
     }
 
-    /** Writes finished product cost + selling price from BoM rollup and settings costing rules. */
+    /** Writes finished product cost from BoM rollup (sale price / rate is not changed). */
     public function syncFinishedProductStandardCost(): void
     {
         if (!$this->active) {
