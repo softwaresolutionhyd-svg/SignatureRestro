@@ -47,6 +47,35 @@ class JournalEntry extends Model
         ];
     }
 
+    /** Display order for source groups on the journal index. */
+    public static function sourceOrder(): array
+    {
+        return ['expense', 'purchase', 'pos', 'payroll', 'credit_book', 'manual'];
+    }
+
+    /** @return array<string, string> */
+    public static function sourceLabels(): array
+    {
+        return [
+            'expense' => 'Expense',
+            'purchase' => 'Purchase',
+            'pos' => 'POS',
+            'payroll' => 'Payroll',
+            'credit_book' => 'Credit Book',
+            'manual' => 'Manual',
+        ];
+    }
+
+    public static function sourceLabel(?string $source): string
+    {
+        $key = strtolower(trim((string) $source));
+        if ($key === '') {
+            return 'Other';
+        }
+
+        return self::sourceLabels()[$key] ?? ucwords(str_replace('_', ' ', $key));
+    }
+
     public function lines(): HasMany
     {
         return $this->hasMany(JournalEntryLine::class)->orderBy('sort_order');

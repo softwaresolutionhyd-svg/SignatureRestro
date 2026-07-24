@@ -25,12 +25,13 @@ class JournalEntryController extends Controller
     {
         $this->defaultChart->ensureForCompany(current_company_id());
 
-        $query = JournalEntry::query()
-            ->orderByDesc('entry_date')
-            ->orderByDesc('id');
+        $query = JournalEntry::query();
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
+        }
+        if ($request->filled('source')) {
+            $query->where('source', $request->source);
         }
         if ($request->filled('from')) {
             $query->whereDate('entry_date', '>=', $request->from);
@@ -50,14 +51,43 @@ class JournalEntryController extends Controller
             $query->whereHas('lines', fn ($q) => $q->where('account_id', $accountId));
         }
 
-        $entries = $query->paginate(Setting::pageSize('accounts_journal_per_page', 25))->withQueryString();
+        // Source groups first (Expense → Purchase → POS …), newest within each group
+        $sourceOrder = JournalEntry::sourceOrder();
+        $fieldList = implode(', ', array_fill(0, count($sourceOrder), '?'));
+        $entries = $query
+            ->orderByRaw(
+                'CASE WHEN FIELD(LOWER(COALESCE(source, "")), '.$fieldList.') = 0 THEN 99 ELSE FIELD(LOWER(COALESCE(source, "")), '.$fieldList.') END',
+                array_merge($sourceOrder, $sourceOrder)
+            )
+            ->orderByDesc('entry_date')
+            ->orderByDesc('id')
+            ->paginate(Setting::pageSize('accounts_journal_per_page', 40))
+            ->withQueryString();
+
+        $groupedEntries = $entries->getCollection()
+            ->groupBy(fn (JournalEntry $e) => strtolower((string) ($e->source ?: 'other')));
+
+        // Keep preferred source order in the grouped collection
+        $groupedEntries = collect($sourceOrder)
+            ->filter(fn ($key) => $groupedEntries->has($key))
+            ->mapWithKeys(fn ($key) => [$key => $groupedEntries->get($key)])
+            ->union($groupedEntries->reject(fn ($_, $key) => in_array($key, $sourceOrder, true)));
+
         $statusMap = JournalEntry::statusLabel();
+        $sourceLabels = JournalEntry::sourceLabels();
         $currency = Setting::get('currency_symbol', 'Rs.');
         $filterAccount = $request->filled('account_id')
             ? Account::query()->find((int) $request->account_id)
             : null;
 
-        return view('accounts.journal-entries.index', compact('entries', 'statusMap', 'currency', 'filterAccount'));
+        return view('accounts.journal-entries.index', compact(
+            'entries',
+            'groupedEntries',
+            'statusMap',
+            'sourceLabels',
+            'currency',
+            'filterAccount'
+        ));
     }
 
     public function create(): View

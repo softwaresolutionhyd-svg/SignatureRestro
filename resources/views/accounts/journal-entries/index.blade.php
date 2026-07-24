@@ -4,7 +4,7 @@
 @section('content')
 <div class="mb-4">
     <h4 class="fw-bold mb-0">Journal Entries</h4>
-    <div class="text-secondary small">Manual double-entry bookkeeping</div>
+    <div class="text-secondary small">Grouped by source — Expense, Purchase, POS, Payroll…</div>
 </div>
 
 @include('accounts.partials.subnav')
@@ -22,7 +22,7 @@
             @if(!empty($filterAccount))
                 <input type="hidden" name="account_id" value="{{ $filterAccount->id }}">
             @endif
-            <div class="col-md-2">
+            <div class="col-6 col-md-2">
                 <label class="form-label small mb-1">Status</label>
                 <select name="status" class="form-select form-select-sm">
                     <option value="">All</option>
@@ -31,19 +31,28 @@
                     @endforeach
                 </select>
             </div>
-            <div class="col-md-2">
+            <div class="col-6 col-md-2">
+                <label class="form-label small mb-1">Source</label>
+                <select name="source" class="form-select form-select-sm">
+                    <option value="">All sources</option>
+                    @foreach($sourceLabels as $val => $label)
+                        <option value="{{ $val }}" @selected(request('source') === $val)>{{ $label }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
                 <label class="form-label small mb-1">From</label>
                 <input type="date" name="from" class="form-control form-control-sm" value="{{ request('from') }}">
             </div>
-            <div class="col-md-2">
+            <div class="col-6 col-md-2">
                 <label class="form-label small mb-1">To</label>
                 <input type="date" name="to" class="form-control form-control-sm" value="{{ request('to') }}">
             </div>
-            <div class="col-md-4">
+            <div class="col-12 col-md-3">
                 <label class="form-label small mb-1">Search</label>
                 <input type="text" name="search" class="form-control form-control-sm" value="{{ request('search') }}" placeholder="Number, reference, description">
             </div>
-            <div class="col-md-2">
+            <div class="col-12 col-md-1">
                 <button class="btn btn-primary btn-sm w-100">Filter</button>
             </div>
         </form>
@@ -59,27 +68,40 @@
                     <th>Date</th>
                     <th>Reference</th>
                     <th>Description</th>
-                    <th>Source</th>
                     <th>Status</th>
                     <th class="text-end">Debit</th>
                     <th class="text-end">Credit</th>
                 </tr>
             </thead>
             <tbody>
-                @forelse($entries as $entry)
-                @php $st = $statusMap[$entry->status] ?? ['label'=>$entry->status,'color'=>'secondary']; @endphp
-                <tr style="cursor:pointer" onclick="window.location='{{ route('accounts.journal-entries.show', $entry) }}'">
-                    <td class="fw-semibold">{{ $entry->entry_number }}</td>
-                    <td>{{ $entry->entry_date->format('d M Y') }}</td>
-                    <td>{{ $entry->reference ?: '—' }}</td>
-                    <td class="text-truncate" style="max-width:200px">{{ $entry->description ?: '—' }}</td>
-                    <td><span class="badge bg-light text-dark border text-uppercase">{{ $entry->source }}</span></td>
-                    <td><span class="badge bg-{{ $st['color'] }}">{{ $st['label'] }}</span></td>
-                    <td class="text-end">{{ $currency }} {{ number_format($entry->total_debit, 2) }}</td>
-                    <td class="text-end">{{ $currency }} {{ number_format($entry->total_credit, 2) }}</td>
-                </tr>
+                @forelse($groupedEntries as $sourceKey => $group)
+                    @php
+                        $heading = $sourceLabels[$sourceKey] ?? \App\Models\JournalEntry::sourceLabel($sourceKey);
+                        $groupDebit = round((float) $group->sum('total_debit'), 2);
+                        $groupCredit = round((float) $group->sum('total_credit'), 2);
+                    @endphp
+                    <tr class="table-light">
+                        <td colspan="5" class="fw-bold py-2" style="letter-spacing:.02em;">
+                            {{ $heading }}
+                            <span class="badge bg-white text-secondary border ms-2 fw-normal">{{ $group->count() }}</span>
+                        </td>
+                        <td class="text-end small text-secondary fw-semibold">{{ $currency }} {{ number_format($groupDebit, 2) }}</td>
+                        <td class="text-end small text-secondary fw-semibold">{{ $currency }} {{ number_format($groupCredit, 2) }}</td>
+                    </tr>
+                    @foreach($group as $entry)
+                        @php $st = $statusMap[$entry->status] ?? ['label'=>$entry->status,'color'=>'secondary']; @endphp
+                        <tr style="cursor:pointer" onclick="window.location='{{ route('accounts.journal-entries.show', $entry) }}'">
+                            <td class="fw-semibold ps-4">{{ $entry->entry_number }}</td>
+                            <td>{{ $entry->entry_date->format('d M Y') }}</td>
+                            <td>{{ $entry->reference ?: '—' }}</td>
+                            <td class="text-truncate" style="max-width:240px">{{ $entry->description ?: '—' }}</td>
+                            <td><span class="badge bg-{{ $st['color'] }}">{{ $st['label'] }}</span></td>
+                            <td class="text-end">{{ $currency }} {{ number_format($entry->total_debit, 2) }}</td>
+                            <td class="text-end">{{ $currency }} {{ number_format($entry->total_credit, 2) }}</td>
+                        </tr>
+                    @endforeach
                 @empty
-                <tr><td colspan="8" class="text-center text-secondary py-4">No journal entries found.</td></tr>
+                    <tr><td colspan="7" class="text-center text-secondary py-4">No journal entries found.</td></tr>
                 @endforelse
             </tbody>
         </table>
