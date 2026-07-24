@@ -35,7 +35,7 @@ final class NetworkPrinterService
     private const SIZE_DOUBLE = "\x1D\x21\x11";   // double width + height (headers only)
     private const SIZE_TALL = "\x1D\x21\x01";     // double height only — avoid for body text
     private const CHAR_SPACING_OFF = "\x1B\x20\x00"; // ESC SP 0
-    private const CHAR_SPACING_TITLE = "\x1B\x20\x02"; // ESC SP 2 — slight gap between glyphs
+    private const CHAR_SPACING_TITLE = "\x1B\x20\x01"; // ESC SP 1 — light gap so letters aren't stuck
     private const CUT = "\x1D\x56\x42\x00";       // partial cut with feed
     private const FEED = "\x1B\x64\x04";          // feed 4 lines
     /** Usable chars per line when width is doubled. */
@@ -873,38 +873,17 @@ final class NetworkPrinterService
     }
 
     /**
-     * Bill title: bold, normal width (no stretch), with visible gaps between letters.
+     * Bill title: bold, normal width (no stretch), light character spacing.
      */
     private function billTitleEscPos(string $title): string
     {
-        $spaced = $this->spaceLetters($title);
-
         return self::ALIGN_CENTER
             . self::SIZE_NORMAL
             . self::BOLD_ON
             . self::CHAR_SPACING_TITLE
-            . $this->clip($spaced) . "\n"
+            . $this->clip(trim($title)) . "\n"
             . self::CHAR_SPACING_OFF
             . self::BOLD_OFF;
-    }
-
-    /**
-     * Insert spaces between characters so thermal print is readable (not stuck together).
-     * Example: "Quotation Bill" → "Q u o t a t i o n  B i l l"
-     */
-    private function spaceLetters(string $text): string
-    {
-        $words = preg_split('/\s+/u', trim($text)) ?: [];
-        $spacedWords = [];
-        foreach ($words as $word) {
-            if ($word === '') {
-                continue;
-            }
-            $chars = preg_split('//u', $word, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-            $spacedWords[] = implode(' ', $chars);
-        }
-
-        return implode('  ', $spacedWords);
     }
 
     private function clipWide(string $text): string

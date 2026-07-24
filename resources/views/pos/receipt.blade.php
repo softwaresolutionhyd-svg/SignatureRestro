@@ -34,7 +34,7 @@
         .r-bill-title {
             font-size: 17px;
             font-weight: 800;
-            letter-spacing: 0.22em;
+            letter-spacing: 0.06em;
             margin: 6px 0 8px;
             text-transform: none;
             transform: none;
