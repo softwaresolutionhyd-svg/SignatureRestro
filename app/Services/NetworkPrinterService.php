@@ -394,30 +394,38 @@ final class NetworkPrinterService
 
         $out = self::INIT;
 
-        // Logo (ESC/POS raster) — from Settings → company logo
-        $logoPath = (string) ($settings['company_logo_abs_path'] ?? '');
-        if ($logoPath === '') {
-            $logoPath = company_logo_path((string) ($settings['company_logo'] ?? '')) ?? '';
-        }
-        $logoBytes = $this->escposLogoRaster($logoPath !== '' ? $logoPath : null);
-        if ($logoBytes !== null) {
-            $out .= self::ALIGN_CENTER . $logoBytes . "\n";
-        }
+        if ($isPaid) {
+            // Logo (ESC/POS raster) — from Settings → company logo
+            $logoPath = (string) ($settings['company_logo_abs_path'] ?? '');
+            if ($logoPath === '') {
+                $logoPath = company_logo_path((string) ($settings['company_logo'] ?? '')) ?? '';
+            }
+            $logoBytes = $this->escposLogoRaster($logoPath !== '' ? $logoPath : null);
+            if ($logoBytes !== null) {
+                $out .= self::ALIGN_CENTER . $logoBytes . "\n";
+            }
 
-        // Brand header (tall + bold — double-width strips chars on 58mm paper)
-        $out .= self::ALIGN_CENTER . self::SIZE_TALL . self::BOLD_ON;
-        $out .= $this->clip($company !== '' ? $company : 'SIGNATURE RESTRO') . "\n";
-        $out .= self::SIZE_NORMAL . self::BOLD_OFF;
-        $out .= "\n";
+            // Brand header (tall + bold — double-width strips chars on 58mm paper)
+            $out .= self::ALIGN_CENTER . self::SIZE_TALL . self::BOLD_ON;
+            $out .= $this->clip($company !== '' ? $company : 'SIGNATURE RESTRO') . "\n";
+            $out .= self::SIZE_NORMAL . self::BOLD_OFF;
+            $out .= "\n";
 
-        if (! empty(trim((string) ($settings['company_address'] ?? '')))) {
-            $out .= $this->clip('Address: ' . $settings['company_address']) . "\n";
-        }
-        if (! empty(trim((string) ($settings['company_email'] ?? '')))) {
-            $out .= $this->clip('Email: ' . $settings['company_email']) . "\n";
-        }
-        if (! empty(trim((string) ($settings['company_phone'] ?? '')))) {
-            $out .= $this->clip('Phone: ' . $settings['company_phone']) . "\n";
+            if (! empty(trim((string) ($settings['company_address'] ?? '')))) {
+                $out .= $this->clip('Address: ' . $settings['company_address']) . "\n";
+            }
+            if (! empty(trim((string) ($settings['company_email'] ?? '')))) {
+                $out .= $this->clip('Email: ' . $settings['company_email']) . "\n";
+            }
+            if (! empty(trim((string) ($settings['company_phone'] ?? '')))) {
+                $out .= $this->clip('Phone: ' . $settings['company_phone']) . "\n";
+            }
+        } else {
+            // Unpaid final bill: heading only — no logo / address / phone / email
+            $out .= self::ALIGN_CENTER . self::SIZE_TALL . self::BOLD_ON;
+            $out .= $this->clip('FINAL BILL') . "\n";
+            $out .= self::SIZE_NORMAL . self::BOLD_OFF;
+            $out .= "\n";
         }
 
         $out .= self::ALIGN_LEFT . "\n" . $this->rule();

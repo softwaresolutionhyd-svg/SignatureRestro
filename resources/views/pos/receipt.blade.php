@@ -121,20 +121,25 @@
     }
 @endphp
 <div class="r-wrap">
-    @if($logoSrc !== '')
-        <img src="{{ $logoSrc }}" alt="{{ $companyName }}" class="r-logo">
-    @endif
+    @if(!empty($isUnpaid))
+        {{-- Unpaid / final bill: no logo or company contact details --}}
+        <div class="center r-brand">Final Bill</div>
+    @else
+        @if($logoSrc !== '')
+            <img src="{{ $logoSrc }}" alt="{{ $companyName }}" class="r-logo">
+        @endif
 
-    <div class="center r-brand">{{ $companyName }}</div>
+        <div class="center r-brand">{{ $companyName }}</div>
 
-    @if($companyAddress !== '')
-        <div class="center r-meta"><span class="r-meta-label">Address:</span> {{ $companyAddress }}</div>
-    @endif
-    @if($companyEmail !== '')
-        <div class="center r-meta"><span class="r-meta-label">Email:</span> {{ $companyEmail }}</div>
-    @endif
-    @if($companyPhone !== '')
-        <div class="center r-meta"><span class="r-meta-label">Phone:</span> {{ $companyPhone }}</div>
+        @if($companyAddress !== '')
+            <div class="center r-meta"><span class="r-meta-label">Address:</span> {{ $companyAddress }}</div>
+        @endif
+        @if($companyEmail !== '')
+            <div class="center r-meta"><span class="r-meta-label">Email:</span> {{ $companyEmail }}</div>
+        @endif
+        @if($companyPhone !== '')
+            <div class="center r-meta"><span class="r-meta-label">Phone:</span> {{ $companyPhone }}</div>
+        @endif
     @endif
 
     <hr class="line">
