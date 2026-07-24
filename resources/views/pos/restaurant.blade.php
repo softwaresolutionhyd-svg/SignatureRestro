@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=48">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=49">
 @endpush
 
 @section('content')
@@ -315,6 +315,11 @@
                         <i class="bi bi-fire"></i> Kitchen Print
                     </button>
                 @endif
+                @if(($canPosDiscountCredit ?? false) || auth()->user()?->bypassesModulePermissions())
+                    <button type="button" class="btn btn-danger btn-sm d-none" id="rpCancelOrderBtn" title="Kitchen print ke baad poora order cancel (reason zaroori)">
+                        <i class="bi bi-x-circle"></i> Cancel Order
+                    </button>
+                @endif
                 @if($posSettings['allow_bill_print'] ?? true)
                     <button type="button" class="btn btn-outline-light btn-sm" id="rpPrintUnpaidBtn" title="Thermal printer par unpaid bill print karein">
                         <i class="bi bi-printer"></i> Print Unpaid Bill
@@ -347,6 +352,7 @@
                     <button type="button" class="btn btn-sm btn-outline-secondary rp-reason-chip" data-reason="Guest Changed Mind - Customer decided not to order">Guest changed mind</button>
                     <button type="button" class="btn btn-sm btn-outline-secondary rp-reason-chip" data-reason="Wrong item punched">Wrong item punched</button>
                     <button type="button" class="btn btn-sm btn-outline-secondary rp-reason-chip" data-reason="Out of stock / kitchen unavailable">Out of stock</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary rp-reason-chip d-none" id="rpReasonChipCancelOrder" data-reason="Guest cancelled whole order">Guest cancelled order</button>
                     <button type="button" class="btn btn-sm btn-outline-primary rp-reason-chip" data-reason="" data-custom="1">Other (custom)</button>
                 </div>
                 <label for="rpRemoveReason" class="form-label fw-semibold mb-1">Reason</label>
@@ -354,7 +360,7 @@
                 <p class="text-danger small mb-0 mt-2 d-none" id="rpRemoveReasonError">Kam az kam 3 characters ka reason likhein.</p>
             </div>
             <div class="modal-footer border-0 pt-0">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Back</button>
                 <button type="button" class="btn btn-danger" id="rpRemoveConfirm">
                     <i class="bi bi-check-lg"></i> Confirm
                 </button>
@@ -519,5 +525,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=60"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=61"></script>
 @endsection

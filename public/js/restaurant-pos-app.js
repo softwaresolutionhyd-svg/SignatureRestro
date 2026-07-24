@@ -41,6 +41,7 @@
     let kitchenVoidsLoading = false;
     let pendingChangeAction = null;
     let removeReasonModalInstance = null;
+    let cancelWholeOrderPending = false;
     let resumeSaveLock = Promise.resolve();
     let payments = [{ method: 'cash', amount: 0 }];
     let orderType = 'sale';
@@ -783,9 +784,19 @@
         const title = $('#rpRemoveReasonModalLabel');
         const hint = $('#rpRemoveReasonHint');
         const confirmBtn = $('#rpRemoveConfirm');
+        const cancelOrderChip = $('#rpReasonChipCancelOrder');
 
         let label = '';
-        if (action.type === 'remove') {
+        if (action.type === 'cancel-order') {
+            const lockedLines = cart.filter((r) => (Number(r.kitchen_locked_qty) || 0) > 0);
+            const itemCount = lockedLines.length;
+            const qtyTotal = lockedLines.reduce((s, r) => s + (Number(r.kitchen_locked_qty) || 0), 0);
+            label = `${itemCount} item(s) · ${fmtQty(qtyTotal)} qty kitchen cancel`;
+            if (title) title.textContent = 'Cancel whole order';
+            if (hint) hint.textContent = 'Poora order cancel karne ka reason select karein. Kitchen ko Removed Items slip jayegi:';
+            if (confirmBtn) confirmBtn.innerHTML = '<i class="bi bi-x-circle"></i> Cancel Order';
+            cancelOrderChip?.classList.remove('d-none');
+        } else if (action.type === 'remove') {
             const row = cart[action.index];
             label = row ? `${fmtQty(row.qty)}× ${row.name}` : '';
             if (title) title.textContent = 'Item hataein';
@@ -795,6 +806,7 @@
                     : 'Item hataane ka reason select karein:';
             }
             if (confirmBtn) confirmBtn.innerHTML = '<i class="bi bi-trash"></i> Remove';
+            cancelOrderChip?.classList.add('d-none');
         } else {
             const p = products.find((x) => Number(x.id) === Number(action.productId));
             label = p ? p.name : 'Item';
@@ -805,6 +817,7 @@
                     : 'Quantity kam karne ka reason select karein:';
             }
             if (confirmBtn) confirmBtn.innerHTML = '<i class="bi bi-check-lg"></i> Confirm';
+            cancelOrderChip?.classList.add('d-none');
         }
 
         const nameEl = $('#rpRemoveItemName');
@@ -866,7 +879,9 @@
         if (!action) return;
 
         try {
-            if (action.type === 'remove') {
+            if (action.type === 'cancel-order') {
+                await cancelWholeOrder(reason);
+            } else if (action.type === 'remove') {
                 await removeCartLine(action.index, reason);
             } else if (action.type === 'dec') {
                 changeCartQty(action.productId, -1, reason);
@@ -1561,8 +1576,87 @@
         renderCart();
         renderTotals();
         syncWhatsappButton();
+        updateCancelOrderButton();
         if (autoPaymentAmount && payments.length === 1) {
             payments[0].amount = calcCartTotals().grand;
+        }
+    }
+
+    function hasKitchenLockedItems() {
+        return cart.some((r) => (Number(r.kitchen_locked_qty) || 0) > 0);
+    }
+
+    function updateCancelOrderButton() {
+        const btn = $('#rpCancelOrderBtn');
+        if (!btn) return;
+        const show = canVoidKitchenItems && !!resumeOrderId && hasKitchenLockedItems();
+        btn.classList.toggle('d-none', !show);
+        btn.disabled = !show;
+    }
+
+    function requestCancelWholeOrder() {
+        if (!canVoidKitchenItems) {
+            alert('Poora order sirf manager/admin cancel kar sakta hai.');
+            return;
+        }
+        if (!resumeOrderId) {
+            alert('Pehle kitchen print / hold order zaroori hai.');
+            return;
+        }
+        if (!hasKitchenLockedItems()) {
+            alert('Kitchen print ke baad hi poora order cancel ho sakta hai.');
+            return;
+        }
+        openItemChangeReasonModal({ type: 'cancel-order', voidKitchen: true });
+    }
+
+    async function cancelWholeOrder(reason) {
+        if (!canVoidKitchenItems) {
+            throw new Error('Poora order sirf manager/admin cancel kar sakta hai.');
+        }
+        if (!resumeOrderId) {
+            throw new Error('Pending order nahi mili.');
+        }
+
+        const reasonText = String(reason || '').trim();
+        if (reasonText.length < 3) {
+            openItemChangeReasonModal({ type: 'cancel-order', voidKitchen: true });
+            return;
+        }
+
+        const voids = [];
+        cart.forEach((row) => {
+            const locked = Number(row.kitchen_locked_qty) || 0;
+            if (locked > 0) {
+                voids.push(buildReductionEntry(row, locked, reasonText));
+            }
+        });
+        if (!voids.length) {
+            throw new Error('Kitchen print ke baad hi poora order cancel ho sakta hai.');
+        }
+
+        const cartSnapshot = cart.map((r) => ({ ...r }));
+        const voidsBefore = kitchenVoids.slice();
+        const reductionsBefore = itemReductions.slice();
+        const btn = $('#rpCancelOrderBtn');
+        if (btn) btn.disabled = true;
+        cancelWholeOrderPending = true;
+        kitchenVoids = voids;
+        itemReductions = [];
+        cart.length = 0;
+        renderAll();
+
+        try {
+            await discardResumedDraft();
+        } catch (e) {
+            cancelWholeOrderPending = false;
+            kitchenVoids = voidsBefore;
+            itemReductions = reductionsBefore;
+            cart.length = 0;
+            cartSnapshot.forEach((r) => cart.push(r));
+            renderAll();
+            if (btn) btn.disabled = false;
+            throw e;
         }
     }
 
@@ -2261,6 +2355,7 @@
         }
         kitchenVoids = [];
         itemReductions = [];
+        cancelWholeOrderPending = false;
         resetForNewBill();
         if (message) {
             alert(message);
@@ -2298,6 +2393,9 @@
         body.append('_method', 'DELETE');
         if (voidsSnapshot.length) {
             body.append('kitchen_voids', JSON.stringify(voidsSnapshot));
+        }
+        if (cancelWholeOrderPending) {
+            body.append('cancel_whole_order', '1');
         }
 
         const res = await fetch(url, {
@@ -2344,6 +2442,7 @@
         }
         kitchenVoids = [];
         itemReductions = [];
+        cancelWholeOrderPending = false;
         resetForNewBill();
     }
 
@@ -2745,6 +2844,7 @@
         });
         $('#rpHoldBtn')?.addEventListener('click', () => submitHoldOrder());
         $('#rpKitchenPrintBtn')?.addEventListener('click', () => submitKitchenPrint());
+        $('#rpCancelOrderBtn')?.addEventListener('click', () => requestCancelWholeOrder());
         $('#rpPrintUnpaidBtn')?.addEventListener('click', () => printUnpaidBill());
         $('#rpWhatsappBtn')?.addEventListener('click', () => openDeliveryWhatsapp());
         $('#rpPayBtn')?.addEventListener('click', () => openPayModal());

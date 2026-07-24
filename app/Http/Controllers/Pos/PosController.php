@@ -1829,33 +1829,60 @@ class PosController extends Controller
             abort(403);
         }
 
-        // Empty-cart remove: voids must print before draft delete.
+        // Empty-cart / whole-order cancel: voids must print before draft delete.
         $kitchenVoids = $this->kitchenVoidsFromInput($request->input('kitchen_voids'));
-        if ($kitchenVoids !== []) {
+        $cancelWholeOrder = $request->boolean('cancel_whole_order');
+        if ($kitchenVoids !== [] || $cancelWholeOrder) {
             $user = Auth::user();
             if (! $user || ! $this->userCanKitchenVoid($user)) {
                 if ($request->expectsJson()) {
                     return response()->json([
-                        'message' => 'Kitchen items sirf manager/admin remove kar sakta hai.',
+                        'message' => 'Kitchen items / order sirf manager/admin cancel kar sakta hai.',
                     ], 422);
                 }
 
-                return back()->with('error', 'Kitchen items sirf manager/admin remove kar sakta hai.');
+                return back()->with('error', 'Kitchen items / order sirf manager/admin cancel kar sakta hai.');
             }
         }
+
+        if ($cancelWholeOrder && $kitchenVoids === []) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Kitchen print ke baad cancel ke liye removed items zaroori hain.',
+                ], 422);
+            }
+
+            return back()->with('error', 'Kitchen print ke baad cancel ke liye removed items zaroori hain.');
+        }
+
         $removedPrint = $this->logKitchenVoids($order, $kitchenVoids);
+
+        if ($cancelWholeOrder) {
+            $reason = trim((string) ($kitchenVoids[0]['reason'] ?? 'Order cancelled'));
+            ActivityLogger::log(
+                'pos.order_cancelled',
+                sprintf('Whole order cancelled: %s — %s', $order->order_no, $reason),
+                $order,
+                [
+                    'reason' => $reason,
+                    'void_count' => count($kitchenVoids),
+                    'voids' => $kitchenVoids,
+                ]
+            );
+        }
 
         $order->delete();
 
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Held order discarded.',
+                'message' => $cancelWholeOrder ? 'Order cancelled.' : 'Held order discarded.',
                 'removed_print' => $removedPrint,
+                'cancelled' => $cancelWholeOrder,
             ]);
         }
 
-        return back()->with('success', 'Held order discarded.');
+        return back()->with('success', $cancelWholeOrder ? 'Order cancelled.' : 'Held order discarded.');
     }
 
     public function settleDraftOrderForCheckoutCounter(PosOrder $order, string $paymentMethod): PosOrder

@@ -1797,6 +1797,18 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     color: #fee2e2;
 }
 
+.restaurant-pos-app .rp-actions .btn-danger#rpCancelOrderBtn {
+    background: #b91c1c;
+    border-color: #991b1b;
+    color: #fff;
+}
+
+.restaurant-pos-app .rp-actions .btn-danger#rpCancelOrderBtn:hover {
+    background: #991b1b;
+    border-color: #7f1d1d;
+    color: #fff;
+}
+
 .restaurant-pos-app .rp-actions .btn-outline-light {
     border-color: rgba(255, 255, 255, 0.22);
     color: var(--rp-text-soft);
