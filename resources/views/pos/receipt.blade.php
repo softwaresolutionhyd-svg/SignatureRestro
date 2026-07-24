@@ -123,7 +123,7 @@
 <div class="r-wrap">
     @if(!empty($isUnpaid))
         {{-- Unpaid / final bill: no logo or company contact details --}}
-        <div class="center r-brand">Pre Invoice</div>
+        <div class="center r-brand">Provisional Bill</div>
     @else
         @if($logoSrc !== '')
             <img src="{{ $logoSrc }}" alt="{{ $companyName }}" class="r-logo">

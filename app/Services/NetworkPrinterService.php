@@ -423,7 +423,7 @@ final class NetworkPrinterService
         } else {
             // Unpaid final bill: heading only — no logo / address / phone / email
             $out .= self::ALIGN_CENTER . self::SIZE_TALL . self::BOLD_ON;
-            $out .= $this->clip('PRE INVOICE') . "\n";
+            $out .= $this->clip('PROVISIONAL BILL') . "\n";
             $out .= self::SIZE_NORMAL . self::BOLD_OFF;
             $out .= "\n";
         }
