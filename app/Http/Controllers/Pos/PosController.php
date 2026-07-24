@@ -1679,7 +1679,7 @@ class PosController extends Controller
             $order->loadMissing('table');
         }
 
-        $this->logKitchenVoids($order, $this->normalizedKitchenVoids($request));
+        $removedPrint = $this->logKitchenVoids($order, $this->normalizedKitchenVoids($request));
         $this->logItemReductions($order, $this->normalizedItemReductions($request));
 
         $message = $updatedExisting ? 'Held order updated.' : 'Order held successfully.';
@@ -1691,6 +1691,7 @@ class PosController extends Controller
                 'updated' => $updatedExisting,
                 'order' => $this->posOrderDetailsPayload($order),
                 'held_count' => $this->heldOrdersForSession($session)->count(),
+                'removed_print' => $removedPrint,
             ]);
         }
 
@@ -1791,13 +1792,13 @@ class PosController extends Controller
     }
 
     /** Delete a draft held order for the current open register session (items cascade). */
-    public function discardHeld(int $orderId): RedirectResponse|JsonResponse
+    public function discardHeld(Request $request, int $orderId): RedirectResponse|JsonResponse
     {
         $session = $this->requireOpenSessionForUser(Auth::user());
         $order = PosOrder::query()->find($orderId);
 
         if ($order === null) {
-            if (request()->expectsJson()) {
+            if ($request->expectsJson()) {
                 return response()->json([
                     'success' => true,
                     'already_discarded' => true,
@@ -1809,7 +1810,7 @@ class PosController extends Controller
         }
 
         if ($order->status !== 'draft') {
-            if (request()->expectsJson()) {
+            if ($request->expectsJson()) {
                 return response()->json([
                     'message' => 'Is order ko discard nahi kar sakte.',
                 ], 403);
@@ -1819,7 +1820,7 @@ class PosController extends Controller
         }
 
         if ($this->findDraftOrderForSession($session, (int) $order->id) === null) {
-            if (request()->expectsJson()) {
+            if ($request->expectsJson()) {
                 return response()->json([
                     'message' => 'Is order ko discard nahi kar sakte.',
                 ], 403);
@@ -1828,12 +1829,29 @@ class PosController extends Controller
             abort(403);
         }
 
+        // Empty-cart remove: voids must print before draft delete.
+        $kitchenVoids = $this->kitchenVoidsFromInput($request->input('kitchen_voids'));
+        if ($kitchenVoids !== []) {
+            $user = Auth::user();
+            if (! $user || ! $this->userCanKitchenVoid($user)) {
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => 'Kitchen items sirf manager/admin remove kar sakta hai.',
+                    ], 422);
+                }
+
+                return back()->with('error', 'Kitchen items sirf manager/admin remove kar sakta hai.');
+            }
+        }
+        $removedPrint = $this->logKitchenVoids($order, $kitchenVoids);
+
         $order->delete();
 
-        if (request()->expectsJson()) {
+        if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
                 'message' => 'Held order discarded.',
+                'removed_print' => $removedPrint,
             ]);
         }
 
@@ -2045,6 +2063,40 @@ class PosController extends Controller
         }
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Print "Removed Items (Don't make)" slip to each item's department printer.
+     */
+    public function removedItemsPrintNetwork(Request $request, PosOrder $order): JsonResponse
+    {
+        abort_unless($order->status === 'draft', 404);
+        $this->assertDraftReceiptAccess($order);
+
+        $user = Auth::user();
+        if (! $user || ! $this->userCanKitchenVoid($user)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Kitchen items sirf manager/admin remove kar sakta hai.',
+            ], 403);
+        }
+
+        $voids = $this->kitchenVoidsFromInput($request->input('kitchen_voids'));
+        if ($voids === []) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Removed items list khali hai.',
+            ], 422);
+        }
+
+        $result = $this->logKitchenVoids($order, $voids);
+
+        return response()->json([
+            'ok' => (bool) ($result['ok'] ?? false),
+            'results' => $result['results'] ?? [],
+            'unrouted' => $result['unrouted'] ?? 0,
+            'message' => $result['message'] ?? null,
+        ], ($result['ok'] ?? false) ? 200 : 500);
     }
 
     /**
@@ -3476,12 +3528,28 @@ class PosController extends Controller
     }
 
     /**
-     * @return list<array{product_id: int, uom: string, qty: float, reason: string, notes?: string, name?: string}>
+     * @return list<array{product_id: int, uom: string, qty: float, reason: string, notes?: string, name?: string, item_name?: string, is_custom?: bool}>
      */
     private function normalizedKitchenVoids(PosCheckoutRequest $request): array
     {
+        return $this->kitchenVoidsFromInput($request->input('kitchen_voids', []));
+    }
+
+    /**
+     * @param  mixed  $raw
+     * @return list<array{product_id: int, uom: string, qty: float, reason: string, notes?: string, name?: string, item_name?: string, is_custom?: bool}>
+     */
+    private function kitchenVoidsFromInput(mixed $raw): array
+    {
+        if (is_string($raw)) {
+            $raw = json_decode($raw, true) ?: [];
+        }
+        if (! is_array($raw)) {
+            return [];
+        }
+
         $voids = [];
-        foreach ((array) $request->input('kitchen_voids', []) as $void) {
+        foreach ($raw as $void) {
             if (! is_array($void)) {
                 continue;
             }
@@ -3564,11 +3632,12 @@ class PosController extends Controller
 
     /**
      * @param  list<array{product_id: int, uom: string, qty: float, reason: string, notes?: string, name?: string}>  $kitchenVoids
+     * @return array{ok: bool, results: list<array{department: string, ok: bool, error?: string}>, unrouted: int, message?: string|null}
      */
-    private function logKitchenVoids(PosOrder $order, array $kitchenVoids): void
+    private function logKitchenVoids(PosOrder $order, array $kitchenVoids): array
     {
         if ($kitchenVoids === []) {
-            return;
+            return ['ok' => true, 'results' => [], 'unrouted' => 0, 'message' => null];
         }
 
         $productIds = collect($kitchenVoids)
@@ -3609,9 +3678,16 @@ class PosController extends Controller
         unset($void);
 
         try {
-            app(NetworkPrinterService::class)->dispatchRemovedItemsPrints($order, $kitchenVoids);
+            return app(NetworkPrinterService::class)->dispatchRemovedItemsPrints($order, $kitchenVoids);
         } catch (\Throwable $e) {
             report($e);
+
+            return [
+                'ok' => false,
+                'results' => [],
+                'unrouted' => 0,
+                'message' => 'Removed items print fail: '.$e->getMessage(),
+            ];
         }
     }
 

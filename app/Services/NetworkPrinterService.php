@@ -228,6 +228,7 @@ final class NetworkPrinterService
             ->values()
             ->all();
 
+        // Same eager-load shape as kitchen tickets so department + printer resolve correctly.
         $products = $productIds === []
             ? collect()
             : InventoryProduct::query()
@@ -241,24 +242,43 @@ final class NetworkPrinterService
 
         $groups = [];
         $unrouted = 0;
+        $unroutedNames = [];
         foreach ($voids as $void) {
             $productId = (int) ($void['product_id'] ?? 0);
             $product = $productId > 0 ? $products->get($productId) : null;
+
+            // Ensure relations exist even if eager-load missed pivot rows.
+            if ($product && ! $product->relationLoaded('departments')) {
+                $product->load(['departments:id,name,printer_ip,printer_port']);
+            }
+            if ($product && ! $product->relationLoaded('department')) {
+                $product->load(['department:id,name,printer_ip,printer_port']);
+            }
+
             $dept = $this->resolveItemDepartment($product);
             if ($dept && ! empty($dept->printer_ip)) {
                 $groups[$dept->id]['dept'] = $dept;
                 $groups[$dept->id]['items'][] = $void;
             } else {
                 $unrouted++;
+                $label = trim((string) ($void['name'] ?? $void['item_name'] ?? ''));
+                if ($label === '') {
+                    $label = $product?->name ?: ('Product #'.$productId);
+                }
+                $unroutedNames[] = $label;
             }
         }
 
         if ($groups === []) {
+            $hint = $unroutedNames !== []
+                ? ' ('.implode(', ', array_slice($unroutedNames, 0, 3)).')'
+                : '';
+
             return [
                 'ok' => false,
                 'results' => [],
                 'unrouted' => $unrouted,
-                'message' => 'Removed items ka department printer set nahi.',
+                'message' => 'Removed items ka department printer set nahi'.$hint.'. Inventory → Kitchen Agents check karein.',
             ];
         }
 

@@ -2287,6 +2287,7 @@
         }
 
         const orderId = resumeOrderId;
+        const voidsSnapshot = kitchenVoids.slice();
         const url = (routes.discardHold || '').replace('__ID__', String(orderId));
         if (!url) {
             throw new Error('Discard route missing.');
@@ -2295,6 +2296,9 @@
         const body = new FormData();
         body.append('_token', csrf);
         body.append('_method', 'DELETE');
+        if (voidsSnapshot.length) {
+            body.append('kitchen_voids', JSON.stringify(voidsSnapshot));
+        }
 
         const res = await fetch(url, {
             method: 'POST',
@@ -2315,6 +2319,8 @@
             throw new Error(data.message || 'Pending order discard nahi ho saki.');
         }
 
+        notifyRemovedPrintResult(data.removed_print, voidsSnapshot.length > 0);
+
         const discardedOrder = (boot.pendingBillsDetail || []).find(
             (o) => Number(o.id) === Number(orderId)
         );
@@ -2329,9 +2335,43 @@
         if (orderListMode === 'pending') {
             renderOrderCards();
         }
+        if (voidsSnapshot.length && canViewKitchenVoids) {
+            loadSessionKitchenVoids().then(() => {
+                if (orderListMode === 'kitchen-voids') {
+                    renderOrderCards();
+                }
+            });
+        }
         kitchenVoids = [];
         itemReductions = [];
         resetForNewBill();
+    }
+
+    function notifyRemovedPrintResult(result, expected = false) {
+        if (!expected && (!result || !Array.isArray(result.results) || result.results.length === 0) && !(result?.unrouted > 0)) {
+            return;
+        }
+        if (result && result.ok === true && !(result.unrouted > 0)) {
+            return;
+        }
+        const parts = [];
+        if (result?.message) {
+            parts.push(String(result.message));
+        }
+        if (result?.unrouted > 0) {
+            parts.push(result.unrouted + ' item(s) ka department printer nahi mila.');
+        }
+        (result?.results || []).forEach((r) => {
+            if (r && r.ok === false) {
+                parts.push((r.department || 'Printer') + ': ' + (r.error || 'print fail'));
+            }
+        });
+        if (!parts.length && expected) {
+            parts.push('Removed Items slip department printer par nahi gayi.');
+        }
+        if (parts.length) {
+            alert('Removed Items slip print issue:\n' + parts.join('\n'));
+        }
     }
 
     async function saveResumedDraftChanges(sendToKitchen = false) {
@@ -2352,6 +2392,7 @@
                     throw new Error('Order save tayyar nahi ho saki.');
                 }
 
+                const voidsSnapshot = kitchenVoids.slice();
                 const res = await fetch(routes.hold, {
                     method: 'POST',
                     headers: {
@@ -2373,7 +2414,7 @@
                     throw new Error(errMsg);
                 }
 
-                const hadKitchenVoids = kitchenVoids.length > 0;
+                const hadKitchenVoids = voidsSnapshot.length > 0;
                 if (data.order) {
                     upsertPendingBill(data.order, true);
                     reloadCartFromOrder(data.order);
@@ -2384,6 +2425,7 @@
                 }
                 kitchenVoids = [];
                 itemReductions = [];
+                notifyRemovedPrintResult(data.removed_print, hadKitchenVoids);
                 if (hadKitchenVoids && canViewKitchenVoids) {
                     loadSessionKitchenVoids().then(() => {
                         if (orderListMode === 'kitchen-voids') {

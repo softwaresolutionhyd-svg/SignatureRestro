@@ -474,6 +474,7 @@
     $kitchenStub = str_replace('999999999', '__ID__', route('restaurant-pos.kitchen', ['order' => 999999999]));
     $kitchenPrintStub = str_replace('999999999', '__ID__', route('restaurant-pos.kitchen-print', ['order' => 999999999]));
     $cashierPrintStub = str_replace('999999999', '__ID__', route('restaurant-pos.cashier-print', ['order' => 999999999]));
+    $removedItemsPrintStub = str_replace('999999999', '__ID__', route('restaurant-pos.removed-items-print', ['order' => 999999999]));
     $discardStub = str_replace('999999999', '__ID__', route('restaurant-pos.hold.discard', ['orderId' => 999999999]));
     $reopenStub = str_replace('999999999', '__ID__', route('restaurant-pos.reopen', ['order' => 999999999]));
     $restaurantBootstrap = [
@@ -509,6 +510,7 @@
             'kitchen' => $kitchenStub,
             'kitchenPrint' => $kitchenPrintStub,
             'cashierPrint' => $cashierPrintStub,
+            'removedItemsPrint' => $removedItemsPrintStub,
             'kitchenVoids' => route('restaurant-pos.kitchen-voids'),
             'reopen' => $reopenStub,
         ],
@@ -517,5 +519,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=59"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=60"></script>
 @endsection
