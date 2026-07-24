@@ -429,25 +429,40 @@ final class NetworkPrinterService
         }
 
         $out .= self::ALIGN_LEFT . "\n" . $this->rule();
-        $out .= $this->line('Invoice Number: ' . ($order->order_no ?? $order->id)) . "\n";
-        $out .= $this->line('Order Type: ' . $orderType) . "\n";
 
-        if ($order->table?->name) {
-            $out .= $this->line('Table: ' . $order->table->name) . "\n";
+        if ($isPaid) {
+            $out .= $this->line('Invoice Number: ' . ($order->order_no ?? $order->id)) . "\n";
+            $out .= $this->line('Order Type: ' . $orderType) . "\n";
+
+            if ($order->table?->name) {
+                $out .= $this->line('Table: ' . $order->table->name) . "\n";
+            } else {
+                $where = $this->orderLocation($order);
+                if ($where !== '') {
+                    $out .= $this->line('Table/Room: ' . $where) . "\n";
+                }
+            }
+
+            $when = $order->paid_at ?? $order->updated_at ?? $order->created_at;
+            if ($when) {
+                $out .= $this->line('Date: ' . $when->format('d M Y H:i')) . "\n";
+            }
+            if ($order->user?->name) {
+                $out .= $this->line('Cashier: ' . $order->user->name) . "\n";
+            }
         } else {
-            $where = $this->orderLocation($order);
-            if ($where !== '') {
-                $out .= $this->line('Table/Room: ' . $where) . "\n";
+            // Unpaid: only Order Type + Table
+            $out .= $this->line('Order Type: ' . $orderType) . "\n";
+            if ($order->table?->name) {
+                $out .= $this->line('Table: ' . $order->table->name) . "\n";
+            } else {
+                $where = $this->orderLocation($order);
+                if ($where !== '') {
+                    $out .= $this->line('Table/Room: ' . $where) . "\n";
+                }
             }
         }
 
-        $when = $order->paid_at ?? $order->updated_at ?? $order->created_at;
-        if ($when) {
-            $out .= $this->line('Date: ' . $when->format('d M Y H:i')) . "\n";
-        }
-        if ($order->user?->name) {
-            $out .= $this->line('Cashier: ' . $order->user->name) . "\n";
-        }
         $out .= $this->rule() . "\n";
 
         // Column header: ITEMS | QTY | RATE | AMOUNT

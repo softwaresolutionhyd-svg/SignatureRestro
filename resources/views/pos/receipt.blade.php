@@ -145,26 +145,33 @@
     <hr class="line">
 
     <div class="r-info">
-        <div class="tot-row"><span class="muted">Invoice Number:</span><span class="bold">{{ $order->order_no }}</span></div>
-        <div class="tot-row"><span class="muted">Order Type:</span><span class="bold">{{ $orderType }}</span></div>
-        @if(!empty($settings['pos_enable_tables']) && $settings['pos_enable_tables'] === '1' && $order->table)
-            <div class="tot-row"><span class="muted">Table</span><span class="bold">{{ $order->table->name }}</span></div>
-        @endif
-        @if($order->guest_name)
-            <div class="tot-row"><span class="muted">Guest</span><span>{{ $order->guest_name }}</span></div>
-        @endif
-        @if($order->room_no)
-            <div class="tot-row"><span class="muted">Room</span><span>{{ $order->room_no }}</span></div>
-        @endif
-        @if($order->waiter_name)
-            <div class="tot-row"><span class="muted">Waiter</span><span>{{ $order->waiter_name }}</span></div>
-        @endif
-        <div class="tot-row"><span class="muted">Date</span><span>{{ ($order->paid_at ?? $order->updated_at ?? $order->created_at)?->format('d M Y H:i') }}</span></div>
-        <div class="tot-row"><span class="muted">Cashier</span><span>{{ $order->user->name ?? '—' }}</span></div>
-        @if($order->is_credit && $order->contact)
-            <div class="tot-row"><span class="muted">Customer</span><span>{{ $order->contact->name }}</span></div>
-            @if($order->contact->phone)
-                <div class="tot-row"><span class="muted">Phone</span><span>{{ $order->contact->phone }}</span></div>
+        @if(!empty($isUnpaid))
+            <div class="tot-row"><span class="muted">Order Type:</span><span class="bold">{{ $orderType }}</span></div>
+            @if(!empty($settings['pos_enable_tables']) && $settings['pos_enable_tables'] === '1' && $order->table)
+                <div class="tot-row"><span class="muted">Table</span><span class="bold">{{ $order->table->name }}</span></div>
+            @endif
+        @else
+            <div class="tot-row"><span class="muted">Invoice Number:</span><span class="bold">{{ $order->order_no }}</span></div>
+            <div class="tot-row"><span class="muted">Order Type:</span><span class="bold">{{ $orderType }}</span></div>
+            @if(!empty($settings['pos_enable_tables']) && $settings['pos_enable_tables'] === '1' && $order->table)
+                <div class="tot-row"><span class="muted">Table</span><span class="bold">{{ $order->table->name }}</span></div>
+            @endif
+            @if($order->guest_name)
+                <div class="tot-row"><span class="muted">Guest</span><span>{{ $order->guest_name }}</span></div>
+            @endif
+            @if($order->room_no)
+                <div class="tot-row"><span class="muted">Room</span><span>{{ $order->room_no }}</span></div>
+            @endif
+            @if($order->waiter_name)
+                <div class="tot-row"><span class="muted">Waiter</span><span>{{ $order->waiter_name }}</span></div>
+            @endif
+            <div class="tot-row"><span class="muted">Date</span><span>{{ ($order->paid_at ?? $order->updated_at ?? $order->created_at)?->format('d M Y H:i') }}</span></div>
+            <div class="tot-row"><span class="muted">Cashier</span><span>{{ $order->user->name ?? '—' }}</span></div>
+            @if($order->is_credit && $order->contact)
+                <div class="tot-row"><span class="muted">Customer</span><span>{{ $order->contact->name }}</span></div>
+                @if($order->contact->phone)
+                    <div class="tot-row"><span class="muted">Phone</span><span>{{ $order->contact->phone }}</span></div>
+                @endif
             @endif
         @endif
     </div>
