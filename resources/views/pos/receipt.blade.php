@@ -31,6 +31,14 @@
             margin: 4px 0 6px;
             text-transform: uppercase;
         }
+        .r-bill-title {
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: normal;
+            margin: 6px 0 8px;
+            text-transform: none;
+            transform: none;
+        }
         .r-meta { margin: 2px 0; font-size: 10px; }
         .r-meta-label { font-weight: 700; }
         .r-info { margin: 4px 0; }
@@ -122,23 +130,10 @@
 @endphp
 <div class="r-wrap">
     @if(!empty($isQuotation))
-        <div class="center r-brand">Quotation Bill</div>
-        @if($logoSrc !== '')
-            <img src="{{ $logoSrc }}" alt="{{ $companyName }}" class="r-logo">
-        @endif
-        <div class="center r-brand" style="font-size:13px;margin-top:4px;">{{ $companyName }}</div>
-        @if($companyAddress !== '')
-            <div class="center r-meta"><span class="r-meta-label">Address:</span> {{ $companyAddress }}</div>
-        @endif
-        @if($companyEmail !== '')
-            <div class="center r-meta"><span class="r-meta-label">Email:</span> {{ $companyEmail }}</div>
-        @endif
-        @if($companyPhone !== '')
-            <div class="center r-meta"><span class="r-meta-label">Phone:</span> {{ $companyPhone }}</div>
-        @endif
+        <div class="center r-bill-title">Quotation Bill</div>
     @elseif(!empty($isUnpaid))
         {{-- Unpaid / final bill: no logo or company contact details --}}
-        <div class="center r-brand">Provisional Bill</div>
+        <div class="center r-bill-title">Provisional Bill</div>
     @else
         @if($logoSrc !== '')
             <img src="{{ $logoSrc }}" alt="{{ $companyName }}" class="r-logo">
@@ -162,8 +157,6 @@
     <div class="r-info">
         @if(!empty($isQuotation))
             <div class="tot-row"><span class="muted">Order Type:</span><span class="bold">{{ $orderType }}</span></div>
-            <div class="tot-row"><span class="muted">Date</span><span>{{ ($order->updated_at ?? $order->created_at ?? now())->format('d M Y H:i') }}</span></div>
-            <div class="tot-row"><span class="muted">Prepared By</span><span>{{ $order->user->name ?? '—' }}</span></div>
         @elseif(!empty($isUnpaid))
             <div class="tot-row"><span class="muted">Order Type:</span><span class="bold">{{ $orderType }}</span></div>
             @if(!empty($settings['pos_enable_tables']) && $settings['pos_enable_tables'] === '1' && $order->table)

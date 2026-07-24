@@ -593,33 +593,11 @@ final class NetworkPrinterService
         $out = self::INIT;
 
         if ($isQuotation) {
-            // Quotation for customer: clear heading + company contact details
+            // Heading only — no logo / company details (same style as provisional)
             $out .= self::ALIGN_CENTER . self::SIZE_TALL . self::BOLD_ON;
-            $out .= $this->clip('QUOTATION BILL') . "\n";
+            $out .= $this->clip('Quotation Bill') . "\n";
             $out .= self::SIZE_NORMAL . self::BOLD_OFF;
             $out .= "\n";
-
-            $logoPath = (string) ($settings['company_logo_abs_path'] ?? '');
-            if ($logoPath === '') {
-                $logoPath = company_logo_path((string) ($settings['company_logo'] ?? '')) ?? '';
-            }
-            $logoBytes = $this->escposLogoRaster($logoPath !== '' ? $logoPath : null);
-            if ($logoBytes !== null) {
-                $out .= self::ALIGN_CENTER . $logoBytes . "\n";
-            }
-
-            $out .= self::ALIGN_CENTER . self::BOLD_ON;
-            $out .= $this->clip($company !== '' ? $company : 'SIGNATURE RESTRO') . "\n";
-            $out .= self::BOLD_OFF;
-            if (! empty(trim((string) ($settings['company_address'] ?? '')))) {
-                $out .= $this->clip('Address: ' . $settings['company_address']) . "\n";
-            }
-            if (! empty(trim((string) ($settings['company_email'] ?? '')))) {
-                $out .= $this->clip('Email: ' . $settings['company_email']) . "\n";
-            }
-            if (! empty(trim((string) ($settings['company_phone'] ?? '')))) {
-                $out .= $this->clip('Phone: ' . $settings['company_phone']) . "\n";
-            }
         } elseif ($isPaid) {
             // Logo (ESC/POS raster) — from Settings → company logo
             $logoPath = (string) ($settings['company_logo_abs_path'] ?? '');
@@ -647,9 +625,9 @@ final class NetworkPrinterService
                 $out .= $this->clip('Phone: ' . $settings['company_phone']) . "\n";
             }
         } else {
-            // Unpaid final bill: heading only — no logo / address / phone / email
+            // Unpaid: heading only — tall+bold, no width stretch
             $out .= self::ALIGN_CENTER . self::SIZE_TALL . self::BOLD_ON;
-            $out .= $this->clip('PROVISIONAL BILL') . "\n";
+            $out .= $this->clip('Provisional Bill') . "\n";
             $out .= self::SIZE_NORMAL . self::BOLD_OFF;
             $out .= "\n";
         }
@@ -677,12 +655,8 @@ final class NetworkPrinterService
                 $out .= $this->line('Cashier: ' . $order->user->name) . "\n";
             }
         } elseif ($isQuotation) {
+            // Quotation: heading + Order Type only
             $out .= $this->line('Order Type: ' . $orderType) . "\n";
-            $when = $order->updated_at ?? $order->created_at ?? now();
-            $out .= $this->line('Date: ' . $when->format('d M Y H:i')) . "\n";
-            if ($order->user?->name) {
-                $out .= $this->line('Prepared By: ' . $order->user->name) . "\n";
-            }
         } else {
             // Unpaid: only Order Type + Table
             $out .= $this->line('Order Type: ' . $orderType) . "\n";
@@ -782,7 +756,8 @@ final class NetworkPrinterService
         }
 
         $out .= "\n" . $this->rule();
-        $out .= self::ALIGN_CENTER . self::SIZE_DOUBLE . self::BOLD_ON;
+        // Status: tall+bold only (no double-width stretch)
+        $out .= self::ALIGN_CENTER . self::SIZE_TALL . self::BOLD_ON;
         $out .= $this->clip($statusLabel) . "\n";
         $out .= self::SIZE_NORMAL . self::BOLD_OFF;
         $out .= "\n\n";
