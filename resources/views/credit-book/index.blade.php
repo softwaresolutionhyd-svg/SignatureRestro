@@ -5,7 +5,7 @@
 <div class="mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
     <div>
         <h4 class="fw-bold mb-0">Credit Book</h4>
-        <div class="text-secondary small">All outstanding credit balances</div>
+        <div class="text-secondary small">Credit ledger — settled contacts bhi rehte hain jab tak delete na karein</div>
     </div>
     <div class="d-flex gap-2">
         <a href="{{ route('contacts.index') }}" class="btn btn-outline-secondary btn-sm">Contacts</a>
@@ -26,8 +26,16 @@
     <div class="col-6 col-md-3">
         <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #7c3aed!important;">
             <div class="card-body py-3">
-                <div class="text-secondary small">Contacts with Balance</div>
-                <div class="fw-bold fs-4 mt-1" style="color:#7c3aed;">{{ $totalContacts }}</div>
+                <div class="text-secondary small">With Balance Due</div>
+                <div class="fw-bold fs-4 mt-1" style="color:#7c3aed;">{{ $totalWithBalance }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #64748b!important;">
+            <div class="card-body py-3">
+                <div class="text-secondary small">In Ledger</div>
+                <div class="fw-bold fs-4 mt-1">{{ $totalInLedger }}</div>
             </div>
         </div>
     </div>
@@ -43,8 +51,8 @@
             </div>
             <div class="col-6 col-md-2">
                 <select name="filter" class="form-select form-select-sm">
+                    <option value="all" @selected($filter==='all')>All in ledger</option>
                     <option value="outstanding" @selected($filter==='outstanding')>Outstanding only</option>
-                    <option value="all" @selected($filter==='all')>All contacts</option>
                 </select>
             </div>
             <div class="col-6 col-md-2 d-flex gap-1">

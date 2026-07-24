@@ -22,7 +22,7 @@ class CreditBookController extends Controller
         private readonly AutoJournalService $autoJournal,
     ) {}
 
-    /** Master credit book — all contacts with outstanding balance */
+    /** Master credit book — ledger contacts (settled + outstanding) until deleted */
     public function index(Request $request)
     {
         $this->posCreditLedgerSync->syncMissing();
@@ -33,16 +33,17 @@ class CreditBookController extends Controller
             ->withSum(['creditLedger as total_paid' => fn ($q) => $q->where('type', 'payment')], 'amount')
             ->orderBy('name');
 
-        $filter = $request->get('filter', 'outstanding');
+        // Default: sab ledger contacts (balance 0 / Settled bhi) — hide only when user picks Outstanding
+        $filter = $request->get('filter', 'all');
         if ($filter === 'outstanding') {
-            // Only contacts with balance due > 0 (settled contacts hide)
             $query->whereRaw(
                 '(SELECT COALESCE(SUM(CASE WHEN type = ? THEN amount WHEN type = ? THEN -amount ELSE 0 END), 0)
                   FROM credit_ledger WHERE contact_id = contacts.id) > 0.009',
                 ['credit', 'payment']
             );
         } else {
-            $query->where('active', true);
+            // All ledger history (including Settled balance = 0)
+            $query->whereHas('creditLedger');
         }
 
         if ($request->filled('search')) {
@@ -54,7 +55,7 @@ class CreditBookController extends Controller
             ->paginate(Setting::pageSize('credit_book_per_page', 20))
             ->withQueryString();
 
-        // Sum only positive balances of existing contacts (ignore deleted-contact orphans)
+        // KPI: outstanding only (positive balances)
         $balanceRows = CreditLedger::query()
             ->whereIn('contact_id', Contact::query()->select('id'))
             ->select('contact_id')
@@ -64,9 +65,16 @@ class CreditBookController extends Controller
             ->get();
 
         $totalOutstanding = round((float) $balanceRows->sum('bal'), 2);
-        $totalContacts = $balanceRows->count();
+        $totalWithBalance = $balanceRows->count();
+        $totalInLedger = Contact::query()->whereHas('creditLedger')->count();
 
-        return view('credit-book.index', compact('contacts', 'totalOutstanding', 'totalContacts', 'filter'));
+        return view('credit-book.index', compact(
+            'contacts',
+            'totalOutstanding',
+            'totalWithBalance',
+            'totalInLedger',
+            'filter'
+        ));
     }
 
     /** View items purchased on a POS credit sale linked to the credit book. */
