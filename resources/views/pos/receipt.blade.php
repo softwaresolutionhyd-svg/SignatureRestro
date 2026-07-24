@@ -121,7 +121,22 @@
     }
 @endphp
 <div class="r-wrap">
-    @if(!empty($isUnpaid))
+    @if(!empty($isQuotation))
+        <div class="center r-brand">Quotation Bill</div>
+        @if($logoSrc !== '')
+            <img src="{{ $logoSrc }}" alt="{{ $companyName }}" class="r-logo">
+        @endif
+        <div class="center r-brand" style="font-size:13px;margin-top:4px;">{{ $companyName }}</div>
+        @if($companyAddress !== '')
+            <div class="center r-meta"><span class="r-meta-label">Address:</span> {{ $companyAddress }}</div>
+        @endif
+        @if($companyEmail !== '')
+            <div class="center r-meta"><span class="r-meta-label">Email:</span> {{ $companyEmail }}</div>
+        @endif
+        @if($companyPhone !== '')
+            <div class="center r-meta"><span class="r-meta-label">Phone:</span> {{ $companyPhone }}</div>
+        @endif
+    @elseif(!empty($isUnpaid))
         {{-- Unpaid / final bill: no logo or company contact details --}}
         <div class="center r-brand">Provisional Bill</div>
     @else
@@ -145,7 +160,14 @@
     <hr class="line">
 
     <div class="r-info">
-        @if(!empty($isUnpaid))
+        @if(!empty($isQuotation))
+            <div class="tot-row"><span class="muted">Order Type:</span><span class="bold">{{ $orderType }}</span></div>
+            @if(!empty($settings['pos_enable_tables']) && $settings['pos_enable_tables'] === '1' && $order->table)
+                <div class="tot-row"><span class="muted">Table</span><span class="bold">{{ $order->table->name }}</span></div>
+            @endif
+            <div class="tot-row"><span class="muted">Date</span><span>{{ ($order->updated_at ?? $order->created_at)?->format('d M Y H:i') }}</span></div>
+            <div class="tot-row"><span class="muted">Prepared By</span><span>{{ $order->user->name ?? '—' }}</span></div>
+        @elseif(!empty($isUnpaid))
             <div class="tot-row"><span class="muted">Order Type:</span><span class="bold">{{ $orderType }}</span></div>
             @if(!empty($settings['pos_enable_tables']) && $settings['pos_enable_tables'] === '1' && $order->table)
                 <div class="tot-row"><span class="muted">Table</span><span class="bold">{{ $order->table->name }}</span></div>
@@ -221,10 +243,10 @@
             <div class="tot-row"><span class="muted">Tax</span><span>{{ $currency }}{{ fmt_num((float) $order->tax_total, 2) }}</span></div>
         @endif
         <div class="tot-row r-grand-total">
-            <span>{{ !empty($isUnpaid) ? 'AMOUNT DUE' : 'Grand Total' }}</span>
+            <span>{{ !empty($isQuotation) ? 'Quoted Amount' : (!empty($isUnpaid) ? 'AMOUNT DUE' : 'Grand Total') }}</span>
             <span>{{ $currency }}{{ fmt_num((float) $order->grand_total, 2) }}</span>
         </div>
-        @if(empty($isUnpaid) && !$order->is_credit && $order->payments->isNotEmpty())
+        @if(empty($isUnpaid) && empty($isQuotation) && !$order->is_credit && $order->payments->isNotEmpty())
             <div class="pay-heading">Payment</div>
             @foreach($order->payments as $pay)
                 <div class="tot-row">
@@ -232,11 +254,11 @@
                     <span>{{ $currency }}{{ fmt_num((float) $pay->amount, 2) }}</span>
                 </div>
             @endforeach
-        @elseif(empty($isUnpaid) && $order->is_credit)
+        @elseif(empty($isUnpaid) && empty($isQuotation) && $order->is_credit)
             <div class="center bold" style="margin-top:6px;">CREDIT SALE</div>
             <div class="center muted">Amount on account: {{ $currency }}{{ fmt_num((float) $order->grand_total, 2) }}</div>
         @endif
-        @if(empty($isUnpaid) && $order->cash_tendered !== null && (float) $order->cash_tendered >= 0)
+        @if(empty($isUnpaid) && empty($isQuotation) && $order->cash_tendered !== null && (float) $order->cash_tendered >= 0)
             <div class="tot-row" style="margin-top:4px;"><span class="muted">Received</span><span>{{ $currency }}{{ fmt_num((float) $order->cash_tendered, 2) }}</span></div>
             @if($order->cash_change !== null)
                 <div class="tot-row bold"><span>Change</span><span>{{ $currency }}{{ fmt_num((float) $order->cash_change, 2) }}</span></div>
@@ -249,7 +271,10 @@
         <div class="muted" style="font-size:10px;"><span class="bold">Note:</span> {{ $order->order_notes }}</div>
     @endif
 
-    @if(!empty($isUnpaid))
+    @if(!empty($isQuotation))
+        <div class="center muted" style="font-size:10px;margin-top:8px;">This is a quotation only<br>Not a tax invoice / payment receipt</div>
+        <div class="r-bill-status">QUOTATION</div>
+    @elseif(!empty($isUnpaid))
         <div class="r-bill-status r-bill-status--unpaid">UNPAID</div>
     @elseif($order->type === 'refund')
         <div class="r-bill-status">REFUND</div>

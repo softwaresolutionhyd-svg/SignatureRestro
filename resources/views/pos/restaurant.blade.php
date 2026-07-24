@@ -319,6 +319,9 @@
                     <button type="button" class="btn btn-danger btn-sm d-none" id="rpCancelOrderBtn" title="Kitchen print ke baad poora order cancel (reason zaroori)">
                         <i class="bi bi-x-circle"></i> Cancel Order
                     </button>
+                    <button type="button" class="btn btn-outline-info btn-sm" id="rpQuotationPrintBtn" title="Customer ko Quotation Bill cashier printer se print karein">
+                        <i class="bi bi-file-earmark-text"></i> Print Quotation
+                    </button>
                 @endif
                 @if($posSettings['allow_bill_print'] ?? true)
                     <button type="button" class="btn btn-outline-light btn-sm" id="rpPrintUnpaidBtn" title="Thermal printer par unpaid bill print karein">
@@ -480,6 +483,8 @@
     $kitchenStub = str_replace('999999999', '__ID__', route('restaurant-pos.kitchen', ['order' => 999999999]));
     $kitchenPrintStub = str_replace('999999999', '__ID__', route('restaurant-pos.kitchen-print', ['order' => 999999999]));
     $cashierPrintStub = str_replace('999999999', '__ID__', route('restaurant-pos.cashier-print', ['order' => 999999999]));
+    $quotationPrintStub = str_replace('999999999', '__ID__', route('restaurant-pos.quotation-print', ['order' => 999999999]));
+    $receiptQuotationStub = str_replace('999999999', '__ID__', route('restaurant-pos.receipt.quotation', ['order' => 999999999]));
     $removedItemsPrintStub = str_replace('999999999', '__ID__', route('restaurant-pos.removed-items-print', ['order' => 999999999]));
     $discardStub = str_replace('999999999', '__ID__', route('restaurant-pos.hold.discard', ['orderId' => 999999999]));
     $reopenStub = str_replace('999999999', '__ID__', route('restaurant-pos.reopen', ['order' => 999999999]));
@@ -516,6 +521,8 @@
             'kitchen' => $kitchenStub,
             'kitchenPrint' => $kitchenPrintStub,
             'cashierPrint' => $cashierPrintStub,
+            'quotationPrint' => $quotationPrintStub,
+            'receiptQuotation' => $receiptQuotationStub,
             'removedItemsPrint' => $removedItemsPrintStub,
             'kitchenVoids' => route('restaurant-pos.kitchen-voids'),
             'reopen' => $reopenStub,
@@ -525,5 +532,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=61"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=62"></script>
 @endsection

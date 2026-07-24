@@ -1958,6 +1958,38 @@ class PosController extends Controller
         return $this->renderReceipt($request, $order, paidOnly: false);
     }
 
+    public function quotationReceipt(Request $request, PosOrder $order): View
+    {
+        $user = Auth::user();
+        if (! $user || ! $this->userCanKitchenVoid($user)) {
+            abort(403, 'Quotation bill sirf manager/admin print kar sakta hai.');
+        }
+
+        abort_unless($order->status === 'draft', 404);
+        $this->assertDraftReceiptAccess($order);
+
+        $order->load(['items.product:id,name,sku', 'payments', 'contact:id,name,phone', 'user:id,name', 'table:id,name']);
+
+        $settings = $this->receiptSettingsMap();
+        $isUnpaid = false;
+        $isQuotation = true;
+        $allowBillPrint = true;
+        $autoPrint = ! $request->boolean('noprint', false) && $request->boolean('autoprint', true);
+        $backUrl = route('restaurant-pos.index');
+        $backLabel = '← Back to Restaurant POS';
+
+        return view('pos.receipt', compact(
+            'order',
+            'settings',
+            'autoPrint',
+            'allowBillPrint',
+            'backUrl',
+            'backLabel',
+            'isUnpaid',
+            'isQuotation'
+        ));
+    }
+
     public function kitchenSlip(Request $request, PosOrder $order): View
     {
         abort_unless($order->status === 'draft', 404);
@@ -2093,6 +2125,45 @@ class PosController extends Controller
     }
 
     /**
+     * Print Quotation Bill to the CASHIER printer (admin/manager only).
+     */
+    public function quotationPrintNetwork(Request $request, PosOrder $order): JsonResponse
+    {
+        abort_unless($order->status === 'draft', 404);
+        $this->assertDraftReceiptAccess($order);
+
+        $user = Auth::user();
+        if (! $user || ! $this->userCanKitchenVoid($user)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Quotation bill sirf manager/admin print kar sakta hai.',
+            ], 403);
+        }
+
+        $ip = trim((string) Setting::get('cashier_printer_ip', ''));
+        if ($ip === '') {
+            return response()->json([
+                'ok' => false,
+                'fallback' => true,
+                'message' => 'Cashier printer set nahi (Inventory → Kitchen Agents → CASHIER).',
+            ]);
+        }
+
+        $order->load(['items.product:id,name,sku', 'user:id,name', 'table:id,name', 'payments', 'contact:id,name,phone']);
+        $settings = $this->receiptSettingsMap();
+        $printer = app(NetworkPrinterService::class);
+        $payload = $printer->buildBillSlip($order, $settings, 'quotation');
+
+        try {
+            $printer->send($ip, (int) (Setting::get('cashier_printer_port', 9100) ?: 9100), $payload);
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 500);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
      * Print "Removed Items (Don't make)" slip to each item's department printer.
      */
     public function removedItemsPrintNetwork(Request $request, PosOrder $order): JsonResponse
@@ -2148,6 +2219,7 @@ class PosController extends Controller
 
         $settings = $this->receiptSettingsMap();
         $isUnpaid = ! $paidOnly;
+        $isQuotation = false;
         $allowBillPrint = (($settings['pos_allow_bill_print'] ?? '1') === '1');
         $autoPrint = ! $request->boolean('noprint', false) && (
             $paidOnly
@@ -2157,7 +2229,7 @@ class PosController extends Controller
         $backUrl = route('restaurant-pos.index');
         $backLabel = '← Back to Restaurant POS';
 
-        return view('pos.receipt', compact('order', 'settings', 'autoPrint', 'allowBillPrint', 'backUrl', 'backLabel', 'isUnpaid'));
+        return view('pos.receipt', compact('order', 'settings', 'autoPrint', 'allowBillPrint', 'backUrl', 'backLabel', 'isUnpaid', 'isQuotation'));
     }
 
     private function assertDraftReceiptAccess(PosOrder $order): void

@@ -2343,6 +2343,56 @@
         }
     }
 
+    async function tryQuotationNetworkPrint(orderId) {
+        const url = (routes.quotationPrint || '').replace('__ID__', String(orderId));
+        if (!url || !csrf) return false;
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': csrf,
+                },
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data.ok) return true;
+            if (data.message) alert(data.message);
+            return data.fallback === true ? false : false;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    async function printQuotationBill() {
+        if (!canVoidKitchenItems) {
+            alert('Quotation bill sirf manager/admin print kar sakta hai.');
+            return;
+        }
+        if (!cart.length) {
+            alert('Pehle item add karein.');
+            return;
+        }
+
+        const btn = $('#rpQuotationPrintBtn');
+        if (btn) btn.disabled = true;
+        try {
+            const orderId = await ensureHeldOrderForPrint();
+            if (await tryQuotationNetworkPrint(orderId)) {
+                return;
+            }
+            const base = (routes.receiptQuotation || '').replace('__ID__', String(orderId));
+            if (!base) {
+                throw new Error('Quotation print route missing.');
+            }
+            window.open(`${base}?autoprint=1`, '_blank', 'noopener,noreferrer');
+        } catch (e) {
+            alert(e.message || 'Quotation bill print nahi ho saki.');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
     function clearStaleResumeState(message) {
         if (resumeOrderId) {
             boot.pendingBillsDetail = (boot.pendingBillsDetail || []).filter(
@@ -2845,6 +2895,7 @@
         $('#rpHoldBtn')?.addEventListener('click', () => submitHoldOrder());
         $('#rpKitchenPrintBtn')?.addEventListener('click', () => submitKitchenPrint());
         $('#rpCancelOrderBtn')?.addEventListener('click', () => requestCancelWholeOrder());
+        $('#rpQuotationPrintBtn')?.addEventListener('click', () => printQuotationBill());
         $('#rpPrintUnpaidBtn')?.addEventListener('click', () => printUnpaidBill());
         $('#rpWhatsappBtn')?.addEventListener('click', () => openDeliveryWhatsapp());
         $('#rpPayBtn')?.addEventListener('click', () => openPayModal());

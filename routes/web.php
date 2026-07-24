@@ -254,6 +254,8 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
             Route::get('/kitchen/{order}', [PosController::class, 'kitchenSlip'])->name('kitchen');
             Route::post('/kitchen-print/{order}', [PosController::class, 'kitchenPrintNetwork'])->name('kitchen-print');
             Route::post('/cashier-print/{order}', [PosController::class, 'cashierPrintNetwork'])->name('cashier-print');
+            Route::post('/quotation-print/{order}', [PosController::class, 'quotationPrintNetwork'])->name('quotation-print');
+            Route::get('/receipt/{order}/quotation', [PosController::class, 'quotationReceipt'])->name('receipt.quotation');
             Route::post('/removed-items-print/{order}', [PosController::class, 'removedItemsPrintNetwork'])->name('removed-items-print');
             Route::get('/receipt/{order}', [PosController::class, 'receipt'])->name('receipt');
         });

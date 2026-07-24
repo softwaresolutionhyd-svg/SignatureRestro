@@ -575,21 +575,52 @@ final class NetworkPrinterService
      *
      * @param  array<string, mixed>  $settings
      */
-    public function buildBillSlip(PosOrder $order, array $settings): string
+    public function buildBillSlip(PosOrder $order, array $settings, string $variant = 'standard'): string
     {
         $currency = (string) ($settings['currency_symbol'] ?? 'Rs.');
         $company = strtoupper(trim((string) ($settings['company_name'] ?? config('app.name'))));
         $company = preg_replace('/\bRESRO\b/u', 'RESTRO', $company) ?? $company;
-        $isPaid = strtolower((string) ($order->status ?? '')) === 'paid'
-            || filled($order->paid_at);
-        $statusLabel = $order->type === 'refund' ? 'REFUND' : ($isPaid ? 'PAID' : 'UNPAID');
+        $isQuotation = $variant === 'quotation';
+        $isPaid = ! $isQuotation
+            && (strtolower((string) ($order->status ?? '')) === 'paid' || filled($order->paid_at));
+        $statusLabel = $isQuotation
+            ? 'QUOTATION'
+            : ($order->type === 'refund' ? 'REFUND' : ($isPaid ? 'PAID' : 'UNPAID'));
         $orderType = $order->serviceTypeLabel() ?: '—';
 
         $order->loadMissing(['items.product:id,name', 'user:id,name', 'table:id,name', 'payments', 'contact:id,name,phone']);
 
         $out = self::INIT;
 
-        if ($isPaid) {
+        if ($isQuotation) {
+            // Quotation for customer: clear heading + company contact details
+            $out .= self::ALIGN_CENTER . self::SIZE_TALL . self::BOLD_ON;
+            $out .= $this->clip('QUOTATION BILL') . "\n";
+            $out .= self::SIZE_NORMAL . self::BOLD_OFF;
+            $out .= "\n";
+
+            $logoPath = (string) ($settings['company_logo_abs_path'] ?? '');
+            if ($logoPath === '') {
+                $logoPath = company_logo_path((string) ($settings['company_logo'] ?? '')) ?? '';
+            }
+            $logoBytes = $this->escposLogoRaster($logoPath !== '' ? $logoPath : null);
+            if ($logoBytes !== null) {
+                $out .= self::ALIGN_CENTER . $logoBytes . "\n";
+            }
+
+            $out .= self::ALIGN_CENTER . self::BOLD_ON;
+            $out .= $this->clip($company !== '' ? $company : 'SIGNATURE RESTRO') . "\n";
+            $out .= self::BOLD_OFF;
+            if (! empty(trim((string) ($settings['company_address'] ?? '')))) {
+                $out .= $this->clip('Address: ' . $settings['company_address']) . "\n";
+            }
+            if (! empty(trim((string) ($settings['company_email'] ?? '')))) {
+                $out .= $this->clip('Email: ' . $settings['company_email']) . "\n";
+            }
+            if (! empty(trim((string) ($settings['company_phone'] ?? '')))) {
+                $out .= $this->clip('Phone: ' . $settings['company_phone']) . "\n";
+            }
+        } elseif ($isPaid) {
             // Logo (ESC/POS raster) — from Settings → company logo
             $logoPath = (string) ($settings['company_logo_abs_path'] ?? '');
             if ($logoPath === '') {
@@ -645,6 +676,21 @@ final class NetworkPrinterService
             if ($order->user?->name) {
                 $out .= $this->line('Cashier: ' . $order->user->name) . "\n";
             }
+        } elseif ($isQuotation) {
+            $out .= $this->line('Order Type: ' . $orderType) . "\n";
+            if ($order->table?->name) {
+                $out .= $this->line('Table: ' . $order->table->name) . "\n";
+            } else {
+                $where = $this->orderLocation($order);
+                if ($where !== '') {
+                    $out .= $this->line('Table/Room: ' . $where) . "\n";
+                }
+            }
+            $when = $order->updated_at ?? $order->created_at ?? now();
+            $out .= $this->line('Date: ' . $when->format('d M Y H:i')) . "\n";
+            if ($order->user?->name) {
+                $out .= $this->line('Prepared By: ' . $order->user->name) . "\n";
+            }
         } else {
             // Unpaid: only Order Type + Table
             $out .= $this->line('Order Type: ' . $orderType) . "\n";
@@ -697,7 +743,7 @@ final class NetworkPrinterService
             $out .= $this->twoCol('Tax', $money((float) $order->tax_total)) . "\n";
         }
 
-        $grandLabel = $isPaid ? 'Grand Total' : 'AMOUNT DUE';
+        $grandLabel = $isQuotation ? 'Quoted Amount' : ($isPaid ? 'Grand Total' : 'AMOUNT DUE');
         $grandAmount = $money((float) $order->grand_total);
         $out .= self::BOLD_ON . $this->twoCol($grandLabel, $grandAmount) . self::BOLD_OFF . "\n";
 
@@ -730,6 +776,14 @@ final class NetworkPrinterService
         if ($billNote !== '') {
             $out .= $this->rule();
             $out .= $this->line('Note: ' . $billNote) . "\n";
+        }
+
+        if ($isQuotation) {
+            $out .= $this->rule();
+            $out .= self::ALIGN_CENTER;
+            $out .= $this->clip('This is a quotation only') . "\n";
+            $out .= $this->clip('Not a tax invoice / payment receipt') . "\n";
+            $out .= self::ALIGN_LEFT;
         }
 
         $out .= "\n" . $this->rule();
