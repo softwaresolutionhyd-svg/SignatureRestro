@@ -32,12 +32,13 @@
             text-transform: uppercase;
         }
         .r-bill-title {
-            font-size: 18px;
+            font-size: 17px;
             font-weight: 800;
-            letter-spacing: normal;
+            letter-spacing: 0.22em;
             margin: 6px 0 8px;
             text-transform: none;
             transform: none;
+            scale: none;
         }
         .r-meta { margin: 2px 0; font-size: 10px; }
         .r-meta-label { font-weight: 700; }

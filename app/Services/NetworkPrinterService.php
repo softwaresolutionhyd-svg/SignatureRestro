@@ -34,6 +34,8 @@ final class NetworkPrinterService
     private const SIZE_WIDE = "\x1D\x21\x10";    // double width, normal height (big, not stretched down)
     private const SIZE_DOUBLE = "\x1D\x21\x11";   // double width + height (headers only)
     private const SIZE_TALL = "\x1D\x21\x01";     // double height only — avoid for body text
+    private const CHAR_SPACING_OFF = "\x1B\x20\x00"; // ESC SP 0
+    private const CHAR_SPACING_TITLE = "\x1B\x20\x02"; // ESC SP 2 — slight gap between glyphs
     private const CUT = "\x1D\x56\x42\x00";       // partial cut with feed
     private const FEED = "\x1B\x64\x04";          // feed 4 lines
     /** Usable chars per line when width is doubled. */
@@ -593,10 +595,8 @@ final class NetworkPrinterService
         $out = self::INIT;
 
         if ($isQuotation) {
-            // Heading only — no logo / company details (same style as provisional)
-            $out .= self::ALIGN_CENTER . self::SIZE_TALL . self::BOLD_ON;
-            $out .= $this->clip('Quotation Bill') . "\n";
-            $out .= self::SIZE_NORMAL . self::BOLD_OFF;
+            // Heading only — no logo / company; bold + letter gaps, no width stretch
+            $out .= $this->billTitleEscPos('Quotation Bill');
             $out .= "\n";
         } elseif ($isPaid) {
             // Logo (ESC/POS raster) — from Settings → company logo
@@ -625,10 +625,8 @@ final class NetworkPrinterService
                 $out .= $this->clip('Phone: ' . $settings['company_phone']) . "\n";
             }
         } else {
-            // Unpaid: heading only — tall+bold, no width stretch
-            $out .= self::ALIGN_CENTER . self::SIZE_TALL . self::BOLD_ON;
-            $out .= $this->clip('Provisional Bill') . "\n";
-            $out .= self::SIZE_NORMAL . self::BOLD_OFF;
+            // Unpaid: heading only — bold + letter gaps, no width stretch
+            $out .= $this->billTitleEscPos('Provisional Bill');
             $out .= "\n";
         }
 
@@ -872,6 +870,41 @@ final class NetworkPrinterService
         $text = preg_replace('/\s+/', ' ', trim($text)) ?? '';
 
         return mb_substr($text, 0, self::WIDTH);
+    }
+
+    /**
+     * Bill title: bold, normal width (no stretch), with visible gaps between letters.
+     */
+    private function billTitleEscPos(string $title): string
+    {
+        $spaced = $this->spaceLetters($title);
+
+        return self::ALIGN_CENTER
+            . self::SIZE_NORMAL
+            . self::BOLD_ON
+            . self::CHAR_SPACING_TITLE
+            . $this->clip($spaced) . "\n"
+            . self::CHAR_SPACING_OFF
+            . self::BOLD_OFF;
+    }
+
+    /**
+     * Insert spaces between characters so thermal print is readable (not stuck together).
+     * Example: "Quotation Bill" → "Q u o t a t i o n  B i l l"
+     */
+    private function spaceLetters(string $text): string
+    {
+        $words = preg_split('/\s+/u', trim($text)) ?: [];
+        $spacedWords = [];
+        foreach ($words as $word) {
+            if ($word === '') {
+                continue;
+            }
+            $chars = preg_split('//u', $word, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            $spacedWords[] = implode(' ', $chars);
+        }
+
+        return implode('  ', $spacedWords);
     }
 
     private function clipWide(string $text): string
