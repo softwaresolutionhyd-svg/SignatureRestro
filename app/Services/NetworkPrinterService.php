@@ -873,16 +873,17 @@ final class NetworkPrinterService
     }
 
     /**
-     * Bill title: bold, normal width (no stretch), light character spacing.
+     * Bill title: tall + bold (bigger font), normal width (no stretch), light letter gap.
      */
     private function billTitleEscPos(string $title): string
     {
         return self::ALIGN_CENTER
-            . self::SIZE_NORMAL
+            . self::SIZE_TALL
             . self::BOLD_ON
             . self::CHAR_SPACING_TITLE
             . $this->clip(trim($title)) . "\n"
             . self::CHAR_SPACING_OFF
+            . self::SIZE_NORMAL
             . self::BOLD_OFF;
     }
 
