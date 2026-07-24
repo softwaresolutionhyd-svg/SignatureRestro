@@ -678,14 +678,6 @@ final class NetworkPrinterService
             }
         } elseif ($isQuotation) {
             $out .= $this->line('Order Type: ' . $orderType) . "\n";
-            if ($order->table?->name) {
-                $out .= $this->line('Table: ' . $order->table->name) . "\n";
-            } else {
-                $where = $this->orderLocation($order);
-                if ($where !== '') {
-                    $out .= $this->line('Table/Room: ' . $where) . "\n";
-                }
-            }
             $when = $order->updated_at ?? $order->created_at ?? now();
             $out .= $this->line('Date: ' . $when->format('d M Y H:i')) . "\n";
             if ($order->user?->name) {
@@ -714,8 +706,11 @@ final class NetworkPrinterService
             $rate = number_format((float) ($item->unit_price ?? 0), 0);
             $amount = number_format((float) $item->total, 0);
             $out .= self::BOLD_ON;
+            $itemLabel = method_exists($item, 'displayName')
+                ? (string) $item->displayName()
+                : (string) ($item->product?->name ?? $item->name ?? 'Item');
             $out .= $this->itemRows4(
-                (string) ($item->product?->name ?? $item->name ?? 'Item'),
+                $itemLabel,
                 $qty,
                 $rate,
                 $amount

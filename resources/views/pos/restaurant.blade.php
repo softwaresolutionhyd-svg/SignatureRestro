@@ -483,8 +483,8 @@
     $kitchenStub = str_replace('999999999', '__ID__', route('restaurant-pos.kitchen', ['order' => 999999999]));
     $kitchenPrintStub = str_replace('999999999', '__ID__', route('restaurant-pos.kitchen-print', ['order' => 999999999]));
     $cashierPrintStub = str_replace('999999999', '__ID__', route('restaurant-pos.cashier-print', ['order' => 999999999]));
-    $quotationPrintStub = str_replace('999999999', '__ID__', route('restaurant-pos.quotation-print', ['order' => 999999999]));
-    $receiptQuotationStub = str_replace('999999999', '__ID__', route('restaurant-pos.receipt.quotation', ['order' => 999999999]));
+    $quotationPrintUrl = route('restaurant-pos.quotation-print');
+    $receiptQuotationUrl = route('restaurant-pos.receipt.quotation');
     $removedItemsPrintStub = str_replace('999999999', '__ID__', route('restaurant-pos.removed-items-print', ['order' => 999999999]));
     $discardStub = str_replace('999999999', '__ID__', route('restaurant-pos.hold.discard', ['orderId' => 999999999]));
     $reopenStub = str_replace('999999999', '__ID__', route('restaurant-pos.reopen', ['order' => 999999999]));
@@ -521,8 +521,8 @@
             'kitchen' => $kitchenStub,
             'kitchenPrint' => $kitchenPrintStub,
             'cashierPrint' => $cashierPrintStub,
-            'quotationPrint' => $quotationPrintStub,
-            'receiptQuotation' => $receiptQuotationStub,
+            'quotationPrint' => $quotationPrintUrl,
+            'receiptQuotation' => $receiptQuotationUrl,
             'removedItemsPrint' => $removedItemsPrintStub,
             'kitchenVoids' => route('restaurant-pos.kitchen-voids'),
             'reopen' => $reopenStub,
@@ -532,5 +532,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=62"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=63"></script>
 @endsection

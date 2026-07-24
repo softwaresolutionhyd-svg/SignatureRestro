@@ -2343,25 +2343,67 @@
         }
     }
 
-    async function tryQuotationNetworkPrint(orderId) {
-        const url = (routes.quotationPrint || '').replace('__ID__', String(orderId));
-        if (!url || !csrf) return false;
+    async function tryQuotationNetworkPrint(formData) {
+        const url = routes.quotationPrint || '';
+        if (!url || !csrf) return { ok: false, fallback: true };
         try {
             const res = await fetch(url, {
                 method: 'POST',
                 headers: {
                     Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': csrf,
                 },
+                body: formData,
             });
             const data = await res.json().catch(() => ({}));
-            if (res.ok && data.ok) return true;
+            if (res.ok && data.ok) return { ok: true, fallback: false };
+            if (data.fallback) return { ok: false, fallback: true, message: data.message };
             if (data.message) alert(data.message);
-            return data.fallback === true ? false : false;
+            return { ok: false, fallback: false, message: data.message };
         } catch (e) {
-            return false;
+            return { ok: false, fallback: true };
         }
+    }
+
+    function buildQuotationFormData() {
+        applySaleModePricing();
+        const totals = calcCartTotals();
+        const formData = new FormData();
+        formData.append('_token', csrf);
+        formData.append('items', JSON.stringify(cartItemsForSubmit()));
+        formData.append('service_type', selectedServiceType());
+        formData.append('order_notes', ($('#rpBillKitchenNotes')?.value || '').trim());
+        formData.append('bill_tax_percent', String(($('#rpSubmitForm')?.querySelector('[name="bill_tax_percent"]')?.value) || '0'));
+        formData.append('bill_discount_percent', String(($('#rpSubmitForm')?.querySelector('[name="bill_discount_percent"]')?.value) || '0'));
+        formData.append('client_subtotal', String(totals.subtotal));
+        formData.append('client_discount_total', String(totals.discount));
+        formData.append('client_tax_total', String(totals.tax));
+        formData.append('client_service_charge_total', String(totals.serviceCharge || 0));
+        formData.append('client_grand_total', String(totals.grand));
+        formData.append('autoprint', '1');
+        return formData;
+    }
+
+    function openQuotationPreviewFallback(formData) {
+        const url = routes.receiptQuotation || '';
+        if (!url) {
+            throw new Error('Quotation preview route missing.');
+        }
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = url;
+        form.target = '_blank';
+        form.style.display = 'none';
+        formData.forEach((value, key) => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = value;
+            form.appendChild(input);
+        });
+        document.body.appendChild(form);
+        form.submit();
+        form.remove();
     }
 
     async function printQuotationBill() {
@@ -2377,15 +2419,19 @@
         const btn = $('#rpQuotationPrintBtn');
         if (btn) btn.disabled = true;
         try {
-            const orderId = await ensureHeldOrderForPrint();
-            if (await tryQuotationNetworkPrint(orderId)) {
+            // Quotation: no table required, no order saved to pending/paid records.
+            const formData = buildQuotationFormData();
+            const result = await tryQuotationNetworkPrint(formData);
+            if (result.ok) {
+                resetForNewBill();
                 return;
             }
-            const base = (routes.receiptQuotation || '').replace('__ID__', String(orderId));
-            if (!base) {
-                throw new Error('Quotation print route missing.');
+            if (result.fallback) {
+                openQuotationPreviewFallback(formData);
+                resetForNewBill();
+                return;
             }
-            window.open(`${base}?autoprint=1`, '_blank', 'noopener,noreferrer');
+            throw new Error(result.message || 'Quotation bill print nahi ho saki.');
         } catch (e) {
             alert(e.message || 'Quotation bill print nahi ho saki.');
         } finally {

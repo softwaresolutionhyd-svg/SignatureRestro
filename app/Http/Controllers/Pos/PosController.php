@@ -1958,18 +1958,14 @@ class PosController extends Controller
         return $this->renderReceipt($request, $order, paidOnly: false);
     }
 
-    public function quotationReceipt(Request $request, PosOrder $order): View
+    public function quotationReceipt(Request $request): View
     {
         $user = Auth::user();
         if (! $user || ! $this->userCanKitchenVoid($user)) {
             abort(403, 'Quotation bill sirf manager/admin print kar sakta hai.');
         }
 
-        abort_unless($order->status === 'draft', 404);
-        $this->assertDraftReceiptAccess($order);
-
-        $order->load(['items.product:id,name,sku', 'payments', 'contact:id,name,phone', 'user:id,name', 'table:id,name']);
-
+        $order = $this->ephemeralQuotationOrderFromRequest($request);
         $settings = $this->receiptSettingsMap();
         $isUnpaid = false;
         $isQuotation = true;
@@ -2125,13 +2121,11 @@ class PosController extends Controller
     }
 
     /**
-     * Print Quotation Bill to the CASHIER printer (admin/manager only).
+     * Print Quotation Bill from cart (no DB order created) to CASHIER printer.
+     * Admin/manager only. Table not required.
      */
-    public function quotationPrintNetwork(Request $request, PosOrder $order): JsonResponse
+    public function quotationPrintNetwork(Request $request): JsonResponse
     {
-        abort_unless($order->status === 'draft', 404);
-        $this->assertDraftReceiptAccess($order);
-
         $user = Auth::user();
         if (! $user || ! $this->userCanKitchenVoid($user)) {
             return response()->json([
@@ -2149,7 +2143,15 @@ class PosController extends Controller
             ]);
         }
 
-        $order->load(['items.product:id,name,sku', 'user:id,name', 'table:id,name', 'payments', 'contact:id,name,phone']);
+        try {
+            $order = $this->ephemeralQuotationOrderFromRequest($request);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => $e->getMessage() ?: 'Quotation tayyar nahi ho saki.',
+            ], 422);
+        }
+
         $settings = $this->receiptSettingsMap();
         $printer = app(NetworkPrinterService::class);
         $payload = $printer->buildBillSlip($order, $settings, 'quotation');
@@ -2160,7 +2162,89 @@ class PosController extends Controller
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 500);
         }
 
-        return response()->json(['ok' => true]);
+        return response()->json(['ok' => true, 'saved' => false]);
+    }
+
+    /**
+     * Build an unsaved PosOrder snapshot for quotation print/preview (never persisted).
+     */
+    private function ephemeralQuotationOrderFromRequest(Request $request): PosOrder
+    {
+        $rawItems = $request->input('items', []);
+        if (is_string($rawItems)) {
+            $rawItems = json_decode($rawItems, true) ?: [];
+        }
+        if (! is_array($rawItems) || $rawItems === []) {
+            throw ValidationException::withMessages([
+                'items' => 'Quotation ke liye pehle item add karein.',
+            ]);
+        }
+
+        $itemsNormalized = $this->normalizePosCheckoutItems(
+            $rawItems,
+            'mess_use',
+            'customer',
+            'sale',
+            false,
+            true
+        );
+
+        $serviceType = $this->normalizeServiceType($request->input('service_type', 'dine_in'));
+        [$subtotal, $discountTotal, $taxTotal, $serviceTotal, $grandTotal, $itemsData] = $this->buildLines($itemsNormalized, [
+            'tax_mode' => Setting::get('pos_tax_mode', 'line'),
+            'bill_tax_percent' => (float) $request->input('bill_tax_percent', 0),
+            'bill_discount_percent' => (float) $request->input('bill_discount_percent', 0),
+            'allow_discount' => true,
+            'service_type' => $serviceType,
+            'trust_line_totals' => true,
+        ]);
+
+        $order = new PosOrder([
+            'order_no' => 'QT-'.now()->format('ymdHis'),
+            'status' => 'draft',
+            'type' => 'sale',
+            'service_type' => $serviceType,
+            'subtotal' => $subtotal,
+            'discount_total' => $discountTotal,
+            'tax_total' => $taxTotal,
+            'service_charge_total' => $serviceTotal,
+            'grand_total' => $grandTotal,
+            'order_notes' => $this->nullableText($request->input('order_notes')),
+            'user_id' => Auth::id(),
+            'table_id' => null,
+        ]);
+        $order->exists = false;
+        $order->setRelation('user', Auth::user());
+        $order->setRelation('table', null);
+        $order->setRelation('payments', collect());
+        $order->setRelation('contact', null);
+
+        $lineModels = collect($itemsData)->map(function (array $row) {
+            $item = new PosOrderItem([
+                'product_id' => (int) ($row['product_id'] ?? 0),
+                'item_name' => $row['item_name'] ?? null,
+                'is_custom' => (bool) ($row['is_custom'] ?? false),
+                'uom' => (string) ($row['uom'] ?? ''),
+                'qty' => (float) ($row['qty'] ?? 0),
+                'unit_price' => (float) ($row['unit_price'] ?? 0),
+                'tax_percent' => (float) ($row['tax_percent'] ?? 0),
+                'discount_percent' => (float) ($row['discount_percent'] ?? 0),
+                'total' => (float) ($row['total'] ?? $row['line_total'] ?? 0),
+                'notes' => (string) ($row['notes'] ?? ''),
+            ]);
+            $item->exists = false;
+            if (! empty($row['product_id']) && empty($row['is_custom'])) {
+                $product = InventoryProduct::query()->find((int) $row['product_id'], ['id', 'name', 'sku']);
+                if ($product) {
+                    $item->setRelation('product', $product);
+                }
+            }
+
+            return $item;
+        });
+        $order->setRelation('items', $lineModels);
+
+        return $order;
     }
 
     /**

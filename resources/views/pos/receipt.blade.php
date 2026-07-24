@@ -162,10 +162,7 @@
     <div class="r-info">
         @if(!empty($isQuotation))
             <div class="tot-row"><span class="muted">Order Type:</span><span class="bold">{{ $orderType }}</span></div>
-            @if(!empty($settings['pos_enable_tables']) && $settings['pos_enable_tables'] === '1' && $order->table)
-                <div class="tot-row"><span class="muted">Table</span><span class="bold">{{ $order->table->name }}</span></div>
-            @endif
-            <div class="tot-row"><span class="muted">Date</span><span>{{ ($order->updated_at ?? $order->created_at)?->format('d M Y H:i') }}</span></div>
+            <div class="tot-row"><span class="muted">Date</span><span>{{ ($order->updated_at ?? $order->created_at ?? now())->format('d M Y H:i') }}</span></div>
             <div class="tot-row"><span class="muted">Prepared By</span><span>{{ $order->user->name ?? '—' }}</span></div>
         @elseif(!empty($isUnpaid))
             <div class="tot-row"><span class="muted">Order Type:</span><span class="bold">{{ $orderType }}</span></div>
