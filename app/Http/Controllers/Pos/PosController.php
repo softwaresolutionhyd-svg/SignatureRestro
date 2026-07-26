@@ -610,14 +610,37 @@ class PosController extends Controller
             ->map(fn ($id) => (int) $id)
             ->all();
 
-        if ($orderIds === []) {
-            return response()->json(['items' => [], 'count' => 0]);
-        }
+        $sessionOpenedAt = $session->opened_at ?? now()->startOfDay();
 
+        // Include voids for deleted/cancelled bills too (subject order may no longer exist).
         $logs = ActivityLog::query()
             ->where('action', 'pos.kitchen_void')
-            ->where('subject_type', PosOrder::class)
-            ->whereIn('subject_id', $orderIds)
+            ->where(function ($q) use ($orderIds, $billSessionIds, $sessionOpenedAt) {
+                if ($orderIds !== []) {
+                    $q->where(function ($inner) use ($orderIds) {
+                        $inner->where('subject_type', PosOrder::class)
+                            ->whereIn('subject_id', $orderIds);
+                    });
+                }
+
+                foreach ($billSessionIds as $sid) {
+                    $sid = (int) $sid;
+                    $q->orWhere('properties->session_id', $sid)
+                        ->orWhere('properties->session_id', (string) $sid);
+                }
+
+                // Legacy logs (no session_id): same open-session window.
+                $q->orWhere(function ($inner) use ($sessionOpenedAt) {
+                    $inner->where('subject_type', PosOrder::class)
+                        ->where('created_at', '>=', $sessionOpenedAt)
+                        ->where(function ($p) {
+                            $p->whereNull('properties->session_id')
+                                ->orWhere('properties->session_id', '')
+                                ->orWhere('properties->session_id', 0)
+                                ->orWhere('properties->session_id', '0');
+                        });
+                });
+            })
             ->with(['user:id,name', 'subject:id,order_no,table_id,guest_name,room_no'])
             ->orderByDesc('created_at')
             ->limit(500)
@@ -645,10 +668,8 @@ class PosController extends Controller
         $items = $logs->map(function (ActivityLog $log) use ($productNames) {
             /** @var PosOrder|null $order */
             $order = $log->subject;
-            $void = is_array($log->properties) ? ($log->properties['void'] ?? []) : [];
-            if (! is_array($void)) {
-                $void = [];
-            }
+            $props = is_array($log->properties) ? $log->properties : [];
+            $void = is_array($props['void'] ?? null) ? $props['void'] : [];
 
             $productId = (int) ($void['product_id'] ?? 0);
             $name = trim((string) ($void['name'] ?? ''));
@@ -662,10 +683,18 @@ class PosController extends Controller
                 $name = $productId > 0 ? 'Product #'.$productId : 'Item';
             }
 
+            $orderNo = trim((string) ($order?->order_no ?? ''));
+            if ($orderNo === '') {
+                $orderNo = trim((string) ($props['order_no'] ?? ''));
+            }
+            if ($orderNo === '') {
+                $orderNo = '#'.(int) ($props['order_id'] ?? $log->subject_id);
+            }
+
             return [
                 'id' => (int) $log->id,
-                'order_id' => (int) $log->subject_id,
-                'order_no' => (string) ($order?->order_no ?? ('#'.$log->subject_id)),
+                'order_id' => (int) ($props['order_id'] ?? $log->subject_id),
+                'order_no' => $orderNo,
                 'product' => $name,
                 'qty' => round((float) ($void['qty'] ?? 0), 3),
                 'uom' => (string) ($void['uom'] ?? ''),
@@ -674,7 +703,7 @@ class PosController extends Controller
                 'cancelled_at' => $log->created_at?->format('d M Y, h:i A') ?? '',
                 'cancelled_by' => (string) ($log->user?->name ?? '—'),
             ];
-        })->values();
+        })->unique('id')->values();
 
         return response()->json([
             'items' => $items,
@@ -3855,7 +3884,13 @@ class PosController extends Controller
                     (string) ($void['reason'] ?? '')
                 ),
                 $order,
-                ['void' => $void]
+                [
+                    'void' => $void,
+                    // Keep after order delete so Kitchen Cancelled tab still finds this row.
+                    'session_id' => (int) ($order->session_id ?? 0) ?: null,
+                    'order_no' => (string) ($order->order_no ?? ''),
+                    'order_id' => (int) $order->id,
+                ]
             );
         }
         unset($void);
