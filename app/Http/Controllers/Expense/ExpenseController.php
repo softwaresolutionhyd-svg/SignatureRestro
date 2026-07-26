@@ -27,9 +27,6 @@ class ExpenseController extends Controller
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
-        if ($request->filled('employee_id')) {
-            $query->where('employee_id', $request->employee_id);
-        }
         if ($request->filled('category_id')) {
             $query->where('category_id', $request->category_id);
         }
@@ -41,7 +38,6 @@ class ExpenseController extends Controller
         }
 
         $expenses   = $query->paginate(Setting::pageSize('expenses_per_page', 25))->withQueryString();
-        $employees  = Employee::orderBy('name')->get(['id', 'name']);
         $categories = ExpenseCategory::where('active', true)->orderBy('name')->get(['id', 'name']);
         $statusMap  = Expense::statusLabel();
 
@@ -53,7 +49,7 @@ class ExpenseController extends Controller
             'paid'      => Expense::where('status', Expense::STATUS_PAID)->count(),
         ];
 
-        return view('expenses.index', compact('expenses', 'employees', 'categories', 'statusMap', 'kpis'));
+        return view('expenses.index', compact('expenses', 'categories', 'statusMap', 'kpis'));
     }
 
     public function create()

@@ -62,15 +62,6 @@
                 </select>
             </div>
             <div class="col-12 col-md-3">
-                <label class="form-label small mb-1">Employee</label>
-                <select name="employee_id" class="form-select form-select-sm">
-                    <option value="">All Employees</option>
-                    @foreach($employees as $emp)
-                        <option value="{{ $emp->id }}" @selected(request('employee_id') == $emp->id)>{{ $emp->name }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-12 col-md-2">
                 <label class="form-label small mb-1">Category</label>
                 <select name="category_id" class="form-select form-select-sm">
                     <option value="">All Categories</option>
@@ -87,8 +78,8 @@
                 <label class="form-label small mb-1">To</label>
                 <input type="date" name="to" class="form-control form-control-sm" value="{{ request('to') }}">
             </div>
-            <div class="col-12 col-md-1 d-flex gap-1">
-                <button class="btn btn-primary btn-sm w-100">Filter</button>
+            <div class="col-12 col-md-3 d-flex gap-1">
+                <button class="btn btn-primary btn-sm">Filter</button>
                 <a href="{{ route('expenses.index') }}" class="btn btn-outline-secondary btn-sm">×</a>
             </div>
         </form>
