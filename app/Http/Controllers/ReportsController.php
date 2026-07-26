@@ -717,35 +717,21 @@ class ReportsController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'is_warehouse']);
 
-        $selectedDepartment  = $departmentId ? $departments->firstWhere('id', $departmentId) : null;
-        $isWarehouseSelected = (bool) ($selectedDepartment?->is_warehouse);
-
-        // Warehouse = master stock: sirf woh products jo warehouse me maujood hain
-        // (warehouse stock qty > 0) ya warehouse-assigned hain. Baaki departments ki
-        // products warehouse report me show nahi hongi.
-        $applyDepartment = function ($query) use ($departmentId, $isWarehouseSelected) {
+        // Department stock: warehouse issue / kitchen stock rows — not only product↔department pivot.
+        $applyDepartment = function ($query) use ($departmentId) {
             if ($departmentId === null) {
                 return $query;
             }
 
-            if ($isWarehouseSelected) {
-                $query->where(function ($q) use ($departmentId) {
-                    $q->whereHas(
-                        'stocks',
-                        fn ($s) => $s->where('department_id', $departmentId)->where('qty_on_hand', '>', 0)
-                    )->orWhereHas(
-                        'departments',
-                        fn ($dep) => $dep->where('inventory_departments.id', $departmentId)
-                    );
-                });
-            } else {
-                $query->whereHas(
+            return $query->where(function ($q) use ($departmentId) {
+                $q->whereHas(
+                    'stocks',
+                    fn ($s) => $s->where('department_id', $departmentId)->where('qty_on_hand', '>', 0)
+                )->orWhereHas(
                     'departments',
                     fn ($dep) => $dep->where('inventory_departments.id', $departmentId)
                 );
-            }
-
-            return $query;
+            });
         };
 
         // Ingredients / stock only — POS menu sell products hide.
@@ -761,13 +747,46 @@ class ReportsController extends Controller
         $applyIngredientsOnly($query);
         $applyDepartment($query);
 
-        if ($filter === 'low') {
-            $query->where('qty_on_hand', '>', 0)->where('qty_on_hand', '<=', 10)->excludingActiveBomFinishedProducts();
-        } elseif ($filter === 'zero') {
-            $query->where('qty_on_hand', '<=', 0)->excludingActiveBomFinishedProducts();
+        if ($departmentId !== null) {
+            $query->withSum(
+                ['stocks as report_qty' => fn ($s) => $s->where('department_id', $departmentId)],
+                'qty_on_hand'
+            );
+
+            if ($filter === 'low') {
+                $query->whereHas(
+                    'stocks',
+                    fn ($s) => $s->where('department_id', $departmentId)
+                        ->where('qty_on_hand', '>', 0)
+                        ->where('qty_on_hand', '<=', 10)
+                )->excludingActiveBomFinishedProducts();
+            } elseif ($filter === 'zero') {
+                $query->where(function ($q) use ($departmentId) {
+                    $q->whereDoesntHave(
+                        'stocks',
+                        fn ($s) => $s->where('department_id', $departmentId)
+                    )->orWhereHas(
+                        'stocks',
+                        fn ($s) => $s->where('department_id', $departmentId)->where('qty_on_hand', '<=', 0)
+                    );
+                })->excludingActiveBomFinishedProducts();
+            }
+        } else {
+            if ($filter === 'low') {
+                $query->where('qty_on_hand', '>', 0)->where('qty_on_hand', '<=', 10)->excludingActiveBomFinishedProducts();
+            } elseif ($filter === 'zero') {
+                $query->where('qty_on_hand', '<=', 0)->excludingActiveBomFinishedProducts();
+            }
         }
 
         $products = $query->orderBy('name')->get();
+
+        // Department selected → show that department's qty (issue stock), not master warehouse total.
+        if ($departmentId !== null) {
+            $products->each(function (InventoryProduct $p) {
+                $p->setAttribute('qty_on_hand', round((float) ($p->report_qty ?? 0), 3));
+            });
+        }
 
         $stockPotentialProfit = round((float) $products->sum(function (InventoryProduct $p) {
             return (float) $p->qty_on_hand * ((float) $p->price - (float) $p->cost);
@@ -777,11 +796,26 @@ class ReportsController extends Controller
         $applyIngredientsOnly($kpiBase);
         $applyDepartment($kpiBase);
 
-        $totalProducts = (clone $kpiBase)->count();
-        $lowStock      = (clone $kpiBase)->where('qty_on_hand', '>', 0)->where('qty_on_hand', '<=', 10)->excludingActiveBomFinishedProducts()->count();
-        $outOfStock    = (clone $kpiBase)->where('qty_on_hand', '<=', 0)->count();
-        $totalValue    = (clone $kpiBase)->selectRaw('SUM(qty_on_hand * cost) as val')->value('val') ?? 0;
-        $retailValue   = (clone $kpiBase)->selectRaw('SUM(qty_on_hand * price) as val')->value('val') ?? 0;
+        if ($departmentId !== null) {
+            $kpiBase->withSum(
+                ['stocks as report_qty' => fn ($s) => $s->where('department_id', $departmentId)],
+                'qty_on_hand'
+            );
+            $kpiProducts = (clone $kpiBase)->orderBy('name')->get()->each(function (InventoryProduct $p) {
+                $p->setAttribute('qty_on_hand', round((float) ($p->report_qty ?? 0), 3));
+            });
+            $totalProducts = $kpiProducts->count();
+            $lowStock = $kpiProducts->filter(fn (InventoryProduct $p) => $p->qty_on_hand > 0 && $p->qty_on_hand <= 10)->count();
+            $outOfStock = $kpiProducts->filter(fn (InventoryProduct $p) => $p->qty_on_hand <= 0)->count();
+            $totalValue = round((float) $kpiProducts->sum(fn (InventoryProduct $p) => (float) $p->qty_on_hand * (float) $p->cost), 2);
+            $retailValue = round((float) $kpiProducts->sum(fn (InventoryProduct $p) => (float) $p->qty_on_hand * (float) $p->price), 2);
+        } else {
+            $totalProducts = (clone $kpiBase)->count();
+            $lowStock      = (clone $kpiBase)->where('qty_on_hand', '>', 0)->where('qty_on_hand', '<=', 10)->excludingActiveBomFinishedProducts()->count();
+            $outOfStock    = (clone $kpiBase)->where('qty_on_hand', '<=', 0)->count();
+            $totalValue    = (clone $kpiBase)->selectRaw('SUM(qty_on_hand * cost) as val')->value('val') ?? 0;
+            $retailValue   = (clone $kpiBase)->selectRaw('SUM(qty_on_hand * price) as val')->value('val') ?? 0;
+        }
 
         $byCategory = $products
             ->groupBy(fn ($p) => optional($p->category)->name ?? 'Uncategorized')
@@ -815,32 +849,53 @@ class ReportsController extends Controller
             });
 
         if ($departmentId !== null) {
-            if ($department?->is_warehouse) {
-                // Warehouse = master stock: warehouse me maujood ya warehouse-assigned products.
-                $query->where(function ($q) use ($departmentId) {
-                    $q->whereHas(
-                        'stocks',
-                        fn ($s) => $s->where('department_id', $departmentId)->where('qty_on_hand', '>', 0)
-                    )->orWhereHas(
-                        'departments',
-                        fn ($dep) => $dep->where('inventory_departments.id', $departmentId)
-                    );
-                });
-            } else {
-                $query->whereHas(
+            $query->where(function ($q) use ($departmentId) {
+                $q->whereHas(
+                    'stocks',
+                    fn ($s) => $s->where('department_id', $departmentId)->where('qty_on_hand', '>', 0)
+                )->orWhereHas(
                     'departments',
                     fn ($dep) => $dep->where('inventory_departments.id', $departmentId)
                 );
+            });
+            $query->withSum(
+                ['stocks as report_qty' => fn ($s) => $s->where('department_id', $departmentId)],
+                'qty_on_hand'
+            );
+
+            if ($filter === 'low') {
+                $query->whereHas(
+                    'stocks',
+                    fn ($s) => $s->where('department_id', $departmentId)
+                        ->where('qty_on_hand', '>', 0)
+                        ->where('qty_on_hand', '<=', 10)
+                )->excludingActiveBomFinishedProducts();
+            } elseif ($filter === 'zero') {
+                $query->where(function ($q) use ($departmentId) {
+                    $q->whereDoesntHave(
+                        'stocks',
+                        fn ($s) => $s->where('department_id', $departmentId)
+                    )->orWhereHas(
+                        'stocks',
+                        fn ($s) => $s->where('department_id', $departmentId)->where('qty_on_hand', '<=', 0)
+                    );
+                })->excludingActiveBomFinishedProducts();
+            }
+        } else {
+            if ($filter === 'low') {
+                $query->where('qty_on_hand', '>', 0)->where('qty_on_hand', '<=', 10)->excludingActiveBomFinishedProducts();
+            } elseif ($filter === 'zero') {
+                $query->where('qty_on_hand', '<=', 0)->excludingActiveBomFinishedProducts();
             }
         }
 
-        if ($filter === 'low') {
-            $query->where('qty_on_hand', '>', 0)->where('qty_on_hand', '<=', 10)->excludingActiveBomFinishedProducts();
-        } elseif ($filter === 'zero') {
-            $query->where('qty_on_hand', '<=', 0)->excludingActiveBomFinishedProducts();
-        }
-
         $products = $query->orderBy('name')->get();
+
+        if ($departmentId !== null) {
+            $products->each(function (InventoryProduct $p) {
+                $p->setAttribute('qty_on_hand', round((float) ($p->report_qty ?? 0), 3));
+            });
+        }
 
         $filterLabel = match ($filter) {
             'low'  => 'Low Stock (≤10)',
