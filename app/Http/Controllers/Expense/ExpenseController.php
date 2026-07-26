@@ -59,15 +59,19 @@ class ExpenseController extends Controller
     public function create()
     {
         $categories = ExpenseCategory::where('active', true)->orderBy('name')->get();
-        $employees  = Employee::orderBy('name')->get(['id', 'name']);
-        $myEmployee = $this->currentEmployee();
 
-        return view('expenses.create', compact('categories', 'employees', 'myEmployee'));
+        return view('expenses.create', compact('categories'));
     }
 
     public function store(Request $request)
     {
+        $employee = $this->currentEmployee();
+        if (! $employee) {
+            return back()->withInput()->with('error', 'Your user account is not linked to an employee. Contact admin.');
+        }
+
         $data = $this->validated($request);
+        $data['employee_id'] = $employee->id;
 
         $expense = new Expense($data);
         $expense->recalculate();
@@ -95,8 +99,7 @@ class ExpenseController extends Controller
             return back()->with('error', 'Only Draft or Refused expenses can be edited.');
         }
         $categories = ExpenseCategory::where('active', true)->orderBy('name')->get();
-        $employees  = Employee::orderBy('name')->get(['id', 'name']);
-        return view('expenses.edit', compact('expense', 'categories', 'employees'));
+        return view('expenses.edit', compact('expense', 'categories'));
     }
 
     public function update(Request $request, Expense $expense)
@@ -223,7 +226,6 @@ class ExpenseController extends Controller
     private function validated(Request $request, ?int $ignoreId = null): array
     {
         return $request->validate([
-            'employee_id'  => 'required|exists:tenant.employees,id',
             'category_id'  => 'nullable|exists:tenant.expense_categories,id',
             'description'  => 'required|string|max:255',
             'expense_date' => 'required|date',

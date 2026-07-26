@@ -19,20 +19,7 @@
                 </div>
 
                 <div class="row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label">Employee <span class="text-danger">*</span></label>
-                        <select name="employee_id" class="form-select @error('employee_id') is-invalid @enderror" required>
-                            <option value="">Select Employee</option>
-                            @foreach($employees as $emp)
-                                <option value="{{ $emp->id }}"
-                                    {{ old('employee_id', $expense?->employee_id ?? $myEmployee?->id) == $emp->id ? 'selected' : '' }}>
-                                    {{ $emp->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                        @error('employee_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                         <label class="form-label">Category</label>
                         <select name="category_id" class="form-select @error('category_id') is-invalid @enderror">
                             <option value="">— None —</option>
@@ -45,7 +32,7 @@
                         </select>
                         @error('category_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                         <label class="form-label">Expense Date <span class="text-danger">*</span></label>
                         <input type="date" name="expense_date" class="form-control @error('expense_date') is-invalid @enderror"
                             value="{{ old('expense_date', $expense?->expense_date?->format('Y-m-d') ?? date('Y-m-d')) }}" required>
