@@ -8,7 +8,6 @@ use App\Models\InventoryProduct;
 use App\Support\MenuCategory;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 class SeedCafeMenuCatalogCommand extends Command
 {
@@ -29,10 +28,15 @@ class SeedCafeMenuCatalogCommand extends Command
 
         $departmentId = (int) (InventoryDepartment::query()
             ->where('company_id', $companyId)
-            ->whereRaw('LOWER(name) = ?', ['kitchen'])
+            ->whereRaw('LOWER(name) = ?', ['bar'])
             ->value('id')
-            ?: InventoryDepartment::query()->where('company_id', $companyId)->orderBy('id')->value('id'));
+            ?: 0);
 
+        if ($departmentId <= 0) {
+            $this->error('Bar department nahi mila.');
+
+            return self::FAILURE;
+        }
         $catalog = $this->catalog();
         $createdCats = 0;
         $createdProducts = 0;
@@ -79,7 +83,7 @@ class SeedCafeMenuCatalogCommand extends Command
                             'active' => true,
                             'for_pos' => true,
                             'for_purchase' => false,
-                            'department_id' => $existing->department_id ?: ($departmentId ?: null),
+                            'department_id' => $departmentId,
                         ]);
                         if ($existing->isDirty()) {
                             $existing->save();
@@ -87,14 +91,14 @@ class SeedCafeMenuCatalogCommand extends Command
                         } else {
                             $skippedProducts++;
                         }
-                        $this->syncDepartment($existing, $companyId, $departmentId);
+                        $this->assignBarOnly($existing, $companyId, $departmentId);
                         continue;
                     }
 
                     $product = InventoryProduct::query()->create([
                         'company_id' => $companyId,
                         'category_id' => $sub->id,
-                        'department_id' => $departmentId ?: null,
+                        'department_id' => $departmentId,
                         'sku' => InventoryProduct::generateNextSku('CAF'),
                         'barcode' => null,
                         'name' => $name,
@@ -111,7 +115,7 @@ class SeedCafeMenuCatalogCommand extends Command
                         'for_pos' => true,
                         'for_purchase' => false,
                     ]);
-                    $this->syncDepartment($product, $companyId, $departmentId);
+                    $this->assignBarOnly($product, $companyId, $departmentId);
                     $createdProducts++;
                 }
             }
@@ -122,21 +126,9 @@ class SeedCafeMenuCatalogCommand extends Command
         return self::SUCCESS;
     }
 
-    private function syncDepartment(InventoryProduct $product, int $companyId, int $departmentId): void
+    private function assignBarOnly(InventoryProduct $product, int $companyId, int $departmentId): void
     {
-        if ($departmentId <= 0) {
-            return;
-        }
-
-        if (! method_exists($product, 'departments')) {
-            return;
-        }
-
-        if (! Schema::connection('tenant')->hasTable('inventory_department_product')) {
-            return;
-        }
-
-        $product->departments()->syncWithoutDetaching([
+        $product->departments()->sync([
             $departmentId => ['company_id' => $companyId],
         ]);
     }
