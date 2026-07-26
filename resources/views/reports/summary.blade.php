@@ -127,7 +127,7 @@
             <div class="card-body py-3">
                 <div class="text-secondary small">Gross profit</div>
                 <div class="fw-bold fs-5 text-success">{{ $currency }} {{ fmt_num($totals['gross_profit'], 2) }}</div>
-                <div class="text-secondary" style="font-size:11px;">Total income − COGS − service</div>
+                <div class="text-secondary" style="font-size:11px;">Income − COGS − service − discount</div>
             </div>
         </div>
     </div>

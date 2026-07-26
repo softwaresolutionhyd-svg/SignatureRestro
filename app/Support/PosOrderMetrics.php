@@ -32,7 +32,7 @@ final class PosOrderMetrics
     }
 
     /**
-     * Gross profit: net POS income (grand total) − COGS − service charges.
+     * Gross profit: net POS income (grand total) − COGS − service charges − discount.
      */
     public static function grossProfitFromLoaded(PosOrder $order): float
     {
@@ -40,8 +40,9 @@ final class PosOrderMetrics
         $revenue = self::signedGrandTotal($order);
         $cogs = self::cogsFromLoaded($order); // already signed for refunds
         $service = $sign * (float) ($order->service_charge_total ?? 0);
+        $discount = $sign * (float) ($order->discount_total ?? 0);
 
-        return round($revenue - $cogs - $service, 2);
+        return round($revenue - $cogs - $service - $discount, 2);
     }
 
     /** Signed POS revenue (grand total, refunds negative). */
