@@ -53,7 +53,45 @@ jobs:
           ls -lh public/build-assets.zip
           unzip -l public/build-assets.zip | head -20
 
+      # Upload entry points FIRST so a flaky full FTP sync cannot leave the site on 403.
+      - name: Force-upload critical entry files (anti-403)
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+          DIR="${FTP_SERVER_DIR:-/}"
+          DIR="${DIR%/}"
+          for attempt in 1 2 3; do
+            echo "Force-upload attempt $attempt"
+            if lftp -c "
+              set ftp:ssl-allow no;
+              set net:max-retries 20;
+              set net:reconnect-interval-base 3;
+              set net:timeout 90;
+              set xfer:clobber on;
+              open -u ${FTP_USERNAME},${FTP_PASSWORD} ftp://${FTP_SERVER};
+              cd ${DIR};
+              put -O . index.php;
+              put -O . .htaccess;
+              mkdir -p public;
+              put -O public public/index.php;
+              put -O public public/.htaccess;
+              bye
+            "; then
+              echo "Critical entry files force-uploaded"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Force-upload of entry files failed after retries"
+          exit 1
+
       - name: Deploy code via FTP (exclude vendor folder — zip uploaded separately)
+        continue-on-error: true
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -79,36 +117,6 @@ jobs:
             **/storage/framework/cache/**
             **/.ftp-deploy-sync-state.json
             **/scripts/tools/mkcert.exe
-
-      # Hosting sometimes quarantines/deletes PHP entry files. Sync state then skips
-      # re-upload (file "unchanged" locally) → site stays 403 for days. Always force these.
-      - name: Force-upload critical entry files (anti-403)
-        env:
-          FTP_SERVER: ${{ secrets.FTP_SERVER }}
-          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq lftp
-          DIR="${FTP_SERVER_DIR:-/}"
-          DIR="${DIR%/}"
-          lftp -c "
-            set ftp:ssl-allow no;
-            set net:max-retries 20;
-            set net:reconnect-interval-base 3;
-            set net:timeout 90;
-            set xfer:clobber on;
-            open -u ${FTP_USERNAME},${FTP_PASSWORD} ftp://${FTP_SERVER};
-            cd ${DIR};
-            put -O . index.php;
-            put -O . .htaccess;
-            mkdir -p public;
-            put -O public public/index.php;
-            put -O public public/.htaccess;
-            bye
-          "
-          echo "Critical entry files force-uploaded"
 
       - name: Upload vendor.zip with FTP retries
         env:
