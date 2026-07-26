@@ -66,7 +66,7 @@
             <div class="d-inline-block mt-3 px-4 py-1 border border-dark fw-semibold small">{{ $periodLabel }}</div>
         </div>
 
-        <table class="table table-bordered mb-0 mt-4 pl-table">
+        <table class="table table-bordered mb-0 mt-4 pl-table pl-block">
             <colgroup>
                 <col style="width:68%">
                 <col style="width:32%">
@@ -92,7 +92,15 @@
                     <td class="fw-bold">Gross Profit</td>
                     <td class="text-end font-monospace fw-bold">{{ $currency }} {{ fmt_num($grossProfit, 2) }}</td>
                 </tr>
+            </tbody>
+        </table>
 
+        <table class="table table-bordered mb-0 pl-table pl-block">
+            <colgroup>
+                <col style="width:68%">
+                <col style="width:32%">
+            </colgroup>
+            <tbody>
                 @forelse($operatingExpenses as $row)
                 <tr>
                     <td>
@@ -109,7 +117,15 @@
                     <td class="text-end font-monospace">{{ $currency }} 0</td>
                 </tr>
                 @endforelse
+            </tbody>
+        </table>
 
+        <table class="table table-bordered mb-0 pl-table pl-block">
+            <colgroup>
+                <col style="width:68%">
+                <col style="width:32%">
+            </colgroup>
+            <tbody>
                 <tr class="pl-section">
                     <td class="fw-bold">Profit Before Tax</td>
                     <td class="text-end font-monospace fw-bold">{{ $currency }} {{ fmt_num($profitBeforeTax, 2) }}</td>
@@ -133,7 +149,15 @@
                         <td class="text-end font-monospace">{{ $currency }} {{ fmt_num(0, 2) }}</td>
                     </tr>
                 @endif
+            </tbody>
+        </table>
 
+        <table class="table table-bordered mb-0 pl-table pl-block pl-block-last">
+            <colgroup>
+                <col style="width:68%">
+                <col style="width:32%">
+            </colgroup>
+            <tbody>
                 <tr class="pl-section pl-final">
                     <td class="fw-bold">Net Profit &amp; Loss</td>
                     <td class="text-end font-monospace fw-bold">{{ $currency }} {{ fmt_num($netProfit, 2) }}</td>
@@ -154,6 +178,8 @@
 .pl-table td { vertical-align: middle; padding: .65rem .85rem; }
 .pl-section td { border-top-width: 2px !important; background: #f8fafc; }
 .pl-final td { border-bottom-width: 2px !important; }
+.pl-block { margin-bottom: 2.4em; }
+.pl-block-last { margin-bottom: 0; }
 @media print {
     .pl-sheet { box-shadow: none !important; }
     .pl-sheet .card-body { padding: 0 !important; }
@@ -164,6 +190,13 @@
         font-size: 11pt !important;
     }
     .pl-section td { border-top: 2px solid #000 !important; font-weight: bold !important; }
+    .pl-block {
+        margin-bottom: 0 !important;
+        margin-top: 0 !important;
+    }
+    .pl-block:not(.pl-block-last) {
+        margin-bottom: 2.6em !important; /* ~2 blank lines between tables */
+    }
 }
 </style>
 @endpush
