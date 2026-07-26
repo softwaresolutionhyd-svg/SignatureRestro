@@ -31,29 +31,17 @@ final class PosOrderMetrics
         return round($sum, 2);
     }
 
-    /** Gross profit (pre-tax): Σ (line subtotal − line discount − qty×factor×cost). Refunds subtract. */
+    /**
+     * Gross profit (pre-tax): order net sale (subtotal − discount) − COGS.
+     * Uses order totals (not Σ line subtotals) so duplicate/orphan lines cannot inflate profit above income.
+     */
     public static function grossProfitFromLoaded(PosOrder $order): float
     {
         $sign = $order->type === 'refund' ? -1.0 : 1.0;
-        $sum = 0.0;
+        $netSale = (float) $order->subtotal - (float) $order->discount_total;
+        $cogs = self::cogsFromLoaded($order); // already signed for refunds
 
-        foreach ($order->items as $item) {
-            $product = $item->product;
-            if (! $product) {
-                continue;
-            }
-
-            $factor = $product->factorToBaseForUom((string) $item->uom);
-            if ($factor === null || $factor <= 0) {
-                continue;
-            }
-
-            $lineNet = (float) $item->subtotal - (float) $item->discount_amount;
-            $extCost = (float) $item->qty * $factor * (float) $product->cost;
-            $sum += $sign * ($lineNet - $extCost);
-        }
-
-        return round($sum, 2);
+        return round(($sign * $netSale) - $cogs, 2);
     }
 
     /** Signed POS revenue (grand total, refunds negative). */

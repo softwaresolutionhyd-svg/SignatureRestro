@@ -118,7 +118,7 @@
             <div class="card-body py-3">
                 <div class="text-secondary small">Gross profit</div>
                 <div class="fw-bold fs-5 text-success">{{ $currency }} {{ fmt_num($totals['gross_profit'], 2) }}</div>
-                <div class="text-secondary" style="font-size:11px;">Sale lines − COGS (pre-tax)</div>
+                <div class="text-secondary" style="font-size:11px;">Subtotal − discount − COGS</div>
             </div>
         </div>
     </div>
