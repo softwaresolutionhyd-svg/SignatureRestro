@@ -788,10 +788,6 @@ class ReportsController extends Controller
             });
         }
 
-        $stockPotentialProfit = round((float) $products->sum(function (InventoryProduct $p) {
-            return (float) $p->qty_on_hand * ((float) $p->price - (float) $p->cost);
-        }), 2);
-
         $kpiBase = InventoryProduct::where('active', true);
         $applyIngredientsOnly($kpiBase);
         $applyDepartment($kpiBase);
@@ -808,13 +804,11 @@ class ReportsController extends Controller
             $lowStock = $kpiProducts->filter(fn (InventoryProduct $p) => $p->qty_on_hand > 0 && $p->qty_on_hand <= 10)->count();
             $outOfStock = $kpiProducts->filter(fn (InventoryProduct $p) => $p->qty_on_hand <= 0)->count();
             $totalValue = round((float) $kpiProducts->sum(fn (InventoryProduct $p) => (float) $p->qty_on_hand * (float) $p->cost), 2);
-            $retailValue = round((float) $kpiProducts->sum(fn (InventoryProduct $p) => (float) $p->qty_on_hand * (float) $p->price), 2);
         } else {
             $totalProducts = (clone $kpiBase)->count();
             $lowStock      = (clone $kpiBase)->where('qty_on_hand', '>', 0)->where('qty_on_hand', '<=', 10)->excludingActiveBomFinishedProducts()->count();
             $outOfStock    = (clone $kpiBase)->where('qty_on_hand', '<=', 0)->count();
             $totalValue    = (clone $kpiBase)->selectRaw('SUM(qty_on_hand * cost) as val')->value('val') ?? 0;
-            $retailValue   = (clone $kpiBase)->selectRaw('SUM(qty_on_hand * price) as val')->value('val') ?? 0;
         }
 
         $byCategory = $products
@@ -828,8 +822,8 @@ class ReportsController extends Controller
         return view('reports.inventory', compact(
             'products', 'filter', 'currency',
             'departmentId', 'departments',
-            'totalProducts', 'lowStock', 'outOfStock', 'totalValue', 'retailValue',
-            'stockPotentialProfit', 'chartLabels', 'chartData'
+            'totalProducts', 'lowStock', 'outOfStock', 'totalValue',
+            'chartLabels', 'chartData'
         ));
     }
 

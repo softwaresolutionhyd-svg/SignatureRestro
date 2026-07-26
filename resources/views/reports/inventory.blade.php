@@ -46,8 +46,6 @@
         ['Low Stock', $lowStock, 'bi-exclamation-triangle', '#f97316'],
         ['Out of Stock', $outOfStock, 'bi-x-circle', '#ef4444'],
         ['Stock Value (Cost)', $currency.' '.fmt_num($totalValue,2), 'bi-currency-dollar', '#22c55e'],
-        ['Stock Value (Retail)', $currency.' '.fmt_num($retailValue,2), 'bi-tags', '#7c3aed'],
-        ['Potential profit (qty×(price−cost))', $currency.' '.fmt_num($stockPotentialProfit ?? 0, 2), 'bi-graph-up', '#16a34a'],
     ] as [$label,$val,$icon,$color])
     <div class="col-6 col-md">
         <div class="card shadow-sm border-0 h-100">
