@@ -96,11 +96,20 @@
         </div>
     </div>
     <div class="col-6 col-lg-4 col-xl-3">
-        <div class="card border-0 shadow-sm h-100 border-start border-4 border-secondary">
+        <div class="card border-0 shadow-sm h-100 border-start border-4" style="border-color:#ef4444!important;">
             <div class="card-body py-3">
-                <div class="text-secondary small">Sale (subtotal)</div>
-                <div class="fw-bold fs-5">{{ $currency }} {{ fmt_num($totals['net_subtotal'], 2) }}</div>
-                <div class="text-secondary" style="font-size:11px;">POS subtotal (tax alag)</div>
+                <div class="text-secondary small">Discount</div>
+                <div class="fw-bold fs-5" style="color:#dc2626;">{{ $currency }} {{ fmt_num($totals['discount'], 2) }}</div>
+                <div class="text-secondary" style="font-size:11px;">Bill discounts (sales − refunds)</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-4 col-xl-3">
+        <div class="card border-0 shadow-sm h-100 border-start border-4" style="border-color:#8b5cf6!important;">
+            <div class="card-body py-3">
+                <div class="text-secondary small">Service charges</div>
+                <div class="fw-bold fs-5" style="color:#7c3aed;">{{ $currency }} {{ fmt_num($totals['service_charge'] ?? 0, 2) }}</div>
+                <div class="text-secondary" style="font-size:11px;">POS service charge total</div>
             </div>
         </div>
     </div>
@@ -145,7 +154,7 @@
             <div class="card-body py-3">
                 <div class="text-secondary small">POS bills (count)</div>
                 <div class="fw-bold fs-5">{{ fmt_num($totals['pos_bills'], 0) }}</div>
-                <div class="text-secondary" style="font-size:11px;">Discount {{ $currency }}{{ fmt_num($totals['discount'], 2) }} · Tax {{ $currency }}{{ fmt_num($totals['tax'], 2) }}</div>
+                <div class="text-secondary" style="font-size:11px;">Tax {{ $currency }}{{ fmt_num($totals['tax'], 2) }}</div>
             </div>
         </div>
     </div>
@@ -163,7 +172,8 @@
                 <th>Period</th>
                 <th class="text-end">Bills</th>
                 <th class="text-end">Income (net)</th>
-                <th class="text-end">Subtotal</th>
+                <th class="text-end">Discount</th>
+                <th class="text-end">Service</th>
                 <th class="text-end">COGS</th>
                 <th class="text-end">Gross profit</th>
                 <th class="text-end">Expenses</th>
@@ -176,7 +186,8 @@
                     <td class="fw-semibold small">{{ $r['label'] }}</td>
                     <td class="text-end small">{{ $r['pos_bills'] }}</td>
                     <td class="text-end small">{{ $currency }} {{ fmt_num($r['net_revenue'], 2) }}</td>
-                    <td class="text-end small text-secondary">{{ $currency }} {{ fmt_num($r['net_subtotal'], 2) }}</td>
+                    <td class="text-end small text-danger">{{ $currency }} {{ fmt_num($r['discount'], 2) }}</td>
+                    <td class="text-end small">{{ $currency }} {{ fmt_num($r['service_charge'] ?? 0, 2) }}</td>
                     <td class="text-end small text-secondary">{{ $currency }} {{ fmt_num($r['cogs'], 2) }}</td>
                     <td class="text-end small text-success">{{ $currency }} {{ fmt_num($r['gross_profit'], 2) }}</td>
                     <td class="text-end small">{{ $currency }} {{ fmt_num($r['expense'], 2) }}</td>
@@ -184,7 +195,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="8" class="text-center text-secondary py-4">Is period mein koi POS bill ya expense nahi mila.</td>
+                    <td colspan="9" class="text-center text-secondary py-4">Is period mein koi POS bill ya expense nahi mila.</td>
                 </tr>
             @endforelse
             @if(count($rows))
@@ -192,7 +203,8 @@
                     <td>Total</td>
                     <td class="text-end">{{ $totals['pos_bills'] }}</td>
                     <td class="text-end">{{ $currency }} {{ fmt_num($totals['net_revenue'], 2) }}</td>
-                    <td class="text-end">{{ $currency }} {{ fmt_num($totals['net_subtotal'], 2) }}</td>
+                    <td class="text-end text-danger">{{ $currency }} {{ fmt_num($totals['discount'], 2) }}</td>
+                    <td class="text-end">{{ $currency }} {{ fmt_num($totals['service_charge'] ?? 0, 2) }}</td>
                     <td class="text-end">{{ $currency }} {{ fmt_num($totals['cogs'], 2) }}</td>
                     <td class="text-end text-success">{{ $currency }} {{ fmt_num($totals['gross_profit'], 2) }}</td>
                     <td class="text-end">{{ $currency }} {{ fmt_num($totals['expense'], 2) }}</td>

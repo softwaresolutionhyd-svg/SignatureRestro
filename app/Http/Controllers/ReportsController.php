@@ -110,6 +110,7 @@ class ReportsController extends Controller
                     'net_revenue' => 0.0,
                     'net_subtotal' => 0.0,
                     'discount' => 0.0,
+                    'service_charge' => 0.0,
                     'tax' => 0.0,
                     'cogs' => 0.0,
                     'gross_profit' => 0.0,
@@ -128,6 +129,7 @@ class ReportsController extends Controller
             $buckets[$key]['net_revenue'] += $sign * (float) $order->grand_total;
             $buckets[$key]['net_subtotal'] += $sign * (float) $order->subtotal;
             $buckets[$key]['discount'] += $sign * (float) $order->discount_total;
+            $buckets[$key]['service_charge'] += $sign * (float) ($order->service_charge_total ?? 0);
             $buckets[$key]['tax'] += $sign * (float) $order->tax_total;
             $buckets[$key]['cogs'] += (float) $order->cogs_loaded;
             $buckets[$key]['gross_profit'] += (float) $order->gross_profit;
@@ -154,6 +156,7 @@ class ReportsController extends Controller
                 $row['net_revenue'] = round($row['net_revenue'], 2);
                 $row['net_subtotal'] = round($row['net_subtotal'], 2);
                 $row['discount'] = round($row['discount'], 2);
+                $row['service_charge'] = round($row['service_charge'], 2);
                 $row['tax'] = round($row['tax'], 2);
                 $row['cogs'] = round($row['cogs'], 2);
                 // Prefer order totals: never let line-sum profit exceed net sale.
@@ -171,6 +174,7 @@ class ReportsController extends Controller
             'net_revenue' => round(collect($rows)->sum('net_revenue'), 2),
             'net_subtotal' => round(collect($rows)->sum('net_subtotal'), 2),
             'discount' => round(collect($rows)->sum('discount'), 2),
+            'service_charge' => round(collect($rows)->sum('service_charge'), 2),
             'tax' => round(collect($rows)->sum('tax'), 2),
             'cogs' => round(collect($rows)->sum('cogs'), 2),
             'gross_profit' => round(collect($rows)->sum('gross_profit'), 2),
