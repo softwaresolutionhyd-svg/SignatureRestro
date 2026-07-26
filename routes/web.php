@@ -362,6 +362,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
             ->middleware('role:super_admin')
             ->name('pos-bills.destroy');
         Route::get('/summary',   [ReportsController::class, 'summary'])   ->name('summary');
+        Route::get('/profit-loss', [ReportsController::class, 'profitLoss'])->name('profit-loss');
         Route::get('/sales',     [ReportsController::class, 'sales'])     ->name('sales');
         Route::get('/purchases', [ReportsController::class, 'purchases']) ->name('purchases');
         Route::get('/purchases/print', [ReportsController::class, 'purchasesPrint'])->name('purchases.print');

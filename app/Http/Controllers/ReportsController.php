@@ -204,6 +204,145 @@ class ReportsController extends Controller
     }
 
     /**
+     * Formal Profit & Loss statement — Total Sale, COGS, Gross Profit,
+     * expense categories (from Expenses module), Profit Before Tax, Tax & Fine, Net P&L.
+     */
+    public function profitLoss(Request $request)
+    {
+        $preset = $request->input('preset', 'this_month');
+        $rangeRequest = Request::create('/', 'GET', array_merge($request->query(), [
+            'preset' => $preset,
+            'from' => $request->input('from'),
+            'to' => $request->input('to'),
+        ]));
+        [$from, $to] = $this->resolveDateRange($rangeRequest);
+
+        $currency = Setting::get('currency_symbol', 'Rs.');
+        $companyName = Setting::get('company_name', config('app.name'));
+
+        $orders = PosOrder::query()
+            ->where('status', 'paid')
+            ->whereRaw('COALESCE(paid_at, created_at) BETWEEN ? AND ?', [$from.' 00:00:00', $to.' 23:59:59'])
+            ->with([
+                'items.product' => fn ($q) => $q->with(['uomConversions' => fn ($c) => $c->where('active', true)]),
+            ])
+            ->get();
+
+        $totalSale = 0.0;
+        $cogs = 0.0;
+        foreach ($orders as $order) {
+            $sign = $order->type === 'refund' ? -1.0 : 1.0;
+            $totalSale += $sign * (float) $order->grand_total;
+            $cogs += (float) PosOrderMetrics::cogsFromLoaded($order);
+        }
+        $totalSale = round($totalSale, 2);
+        $cogs = round($cogs, 2);
+        $grossProfit = round($totalSale - $cogs, 2);
+
+        $categories = ExpenseCategory::query()
+            ->orderBy('name')
+            ->get(['id', 'name', 'description', 'active']);
+
+        $expenseSums = Expense::query()
+            ->whereIn('status', [Expense::STATUS_APPROVED, Expense::STATUS_PAID])
+            ->whereBetween('expense_date', [$from, $to])
+            ->selectRaw('category_id, SUM(grand_total) as total')
+            ->groupBy('category_id')
+            ->pluck('total', 'category_id');
+
+        $operatingExpenses = [];
+        $taxFineExpenses = [];
+
+        $uncategorized = round((float) Expense::query()
+            ->whereIn('status', [Expense::STATUS_APPROVED, Expense::STATUS_PAID])
+            ->whereBetween('expense_date', [$from, $to])
+            ->whereNull('category_id')
+            ->sum('grand_total'), 2);
+
+        foreach ($categories as $cat) {
+            $amount = round((float) ($expenseSums[$cat->id] ?? 0), 2);
+            if (! $cat->active && $amount <= 0) {
+                continue;
+            }
+            $row = [
+                'id' => $cat->id,
+                'name' => $cat->name,
+                'description' => $cat->description,
+                'amount' => $amount,
+            ];
+            if ($this->isTaxFineExpenseCategory($cat->name)) {
+                $taxFineExpenses[] = $row;
+            } else {
+                $operatingExpenses[] = $row;
+            }
+        }
+
+        if ($uncategorized > 0) {
+            $operatingExpenses[] = [
+                'id' => null,
+                'name' => 'Uncategorized',
+                'description' => null,
+                'amount' => $uncategorized,
+            ];
+        }
+
+        $operatingTotal = round(collect($operatingExpenses)->sum('amount'), 2);
+        $taxFineTotal = round(collect($taxFineExpenses)->sum('amount'), 2);
+        $profitBeforeTax = round($grossProfit - $operatingTotal, 2);
+        $netProfit = round($profitBeforeTax - $taxFineTotal, 2);
+
+        $fromCarbon = Carbon::parse($from);
+        $toCarbon = Carbon::parse($to);
+        if ($fromCarbon->isSameMonth($toCarbon) && $fromCarbon->isSameYear($toCarbon)
+            && $fromCarbon->day === 1
+            && $toCarbon->day === $toCarbon->copy()->endOfMonth()->day) {
+            $periodLabel = 'Month of '.$fromCarbon->format('F Y');
+        } else {
+            $periodLabel = $fromCarbon->format('d M Y').' — '.$toCarbon->format('d M Y');
+        }
+
+        $presetLabels = [
+            'today' => 'Today',
+            'yesterday' => 'Yesterday',
+            'this_week' => 'This week',
+            'last_week' => 'Last week',
+            'this_month' => 'This month',
+            'last_month' => 'Last month',
+            'this_quarter' => 'This quarter',
+            'last_quarter' => 'Last quarter',
+            'this_year' => 'This year',
+            'last_year' => 'Last year',
+            'custom' => 'Custom range',
+        ];
+
+        return view('reports.profit-loss', compact(
+            'currency',
+            'companyName',
+            'from',
+            'to',
+            'preset',
+            'presetLabels',
+            'periodLabel',
+            'totalSale',
+            'cogs',
+            'grossProfit',
+            'operatingExpenses',
+            'operatingTotal',
+            'taxFineExpenses',
+            'taxFineTotal',
+            'profitBeforeTax',
+            'netProfit'
+        ));
+    }
+
+    private function isTaxFineExpenseCategory(string $name): bool
+    {
+        $n = strtolower($name);
+
+        return str_contains($n, 'tax') || str_contains($n, 'fine');
+    }
+
+    /**
      * @return array{0:string,1:string,2:string} key, sort key, display label
      */
     private function summaryBucketMeta(Carbon $dt, string $group, string $from, string $to): array

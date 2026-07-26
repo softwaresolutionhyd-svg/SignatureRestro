@@ -74,6 +74,13 @@
                     <div><div class="fw-semibold">Financial Summary</div><div class="text-secondary small">Income, COGS, profit, expenses — daily / weekly / monthly</div></div>
                     <i class="bi bi-chevron-right ms-auto text-secondary"></i>
                 </a>
+                <a href="{{ route('reports.profit-loss') }}" class="d-flex align-items-center gap-3 px-4 py-3 border-bottom text-decoration-none text-dark hover-bg-light">
+                    <span class="rounded-circle d-flex align-items-center justify-content-center" style="width:38px;height:38px;background:rgba(15,118,110,.12);">
+                        <i class="bi bi-clipboard2-data" style="color:#0f766e;"></i>
+                    </span>
+                    <div><div class="fw-semibold">Profit &amp; Loss</div><div class="text-secondary small">Formal P&amp;L — sales, COGS, expense categories, net profit</div></div>
+                    <i class="bi bi-chevron-right ms-auto text-secondary"></i>
+                </a>
                 <a href="{{ route('reports.pos-bills') }}" class="d-flex align-items-center gap-3 px-4 py-3 border-bottom text-decoration-none text-dark hover-bg-light">
                     <span class="rounded-circle d-flex align-items-center justify-content-center" style="width:38px;height:38px;background:rgba(99,102,241,.12);">
                         <i class="bi bi-receipt-cutoff" style="color:#6366f1;"></i>
