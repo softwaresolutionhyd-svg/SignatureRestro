@@ -2112,7 +2112,7 @@ class PosController extends Controller
     {
         abort_unless(in_array($order->status, ['draft', 'paid'], true), 404);
         if ($order->status === 'paid') {
-            abort_unless((int) $order->user_id === (int) Auth::id(), 403);
+            abort_unless($this->userCanAccessPaidReceipt($request->user(), $order), 403);
         } else {
             $this->assertDraftReceiptAccess($order);
         }
@@ -2313,7 +2313,7 @@ class PosController extends Controller
     {
         if ($paidOnly) {
             abort_unless($order->status === 'paid', 404);
-            abort_unless((int) $order->user_id === (int) Auth::id(), 403);
+            abort_unless($this->userCanAccessPaidReceipt($request->user(), $order), 403);
         } else {
             abort_unless($order->status === 'draft', 404);
             $this->assertDraftReceiptAccess($order);
@@ -2334,6 +2334,19 @@ class PosController extends Controller
         $backLabel = '← Back to Restaurant POS';
 
         return view('pos.receipt', compact('order', 'settings', 'autoPrint', 'allowBillPrint', 'backUrl', 'backLabel', 'isUnpaid', 'isQuotation'));
+    }
+
+    private function userCanAccessPaidReceipt(?User $user, PosOrder $order): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if ((int) $order->user_id === (int) $user->id) {
+            return true;
+        }
+
+        return $this->userCanReopenPaidPosBill($user);
     }
 
     private function assertDraftReceiptAccess(PosOrder $order): void
