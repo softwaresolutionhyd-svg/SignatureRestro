@@ -12,7 +12,7 @@
 
 {{-- KPI Cards --}}
 <div class="row g-3 mb-4">
-    <div class="col-6 col-md-3">
+    <div class="col-6 col-md-4 col-xl">
         <div class="card shadow-sm border-0 h-100">
             <div class="card-body">
                 <div class="text-secondary small mb-1">Total Sales (All Time)</div>
@@ -21,7 +21,7 @@
             </div>
         </div>
     </div>
-    <div class="col-6 col-md-3">
+    <div class="col-6 col-md-4 col-xl">
         <div class="card shadow-sm border-0 h-100">
             <div class="card-body">
                 <div class="text-secondary small mb-1">Total Purchases (All Time)</div>
@@ -30,7 +30,16 @@
             </div>
         </div>
     </div>
-    <div class="col-6 col-md-3">
+    <div class="col-6 col-md-4 col-xl">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-body">
+                <div class="text-secondary small mb-1">Total Expenses (All Time)</div>
+                <div class="fw-bold fs-4" style="color:#f97316;">{{ $currency }} {{ fmt_num($totalExpenses,2) }}</div>
+                <a href="{{ route('expenses.index') }}" class="small text-decoration-none">View Expenses →</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl">
         <div class="card shadow-sm border-0 h-100">
             <div class="card-body">
                 <div class="text-secondary small mb-1">Active Products</div>
@@ -39,7 +48,7 @@
             </div>
         </div>
     </div>
-    <div class="col-6 col-md-3">
+    <div class="col-6 col-md-4 col-xl">
         <div class="card shadow-sm border-0 h-100">
             <div class="card-body">
                 <div class="text-secondary small mb-1">Active Employees</div>
@@ -107,6 +116,13 @@
                         <i class="bi bi-cart-fill" style="color:#22c55e;"></i>
                     </span>
                     <div><div class="fw-semibold">Purchase Report</div><div class="text-secondary small">POs, vendors, spend</div></div>
+                    <i class="bi bi-chevron-right ms-auto text-secondary"></i>
+                </a>
+                <a href="{{ route('expenses.index') }}" class="d-flex align-items-center gap-3 px-4 py-3 border-bottom text-decoration-none text-dark">
+                    <span class="rounded-circle d-flex align-items-center justify-content-center" style="width:38px;height:38px;background:rgba(249,115,22,.1);">
+                        <i class="bi bi-wallet2" style="color:#f97316;"></i>
+                    </span>
+                    <div><div class="fw-semibold">Expenses</div><div class="text-secondary small">Approved & paid expenses overview</div></div>
                     <i class="bi bi-chevron-right ms-auto text-secondary"></i>
                 </a>
                 <a href="{{ route('reports.inventory') }}" class="d-flex align-items-center gap-3 px-4 py-3 border-bottom text-decoration-none text-dark">

@@ -39,6 +39,7 @@ class ReportsController extends Controller
         // KPI summary cards
         $totalSales     = PosOrder::where('status', 'paid')->sum('grand_total');
         $totalPurchases = PurchaseOrder::whereIn('status', ['confirmed', 'received'])->sum('grand_total');
+        $totalExpenses  = Expense::whereIn('status', [Expense::STATUS_APPROVED, Expense::STATUS_PAID])->sum('grand_total');
         $totalProducts  = InventoryProduct::where('active', true)->count();
         $totalEmployees = Employee::where('active', true)->count();
 
@@ -55,7 +56,7 @@ class ReportsController extends Controller
         $chartSales   = $chartDays->map(fn($d) => (float) ($salesLast7[$d] ?? 0));
 
         return view('reports.index', compact(
-            'currency', 'totalSales', 'totalPurchases',
+            'currency', 'totalSales', 'totalPurchases', 'totalExpenses',
             'totalProducts', 'totalEmployees', 'chartLabels', 'chartSales'
         ));
     }
