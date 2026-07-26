@@ -67,7 +67,7 @@
         @endif
 
         {{-- Delete --}}
-        @if(in_array($expense->status, ['draft', 'refused']))
+        @if(in_array($expense->status, ['draft', 'refused']) || $isAdmin)
         <form method="POST" action="{{ route('expenses.destroy', $expense) }}" class="d-inline"
             onsubmit="return confirm('Delete this expense permanently?')">
             @csrf @method('DELETE')

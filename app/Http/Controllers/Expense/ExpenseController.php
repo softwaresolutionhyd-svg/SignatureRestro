@@ -124,13 +124,31 @@ class ExpenseController extends Controller
 
     public function destroy(Expense $expense)
     {
-        if (!in_array($expense->status, [Expense::STATUS_DRAFT, Expense::STATUS_REFUSED])) {
-            return back()->with('error', 'Only Draft or Refused expenses can be deleted.');
+        $user = Auth::user();
+        $isAdmin = $user && ($user->bypassesModulePermissions() || in_array($user->role ?? '', ['admin'], true));
+        $isDraftOrRefused = in_array($expense->status, [Expense::STATUS_DRAFT, Expense::STATUS_REFUSED], true);
+
+        if (! $isDraftOrRefused && ! $isAdmin) {
+            return back()->with('error', 'Only Draft or Refused expenses can be deleted. Paid/approved expenses sirf admin delete kar sakta hai.');
         }
+
         if ($expense->receipt_path) {
             Storage::disk('public')->delete($expense->receipt_path);
         }
+
+        // Remove auto journal for paid expenses so Trial Balance stays clean.
+        if ($expense->status === Expense::STATUS_PAID) {
+            \App\Models\JournalEntry::query()
+                ->where('source', 'expense')
+                ->where('source_id', $expense->id)
+                ->each(function (\App\Models\JournalEntry $entry) {
+                    $entry->lines()->delete();
+                    $entry->delete();
+                });
+        }
+
         $expense->delete();
+
         return redirect()->route('expenses.index')->with('success', 'Expense deleted.');
     }
 

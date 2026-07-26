@@ -151,6 +151,20 @@
                                     <svg width="13" height="13" fill="none" viewBox="0 0 20 20"><path d="M14.5 3.5l2 2-10 10-3 1 1-3 10-10z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                 </a>
                                 @endif
+                                @php
+                                    $canDeleteExpense = in_array($expense->status, ['draft', 'refused'], true)
+                                        || (auth()->user()?->bypassesModulePermissions() || in_array(auth()->user()?->role ?? '', ['admin'], true));
+                                @endphp
+                                @if($canDeleteExpense)
+                                <form method="POST" action="{{ route('expenses.destroy', $expense) }}" class="d-inline"
+                                      onsubmit="return confirm('Delete this expense permanently?')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Delete">
+                                        <svg width="13" height="13" fill="none" viewBox="0 0 20 20"><path d="M4 5h12M8 5V3.5h4V5m-5.5 3v6.5m3-6.5v6.5M6 5l.7 11.5A1 1 0 007.7 17.5h4.6a1 1 0 001-.9L14 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    </button>
+                                </form>
+                                @endif
                             </div>
                         </td>
                     </tr>
