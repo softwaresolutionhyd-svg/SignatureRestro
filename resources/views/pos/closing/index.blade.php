@@ -102,7 +102,7 @@
                     </tr>
                     <tr>
                         <td class="ps-3">Service charges</td>
-                        <td class="text-end pe-3">{{ $currency }} {{ fmt_num($stats['service_charge_total'], 2) }}</td>
+                        <td class="text-end pe-3 text-danger">− {{ $currency }} {{ fmt_num($stats['service_charge_total'], 2) }}</td>
                     </tr>
                     @if((float) $stats['tax_total'] > 0)
                     <tr>

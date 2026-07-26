@@ -82,7 +82,8 @@ final class PosSessionSummaryService
             'discount_total' => round($discountTotal, 2),
             'service_charge_total' => round($serviceChargeTotal, 2),
             'tax_total' => round($taxTotal, 2),
-            'net_sales_total' => round($salesTotal - $refundsTotal, 2),
+            // Gross (grand_total) already net of discount; exclude service charges from net sales.
+            'net_sales_total' => round($salesTotal - $refundsTotal - $serviceChargeTotal, 2),
             'payments_cash' => $net('cash'),
             'payments_card' => $net('card'),
             'payments_bank' => $net('bank'),
