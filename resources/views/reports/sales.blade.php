@@ -120,6 +120,7 @@
                     <th class="text-end">Discount (%)</th>
                     <th class="text-end">Discount Amount</th>
                     <th class="text-end">Total Bill</th>
+                    <th class="text-center no-print" style="width:56px;">View</th>
                 </tr>
             </thead>
             <tbody>
@@ -143,9 +144,18 @@
                     @endif
                 </td>
                 <td class="text-end small fw-bold">{{ $currency }} {{ fmt_num($order->grand_total,2) }}</td>
+                <td class="text-center no-print">
+                    <a href="{{ route('restaurant-pos.receipt', $order) }}"
+                       target="_blank"
+                       rel="noopener"
+                       class="btn btn-sm btn-outline-primary px-2 py-1"
+                       title="View bill {{ $order->order_no }}">
+                        <i class="bi bi-eye"></i>
+                    </a>
+                </td>
             </tr>
             @empty
-            <tr><td colspan="13" class="text-center py-4 text-secondary">No orders in this period</td></tr>
+            <tr><td colspan="14" class="text-center py-4 text-secondary">No orders in this period</td></tr>
             @endforelse
             </tbody>
             @if($orders->count())
@@ -160,6 +170,7 @@
                     <td class="text-end">{{ fmt_num($orders->avg('discount_percent_effective') ?? 0,2) }}%</td>
                     <td class="text-end text-danger">{{ $currency }} {{ fmt_num($totalDiscount,2) }}</td>
                     <td class="text-end">{{ $currency }} {{ fmt_num($totalRevenue,2) }}</td>
+                    <td class="no-print"></td>
                 </tr>
             </tfoot>
             @endif
