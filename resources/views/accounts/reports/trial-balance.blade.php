@@ -4,7 +4,7 @@
 @section('content')
 <div class="mb-4">
     <h4 class="fw-bold mb-0">Trial Balance</h4>
-    <div class="text-secondary small">Posted journal balances as of selected date</div>
+    <div class="text-secondary small">Posted journal balances for the selected date range</div>
 </div>
 
 @include('accounts.partials.subnav')
@@ -12,11 +12,15 @@
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body py-3">
         <form method="GET" class="row g-2 align-items-end">
-            <div class="col-md-3">
-                <label class="form-label small mb-1">As of date</label>
-                <input type="date" name="as_of" class="form-control form-control-sm" value="{{ $asOf }}">
+            <div class="col-6 col-md-3">
+                <label class="form-label small mb-1">From</label>
+                <input type="date" name="from" class="form-control form-control-sm" value="{{ $from }}">
             </div>
-            <div class="col-md-2">
+            <div class="col-6 col-md-3">
+                <label class="form-label small mb-1">To</label>
+                <input type="date" name="to" class="form-control form-control-sm" value="{{ $to }}">
+            </div>
+            <div class="col-12 col-md-2">
                 <button class="btn btn-primary btn-sm w-100">Update</button>
             </div>
         </form>
@@ -40,12 +44,12 @@
                 @php $acc = $row['account']; @endphp
                 <tr>
                     <td class="fw-semibold">
-                        <a href="{{ route('accounts.journal-entries.index', ['account_id' => $acc->id, 'status' => 'posted']) }}" class="text-decoration-none">
+                        <a href="{{ route('accounts.journal-entries.index', ['account_id' => $acc->id, 'status' => 'posted', 'from' => $from, 'to' => $to]) }}" class="text-decoration-none">
                             {{ $acc->code }}
                         </a>
                     </td>
                     <td>
-                        <a href="{{ route('accounts.journal-entries.index', ['account_id' => $acc->id, 'status' => 'posted']) }}" class="text-decoration-none text-dark">
+                        <a href="{{ route('accounts.journal-entries.index', ['account_id' => $acc->id, 'status' => 'posted', 'from' => $from, 'to' => $to]) }}" class="text-decoration-none text-dark">
                             {{ $acc->name }}
                         </a>
                     </td>
@@ -54,7 +58,7 @@
                     <td class="text-end">{{ $row['credit'] > 0 ? $currency.' '.number_format($row['credit'], 2) : '—' }}</td>
                 </tr>
                 @empty
-                <tr><td colspan="5" class="text-center text-secondary py-4">No posted balances for this date.</td></tr>
+                <tr><td colspan="5" class="text-center text-secondary py-4">No posted balances for this date range.</td></tr>
                 @endforelse
             </tbody>
             @if($rows->isNotEmpty())
