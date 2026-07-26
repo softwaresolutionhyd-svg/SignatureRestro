@@ -159,8 +159,8 @@ class ReportsController extends Controller
                 $row['service_charge'] = round($row['service_charge'], 2);
                 $row['tax'] = round($row['tax'], 2);
                 $row['cogs'] = round($row['cogs'], 2);
-                // Prefer order totals: never let line-sum profit exceed net sale.
-                $row['gross_profit'] = round($row['net_subtotal'] - $row['discount'] - $row['cogs'], 2);
+                // Gross profit from net POS income (grand total), not subtotal.
+                $row['gross_profit'] = round($row['net_revenue'] - $row['cogs'], 2);
                 $row['expense'] = round($row['expense'], 2);
                 $row['net_profit'] = round($row['gross_profit'] - $row['expense'], 2);
 
