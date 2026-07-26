@@ -1617,18 +1617,23 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     min-height: 1.45rem;
     padding: 0.1rem 0.4rem;
     font-size: 0.72rem;
-    background: rgba(255, 255, 255, 0.06);
-    border-color: var(--rp-border-strong);
-    color: var(--rp-text);
+    background: #ffffff;
+    border-color: #d6d3d1;
+    color: #1c1917;
     border-radius: var(--rp-radius-sm);
 }
 
 .restaurant-pos-app .rp-checkout-foot .form-control-sm:focus,
 .restaurant-pos-app .rp-checkout-foot .form-select-sm:focus {
-    background: rgba(255, 255, 255, 0.09);
-    border-color: rgba(229, 169, 59, 0.4);
+    background: #ffffff;
+    border-color: rgba(229, 169, 59, 0.55);
     box-shadow: 0 0 0 2px var(--rp-gold-glow);
-    color: #fff;
+    color: #1c1917;
+}
+
+.restaurant-pos-app .rp-checkout-foot .form-select-sm option {
+    background: #ffffff;
+    color: #1c1917;
 }
 
 .restaurant-pos-app .rp-checkout-foot .mt-1 {
@@ -2006,17 +2011,22 @@ body.admin-app-body:has(.restaurant-pos-app) .restaurant-pos-app .rp-checkout-fo
 
 body.admin-app-body:has(.restaurant-pos-app) .restaurant-pos-app .rp-checkout-foot .form-control-sm,
 body.admin-app-body:has(.restaurant-pos-app) .restaurant-pos-app .rp-checkout-foot .form-select-sm {
-    background: rgba(255, 255, 255, 0.08) !important;
-    color: #f3f0ea !important;
-    border-color: rgba(255, 255, 255, 0.16) !important;
+    background: #ffffff !important;
+    color: #1c1917 !important;
+    border-color: #d6d3d1 !important;
 }
 
 body.admin-app-body:has(.restaurant-pos-app) .restaurant-pos-app .rp-checkout-foot .form-control-sm:focus,
 body.admin-app-body:has(.restaurant-pos-app) .restaurant-pos-app .rp-checkout-foot .form-select-sm:focus {
-    background: rgba(255, 255, 255, 0.12) !important;
-    border-color: rgba(229, 169, 59, 0.45) !important;
+    background: #ffffff !important;
+    border-color: rgba(229, 169, 59, 0.55) !important;
     box-shadow: 0 0 0 2px var(--rp-gold-glow) !important;
-    color: #fff !important;
+    color: #1c1917 !important;
+}
+
+body.admin-app-body:has(.restaurant-pos-app) .restaurant-pos-app .rp-checkout-foot .form-select-sm option {
+    background: #ffffff !important;
+    color: #1c1917 !important;
 }
 
 /* —— Premium polish —— */
