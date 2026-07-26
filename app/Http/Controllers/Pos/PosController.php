@@ -1348,9 +1348,9 @@ class PosController extends Controller
             }
 
             SyncAwareDelete::query(CreditLedger::query()->where('pos_order_id', $order->id));
-            SyncAwareDelete::relation($order->payments());
 
             if ($isCredit) {
+                $this->clearOrderPayments($order);
                 $contact        = Contact::findOrFail($contactId);
                 $runningBalance = $contact->balance;
                 $balAfter       = round($runningBalance + (float) $grandTotal, 2);
@@ -1368,14 +1368,7 @@ class PosController extends Controller
                     ]
                 );
             } else {
-                foreach ($request->payments as $payment) {
-                    PosPayment::create([
-                        'order_id'  => $order->id,
-                        'method'    => $payment['method'],
-                        'amount'    => (float) $payment['amount'],
-                        'reference' => $payment['reference'] ?? null,
-                    ]);
-                }
+                $this->replaceOrderPayments($order, $request->payments ?? [], $grandTotal);
             }
 
             if ($resumeOrderId && ! $existingDraft) {
@@ -1775,7 +1768,7 @@ class PosController extends Controller
 
                 $this->reversePaidOrderInventory($locked);
                 SyncAwareDelete::query(CreditLedger::query()->where('pos_order_id', $locked->id));
-                SyncAwareDelete::relation($locked->payments());
+                $this->clearOrderPayments($locked);
                 $this->deletePosJournalEntries($locked);
 
                 $locked->update([
@@ -1949,13 +1942,11 @@ class PosController extends Controller
 
             $locked->update($payload);
 
-            SyncAwareDelete::relation($locked->payments());
-            PosPayment::create([
-                'order_id' => $locked->id,
+            $this->replaceOrderPayments($locked, [[
                 'method' => $paymentMethod,
                 'amount' => (float) $locked->grand_total,
                 'reference' => 'Checkout Counter',
-            ]);
+            ]], (float) $locked->grand_total);
 
             if ($locked->type === 'sale') {
                 foreach ($locked->items as $item) {
@@ -2760,6 +2751,41 @@ class PosController extends Controller
         return max(0.0, min(100.0, round((float) $request->input('bill_discount_percent', 0), 3)));
     }
 
+    /**
+     * Delete every payment row for an order (ignore company scope so orphans cannot remain).
+     */
+    private function clearOrderPayments(PosOrder $order): void
+    {
+        SyncAwareDelete::query(
+            PosPayment::withoutGlobalScopes()->where('order_id', $order->id)
+        );
+    }
+
+    /**
+     * Replace payments atomically and assert sum matches the bill total.
+     *
+     * @param  list<array{method?: string, amount?: mixed, reference?: mixed}>  $payments
+     */
+    private function replaceOrderPayments(PosOrder $order, array $payments, float $grandTotal): void
+    {
+        $this->clearOrderPayments($order);
+
+        foreach ($payments as $payment) {
+            PosPayment::create([
+                'order_id' => $order->id,
+                'company_id' => $order->company_id,
+                'method' => $payment['method'],
+                'amount' => (float) $payment['amount'],
+                'reference' => $payment['reference'] ?? null,
+            ]);
+        }
+
+        $paySum = round((float) PosPayment::withoutGlobalScopes()->where('order_id', $order->id)->sum('amount'), 2);
+        if (abs($paySum - round($grandTotal, 2)) > 0.01) {
+            throw new \RuntimeException('Payments total must match order total.');
+        }
+    }
+
     private function deletePaidOrder(PosOrder $order): void
     {
         if ($order->type === 'sale' && PosOrder::query()->where('refund_of_order_id', $order->id)->exists()) {
@@ -2776,7 +2802,7 @@ class PosController extends Controller
 
             SyncAwareDelete::query(CreditLedger::query()->where('pos_order_id', $order->id));
             $this->deletePosJournalEntries($order);
-            SyncAwareDelete::relation($order->payments());
+            $this->clearOrderPayments($order);
             SyncAwareDelete::relation($order->items());
             $order->delete();
         });

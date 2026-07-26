@@ -43,6 +43,7 @@
     let removeReasonModalInstance = null;
     let cancelWholeOrderPending = false;
     let resumeSaveLock = Promise.resolve();
+    let checkoutInFlight = false;
     let payments = [{ method: 'cash', amount: 0 }];
     let orderType = 'sale';
     let isCreditMode = false;
@@ -1842,40 +1843,46 @@
     }
 
     async function postCheckout(extraFields = {}) {
+        if (checkoutInFlight) return false;
         if (!prepareSubmit('checkout')) return false;
 
         const formData = checkoutFormData(extraFields);
         if (!formData) return false;
 
-        const res = await fetch(routes.checkout, {
-            method: 'POST',
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-            body: formData,
-        });
+        checkoutInFlight = true;
+        try {
+            const res = await fetch(routes.checkout, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: formData,
+            });
 
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-            const validationMsg = data.errors ? Object.values(data.errors).flat()[0] : null;
-            throw new Error(data.message || validationMsg || 'Payment failed.');
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                const validationMsg = data.errors ? Object.values(data.errors).flat()[0] : null;
+                throw new Error(data.message || validationMsg || 'Payment failed.');
+            }
+
+            const networkPrinted = data.order_id && await tryCashierNetworkPrint(data.order_id);
+
+            applyCheckoutSuccess(data);
+
+            if (data.receipt_url) {
+                const qs = networkPrinted ? 'noprint=1' : 'autoprint=1';
+                window.open(
+                    data.receipt_url + (data.receipt_url.includes('?') ? '&' : '?') + qs,
+                    '_blank',
+                    'noopener,noreferrer'
+                );
+            }
+
+            return true;
+        } finally {
+            checkoutInFlight = false;
         }
-
-        const networkPrinted = data.order_id && await tryCashierNetworkPrint(data.order_id);
-
-        applyCheckoutSuccess(data);
-
-        if (data.receipt_url) {
-            const qs = networkPrinted ? 'noprint=1' : 'autoprint=1';
-            window.open(
-                data.receipt_url + (data.receipt_url.includes('?') ? '&' : '?') + qs,
-                '_blank',
-                'noopener,noreferrer'
-            );
-        }
-
-        return true;
     }
 
     function getPayModal() {
