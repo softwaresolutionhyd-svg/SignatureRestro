@@ -145,11 +145,9 @@
                 </td>
                 <td class="text-end small fw-bold">{{ $currency }} {{ fmt_num($order->grand_total,2) }}</td>
                 <td class="text-center no-print">
-                    <a href="{{ route('reports.sales.print', $order) }}"
-                       target="_blank"
-                       rel="noopener"
+                    <a href="{{ route('reports.sales.show', $order) }}"
                        class="btn btn-sm btn-outline-primary px-2 py-1"
-                       title="Cashier thermal printer pe print — {{ $order->order_no }}">
+                       title="View order detail — {{ $order->order_no }}">
                         <i class="bi bi-eye"></i>
                     </a>
                 </td>
