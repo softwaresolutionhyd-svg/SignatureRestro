@@ -748,7 +748,17 @@ class ReportsController extends Controller
             return $query;
         };
 
+        // Ingredients / stock only — POS menu sell products hide.
+        $applyIngredientsOnly = static function ($query) {
+            return $query
+                ->where('for_purchase', true)
+                ->where(function ($q) {
+                    $q->where('for_pos', false)->orWhereNull('for_pos');
+                });
+        };
+
         $query = InventoryProduct::with(['category', 'departments:id,name'])->where('active', true);
+        $applyIngredientsOnly($query);
         $applyDepartment($query);
 
         if ($filter === 'low') {
@@ -764,6 +774,7 @@ class ReportsController extends Controller
         }), 2);
 
         $kpiBase = InventoryProduct::where('active', true);
+        $applyIngredientsOnly($kpiBase);
         $applyDepartment($kpiBase);
 
         $totalProducts = (clone $kpiBase)->count();
@@ -797,7 +808,11 @@ class ReportsController extends Controller
 
         $department = $departmentId ? InventoryDepartment::find($departmentId) : null;
 
-        $query = InventoryProduct::with('category')->where('active', true);
+        $query = InventoryProduct::with('category')->where('active', true)
+            ->where('for_purchase', true)
+            ->where(function ($q) {
+                $q->where('for_pos', false)->orWhereNull('for_pos');
+            });
 
         if ($departmentId !== null) {
             if ($department?->is_warehouse) {
@@ -830,7 +845,7 @@ class ReportsController extends Controller
         $filterLabel = match ($filter) {
             'low'  => 'Low Stock (≤10)',
             'zero' => 'Out of Stock',
-            default => 'All Products',
+            default => 'Ingredients (stock)',
         };
 
         $totalValue = round((float) $products->sum(fn (InventoryProduct $p) => (float) $p->qty_on_hand * (float) $p->cost), 2);

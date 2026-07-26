@@ -5,7 +5,7 @@
 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
     <div>
         <h4 class="fw-bold mb-0">Inventory Report</h4>
-        <div class="text-secondary small">Stock levels, valuation & categories</div>
+        <div class="text-secondary small">Ingredients / stock only — POS menu products excluded</div>
     </div>
     <div class="d-flex gap-2">
         <button onclick="window.print()" class="btn btn-outline-danger btn-sm">Print / PDF</button>
@@ -20,7 +20,7 @@
         <div>
             <label class="form-label small fw-semibold mb-1">Show</label>
             <select name="filter" class="form-select" onchange="this.form.submit()">
-                <option value="all"  {{ $filter==='all'  ? 'selected' : '' }}>All Products</option>
+                <option value="all"  {{ $filter==='all'  ? 'selected' : '' }}>All Ingredients</option>
                 <option value="low"  {{ $filter==='low'  ? 'selected' : '' }}>Low Stock (≤10)</option>
                 <option value="zero" {{ $filter==='zero' ? 'selected' : '' }}>Out of Stock</option>
             </select>
@@ -42,7 +42,7 @@
 {{-- KPI --}}
 <div class="row g-3 mb-4">
     @foreach([
-        ['Total Products', $totalProducts, 'bi-box-seam', '#0ea5e9'],
+        ['Total Ingredients', $totalProducts, 'bi-box-seam', '#0ea5e9'],
         ['Low Stock', $lowStock, 'bi-exclamation-triangle', '#f97316'],
         ['Out of Stock', $outOfStock, 'bi-x-circle', '#ef4444'],
         ['Stock Value (Cost)', $currency.' '.fmt_num($totalValue,2), 'bi-currency-dollar', '#22c55e'],
@@ -66,14 +66,14 @@
 <div class="row g-3 mb-4">
     <div class="col-12 col-md-4">
         <div class="card shadow-sm border-0">
-            <div class="card-header bg-white fw-semibold">Products by Category</div>
+            <div class="card-header bg-white fw-semibold">Ingredients by Category</div>
             <div class="card-body"><canvas id="catChart" height="200"></canvas></div>
         </div>
     </div>
     <div class="col-12 col-md-8">
         <div class="card shadow-sm border-0 h-100">
             <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
-                <span>Products</span>
+                <span>Ingredients</span>
                 <div class="d-flex align-items-center gap-2">
                     <a href="{{ route('reports.inventory.print', array_merge(request()->only(['filter', 'department_id']), ['print' => 1])) }}"
                        target="_blank" class="btn btn-outline-danger btn-sm">

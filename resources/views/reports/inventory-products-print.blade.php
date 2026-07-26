@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Inventory Products — {{ config('app.name') }}</title>
+    <title>Inventory Ingredients — {{ config('app.name') }}</title>
     <style>
         * { box-sizing: border-box; }
         @page { size: A4 portrait; margin: 14mm; }
@@ -30,7 +30,7 @@
         <div style="text-align:center;"><img src="{{ $rpLogo }}" alt="" style="max-height:70px;max-width:220px;margin-bottom:4px;"></div>
     @endif
     <h1>{{ \App\Models\Setting::get('company_name', config('app.name')) }}</h1>
-    <h2>Inventory Products</h2>
+    <h2>Inventory Ingredients</h2>
 
     <div class="meta">
         <p><strong>{{ $filterLabel }}</strong>@if($department) &nbsp;|&nbsp; Department: <strong>{{ $department->name }}</strong>@endif</p>
