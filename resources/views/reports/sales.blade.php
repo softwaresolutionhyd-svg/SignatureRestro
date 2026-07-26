@@ -145,13 +145,13 @@
                 </td>
                 <td class="text-end small fw-bold">{{ $currency }} {{ fmt_num($order->grand_total,2) }}</td>
                 <td class="text-center no-print">
-                    <button type="button"
-                            class="btn btn-sm btn-outline-primary px-2 py-1 js-sales-cashier-print"
-                            data-print-url="{{ route('restaurant-pos.cashier-print', $order) }}"
-                            data-order-no="{{ $order->order_no }}"
-                            title="Cashier thermal printer pe print — {{ $order->order_no }}">
+                    <a href="{{ route('reports.sales.print', $order) }}"
+                       target="_blank"
+                       rel="noopener"
+                       class="btn btn-sm btn-outline-primary px-2 py-1"
+                       title="Cashier thermal printer pe print — {{ $order->order_no }}">
                         <i class="bi bi-eye"></i>
-                    </button>
+                    </a>
                 </td>
             </tr>
             @empty
@@ -207,46 +207,6 @@ new Chart(document.getElementById('salesChart'), {
         }
     }
 });
-
-(function () {
-    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-    document.addEventListener('click', async function (e) {
-        const btn = e.target.closest('.js-sales-cashier-print');
-        if (!btn) return;
-        e.preventDefault();
-        if (btn.disabled) return;
-
-        const url = btn.dataset.printUrl;
-        const orderNo = btn.dataset.orderNo || '';
-        if (!url) return;
-
-        btn.disabled = true;
-        const prevHtml = btn.innerHTML;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
-
-        try {
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    Accept: 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': csrf,
-                },
-            });
-            const data = await res.json().catch(() => ({}));
-            if (res.ok && data.ok) {
-                alert('Bill ' + orderNo + ' cashier thermal printer pe print ho gaya.');
-                return;
-            }
-            alert(data.message || 'Cashier printer pe print nahi ho saka. Inventory → Kitchen Agents → CASHIER check karein.');
-        } catch (err) {
-            alert('Print request fail ho gayi.');
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = prevHtml;
-        }
-    });
-})();
 </script>
 @include('reports.partials.print-portrait')
 @endsection

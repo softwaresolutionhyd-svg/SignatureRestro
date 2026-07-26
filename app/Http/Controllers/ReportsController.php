@@ -578,6 +578,63 @@ class ReportsController extends Controller
         ));
     }
 
+    /**
+     * Reprint a paid bill on the cashier thermal printer (ESC/POS) — no browser A4 dialog.
+     */
+    public function salesPrintBill(PosOrder $order)
+    {
+        abort_unless($order->status === 'paid', 404);
+
+        $ip = trim((string) Setting::get('cashier_printer_ip', ''));
+        $port = (int) (Setting::get('cashier_printer_port', 9100) ?: 9100);
+        $currency = Setting::get('currency_symbol', 'Rs.');
+
+        if ($ip === '') {
+            return response()
+                ->view('reports.sales-print-result', [
+                    'ok' => false,
+                    'order' => $order,
+                    'currency' => $currency,
+                    'message' => 'Cashier printer set nahi hai. Inventory → Kitchen Agents → CASHIER mein IP add karein.',
+                ], 422);
+        }
+
+        $order->load(['items.product:id,name,sku', 'user:id,name', 'table:id,name', 'payments', 'contact:id,name,phone']);
+
+        $settings = array_merge([
+            'company_name' => config('app.name'),
+            'company_address' => '',
+            'company_phone' => '',
+            'company_email' => '',
+            'company_logo' => '',
+            'currency_symbol' => $currency,
+        ], Setting::all_map());
+
+        $logoPath = (string) ($settings['company_logo'] ?? '');
+        $settings['company_logo_abs_path'] = company_logo_path($logoPath) ?? '';
+
+        try {
+            $printer = app(\App\Services\NetworkPrinterService::class);
+            $payload = $printer->buildBillSlip($order, $settings);
+            $printer->send($ip, $port, $payload);
+        } catch (\Throwable $e) {
+            return response()
+                ->view('reports.sales-print-result', [
+                    'ok' => false,
+                    'order' => $order,
+                    'currency' => $currency,
+                    'message' => $e->getMessage() ?: 'Cashier printer pe print fail ho gaya.',
+                ], 500);
+        }
+
+        return view('reports.sales-print-result', [
+            'ok' => true,
+            'order' => $order,
+            'currency' => $currency,
+            'message' => 'Bill cashier thermal printer ('.$ip.':'.$port.') pe print ho gaya.',
+        ]);
+    }
+
     /* ──────────────────────────────────────────
      |  Purchase Report
      ─────────────────────────────────────────── */
