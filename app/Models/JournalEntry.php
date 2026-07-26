@@ -76,6 +76,29 @@ class JournalEntry extends Model
         return self::sourceLabels()[$key] ?? ucwords(str_replace('_', ' ', $key));
     }
 
+    /** Deep-link back to the document that created this journal (if any). */
+    public function sourceUrl(): ?string
+    {
+        $source = strtolower(trim((string) ($this->source ?? '')));
+        $id = (int) ($this->source_id ?? 0);
+        if ($id <= 0) {
+            return null;
+        }
+
+        try {
+            return match ($source) {
+                'expense' => route('expenses.show', $id),
+                'purchase' => route('purchase.orders.edit', $id),
+                'pos' => route('restaurant-pos.receipt', $id),
+                'payroll' => route('employees.payroll.index'),
+                'credit_book' => route('credit-book.index'),
+                default => null,
+            };
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
     public function lines(): HasMany
     {
         return $this->hasMany(JournalEntryLine::class)->orderBy('sort_order');

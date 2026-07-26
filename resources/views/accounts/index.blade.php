@@ -10,44 +10,74 @@
 @include('accounts.partials.subnav')
 
 <div class="row g-3 mb-4">
-    @php
-        $ribbon = [
-            ['key' => 'accounts', 'label' => 'Active Accounts', 'color' => '#6366f1'],
-            ['key' => 'draft', 'label' => 'Draft Entries', 'color' => '#64748b'],
-            ['key' => 'posted', 'label' => 'Posted Entries', 'color' => '#22c55e'],
-        ];
-    @endphp
-    @foreach($ribbon as $ri)
-    <div class="col-12 col-md-4">
-        <div class="card border-0 shadow-sm h-100" style="border-left:4px solid {{ $ri['color'] }} !important;">
-            <div class="card-body py-3">
-                <div class="text-secondary small">{{ $ri['label'] }}</div>
-                <div class="fw-bold fs-4 mt-1" style="color:{{ $ri['color'] }}">{{ $kpis[$ri['key']] }}</div>
+    <div class="col-6 col-md-3">
+        <a href="{{ route('accounts.chart-of-accounts.index') }}" class="text-decoration-none">
+            <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #6366f1 !important;">
+                <div class="card-body py-3">
+                    <div class="text-secondary small">Active Accounts</div>
+                    <div class="fw-bold fs-4 mt-1" style="color:#6366f1">{{ $kpis['accounts'] }}</div>
+                    <div class="text-secondary" style="font-size:11px;">Open chart of accounts →</div>
+                </div>
             </div>
-        </div>
+        </a>
     </div>
-    @endforeach
-    <div class="col-12 col-md-4">
-        <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #0ea5e9 !important;">
-            <div class="card-body py-3">
-                <div class="text-secondary small">Posted Volume</div>
-                <div class="fw-bold fs-4 mt-1" style="color:#0ea5e9">{{ $currency }} {{ number_format($kpis['posted_total'], 2) }}</div>
+    <div class="col-6 col-md-3">
+        <a href="{{ route('accounts.journal-entries.index', ['status' => 'draft']) }}" class="text-decoration-none">
+            <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #64748b !important;">
+                <div class="card-body py-3">
+                    <div class="text-secondary small">Draft Entries</div>
+                    <div class="fw-bold fs-4 mt-1" style="color:#64748b">{{ $kpis['draft'] }}</div>
+                    <div class="text-secondary" style="font-size:11px;">View draft journals →</div>
+                </div>
             </div>
-        </div>
+        </a>
+    </div>
+    <div class="col-6 col-md-3">
+        <a href="{{ route('accounts.journal-entries.index', ['status' => 'posted']) }}" class="text-decoration-none">
+            <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #22c55e !important;">
+                <div class="card-body py-3">
+                    <div class="text-secondary small">Posted Entries</div>
+                    <div class="fw-bold fs-4 mt-1" style="color:#22c55e">{{ $kpis['posted'] }}</div>
+                    <div class="text-secondary" style="font-size:11px;">View posted journals →</div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-md-3">
+        <a href="{{ route('accounts.reports.trial-balance') }}" class="text-decoration-none">
+            <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #0ea5e9 !important;">
+                <div class="card-body py-3">
+                    <div class="text-secondary small">Posted Volume</div>
+                    <div class="fw-bold fs-4 mt-1" style="color:#0ea5e9">{{ $currency }} {{ number_format($kpis['posted_total'], 2) }}</div>
+                    <div class="text-secondary" style="font-size:11px;">Open trial balance →</div>
+                </div>
+            </div>
+        </a>
     </div>
 </div>
 
 <div class="row g-4">
     <div class="col-lg-5">
         <div class="card border-0 shadow-sm h-100">
-            <div class="card-header bg-white fw-semibold">Accounts by Type</div>
+            <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+                <span>Accounts by Type</span>
+                <a href="{{ route('accounts.chart-of-accounts.index') }}" class="small">All accounts</a>
+            </div>
             <div class="card-body p-0">
                 <table class="table table-sm mb-0">
                     <tbody>
                         @foreach($typeLabels as $type => $label)
                         <tr>
-                            <td>{{ $label }}</td>
-                            <td class="text-end fw-semibold">{{ $accountCounts[$type] ?? 0 }}</td>
+                            <td>
+                                <a href="{{ route('accounts.chart-of-accounts.index', ['type' => $type]) }}" class="text-decoration-none text-dark">
+                                    {{ $label }}
+                                </a>
+                            </td>
+                            <td class="text-end fw-semibold">
+                                <a href="{{ route('accounts.chart-of-accounts.index', ['type' => $type]) }}" class="text-decoration-none text-dark">
+                                    {{ $accountCounts[$type] ?? 0 }}
+                                </a>
+                            </td>
                         </tr>
                         @endforeach
                     </tbody>
@@ -75,8 +105,8 @@
                     <tbody>
                         @forelse($recentEntries as $entry)
                         @php $st = \App\Models\JournalEntry::statusLabel()[$entry->status] ?? ['label'=>$entry->status,'color'=>'secondary']; @endphp
-                        <tr>
-                            <td><a href="{{ route('accounts.journal-entries.show', $entry) }}" class="text-decoration-none fw-semibold">{{ $entry->entry_number }}</a></td>
+                        <tr style="cursor:pointer" onclick="window.location='{{ route('accounts.journal-entries.show', $entry) }}'">
+                            <td><a href="{{ route('accounts.journal-entries.show', $entry) }}" class="text-decoration-none fw-semibold" onclick="event.stopPropagation()">{{ $entry->entry_number }}</a></td>
                             <td>{{ $entry->entry_date->format('d M Y') }}</td>
                             <td class="text-truncate" style="max-width:180px">{{ $entry->description ?: '—' }}</td>
                             <td><span class="badge bg-{{ $st['color'] }}">{{ $st['label'] }}</span></td>

@@ -58,7 +58,16 @@
                     <td class="text-end">{{ $row['credit'] > 0 ? $currency.' '.number_format($row['credit'], 2) : '—' }}</td>
                 </tr>
                 @empty
-                <tr><td colspan="5" class="text-center text-secondary py-4">No posted balances for this date range.</td></tr>
+                <tr>
+                    <td colspan="5" class="text-center text-secondary py-4">
+                        No posted balances for this date range.
+                        <div class="mt-2">
+                            <a href="{{ route('accounts.journal-entries.index', ['status' => 'posted', 'from' => $from, 'to' => $to]) }}" class="btn btn-sm btn-outline-primary">
+                                Check journal entries
+                            </a>
+                        </div>
+                    </td>
+                </tr>
                 @endforelse
             </tbody>
             @if($rows->isNotEmpty())

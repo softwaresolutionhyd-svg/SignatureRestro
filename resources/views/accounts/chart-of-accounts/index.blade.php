@@ -81,6 +81,8 @@
                         @endif
                     </td>
                     <td class="text-end">
+                        <a href="{{ route('accounts.journal-entries.index', ['account_id' => $account->id, 'status' => 'posted']) }}"
+                           class="btn btn-outline-primary btn-sm" title="View ledger">Ledger</a>
                         <a href="{{ route('accounts.chart-of-accounts.edit', $account) }}" class="btn btn-outline-secondary btn-sm">Edit</a>
                         @if(!$account->is_system)
                         <form action="{{ route('accounts.chart-of-accounts.destroy', $account) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this account?')">

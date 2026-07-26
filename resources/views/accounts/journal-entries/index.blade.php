@@ -11,8 +11,21 @@
 
 @if(!empty($filterAccount))
 <div class="alert alert-info py-2 mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
-    <span>Showing journals for account <strong>{{ $filterAccount->code }} — {{ $filterAccount->name }}</strong></span>
-    <a href="{{ route('accounts.journal-entries.index') }}" class="btn btn-sm btn-outline-secondary">Clear account filter</a>
+    <span>
+        Showing journals for account
+        <strong>{{ $filterAccount->code }} — {{ $filterAccount->name }}</strong>
+        @if(request('from') || request('to'))
+            <span class="text-secondary">
+                · {{ request('from') ?: '…' }} → {{ request('to') ?: '…' }}
+            </span>
+        @endif
+    </span>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{{ route('accounts.reports.trial-balance', array_filter(['from' => request('from'), 'to' => request('to')])) }}"
+           class="btn btn-sm btn-outline-primary">Trial Balance</a>
+        <a href="{{ route('accounts.journal-entries.index', request()->except('account_id')) }}"
+           class="btn btn-sm btn-outline-secondary">Clear account filter</a>
+    </div>
 </div>
 @endif
 
@@ -52,9 +65,14 @@
                 <label class="form-label small mb-1">Search</label>
                 <input type="text" name="search" class="form-control form-control-sm" value="{{ request('search') }}" placeholder="Number, reference, description">
             </div>
-            <div class="col-12 col-md-1">
+            <div class="col-12 col-md-1 d-flex gap-1">
                 <button class="btn btn-primary btn-sm w-100">Filter</button>
             </div>
+            @if(request()->hasAny(['status', 'source', 'from', 'to', 'search', 'account_id']))
+            <div class="col-12 col-md-auto">
+                <a href="{{ route('accounts.journal-entries.index') }}" class="btn btn-outline-secondary btn-sm">Reset</a>
+            </div>
+            @endif
         </form>
     </div>
 </div>

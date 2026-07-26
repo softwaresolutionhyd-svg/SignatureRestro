@@ -2,7 +2,14 @@
 @section('title', $entry->entry_number . ' — ' . config('app.name'))
 
 @section('content')
-@php $st = $statusMap[$entry->status] ?? ['label'=>$entry->status,'color'=>'secondary']; @endphp
+@php
+    $st = $statusMap[$entry->status] ?? ['label'=>$entry->status,'color'=>'secondary'];
+    $sourceUrl = $entry->sourceUrl();
+    $backUrl = url()->previous();
+    if (! $backUrl || $backUrl === url()->current()) {
+        $backUrl = route('accounts.journal-entries.index');
+    }
+@endphp
 
 <div class="mb-4 d-flex justify-content-between align-items-start flex-wrap gap-2">
     <div>
@@ -21,16 +28,21 @@
                 <button class="btn btn-outline-danger btn-sm">Delete</button>
             </form>
         @endif
-        <a href="{{ route('accounts.journal-entries.index') }}" class="btn btn-outline-secondary btn-sm">Back</a>
+        <a href="{{ $backUrl }}" class="btn btn-outline-secondary btn-sm">Back</a>
     </div>
 </div>
 
 @include('accounts.partials.subnav')
 
-@if($entry->source !== 'manual')
-<div class="alert alert-info py-2 small mb-4">
-    Auto-posted from <strong>{{ strtoupper($entry->source) }}</strong>
-    @if($entry->reference) · Ref: {{ $entry->reference }} @endif
+@if($entry->source && $entry->source !== 'manual')
+<div class="alert alert-info py-2 small mb-4 d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <span>
+        Auto-posted from <strong>{{ \App\Models\JournalEntry::sourceLabel($entry->source) }}</strong>
+        @if($entry->reference) · Ref: {{ $entry->reference }} @endif
+    </span>
+    @if($sourceUrl)
+        <a href="{{ $sourceUrl }}" class="btn btn-sm btn-outline-primary">Open source</a>
+    @endif
 </div>
 @endif
 
@@ -75,8 +87,15 @@
                 @foreach($entry->lines as $line)
                 <tr>
                     <td>
-                        <span class="fw-semibold">{{ $line->account->code }}</span>
-                        — {{ $line->account->name }}
+                        @if($line->account)
+                            <a href="{{ route('accounts.journal-entries.index', ['account_id' => $line->account->id, 'status' => 'posted']) }}"
+                               class="text-decoration-none">
+                                <span class="fw-semibold">{{ $line->account->code }}</span>
+                                — {{ $line->account->name }}
+                            </a>
+                        @else
+                            —
+                        @endif
                     </td>
                     <td>{{ $line->description ?: '—' }}</td>
                     <td class="text-end">{{ $line->debit > 0 ? $currency.' '.number_format($line->debit, 2) : '—' }}</td>

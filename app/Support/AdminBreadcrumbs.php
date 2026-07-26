@@ -382,7 +382,14 @@ final class AdminBreadcrumbs
         }
 
         if (str_starts_with($name, 'accounts.reports.')) {
-            return [$dash, $hub, ['label' => 'Trial Balance', 'url' => null]];
+            return [
+                $dash,
+                $hub,
+                [
+                    'label' => 'Trial Balance',
+                    'url' => $name === 'accounts.reports.trial-balance' ? null : route('accounts.reports.trial-balance'),
+                ],
+            ];
         }
 
         return [$dash, $hub];
