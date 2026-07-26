@@ -102,27 +102,6 @@
             @endif
 
             <div class="dropdown">
-                <button class="btn btn-sm btn-outline-light position-relative border-0 bg-white bg-opacity-10" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="notifBtn">
-                    <i class="bi bi-bell"></i>
-                    <span id="notifCount" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none">
-                        0
-                    </span>
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end p-0 shadow border-0" style="min-width: 340px;">
-                    <li class="px-3 py-2 border-bottom d-flex align-items-center justify-content-between bg-light">
-                        <div class="fw-semibold">Notifications</div>
-                        <button class="btn btn-sm btn-link text-decoration-none" type="button" id="notifReadAll">Mark all read</button>
-                    </li>
-                    <li>
-                        <div id="notifList" style="max-height: 380px; overflow: auto;"></div>
-                    </li>
-                    <li class="px-3 py-2 border-top text-secondary small bg-light">
-                        Opens list when bell is clicked
-                    </li>
-                </ul>
-            </div>
-
-            <div class="dropdown">
                 <button class="btn btn-sm btn-outline-light dropdown-toggle border-0 bg-white bg-opacity-10" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                     <i class="bi bi-person-circle me-1"></i> <span class="d-none d-md-inline">{{ auth()->user()?->name }}</span>
                 </button>
@@ -149,72 +128,3 @@
         </div>
     </div>
 </nav>
-
-<script>
-    (function () {
-        const countEl = document.getElementById('notifCount');
-        const listEl = document.getElementById('notifList');
-        const readAllBtn = document.getElementById('notifReadAll');
-
-        function escapeHtml(str) {
-            return String(str).replace(/[&<>"']/g, (m) => ({
-                '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
-            }[m]));
-        }
-
-        async function loadNotifs() {
-            try {
-                const res = await fetch(@json(route('notifications.index')), { headers: { 'Accept': 'application/json' }});
-                if (!res.ok) return;
-                const data = await res.json();
-
-                const unread = Number(data.unread_count || 0);
-                if (unread > 0) {
-                    countEl.textContent = unread > 99 ? '99+' : String(unread);
-                    countEl.classList.remove('d-none');
-                } else {
-                    countEl.classList.add('d-none');
-                }
-
-                const items = (data.notifications || []).map(n => {
-                    const d = n.data || {};
-                    const title = escapeHtml(d.title || 'Update');
-                    const body = escapeHtml(d.body || '');
-                    const when = escapeHtml((n.created_at || '').replace('T',' ').slice(0,16));
-                    const isRead = !!n.read_at;
-                    return `
-                      <div class="px-3 py-2 border-bottom ${isRead ? '' : 'bg-light'}">
-                        <div class="d-flex justify-content-between">
-                          <div class="fw-semibold">${title}</div>
-                          <div class="text-secondary small">${when}</div>
-                        </div>
-                        <div class="text-secondary small">${body}</div>
-                      </div>
-                    `;
-                }).join('');
-
-                listEl.innerHTML = items || `<div class="px-3 py-3 text-secondary">No notifications yet.</div>`;
-            } catch (e) {}
-        }
-
-        readAllBtn?.addEventListener('click', async () => {
-            try {
-                const res = await fetch(@json(route('notifications.readAll')), {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-                    },
-                    body: JSON.stringify({})
-                });
-                if (res.ok) loadNotifs();
-            } catch (e) {}
-        });
-
-        loadNotifs();
-        const notifBtn = document.getElementById('notifBtn');
-        notifBtn?.closest('.dropdown')?.addEventListener('show.bs.dropdown', loadNotifs);
-        setInterval(loadNotifs, 60000);
-    })();
-</script>
