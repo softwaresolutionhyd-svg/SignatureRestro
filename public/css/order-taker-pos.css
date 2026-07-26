@@ -760,7 +760,7 @@
         padding: 0.4rem 0.9rem;
     }
 
-    /* Category tabs: one horizontal scroll row */
+    /* Category tabs: wrap like desktop — no horizontal scroll on phone/tablet */
     .order-taker-pos-app #otOrderScreen .rp-menu-head {
         margin-bottom: 0.45rem;
         position: sticky;
@@ -772,24 +772,19 @@
 
     .order-taker-pos-app #otOrderScreen .rp-menu-cats {
         display: flex;
-        flex-wrap: nowrap;
+        flex-wrap: wrap;
         justify-content: flex-start;
         align-items: center;
         gap: 0.35rem;
         width: 100%;
-        overflow-x: auto;
-        overflow-y: hidden;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
+        min-width: 0;
+        overflow: visible;
         padding: 0.1rem 0.15rem 0.25rem;
-    }
-
-    .order-taker-pos-app #otOrderScreen .rp-menu-cats::-webkit-scrollbar {
-        display: none;
     }
 
     .order-taker-pos-app #otOrderScreen .rp-menu-cat {
         flex: 0 0 auto;
+        max-width: 100%;
     }
 
     /* Stack: menu on top + scrollable cart under it (menu tab only) */
