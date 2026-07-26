@@ -552,12 +552,17 @@ class ReportsController extends Controller
         $orderCount    = $orders->count();
         $avgOrder      = $orderCount ? $totalRevenue / $orderCount : 0;
 
-        // Top products (On Demand lines group by custom name)
-        $topProducts = PosOrderItem::topSellingGrouped(
-            fn ($q) => $q->where('status', 'paid')
-                ->whereBetween('created_at', [$from . ' 00:00:00', $to . ' 23:59:59']),
-            10
-        );
+        // Sales by service type (Dine-in / Takeaway / Delivery)
+        $serviceTypeStats = collect(PosOrder::serviceTypeLabels())->map(function (string $label, string $key) use ($orders) {
+            $group = $orders->filter(fn ($o) => $o->serviceTypeKey() === $key);
+
+            return [
+                'key' => $key,
+                'label' => $label,
+                'qty' => $group->count(),
+                'revenue' => round((float) $group->sum('grand_total'), 2),
+            ];
+        })->values();
 
         // Daily chart
         $dailySales = PosOrder::where('status', 'paid')
@@ -574,7 +579,32 @@ class ReportsController extends Controller
             'orders', 'from', 'to', 'currency',
             'totalRevenue', 'totalDiscount', 'totalTax', 'totalGrossProfit', 'orderCount', 'avgOrder',
             'ownerDiscountTotal', 'ownerDiscountCount',
-            'topProducts', 'chartLabels', 'chartData'
+            'serviceTypeStats', 'chartLabels', 'chartData'
+        ));
+    }
+
+    /**
+     * List all paid bills for a service type in the selected period.
+     */
+    public function salesByService(Request $request, string $serviceType)
+    {
+        $labels = PosOrder::serviceTypeLabels();
+        abort_unless(array_key_exists($serviceType, $labels), 404);
+
+        $from = $request->input('from', now()->startOfMonth()->format('Y-m-d'));
+        $to = $request->input('to', now()->format('Y-m-d'));
+        $currency = Setting::get('currency_symbol', 'Rs.');
+        $label = $labels[$serviceType];
+
+        $orders = PosOrder::with(['user:id,name', 'table:id,name', 'contact:id,name'])
+            ->where('status', 'paid')
+            ->where('service_type', $serviceType)
+            ->whereBetween('created_at', [$from.' 00:00:00', $to.' 23:59:59'])
+            ->orderByDesc('created_at')
+            ->get();
+
+        return view('reports.sales-by-service', compact(
+            'orders', 'from', 'to', 'currency', 'serviceType', 'label'
         ));
     }
 

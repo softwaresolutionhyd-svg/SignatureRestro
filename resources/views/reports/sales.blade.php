@@ -70,25 +70,32 @@
         </div>
     </div>
 
-    {{-- Top products --}}
+    {{-- Sales by order type --}}
     <div class="col-12 col-lg-4">
         <div class="card shadow-sm border-0 h-100">
-            <div class="card-header bg-white fw-semibold">Top 10 Products</div>
+            <div class="card-header bg-white fw-semibold">Sales by order type</div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-sm mb-0">
+                    <table class="table table-sm mb-0 align-middle">
                         <thead class="table-light"><tr>
-                            <th>Product</th><th class="text-end">Qty</th><th class="text-end">Revenue</th>
+                            <th>Type</th><th class="text-end">Qty</th><th class="text-end">Revenue</th><th class="text-center no-print" style="width:48px;"></th>
                         </tr></thead>
                         <tbody>
-                        @forelse($topProducts as $item)
+                        @forelse($serviceTypeStats as $row)
                         <tr>
-                            <td class="small">{{ $item->display_name ?? optional($item->product)->name ?? '—' }}</td>
-                            <td class="text-end small">{{ fmt_num($item->total_qty,2) }}</td>
-                            <td class="text-end small fw-semibold">{{ $currency }} {{ fmt_num($item->total_revenue,2) }}</td>
+                            <td class="small fw-semibold">{{ $row['label'] }}</td>
+                            <td class="text-end small">{{ $row['qty'] }}</td>
+                            <td class="text-end small fw-semibold">{{ $currency }} {{ fmt_num($row['revenue'], 2) }}</td>
+                            <td class="text-center no-print">
+                                <a href="{{ route('reports.sales.service', ['serviceType' => $row['key'], 'from' => $from, 'to' => $to]) }}"
+                                   class="btn btn-sm btn-outline-primary px-2 py-0"
+                                   title="View {{ $row['label'] }} bills">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                            </td>
                         </tr>
                         @empty
-                        <tr><td colspan="3" class="text-center text-secondary py-3">No data</td></tr>
+                        <tr><td colspan="4" class="text-center text-secondary py-3">No data</td></tr>
                         @endforelse
                         </tbody>
                     </table>
