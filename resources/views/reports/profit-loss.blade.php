@@ -80,6 +80,14 @@
                     <td class="fw-semibold">Cost of Goods Sold</td>
                     <td class="text-end font-monospace">{{ $currency }} {{ fmt_num($cogs, 2) }}</td>
                 </tr>
+                <tr>
+                    <td class="fw-semibold">Service Charges</td>
+                    <td class="text-end font-monospace">{{ $currency }} {{ fmt_num($serviceCharges, 2) }}</td>
+                </tr>
+                <tr>
+                    <td class="fw-semibold">Discount</td>
+                    <td class="text-end font-monospace">{{ $currency }} {{ fmt_num($discountTotal, 2) }}</td>
+                </tr>
                 <tr class="pl-section">
                     <td class="fw-bold">Gross Profit</td>
                     <td class="text-end font-monospace fw-bold">{{ $currency }} {{ fmt_num($grossProfit, 2) }}</td>

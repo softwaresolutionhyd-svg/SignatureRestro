@@ -336,6 +336,8 @@ class ReportsController extends Controller
             'periodLabel',
             'totalSale',
             'cogs',
+            'serviceCharges',
+            'discountTotal',
             'grossProfit',
             'operatingExpenses',
             'operatingTotal',
