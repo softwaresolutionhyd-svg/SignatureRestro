@@ -159,8 +159,8 @@ class ReportsController extends Controller
                 $row['service_charge'] = round($row['service_charge'], 2);
                 $row['tax'] = round($row['tax'], 2);
                 $row['cogs'] = round($row['cogs'], 2);
-                // Gross profit from net POS income (grand total), not subtotal.
-                $row['gross_profit'] = round($row['net_revenue'] - $row['cogs'], 2);
+                // Gross profit from net POS income − COGS − service charges.
+                $row['gross_profit'] = round($row['net_revenue'] - $row['cogs'] - $row['service_charge'], 2);
                 $row['expense'] = round($row['expense'], 2);
                 $row['net_profit'] = round($row['gross_profit'] - $row['expense'], 2);
 
@@ -235,14 +235,17 @@ class ReportsController extends Controller
 
         $totalSale = 0.0;
         $cogs = 0.0;
+        $serviceCharges = 0.0;
         foreach ($orders as $order) {
             $sign = $order->type === 'refund' ? -1.0 : 1.0;
             $totalSale += $sign * (float) $order->grand_total;
             $cogs += (float) PosOrderMetrics::cogsFromLoaded($order);
+            $serviceCharges += $sign * (float) ($order->service_charge_total ?? 0);
         }
         $totalSale = round($totalSale, 2);
         $cogs = round($cogs, 2);
-        $grossProfit = round($totalSale - $cogs, 2);
+        $serviceCharges = round($serviceCharges, 2);
+        $grossProfit = round($totalSale - $cogs - $serviceCharges, 2);
 
         $categories = ExpenseCategory::query()
             ->orderBy('name')
