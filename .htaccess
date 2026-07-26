@@ -1,4 +1,22 @@
+<IfModule mod_dir.c>
+    DirectoryIndex index.php index.html
+</IfModule>
+
+# If Document Root is project root, send all requests into /public
 <IfModule mod_rewrite.c>
     RewriteEngine On
+
+    # Already inside /public — do nothing
+    RewriteRule ^public/ - [L]
+
+    # Existing files/folders in project root (rare) — leave alone
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Everything else → public/
     RewriteRule ^(.*)$ public/$1 [L]
 </IfModule>
+
+# Fallback when mod_rewrite is off: still prefer public/index via DirectoryIndex on /public
+# (cPanel Document Root should ideally be .../signature/public)

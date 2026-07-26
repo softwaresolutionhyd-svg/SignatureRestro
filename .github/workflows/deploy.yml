@@ -80,7 +80,9 @@ jobs:
             **/.ftp-deploy-sync-state.json
             **/scripts/tools/mkcert.exe
 
-      - name: Upload vendor.zip with FTP retries
+      # Hosting sometimes quarantines/deletes PHP entry files. Sync state then skips
+      # re-upload (file "unchanged" locally) → site stays 403 for days. Always force these.
+      - name: Force-upload critical entry files (anti-403)
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
@@ -89,6 +91,32 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq lftp
+          DIR="${FTP_SERVER_DIR:-/}"
+          DIR="${DIR%/}"
+          lftp -c "
+            set ftp:ssl-allow no;
+            set net:max-retries 20;
+            set net:reconnect-interval-base 3;
+            set net:timeout 90;
+            set xfer:clobber on;
+            open -u ${FTP_USERNAME},${FTP_PASSWORD} ftp://${FTP_SERVER};
+            cd ${DIR};
+            put -O . index.php;
+            put -O . .htaccess;
+            mkdir -p public;
+            put -O public public/index.php;
+            put -O public public/.htaccess;
+            bye
+          "
+          echo "Critical entry files force-uploaded"
+
+      - name: Upload vendor.zip with FTP retries
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+        run: |
           DIR="${FTP_SERVER_DIR:-/}"
           DIR="${DIR%/}"
           lftp -c "
@@ -163,3 +191,15 @@ jobs:
           curl -sfS -X POST \
             -H "X-Deploy-Key: $DEPLOY_KEY" \
             "$DEPLOY_MIGRATE_URL"
+
+      - name: Verify site is not 403/empty
+        run: |
+          sleep 3
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "https://signature.softwaresolutions.pk/")
+          echo "GET / => HTTP $CODE"
+          if [ "$CODE" = "403" ] || [ "$CODE" = "000" ]; then
+            echo "::error::Site still returning $CODE after deploy. Check cPanel Document Root + Imunify quarantine."
+            exit 1
+          fi
+          # 200/301/302/500 all mean PHP is being hit (not empty-dir 403)
+          echo "Entry point reachable (not empty-directory 403)."
