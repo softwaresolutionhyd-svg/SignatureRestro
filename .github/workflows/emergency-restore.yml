@@ -1,0 +1,136 @@
+name: Emergency Full Restore
+
+# Use when cPanel folders are empty / site stuck on 403.
+# Uploads one big zip + extractor, then restores files on hosting.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install Composer dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+      - name: Build frontend
+        run: |
+          npm ci
+          npm run build
+          test -f public/build/manifest.json
+
+      - name: Create one-time restore key
+        run: |
+          KEY=$(openssl rand -hex 24)
+          echo "$KEY" > .deploy-key
+          echo "RESTORE_KEY=$KEY" >> "$GITHUB_ENV"
+
+      - name: Zip full app for restore
+        run: |
+          rm -f app-restore.zip
+          zip -r -q app-restore.zip \
+            app bootstrap config database public resources routes \
+            artisan composer.json composer.lock index.php .htaccess \
+            vendor public/build \
+            -x "public/app-restore.zip" \
+            -x "*/node_modules/*" \
+            -x "*/.git/*" \
+            -x "storage/logs/*" \
+            -x "storage/framework/cache/*" \
+            -x "storage/framework/sessions/*"
+          # Ensure emergency scripts + key are inside zip too
+          zip -q app-restore.zip public/emergency-restore.php public/restore-env.php .deploy-key
+          ls -lh app-restore.zip
+
+      - name: Install lftp
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp
+
+      - name: Upload bootstrap files + zip (retries)
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+        run: |
+          DIR="${FTP_SERVER_DIR:-/}"
+          DIR="${DIR%/}"
+          upload() {
+            lftp -c "
+              set ftp:ssl-allow no;
+              set net:max-retries 25;
+              set net:reconnect-interval-base 4;
+              set net:timeout 180;
+              set xfer:clobber on;
+              set ftp:passive-mode true;
+              open -u ${FTP_USERNAME},${FTP_PASSWORD} ftp://${FTP_SERVER};
+              cd ${DIR};
+              mkdir -p public;
+              put -O . index.php;
+              put -O . .htaccess;
+              put -O . .deploy-key;
+              put -O public public/index.php;
+              put -O public public/.htaccess;
+              put -O public public/emergency-restore.php;
+              put -O public public/restore-env.php;
+              put -O . app-restore.zip;
+              bye
+            "
+          }
+          for attempt in 1 2 3 4 5; do
+            echo "Upload attempt $attempt"
+            if upload; then
+              echo "Upload OK"
+              exit 0
+            fi
+            sleep $((attempt * 8))
+          done
+          echo "::error::FTP upload failed"
+          exit 1
+
+      - name: Run emergency extract on hosting
+        run: |
+          sleep 5
+          URL="https://signature.softwaresolutions.pk/emergency-restore.php?key=${RESTORE_KEY}"
+          echo "Calling $URL"
+          curl -sfS --retry 8 --retry-delay 5 --max-time 600 "$URL" | tee /tmp/restore-out.txt
+          grep -q "DONE" /tmp/restore-out.txt
+          grep -q "OK  public/index.php" /tmp/restore-out.txt
+
+      - name: Verify site entry point
+        run: |
+          sleep 3
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://signature.softwaresolutions.pk/")
+          echo "GET / => $CODE"
+          if [ "$CODE" = "403" ] || [ "$CODE" = "000" ] || [ "$CODE" = "404" ]; then
+            # Try public path style hosts
+            CODE2=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://signature.softwaresolutions.pk/index.php")
+            echo "GET /index.php => $CODE2"
+            if [ "$CODE2" = "403" ] || [ "$CODE2" = "000" ] || [ "$CODE2" = "404" ]; then
+              echo "::error::Still not reachable after restore"
+              exit 1
+            fi
+          fi
+          echo "Site entry reachable. If 500, open /restore-env.php to recreate .env"
