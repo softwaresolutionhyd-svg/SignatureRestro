@@ -688,11 +688,7 @@ final class NetworkPrinterService
                 $amount
             );
             $out .= self::BOLD_OFF;
-
-            $itemNotes = trim((string) ($item->notes ?? ''));
-            if ($itemNotes !== '') {
-                $out .= $this->line('Note: ' . $itemNotes) . "\n";
-            }
+            // Item / bill kitchen instructions stay on kitchen slip only — not on paid/unpaid bills.
             $out .= "\n";
         }
         $out .= $this->rule();
@@ -740,9 +736,10 @@ final class NetworkPrinterService
         }
 
         $billNote = trim((string) ($order->order_notes ?? ''));
-        if ($billNote !== '') {
+        // Only print delivery address on cashier bill — never kitchen/item instructions.
+        if ($billNote !== '' && $order->serviceTypeKey() === PosOrder::SERVICE_DELIVERY) {
             $out .= $this->rule();
-            $out .= $this->line('Note: ' . $billNote) . "\n";
+            $out .= $this->line('Address: ' . $billNote) . "\n";
         }
 
         if ($isQuotation) {

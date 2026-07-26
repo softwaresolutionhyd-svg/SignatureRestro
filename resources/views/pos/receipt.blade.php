@@ -209,11 +209,6 @@
                     <td class="item-rate">{{ fmt_num((float) $line->unit_price, 2) }}</td>
                     <td class="amt bold">{{ fmt_num((float) $line->total, 2) }}</td>
                 </tr>
-                @if(trim((string) ($line->notes ?? '')) !== '')
-                <tr>
-                    <td colspan="4" class="item-note muted">Note: {{ $line->notes }}</td>
-                </tr>
-                @endif
             @endforeach
         </tbody>
     </table>
@@ -258,9 +253,10 @@
         @endif
     </div>
 
-    @if(!empty(trim((string) ($order->order_notes ?? ''))))
+    {{-- Delivery address only (not kitchen / item instructions) --}}
+    @if(($order->serviceTypeKey() ?? null) === \App\Models\PosOrder::SERVICE_DELIVERY && !empty(trim((string) ($order->order_notes ?? ''))))
         <hr class="line">
-        <div class="muted" style="font-size:10px;"><span class="bold">Note:</span> {{ $order->order_notes }}</div>
+        <div class="muted" style="font-size:10px;"><span class="bold">Address:</span> {{ $order->order_notes }}</div>
     @endif
 
     @if(!empty($isQuotation))

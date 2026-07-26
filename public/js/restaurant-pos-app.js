@@ -2372,7 +2372,8 @@
         formData.append('_token', csrf);
         formData.append('items', JSON.stringify(cartItemsForSubmit()));
         formData.append('service_type', selectedServiceType());
-        formData.append('order_notes', ($('#rpBillKitchenNotes')?.value || '').trim());
+        formData.append('order_notes', '');
+        formData.append('kitchen_notes', ($('#rpBillKitchenNotes')?.value || '').trim());
         formData.append('bill_tax_percent', String(($('#rpSubmitForm')?.querySelector('[name="bill_tax_percent"]')?.value) || '0'));
         formData.append('bill_discount_percent', String(($('#rpSubmitForm')?.querySelector('[name="bill_discount_percent"]')?.value) || '0'));
         formData.append('client_subtotal', String(totals.subtotal));
