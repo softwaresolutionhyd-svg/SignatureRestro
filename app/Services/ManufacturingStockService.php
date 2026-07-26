@@ -8,12 +8,19 @@ use App\Models\InventoryProduct;
 use RuntimeException;
 
 /**
- * Applies base-UOM stock movements for manufacturing completion.
+ * Applies base-UOM stock movements for manufacturing completion / POS BoM.
  * Mirrors FIFO behaviour from Inventory MoveController (manufacturing-only entry point).
+ *
+ * When $departmentId is set, component qty is taken from that department's stock
+ * (e.g. Kitchen after warehouse issue) — not from warehouse.
  */
 final class ManufacturingStockService
 {
     private const EPS = 0.000001;
+
+    public function __construct(
+        private readonly InventoryStockService $inventoryStock
+    ) {}
 
     /**
      * @param  bool  $allowNegativeOnHand  POS: allow shelf qty below zero; FIFO shortfall valued at product cost. Manufacturing: keep false to block oversell.
@@ -25,7 +32,8 @@ final class ManufacturingStockService
         ?int $userId,
         string $reference,
         ?string $note = null,
-        bool $allowNegativeOnHand = false
+        bool $allowNegativeOnHand = false,
+        ?int $departmentId = null
     ): float {
         if ($qtyBase <= 0) {
             throw new RuntimeException('Quantity must be positive.');
@@ -33,12 +41,31 @@ final class ManufacturingStockService
 
         $product = InventoryProduct::query()->lockForUpdate()->findOrFail($product->id);
         $before = (float) $product->qty_on_hand;
-        if (! $allowNegativeOnHand && $qtyBase > $before) {
-            throw new RuntimeException("Insufficient stock for {$product->sku}.");
-        }
 
-        $after = $before - $qtyBase;
-        $product->update(['qty_on_hand' => $after]);
+        if ($departmentId !== null) {
+            try {
+                $this->inventoryStock->removeStock(
+                    (int) $product->id,
+                    $departmentId,
+                    $qtyBase,
+                    $allowNegativeOnHand
+                );
+            } catch (\RuntimeException $e) {
+                throw $e;
+            }
+            // Company total still tracks overall on-hand.
+            if (! $allowNegativeOnHand && $qtyBase > $before + 0.0005) {
+                throw new RuntimeException("Insufficient stock for {$product->sku}.");
+            }
+            $after = $before - $qtyBase;
+            $product->update(['qty_on_hand' => $after]);
+        } else {
+            if (! $allowNegativeOnHand && $qtyBase > $before) {
+                throw new RuntimeException("Insufficient stock for {$product->sku}.");
+            }
+            $after = $before - $qtyBase;
+            $product->update(['qty_on_hand' => $after]);
+        }
 
         [$unitCost, $totalCost] = $this->consumeFifo((int) $product->id, $qtyBase, $allowNegativeOnHand);
         $this->refreshProductCostFromLayers((int) $product->id);
@@ -47,6 +74,8 @@ final class ManufacturingStockService
             'product_id' => $product->id,
             'user_id' => $userId,
             'type' => 'out',
+            'from_department_id' => $departmentId,
+            'to_department_id' => null,
             'qty' => $qtyBase,
             'uom' => $product->uom,
             'qty_uom' => $qtyBase,
@@ -71,7 +100,8 @@ final class ManufacturingStockService
         ?int $userId,
         string $reference,
         ?string $note = null,
-        ?float $absorbedUnitCost = null
+        ?float $absorbedUnitCost = null,
+        ?int $departmentId = null
     ): void {
         if ($qtyBase <= 0) {
             throw new RuntimeException('Quantity must be positive.');
@@ -81,6 +111,10 @@ final class ManufacturingStockService
         $before = (float) $product->qty_on_hand;
         $after = $before + $qtyBase;
         $product->update(['qty_on_hand' => $after]);
+
+        if ($departmentId !== null) {
+            $this->inventoryStock->addStock((int) $product->id, $departmentId, $qtyBase);
+        }
 
         $layerCost = $absorbedUnitCost !== null
             ? round(max(0.0, $absorbedUnitCost), 6)
@@ -100,6 +134,8 @@ final class ManufacturingStockService
             'product_id' => $product->id,
             'user_id' => $userId,
             'type' => 'in',
+            'from_department_id' => null,
+            'to_department_id' => $departmentId,
             'qty' => $qtyBase,
             'uom' => $product->uom,
             'qty_uom' => $qtyBase,
@@ -169,7 +205,7 @@ final class ManufacturingStockService
     private function refreshProductCostFromLayers(int $productId): void
     {
         $product = InventoryProduct::query()->find($productId);
-        if (!$product) {
+        if (! $product) {
             return;
         }
 

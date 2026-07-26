@@ -2922,6 +2922,10 @@ class PosController extends Controller
             $locked[$pid] = InventoryProduct::query()->lockForUpdate()->findOrFail($pid);
         }
 
+        $finished->loadMissing(['department', 'departments']);
+        $consumeDeptId = app(\App\Services\InventoryStockService::class)
+            ->consumptionDepartmentIdForProduct($finished);
+
         $ref = $order->order_no;
         $notePrefix = $isSale ? 'POS sale' : 'POS refund';
 
@@ -2943,7 +2947,8 @@ class PosController extends Controller
                         Auth::id(),
                         $ref,
                         $notePrefix.' — '.$finished->name.' (BoM)',
-                        true
+                        true,
+                        $consumeDeptId
                     );
                     $this->notifyStockUpdate($component, 'out', $needBase, $order->order_no);
                 } else {
@@ -2953,7 +2958,8 @@ class PosController extends Controller
                         Auth::id(),
                         $ref,
                         $notePrefix.' — '.$finished->name.' (BoM)',
-                        (float) $component->cost
+                        (float) $component->cost,
+                        $consumeDeptId
                     );
                     $this->notifyStockUpdate($component, 'in', $needBase, $order->order_no);
                 }

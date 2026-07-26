@@ -81,6 +81,74 @@ final class InventoryStockService
     }
 
     /**
+     * Deduct from a department stock row (recipes / POS BoM consume here — not warehouse by default).
+     */
+    public function removeStock(int $productId, int $departmentId, float $qtyBase, bool $allowNegative = false): InventoryProductStock
+    {
+        if ($qtyBase <= 0) {
+            throw new \InvalidArgumentException('Quantity must be greater than zero.');
+        }
+
+        $row = InventoryProductStock::query()
+            ->lockForUpdate()
+            ->firstOrCreate(
+                [
+                    'product_id' => $productId,
+                    'department_id' => $departmentId,
+                ],
+                ['qty_on_hand' => 0]
+            );
+
+        $available = (float) $row->qty_on_hand;
+        if (! $allowNegative && $available + 0.0005 < $qtyBase) {
+            $dept = InventoryDepartment::query()->find($departmentId);
+            $product = InventoryProduct::query()->find($productId);
+            throw new \RuntimeException(sprintf(
+                '%s me sirf %s %s maujood hai.',
+                $dept?->name ?? 'Department',
+                fmt_num($available, 3),
+                $product?->uom ?? ''
+            ));
+        }
+
+        $row->update([
+            'qty_on_hand' => round($available - $qtyBase, 3),
+        ]);
+
+        return $row->fresh();
+    }
+
+    /**
+     * Department where recipe/BoM components should be consumed for a finished product.
+     * Prefers non-warehouse (e.g. Kitchen) — warehouse only as last resort.
+     */
+    public function consumptionDepartmentIdForProduct(InventoryProduct $product): int
+    {
+        $product->loadMissing(['department', 'departments']);
+
+        if ($product->department && ! $product->department->is_warehouse) {
+            return (int) $product->department->id;
+        }
+
+        foreach ($product->departments as $dept) {
+            if (! $dept->is_warehouse) {
+                return (int) $dept->id;
+            }
+        }
+
+        if ($product->department_id) {
+            return (int) $product->department_id;
+        }
+
+        $first = $product->departments->first();
+        if ($first) {
+            return (int) $first->id;
+        }
+
+        return (int) $this->warehouse()->id;
+    }
+
+    /**
      * Move stock from warehouse to another department. Total product qty_on_hand stays the same.
      */
     public function issueFromWarehouse(

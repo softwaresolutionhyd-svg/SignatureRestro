@@ -123,6 +123,11 @@ class OrderController extends Controller
                 $ref = 'MFG-ORD-'.$order->id;
 
                 $absorbedTotal = 0.0;
+                $finishedPreview = $locked[$bom->finished_product_id];
+                $finishedPreview->loadMissing(['department', 'departments']);
+                $consumeDeptId = app(\App\Services\InventoryStockService::class)
+                    ->consumptionDepartmentIdForProduct($finishedPreview);
+
                 foreach ($bom->lines as $line) {
                     $component = $locked[$line->component_product_id];
                     $component->loadMissing('uomConversions');
@@ -136,7 +141,9 @@ class OrderController extends Controller
                         $needBase,
                         $request->user()?->id,
                         $ref,
-                        'MO #'.$order->id.' component'
+                        'MO #'.$order->id.' component',
+                        false,
+                        $consumeDeptId
                     );
                 }
 
@@ -150,7 +157,8 @@ class OrderController extends Controller
                     $request->user()?->id,
                     $ref,
                     'MO #'.$order->id.' output (FIFO absorbed)',
-                    $absorbedUnit
+                    $absorbedUnit,
+                    $consumeDeptId
                 );
 
                 $order->update([
