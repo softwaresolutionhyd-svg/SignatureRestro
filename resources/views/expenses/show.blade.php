@@ -130,9 +130,6 @@
             <div class="card-header bg-white fw-semibold py-3">Expense Details</div>
             <div class="card-body">
                 <dl class="row mb-0">
-                    <dt class="col-sm-4 text-secondary fw-normal">Employee</dt>
-                    <dd class="col-sm-8 fw-semibold">{{ $expense->employee?->name ?? '—' }}</dd>
-
                     <dt class="col-sm-4 text-secondary fw-normal">Category</dt>
                     <dd class="col-sm-8">{{ $expense->category?->name ?? '—' }}</dd>
 

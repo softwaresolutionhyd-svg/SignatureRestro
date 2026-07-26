@@ -20,7 +20,7 @@ class ExpenseController extends Controller
 
     public function index(Request $request)
     {
-        $query = Expense::with(['employee', 'category'])
+        $query = Expense::with(['category'])
             ->orderByDesc('expense_date')
             ->orderByDesc('id');
 
@@ -84,7 +84,7 @@ class ExpenseController extends Controller
 
     public function show(Expense $expense)
     {
-        $expense->load(['employee', 'category', 'approvedBy']);
+        $expense->load(['category', 'approvedBy']);
         $statusMap = Expense::statusLabel();
         return view('expenses.show', compact('expense', 'statusMap'));
     }

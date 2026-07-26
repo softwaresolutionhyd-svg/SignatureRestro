@@ -102,7 +102,6 @@
                     <tr>
                         <th class="ps-3">#</th>
                         <th>Description</th>
-                        <th>Employee</th>
                         <th>Category</th>
                         <th>Date</th>
                         <th class="text-end">Total</th>
@@ -123,7 +122,6 @@
                                 <svg width="12" height="12" fill="none" viewBox="0 0 20 20" class="text-muted ms-1" title="Has receipt"><path d="M4 4h12v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" stroke="currentColor" stroke-width="1.5"/><path d="M8 4V2h4v2" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
                             @endif
                         </td>
-                        <td class="small">{{ $expense->employee?->name ?? '—' }}</td>
                         <td class="small text-secondary">{{ $expense->category?->name ?? '—' }}</td>
                         <td class="small text-secondary">{{ $expense->expense_date?->format('d M Y') }}</td>
                         <td class="text-end fw-semibold small">{{ fmt_num($expense->grand_total, 2) }}</td>
@@ -160,7 +158,7 @@
                         </td>
                     </tr>
                     @empty
-                    <tr><td colspan="8" class="text-center py-5 text-secondary">No expenses found.</td></tr>
+                    <tr><td colspan="7" class="text-center py-5 text-secondary">No expenses found.</td></tr>
                     @endforelse
                 </tbody>
             </table>
