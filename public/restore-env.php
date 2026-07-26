@@ -59,6 +59,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ok = @file_put_contents($envPath, implode("\n", $lines)."\n") !== false;
         if ($ok) {
             @chmod($envPath, 0600);
+            // Drop stale cached config that may still point at wrong DB host.
+            foreach (glob($base.DIRECTORY_SEPARATOR.'bootstrap'.DIRECTORY_SEPARATOR.'cache'.DIRECTORY_SEPARATOR.'*.php') ?: [] as $cached) {
+                @unlink($cached);
+            }
             $done = true;
         } else {
             $error = '.env write fail — folder permissions check karo.';
