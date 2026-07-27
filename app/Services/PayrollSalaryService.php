@@ -254,6 +254,8 @@ class PayrollSalaryService
      */
     public function rowFromEntry(Employee $employee, PayrollEntry $entry, string $period): array
     {
+        $attendance = $this->attendancePayroll->monthCountsForEmployee((int) $employee->id, $period);
+
         return [
             'employee_id' => $employee->id,
             'employee_no' => $employee->employee_no,
@@ -264,6 +266,9 @@ class PayrollSalaryService
             'staff_category_sort' => (int) ($employee->staffCategory?->sort_order ?? 999),
             'basic_salary' => (float) $entry->base_salary,
             'working_days' => $this->workingDaysForEmployee($employee->id, $period),
+            'present_days' => (int) ($attendance['present'] ?? 0),
+            'holiday_days' => (int) ($attendance['holiday'] ?? 0),
+            'absent_days' => (int) ($attendance['absent'] ?? 0),
             'deduction' => (float) $entry->deduction,
             'food_bill' => (float) $entry->food_bill,
             'loan' => (float) $entry->loan,
