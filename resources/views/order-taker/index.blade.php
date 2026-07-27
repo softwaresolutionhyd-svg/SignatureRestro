@@ -111,6 +111,27 @@
 </div>
 
 {{-- Move Table Modal --}}
+<style>
+.rp-mt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(6.2rem,1fr));gap:.85rem .7rem;padding:.5rem}
+.rp-mt-table-btn{display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:.3rem .2rem .45rem;border:none;border-radius:0;background:transparent;cursor:pointer;transition:transform .15s;font-family:inherit}
+.rp-mt-table-btn:hover:not(:disabled){transform:translateY(-2px)}
+.rp-mt-table-btn:disabled{opacity:.7;cursor:not-allowed}
+.rp-mt-shape{position:relative;width:5rem;height:5rem;flex-shrink:0}
+.rp-mt-top{position:absolute;inset:18% 18%;border-radius:22%;display:flex;align-items:center;justify-content:center;border:2px solid transparent;background:#fff;z-index:2;transition:border-color .15s,box-shadow .15s}
+.rp-mt-chair{position:absolute;border-radius:.25rem;z-index:1;transition:background .15s}
+.rp-mt-chair--n,.rp-mt-chair--s{width:38%;height:14%;left:31%}
+.rp-mt-chair--e,.rp-mt-chair--w{width:14%;height:38%;top:31%}
+.rp-mt-chair--n{top:2%}.rp-mt-chair--s{bottom:2%}.rp-mt-chair--e{right:2%}.rp-mt-chair--w{left:2%}
+.rp-mt-name{font-size:.92rem;font-weight:800;line-height:1.1;color:#1c1917}
+.rp-mt-label{font-size:.66rem;line-height:1.15;text-align:center}
+.rp-mt-table-btn--free .rp-mt-top{border-color:rgba(61,214,140,.65);background:linear-gradient(160deg,rgba(34,160,107,.15) 0%,#fff 65%);box-shadow:0 0 12px rgba(34,160,107,.18)}
+.rp-mt-table-btn--free .rp-mt-chair{background:#3dd68c;box-shadow:0 0 6px rgba(61,214,140,.3)}
+.rp-mt-table-btn--free:hover .rp-mt-top{border-color:rgba(61,214,140,.95);box-shadow:0 0 18px rgba(34,160,107,.3)}
+.rp-mt-table-btn--free .rp-mt-label{color:#16a34a;font-weight:600}
+.rp-mt-table-btn--occupied .rp-mt-top{border-color:rgba(255,107,107,.65);background:linear-gradient(160deg,rgba(201,42,42,.15) 0%,#fff 65%);box-shadow:0 0 12px rgba(201,42,42,.18)}
+.rp-mt-table-btn--occupied .rp-mt-chair{background:#ff6b6b;box-shadow:0 0 6px rgba(255,107,107,.3)}
+.rp-mt-table-btn--occupied .rp-mt-label{color:#dc2626;font-weight:600}
+</style>
 <div class="modal fade" id="otMoveTableModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -156,8 +177,21 @@
         if (!free.length) {
             body.innerHTML = '<div class="text-center text-secondary py-4">Koi free table nahi.</div>';
         } else {
-            body.innerHTML = '<div class="d-flex flex-wrap gap-2 justify-content-center">' +
-                free.map(t => '<button type="button" class="btn btn-outline-success px-3 py-3 js-ot-pick-table" data-table-id="' + t.id + '" style="min-width:80px;"><div class="fw-bold" style="font-size:1.1rem;">' + t.name + '</div></button>').join('') +
+            body.innerHTML = '<div class="rp-mt-grid">' +
+                tables.map(t => {
+                    const isFree = t.id !== currentTable;
+                    const cls = isFree ? 'rp-mt-table-btn--free' : 'rp-mt-table-btn--occupied';
+                    return '<button type="button" class="rp-mt-table-btn ' + cls + (isFree ? ' js-ot-pick-table' : '') + '" data-table-id="' + t.id + '"' + (isFree ? '' : ' disabled') + '>' +
+                        '<span class="rp-mt-shape">' +
+                            '<span class="rp-mt-chair rp-mt-chair--n"></span>' +
+                            '<span class="rp-mt-chair rp-mt-chair--e"></span>' +
+                            '<span class="rp-mt-chair rp-mt-chair--s"></span>' +
+                            '<span class="rp-mt-chair rp-mt-chair--w"></span>' +
+                            '<span class="rp-mt-top"><span class="rp-mt-name">' + t.name + '</span></span>' +
+                        '</span>' +
+                        '<span class="rp-mt-label">' + (isFree ? 'Free' : 'Current') + '</span>' +
+                    '</button>';
+                }).join('') +
             '</div>';
         }
         modal.show();

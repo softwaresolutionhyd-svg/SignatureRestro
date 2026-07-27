@@ -1385,20 +1385,28 @@
         moveTableModalEl.querySelector('#rpMoveTableTitle').textContent = `Select New Table — ${orderNo || 'Order'}`;
 
         const body = moveTableModalEl.querySelector('#rpMoveTableBody');
-        const freeTables = board.filter(t => t.status === 'free' && Number(t.id) !== Number(currentTableId));
+        const visibleTables = board.filter(t => Number(t.id) !== Number(currentTableId));
 
-        if (!freeTables.length) {
-            body.innerHTML = '<div class="text-center text-secondary py-4">Koi free table nahi hai abhi.</div>';
+        if (!visibleTables.length) {
+            body.innerHTML = '<div class="text-center text-secondary py-4">Koi table nahi mili.</div>';
         } else {
-            body.innerHTML = `<div class="d-flex flex-wrap gap-2 justify-content-center">
-                ${freeTables.map(t => `
-                    <button type="button" class="btn btn-outline-success rp-mt-table-btn px-3 py-3"
+            body.innerHTML = `<div class="rp-mt-grid">
+                ${visibleTables.map(t => {
+                    const isFree = t.status === 'free';
+                    const cls = isFree ? 'rp-mt-table-btn--free' : 'rp-mt-table-btn--occupied';
+                    return `<button type="button" class="rp-mt-table-btn ${cls}"
                             data-table-id="${t.id}" data-table-name="${escHtml(t.name)}"
-                            style="min-width:80px;">
-                        <div class="fw-bold" style="font-size:1.1rem;">${escHtml(t.name)}</div>
-                        <div class="text-success small">Free</div>
-                    </button>
-                `).join('')}
+                            ${isFree ? '' : 'disabled'}>
+                        <span class="rp-mt-shape">
+                            <span class="rp-mt-chair rp-mt-chair--n"></span>
+                            <span class="rp-mt-chair rp-mt-chair--e"></span>
+                            <span class="rp-mt-chair rp-mt-chair--s"></span>
+                            <span class="rp-mt-chair rp-mt-chair--w"></span>
+                            <span class="rp-mt-top"><span class="rp-mt-name">${escHtml(t.name)}</span></span>
+                        </span>
+                        <span class="rp-mt-label">${isFree ? 'Free' : (t.order_no || 'Occupied')}</span>
+                    </button>`;
+                }).join('')}
             </div>`;
         }
 
