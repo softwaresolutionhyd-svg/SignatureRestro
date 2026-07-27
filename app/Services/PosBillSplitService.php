@@ -50,6 +50,7 @@ final class PosBillSplitService
 
         $this->recalculateTotals($order->fresh(['items']));
         $this->recalculateTotals($newOrder->fresh(['items']));
+        $this->markOrderAsSplitParent($order->fresh(['table:id,name']));
 
         return [
             'original' => $order->fresh(['items.product', 'table', 'user:id,name']),
@@ -175,6 +176,19 @@ final class PosBillSplitService
         $label = trim($base.' · Split '.$tag);
 
         return mb_substr($label, 0, 120);
+    }
+
+    /** Original bill jis se items alag hui — pending list me split icon ke liye. */
+    private function markOrderAsSplitParent(PosOrder $order): void
+    {
+        $guest = trim((string) ($order->guest_name ?? ''));
+        if ($guest !== '' && str_contains($guest, ' · Split ')) {
+            return;
+        }
+
+        $order->update([
+            'guest_name' => $this->splitGuestLabel($order, 'Source'),
+        ]);
     }
 
     private function appendSplitNote(?string $notes, int $part, int $total): ?string

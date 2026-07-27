@@ -60,6 +60,9 @@ class PosController extends Controller
 
     private const FIFO_EPSILON = 0.000001;
 
+    /** @var array<int, list<int>> */
+    private array $splitParentOrderIdsBySession = [];
+
     public function __construct(
         private readonly ManufacturingStockService $manufacturingStock,
         private readonly AutoJournalService $autoJournal,
@@ -1872,6 +1875,8 @@ class PosController extends Controller
         /** @var list<PosOrder> $created */
         $created = $result['created'];
 
+        $this->splitParentOrderIdsBySession = [];
+
         $pendingPayload = collect([$original])
             ->merge($created)
             ->map(fn (PosOrder $o) => $this->posOrderDetailsPayload($o))
@@ -3377,6 +3382,20 @@ class PosController extends Controller
 
     private function orderSplitLabel(PosOrder $order): ?string
     {
+        $fromGuest = $this->orderSplitLabelFromGuest($order);
+        if ($fromGuest !== null) {
+            return $fromGuest;
+        }
+
+        if ($this->orderIsSplitSourceBill($order)) {
+            return 'Source';
+        }
+
+        return null;
+    }
+
+    private function orderSplitLabelFromGuest(PosOrder $order): ?string
+    {
         $guest = trim((string) ($order->guest_name ?? ''));
         if ($guest === '') {
             return null;
@@ -3388,6 +3407,64 @@ class PosController extends Controller
         }
 
         return null;
+    }
+
+    private function orderIsSplitSourceBill(PosOrder $order): bool
+    {
+        $sessionId = $order->session_id ? (int) $order->session_id : 0;
+        if ($sessionId <= 0) {
+            return false;
+        }
+
+        return in_array((int) $order->id, $this->splitParentOrderIdsForSession($sessionId), true);
+    }
+
+    /**
+     * Draft bills jin se item-wise split hua (bina guest label ke purani entries bhi).
+     *
+     * @return list<int>
+     */
+    private function splitParentOrderIdsForSession(int $sessionId): array
+    {
+        if (isset($this->splitParentOrderIdsBySession[$sessionId])) {
+            return $this->splitParentOrderIdsBySession[$sessionId];
+        }
+
+        $drafts = PosOrder::query()
+            ->where('status', 'draft')
+            ->where('session_id', $sessionId)
+            ->with('table:id,name')
+            ->get(['id', 'guest_name', 'table_id', 'session_id']);
+
+        $splitChildren = $drafts->filter(
+            fn (PosOrder $o) => str_contains((string) $o->guest_name, ' · Split ')
+        );
+
+        $parentIds = [];
+        foreach ($drafts as $parent) {
+            if (str_contains((string) $parent->guest_name, ' · Split ')) {
+                continue;
+            }
+            $tableName = strtolower(trim((string) ($parent->table?->name ?? '')));
+            foreach ($splitChildren as $child) {
+                if ((int) $child->id === (int) $parent->id) {
+                    continue;
+                }
+                $guest = trim((string) $child->guest_name);
+                if (preg_match('/^(.+?) · Split /u', $guest, $m) !== 1) {
+                    continue;
+                }
+                $childBase = strtolower(trim((string) ($m[1] ?? '')));
+                if ($tableName !== '' && $childBase === $tableName) {
+                    $parentIds[] = (int) $parent->id;
+                    break;
+                }
+            }
+        }
+
+        $this->splitParentOrderIdsBySession[$sessionId] = array_values(array_unique($parentIds));
+
+        return $this->splitParentOrderIdsBySession[$sessionId];
     }
 
     /** @return array<string, mixed> */
