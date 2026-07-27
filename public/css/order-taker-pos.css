@@ -447,11 +447,18 @@
     color: #e8edf5;
     border: 1px solid rgba(255,255,255,0.08);
 }
-#otMoveTableModal .modal-header,
-#otMoveTableModal .modal-footer {
+#otMoveTableModal .modal-header {
+    background: #0f141c;
     border-color: rgba(255,255,255,0.08);
 }
-#otMoveTableModal .modal-title { color: #e8edf5; font-weight: 700; }
+#otMoveTableModal .modal-footer {
+    background: #0f141c;
+    border-color: rgba(255,255,255,0.08);
+}
+#otMoveTableModal .modal-title {
+    color: #f5f7fa !important;
+    font-weight: 700;
+}
 #otMoveTableModal .btn-close { filter: invert(1); opacity: .7; }
 #otMoveTableModal .modal-body {
     background: #0c1016;
