@@ -11,8 +11,8 @@
             color: #111;
             margin: 0;
             padding: 16px;
-            font-size: 13px;
-            background: #f8fafc;
+            font-size: 14px;
+            background: #f1f5f9;
         }
         .noprint { margin-bottom: 16px; text-align: center; }
         .noprint button, .noprint a {
@@ -26,61 +26,122 @@
             text-decoration: none;
             color: #111;
         }
-        .slip-page {
-            max-width: 420px;
+        .slip-sheet {
+            width: 100%;
+            max-width: 210mm;
+            min-height: 297mm;
             margin: 0 auto;
             background: #fff;
-        }
-        .slip-box {
             border: 2px solid #111;
-            padding: 20px 22px;
+            padding: 14mm 16mm 16mm;
+            display: flex;
+            flex-direction: column;
+        }
+        .slip-head {
+            text-align: center;
+            margin-bottom: 10mm;
+            padding-bottom: 6mm;
+            border-bottom: 2px solid #111;
         }
         .slip-title {
-            text-align: center;
-            font-size: 20px;
+            font-size: 26px;
             font-weight: 700;
-            margin-bottom: 4px;
+            margin: 0 0 6px;
             letter-spacing: 0.4px;
         }
         .slip-brand-sub {
-            text-align: center;
-            font-size: 11px;
-            color: #555;
-            margin-bottom: 4px;
+            font-size: 14px;
+            color: #333;
+            margin: 0 0 6px;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 2px;
+            font-weight: 700;
         }
         .slip-subtitle {
-            text-align: center;
-            font-size: 13px;
-            margin-bottom: 18px;
-            color: #333;
+            font-size: 15px;
+            margin: 0;
+            color: #444;
+        }
+        .slip-body {
+            flex: 1 1 auto;
         }
         .slip-row {
             display: flex;
             justify-content: space-between;
-            gap: 12px;
-            padding: 6px 0;
-            border-bottom: 1px dashed #ddd;
+            align-items: baseline;
+            gap: 16px;
+            padding: 10px 0;
+            border-bottom: 1px dashed #ccc;
+            font-size: 15px;
         }
         .slip-row:last-child { border-bottom: none; }
         .slip-row.total {
             font-weight: 700;
-            font-size: 15px;
-            padding-top: 12px;
-            margin-top: 4px;
+            font-size: 18px;
+            padding-top: 14px;
+            margin-top: 8px;
             border-top: 2px solid #111;
             border-bottom: none;
         }
-        .slip-label { color: #555; flex-shrink: 0; }
+        .slip-label { color: #444; flex-shrink: 0; }
         .slip-value { text-align: right; font-weight: 600; }
         .status-paid { color: #166534; }
         .status-unpaid { color: #b45309; }
+        .slip-signatures {
+            margin-top: auto;
+            padding-top: 18mm;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20mm;
+        }
+        .sig-block {
+            text-align: center;
+        }
+        .sig-line {
+            border-bottom: 1.5px solid #111;
+            height: 28mm;
+            margin-bottom: 8px;
+        }
+        .sig-label {
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #333;
+        }
         @media print {
-            body { padding: 0; background: #fff; }
+            body {
+                padding: 0;
+                background: #fff;
+            }
             .noprint { display: none !important; }
-            .slip-page { max-width: none; margin: 0; }
-            @page { size: A4 portrait; margin: 15mm; }
+            .slip-sheet {
+                max-width: none;
+                width: auto;
+                min-height: calc(297mm - 24mm);
+                margin: 0;
+                border: none;
+                padding: 0;
+            }
+            @page {
+                size: A4 portrait;
+                margin: 12mm;
+            }
+            .slip-title { font-size: 28px; }
+            .slip-row { font-size: 16px; }
+            .slip-row.total { font-size: 20px; }
+        }
+        @media screen and (max-width: 640px) {
+            .slip-sheet {
+                min-height: auto;
+                padding: 16px;
+            }
+            .slip-signatures {
+                grid-template-columns: 1fr;
+                gap: 24px;
+                padding-top: 32px;
+            }
+            .sig-line { height: 48px; }
         }
     </style>
 </head>
@@ -90,12 +151,14 @@
         <a href="{{ route('employees.payroll.index', ['period' => $period]) }}">Back to Payroll</a>
     </div>
 
-    <div class="slip-page">
-        <div class="slip-box">
-            <div class="slip-title">{{ $companyName }}</div>
-            <div class="slip-brand-sub">Salary Slip</div>
-            <div class="slip-subtitle">{{ $periodLabel }}@if(!empty($row['staff_category'])) · {{ $row['staff_category'] }}@endif</div>
+    <div class="slip-sheet">
+        <header class="slip-head">
+            <h1 class="slip-title">{{ $companyName }}</h1>
+            <p class="slip-brand-sub">Salary Slip</p>
+            <p class="slip-subtitle">{{ $periodLabel }}@if(!empty($row['staff_category'])) · {{ $row['staff_category'] }}@endif</p>
+        </header>
 
+        <div class="slip-body">
             <div class="slip-row"><span class="slip-label">Employee ID</span><span class="slip-value">{{ $row['employee_no'] }}</span></div>
             <div class="slip-row"><span class="slip-label">Employee Name</span><span class="slip-value">{{ $row['name'] }}</span></div>
             <div class="slip-row"><span class="slip-label">Designation</span><span class="slip-value">{{ $row['designation'] }}</span></div>
@@ -113,6 +176,17 @@
                 <span class="slip-value {{ $row['status_key'] === 'paid' ? 'status-paid' : 'status-unpaid' }}">{{ $row['status'] }}</span>
             </div>
         </div>
+
+        <footer class="slip-signatures" aria-label="Signatures">
+            <div class="sig-block">
+                <div class="sig-line" aria-hidden="true"></div>
+                <div class="sig-label">Manager Signature</div>
+            </div>
+            <div class="sig-block">
+                <div class="sig-line" aria-hidden="true"></div>
+                <div class="sig-label">Employee Signature</div>
+            </div>
+        </footer>
     </div>
 
     <script>
