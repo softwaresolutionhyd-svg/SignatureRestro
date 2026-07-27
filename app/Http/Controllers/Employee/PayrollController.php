@@ -9,6 +9,7 @@ use App\Support\ActivityLogger;
 use App\Support\EnsuresPayrollSchema;
 use App\Services\AutoJournalService;
 use App\Services\EmployeeLoanService;
+use App\Services\PayrollFoodBillSettlementService;
 use App\Services\PayrollPaidExpenseService;
 use App\Services\PayrollSalaryService;
 use App\Services\Sync\CloudSyncService;
