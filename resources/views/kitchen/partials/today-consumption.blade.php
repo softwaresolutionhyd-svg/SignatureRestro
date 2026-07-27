@@ -4,12 +4,12 @@
 
 <div class="kitchen-today-consumption">
     <div class="d-flex align-items-center justify-content-between mb-2">
-        <span class="text-secondary small">Served items se ingredients</span>
+        <span class="text-secondary small">Served + paid orders se ingredients</span>
         <span class="kitchen-summary-date">{{ $todayLabel }}</span>
     </div>
-    <p class="kitchen-summary-hint mb-2">Jo cheezein aaj kitchen ne served mark ki hain — recipe ke hisaab se total consumption.</p>
+    <p class="kitchen-summary-hint mb-2">Aaj kitchen ne jo served mark ki hain ya POS par jin orders ko paid kiya — recipe ke hisaab se total consumption.</p>
     @if(($todayConsumption ?? []) === [])
-        <div class="kitchen-summary-empty">Aaj abhi koi served consumption nahi.</div>
+        <div class="kitchen-summary-empty">Aaj abhi koi consumption nahi (served / paid).</div>
     @else
         <ul class="kitchen-summary-list list-unstyled mb-0">
             @foreach($todayConsumption as $row)

@@ -600,24 +600,34 @@ final class KitchenService
     }
 
     /**
-     * Recipe / ingredient consumption for items kitchen ne aaj served mark kiye.
+     * Recipe consumption for today: kitchen served items + orders paid today.
      *
      * @return list<array{product_id: int, name: string, uom: string, qty: float}>
      */
     public function todayRecipeConsumption(): array
     {
-        if (! Schema::hasColumn('pos_order_items', 'kitchen_served_at')) {
-            return [];
-        }
-
         $start = Carbon::now()->startOfDay();
         $end = Carbon::now()->endOfDay();
 
         $items = PosOrderItem::query()
-            ->whereNotNull('kitchen_served_at')
-            ->whereBetween('kitchen_served_at', [$start, $end])
             ->with(['product.uomConversions'])
-            ->get();
+            ->where(function ($outer) use ($start, $end) {
+                if (Schema::hasColumn('pos_order_items', 'kitchen_served_at')) {
+                    $outer->where(function ($q) use ($start, $end) {
+                        $q->whereNotNull('kitchen_served_at')
+                            ->whereBetween('kitchen_served_at', [$start, $end]);
+                    });
+                }
+
+                $outer->orWhereHas('order', function ($q) use ($start, $end) {
+                    $q->where('status', 'paid')
+                        ->where('type', 'sale')
+                        ->whereNotNull('paid_at')
+                        ->whereBetween('paid_at', [$start, $end]);
+                });
+            })
+            ->get()
+            ->unique('id');
 
         return $this->recipeConsumptionFromItems($items);
     }
