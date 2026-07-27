@@ -1359,7 +1359,8 @@
                             <h5 class="modal-title" id="rpMoveTableTitle">Select New Table</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
-                        <div class="modal-body" id="rpMoveTableBody" style="max-height:60vh;overflow-y:auto;"></div>
+                        <div id="rpMoveTableAreaTabs" class="rp-mt-area-tabs px-3 pt-2"></div>
+                        <div class="modal-body" id="rpMoveTableBody" style="max-height:55vh;overflow-y:auto;"></div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                         </div>
@@ -1367,6 +1368,18 @@
                 </div>`;
             document.body.appendChild(moveTableModalEl);
             moveTableModalInstance = new window.bootstrap.Modal(moveTableModalEl, { backdrop: 'static' });
+
+            // Area tab click
+            moveTableModalEl.querySelector('#rpMoveTableAreaTabs').addEventListener('click', (e) => {
+                const tab = e.target.closest('.rp-mt-area-tab');
+                if (!tab) return;
+                moveTableModalEl.querySelectorAll('.rp-mt-area-tab').forEach(b => b.classList.remove('is-active'));
+                tab.classList.add('is-active');
+                const key = tab.dataset.areaKey;
+                moveTableModalEl.querySelectorAll('.rp-mt-area-section').forEach(sec => {
+                    sec.classList.toggle('d-none', key !== 'all' && sec.dataset.areaKey !== key);
+                });
+            });
 
             moveTableModalEl.querySelector('#rpMoveTableBody').addEventListener('click', (e) => {
                 const btn = e.target.closest('.rp-mt-table-btn');
@@ -1384,30 +1397,57 @@
 
         moveTableModalEl.querySelector('#rpMoveTableTitle').textContent = `Select New Table — ${orderNo || 'Order'}`;
 
-        const body = moveTableModalEl.querySelector('#rpMoveTableBody');
+        // Build grouped areas
         const visibleTables = board.filter(t => Number(t.id) !== Number(currentTableId));
+        const areaMap = {};
+        visibleTables.forEach(t => {
+            const aKey = t.sitting_area_id != null ? String(t.sitting_area_id) : 'none';
+            const aName = t.sitting_area_name || 'Other';
+            if (!areaMap[aKey]) areaMap[aKey] = { name: aName, tables: [] };
+            areaMap[aKey].tables.push(t);
+        });
+        const areas = Object.entries(areaMap);
+        const multiArea = areas.length > 1;
 
+        // Build area tabs
+        const tabsEl = moveTableModalEl.querySelector('#rpMoveTableAreaTabs');
+        if (multiArea) {
+            tabsEl.innerHTML = `<div class="rp-mt-area-tabs-inner">
+                <button type="button" class="rp-mt-area-tab is-active" data-area-key="all">All</button>
+                ${areas.map(([key, area]) => `<button type="button" class="rp-mt-area-tab" data-area-key="${escHtml(key)}">${escHtml(area.name)}</button>`).join('')}
+            </div>`;
+            tabsEl.style.display = '';
+        } else {
+            tabsEl.innerHTML = '';
+            tabsEl.style.display = 'none';
+        }
+
+        const body = moveTableModalEl.querySelector('#rpMoveTableBody');
         if (!visibleTables.length) {
             body.innerHTML = '<div class="text-center text-secondary py-4">Koi table nahi mili.</div>';
         } else {
-            body.innerHTML = `<div class="rp-mt-grid">
-                ${visibleTables.map(t => {
-                    const isFree = t.status === 'free';
-                    const cls = isFree ? 'rp-mt-table-btn--free' : 'rp-mt-table-btn--occupied';
-                    return `<button type="button" class="rp-mt-table-btn ${cls}"
-                            data-table-id="${t.id}" data-table-name="${escHtml(t.name)}"
-                            ${isFree ? '' : 'disabled'}>
-                        <span class="rp-mt-shape">
-                            <span class="rp-mt-chair rp-mt-chair--n"></span>
-                            <span class="rp-mt-chair rp-mt-chair--e"></span>
-                            <span class="rp-mt-chair rp-mt-chair--s"></span>
-                            <span class="rp-mt-chair rp-mt-chair--w"></span>
-                            <span class="rp-mt-top"><span class="rp-mt-name">${escHtml(t.name)}</span></span>
-                        </span>
-                        <span class="rp-mt-label">${isFree ? 'Free' : (t.order_no || 'Occupied')}</span>
-                    </button>`;
-                }).join('')}
-            </div>`;
+            body.innerHTML = areas.map(([key, area]) => `
+                <div class="rp-mt-area-section" data-area-key="${escHtml(key)}">
+                    ${multiArea ? `<div class="rp-mt-area-title">${escHtml(area.name)}</div>` : ''}
+                    <div class="rp-mt-grid">
+                        ${area.tables.map(t => {
+                            const isFree = t.status === 'free';
+                            const cls = isFree ? 'rp-mt-table-btn--free' : 'rp-mt-table-btn--occupied';
+                            return `<button type="button" class="rp-mt-table-btn ${cls}"
+                                    data-table-id="${t.id}" data-table-name="${escHtml(t.name)}"
+                                    ${isFree ? '' : 'disabled'}>
+                                <span class="rp-mt-shape">
+                                    <span class="rp-mt-chair rp-mt-chair--n"></span>
+                                    <span class="rp-mt-chair rp-mt-chair--e"></span>
+                                    <span class="rp-mt-chair rp-mt-chair--s"></span>
+                                    <span class="rp-mt-chair rp-mt-chair--w"></span>
+                                    <span class="rp-mt-top"><span class="rp-mt-name">${escHtml(t.name)}</span></span>
+                                </span>
+                                <span class="rp-mt-label">${isFree ? 'Free' : (t.order_no || 'Occupied')}</span>
+                            </button>`;
+                        }).join('')}
+                    </div>
+                </div>`).join('');
         }
 
         moveTableModalInstance.show();

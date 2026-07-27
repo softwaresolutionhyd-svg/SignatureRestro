@@ -875,6 +875,39 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
 }
 
 /* ─── Move Table Modal — table board icons ─── */
+.rp-mt-area-tabs-inner {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+.rp-mt-area-tab {
+    padding: 0.28rem 0.85rem;
+    border-radius: 999px;
+    border: 1.5px solid #d1d5db;
+    background: #f9fafb;
+    color: #374151;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s, border-color .15s, color .15s;
+    line-height: 1.4;
+}
+.rp-mt-area-tab:hover { background: #e5e7eb; }
+.rp-mt-area-tab.is-active {
+    background: #1d4ed8;
+    border-color: #1d4ed8;
+    color: #fff;
+}
+.rp-mt-area-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: #6b7280;
+    padding: 0.6rem 0 0.3rem;
+}
 .rp-mt-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(6.2rem, 1fr));

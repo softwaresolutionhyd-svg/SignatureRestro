@@ -112,6 +112,11 @@
 
 {{-- Move Table Modal --}}
 <style>
+.rp-mt-area-tabs-inner{display:flex;flex-wrap:wrap;gap:.35rem;padding:.6rem .5rem .5rem}
+.rp-mt-area-tab{padding:.28rem .85rem;border-radius:999px;border:1.5px solid #d1d5db;background:#f9fafb;color:#374151;font-size:.78rem;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s,color .15s;line-height:1.4}
+.rp-mt-area-tab:hover{background:#e5e7eb}
+.rp-mt-area-tab.is-active{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+.rp-mt-area-title{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;padding:.6rem 0 .3rem}
 .rp-mt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(6.2rem,1fr));gap:.85rem .7rem;padding:.5rem}
 .rp-mt-table-btn{display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:.3rem .2rem .45rem;border:none;border-radius:0;background:transparent;cursor:pointer;transition:transform .15s;font-family:inherit}
 .rp-mt-table-btn:hover:not(:disabled){transform:translateY(-2px)}
@@ -139,7 +144,8 @@
                 <h5 class="modal-title" id="otMoveTableTitle">Select New Table</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body" id="otMoveTableBody" style="max-height:60vh;overflow-y:auto;"></div>
+            <div id="otMoveTableAreaTabs"></div>
+            <div class="modal-body" id="otMoveTableBody" style="max-height:55vh;overflow-y:auto;"></div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
             </div>
@@ -153,55 +159,102 @@
 (function() {
     const csrf = '{{ csrf_token() }}';
     const moveUrl = '{{ route("order-taker.move-table", ["order" => 999999999]) }}'.replace('999999999', '__ID__');
-    const tables = @json(
-        \App\Models\PosTable::query()->where('active', true)->orderBy('name')
-            ->get(['id', 'name'])->map(fn ($t) => ['id' => (int) $t->id, 'name' => (string) $t->name])
+    // Full tableBoard with sitting_area info
+    const tableBoard = @json(
+        \App\Services\OrderTakerService::class === \App\Services\OrderTakerService::class
+            ? app(\App\Services\OrderTakerService::class)->tableBoard()
+            : []
     );
 
     const modalEl = document.getElementById('otMoveTableModal');
     if (!modalEl) return;
     const modal = new bootstrap.Modal(modalEl, { backdrop: 'static' });
+    const tabsEl = document.getElementById('otMoveTableAreaTabs');
+    const body = document.getElementById('otMoveTableBody');
     let currentOrderId = null;
 
+    function escH(s) { const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
+
+    function tableIcon(t, isCurrent) {
+        const isFree = !isCurrent && t.status === 'free';
+        const cls = isCurrent ? 'rp-mt-table-btn--occupied' : (isFree ? 'rp-mt-table-btn--free' : 'rp-mt-table-btn--occupied');
+        const pick = isFree ? ' js-ot-pick-table' : '';
+        const dis = (!isFree || isCurrent) ? ' disabled' : '';
+        const label = isCurrent ? 'Current' : (isFree ? 'Free' : (t.order_no || 'Occupied'));
+        return '<button type="button" class="rp-mt-table-btn ' + cls + pick + '" data-table-id="' + t.id + '"' + dis + '>' +
+            '<span class="rp-mt-shape">' +
+                '<span class="rp-mt-chair rp-mt-chair--n"></span>' +
+                '<span class="rp-mt-chair rp-mt-chair--e"></span>' +
+                '<span class="rp-mt-chair rp-mt-chair--s"></span>' +
+                '<span class="rp-mt-chair rp-mt-chair--w"></span>' +
+                '<span class="rp-mt-top"><span class="rp-mt-name">' + escH(t.name) + '</span></span>' +
+            '</span>' +
+            '<span class="rp-mt-label">' + escH(label) + '</span>' +
+        '</button>';
+    }
+
+    function buildModal(currentTableId) {
+        // Group by area
+        const areaMap = {};
+        tableBoard.forEach(t => {
+            const key = t.sitting_area_id != null ? String(t.sitting_area_id) : 'none';
+            const name = t.sitting_area_name || 'Other';
+            if (!areaMap[key]) areaMap[key] = { name, tables: [] };
+            areaMap[key].tables.push(t);
+        });
+        const areas = Object.entries(areaMap);
+        const multi = areas.length > 1;
+
+        // Tabs
+        if (multi) {
+            tabsEl.innerHTML = '<div class="rp-mt-area-tabs-inner">' +
+                '<button type="button" class="rp-mt-area-tab is-active" data-area-key="all">All</button>' +
+                areas.map(([key, a]) => '<button type="button" class="rp-mt-area-tab" data-area-key="' + escH(key) + '">' + escH(a.name) + '</button>').join('') +
+            '</div>';
+        } else {
+            tabsEl.innerHTML = '';
+        }
+
+        // Body
+        body.innerHTML = areas.map(([key, a]) =>
+            '<div class="rp-mt-area-section" data-area-key="' + escH(key) + '">' +
+            (multi ? '<div class="rp-mt-area-title px-2">' + escH(a.name) + '</div>' : '') +
+            '<div class="rp-mt-grid">' +
+                a.tables.map(t => tableIcon(t, Number(t.id) === Number(currentTableId))).join('') +
+            '</div></div>'
+        ).join('');
+    }
+
+    // Tab switching
+    tabsEl.addEventListener('click', function(e) {
+        const tab = e.target.closest('.rp-mt-area-tab');
+        if (!tab) return;
+        tabsEl.querySelectorAll('.rp-mt-area-tab').forEach(b => b.classList.remove('is-active'));
+        tab.classList.add('is-active');
+        const key = tab.dataset.areaKey;
+        body.querySelectorAll('.rp-mt-area-section').forEach(sec => {
+            sec.classList.toggle('d-none', key !== 'all' && sec.dataset.areaKey !== key);
+        });
+    });
+
+    // Open modal on click
     document.addEventListener('click', function(e) {
         const btn = e.target.closest('.js-ot-move-table');
         if (!btn) return;
         currentOrderId = btn.dataset.orderId;
         const currentTable = Number(btn.dataset.currentTable);
         const orderNo = btn.dataset.orderNo || '';
-
         document.getElementById('otMoveTableTitle').textContent = 'Select New Table — ' + orderNo;
-
-        const body = document.getElementById('otMoveTableBody');
-        const free = tables.filter(t => t.id !== currentTable);
-        if (!free.length) {
-            body.innerHTML = '<div class="text-center text-secondary py-4">Koi free table nahi.</div>';
-        } else {
-            body.innerHTML = '<div class="rp-mt-grid">' +
-                tables.map(t => {
-                    const isFree = t.id !== currentTable;
-                    const cls = isFree ? 'rp-mt-table-btn--free' : 'rp-mt-table-btn--occupied';
-                    return '<button type="button" class="rp-mt-table-btn ' + cls + (isFree ? ' js-ot-pick-table' : '') + '" data-table-id="' + t.id + '"' + (isFree ? '' : ' disabled') + '>' +
-                        '<span class="rp-mt-shape">' +
-                            '<span class="rp-mt-chair rp-mt-chair--n"></span>' +
-                            '<span class="rp-mt-chair rp-mt-chair--e"></span>' +
-                            '<span class="rp-mt-chair rp-mt-chair--s"></span>' +
-                            '<span class="rp-mt-chair rp-mt-chair--w"></span>' +
-                            '<span class="rp-mt-top"><span class="rp-mt-name">' + t.name + '</span></span>' +
-                        '</span>' +
-                        '<span class="rp-mt-label">' + (isFree ? 'Free' : 'Current') + '</span>' +
-                    '</button>';
-                }).join('') +
-            '</div>';
-        }
+        buildModal(currentTable);
         modal.show();
     });
 
-    modalEl.querySelector('#otMoveTableBody').addEventListener('click', async function(e) {
+    // Pick table
+    body.addEventListener('click', async function(e) {
         const btn = e.target.closest('.js-ot-pick-table');
         if (!btn || btn.disabled || !currentOrderId) return;
         const tableId = Number(btn.dataset.tableId);
-        modalEl.querySelectorAll('.js-ot-pick-table').forEach(b => { b.disabled = true; });
+        body.querySelectorAll('.js-ot-pick-table').forEach(b => { b.disabled = true; });
 
         try {
             const url = moveUrl.replace('__ID__', String(currentOrderId));
@@ -213,14 +266,14 @@
             const data = await res.json().catch(() => ({}));
             if (!res.ok || !data.ok) {
                 alert(data.message || 'Table move fail.');
-                modalEl.querySelectorAll('.js-ot-pick-table').forEach(b => { b.disabled = false; });
+                body.querySelectorAll('.js-ot-pick-table').forEach(b => { b.disabled = false; });
                 return;
             }
             modal.hide();
             location.reload();
         } catch (err) {
             alert('Table move request fail.');
-            modalEl.querySelectorAll('.js-ot-pick-table').forEach(b => { b.disabled = false; });
+            body.querySelectorAll('.js-ot-pick-table').forEach(b => { b.disabled = false; });
         }
     });
 })();
