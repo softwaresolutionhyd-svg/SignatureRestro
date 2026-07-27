@@ -286,7 +286,7 @@ final class NetworkPrinterService
     }
 
     /**
-     * @param  iterable<\App\Models\PosOrderItem>  $items
+     * @param  iterable<\App\Models\PosOrderItem>  $items  Unused — kept for call-site compatibility
      */
     public function buildTableMoveSlip(
         PosOrder $order,
@@ -297,62 +297,19 @@ final class NetworkPrinterService
     ): string {
         $out = self::INIT;
 
-        // Main heading
         $out .= self::ALIGN_CENTER . self::SIZE_DOUBLE . self::BOLD_ON;
         $out .= $this->clipWide('MOVE TABLE') . "\n";
         $out .= self::SIZE_NORMAL . self::BOLD_OFF;
 
-        // Department
-        $dept = strtoupper(trim($departmentName));
-        if ($dept !== '') {
-            $out .= self::ALIGN_CENTER . self::BOLD_ON;
-            $out .= $this->clip($dept) . "\n";
-            $out .= self::BOLD_OFF;
-        }
-
-        $out .= self::ALIGN_LEFT;
-        $out .= $this->twoCol('Bill#: '.($order->order_no ?? $order->id), now()->format('d-M-Y h:i A')) . "\n";
-        if ($order->user?->name) {
-            $out .= $this->line('by: '.$order->user->name) . "\n";
-        }
-
         $from = trim($fromTableName) !== '' ? trim($fromTableName) : '—';
         $to = trim($toTableName) !== '' ? trim($toTableName) : '—';
 
-        $out .= "\n" . self::ALIGN_CENTER . self::SIZE_DOUBLE . self::BOLD_ON;
-        $out .= $this->clipWide('Table no# '.$from) . "\n";
-        $out .= self::SIZE_NORMAL;
-        $out .= $this->clip('ka customer') . "\n";
-        $out .= self::SIZE_DOUBLE;
-        $out .= $this->clipWide('Table no# '.$to) . "\n";
-        $out .= self::SIZE_NORMAL;
-        $out .= $this->clip('py move ho gya hai') . "\n";
+        $out .= "\n" . self::ALIGN_CENTER . self::BOLD_ON;
+        $out .= $this->clip('Table no# '.$from.' ka Customer') . "\n";
+        $out .= $this->clip('Table no# '.$to.' py move ho gya hai') . "\n";
         $out .= self::BOLD_OFF;
 
-        $itemRows = [];
-        foreach ($items as $item) {
-            $name = method_exists($item, 'displayName')
-                ? (string) $item->displayName()
-                : trim((string) ($item->item_name ?? $item->product?->name ?? 'Item'));
-            $qty = (float) ($item->qty ?? 0);
-            if ($name === '' || $qty <= 0) {
-                continue;
-            }
-            $itemRows[] = [$name, $qty];
-        }
-
-        if ($itemRows !== []) {
-            $out .= "\n" . self::ALIGN_LEFT . self::BOLD_ON;
-            $out .= $this->kitchenItemRow('Items', 'QTY') . self::BOLD_OFF . "\n";
-            foreach ($itemRows as [$name, $qty]) {
-                $out .= $this->kitchenItemRow($name, (string) (abs($qty - round($qty)) < 0.001 ? (int) round($qty) : $qty)) . "\n";
-            }
-        }
-
-        $out .= "\n\n" . self::ALIGN_CENTER . self::BOLD_ON;
-        $out .= $this->clip('*** END ***') . "\n";
-        $out .= self::BOLD_OFF;
-        $out .= self::FEED . self::CUT;
+        $out .= "\n\n" . self::FEED . self::CUT;
 
         return $out;
     }
