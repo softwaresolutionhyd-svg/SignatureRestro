@@ -97,19 +97,47 @@
     -webkit-overflow-scrolling: touch;
 }
 
-.order-taker-pos-app .ot-table-board-body--split {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(16rem, 20rem);
-    gap: 1rem;
-    align-items: start;
-}
-
 .order-taker-pos-app .ot-table-areas {
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
     min-width: 0;
     width: 100%;
+}
+
+.order-taker-pos-app .ot-board-tabs {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.65rem 0.85rem 0;
+    flex-wrap: wrap;
+}
+
+.order-taker-pos-app .ot-board-panel {
+    min-width: 0;
+}
+
+.order-taker-pos-app .ot-pending-head {
+    padding-top: 0;
+}
+
+.order-taker-pos-app .ot-pending-grid {
+    align-content: start;
+}
+
+.order-taker-pos-app .ot-pending-grid .rp-order-card-link {
+    appearance: none;
+    color: inherit;
+    font: inherit;
+}
+
+.order-taker-pos-app .ot-pending-grid .rp-order-card-link:disabled {
+    opacity: 0.75;
+    cursor: default;
+}
+
+.order-taker-pos-app .ot-pending-grid .rp-order-card-link:hover {
+    color: inherit;
 }
 
 .order-taker-pos-app .ot-sitting-area {
@@ -260,187 +288,6 @@
     font-weight: 600;
 }
 
-/* My punched orders sidebar */
-.order-taker-pos-app .ot-my-orders {
-    position: sticky;
-    top: 0;
-    display: flex;
-    flex-direction: column;
-    max-height: calc(100vh - 10rem);
-    min-height: 14rem;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: var(--rp-radius, 12px);
-    background: var(--rp-bg-panel);
-    overflow: hidden;
-}
-
-.order-taker-pos-app .ot-my-orders-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    padding: 0.7rem 0.85rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    flex-shrink: 0;
-}
-
-.order-taker-pos-app .ot-my-orders-title {
-    font-size: 0.82rem;
-    font-weight: 700;
-    color: var(--rp-text);
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-}
-
-.order-taker-pos-app .ot-my-orders-title i {
-    color: var(--rp-gold, #c9a227);
-}
-
-.order-taker-pos-app .ot-my-orders-count {
-    min-width: 1.4rem;
-    height: 1.4rem;
-    padding: 0 0.35rem;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--rp-text-soft);
-    font-size: 0.72rem;
-    font-weight: 700;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.order-taker-pos-app .ot-my-orders-list {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 0.4rem;
-}
-
-.order-taker-pos-app .ot-my-order-card {
-    margin-bottom: 0.3rem;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 10px;
-    background: rgba(0, 0, 0, 0.22);
-    overflow: hidden;
-}
-
-.order-taker-pos-app .ot-my-order-card--live:hover {
-    border-color: rgba(61, 214, 140, 0.45);
-    background: rgba(34, 160, 107, 0.12);
-}
-
-.order-taker-pos-app .ot-my-order-row {
-    width: 100%;
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 0.5rem;
-    padding: 0.55rem 0.55rem 0.35rem;
-    margin-bottom: 0;
-    border: none;
-    border-radius: 0;
-    background: transparent;
-    color: var(--rp-text);
-    text-align: left;
-    cursor: pointer;
-    font-family: inherit;
-    transition: border-color 0.15s ease, background 0.15s ease;
-}
-
-.order-taker-pos-app .ot-my-order-row:disabled {
-    cursor: default;
-    opacity: 0.72;
-}
-
-.order-taker-pos-app .ot-my-order-row--live:not(:disabled):hover {
-    background: transparent;
-}
-
-.order-taker-pos-app .ot-my-order-main {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-    min-width: 0;
-}
-
-.order-taker-pos-app .ot-my-order-no {
-    font-size: 0.78rem;
-    font-weight: 700;
-    line-height: 1.2;
-}
-
-.order-taker-pos-app .ot-my-order-by {
-    display: block;
-    font-size: 0.68rem;
-    font-weight: 600;
-    color: #f5d08a;
-    line-height: 1.25;
-    opacity: 0.95;
-}
-
-.order-taker-pos-app .ot-my-order-meta {
-    font-size: 0.65rem;
-    color: var(--rp-text-soft);
-    line-height: 1.25;
-}
-
-.order-taker-pos-app .ot-my-order-side {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.12rem;
-    flex-shrink: 0;
-}
-
-.order-taker-pos-app .ot-my-order-time {
-    font-size: 0.62rem;
-    color: var(--rp-text-soft);
-}
-
-.order-taker-pos-app .ot-my-order-total {
-    font-size: 0.75rem;
-    font-weight: 700;
-}
-
-.order-taker-pos-app .ot-my-order-badge {
-    font-size: 0.58rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-    color: var(--rp-text-soft);
-}
-
-.order-taker-pos-app .ot-my-order-badge--open {
-    color: #3dd68c;
-}
-
-.order-taker-pos-app .ot-my-order-move-btn {
-    display: flex;
-    width: calc(100% - 0.7rem);
-    margin: 0 0.35rem 0.4rem;
-    border: 1px solid rgba(125, 211, 252, 0.32);
-    background: rgba(14, 165, 233, 0.12);
-    color: #a5f3fc;
-    border-radius: 8px;
-    padding: 0.35rem 0.55rem;
-    font-size: 0.68rem;
-    font-weight: 700;
-    line-height: 1.2;
-    align-items: center;
-    justify-content: center;
-    gap: 0.3rem;
-    cursor: pointer;
-    font-family: inherit;
-}
-
-.order-taker-pos-app .ot-my-order-move-btn:hover {
-    background: rgba(14, 165, 233, 0.22);
-    color: #fff;
-}
-
 /* Move Table modal — Bootstrap moves it to <body>, so do NOT scope under .order-taker-pos-app */
 #otMoveTableModal .modal-content {
     background: #0f141c;
@@ -585,14 +432,6 @@
 #otMoveTableModal .ot-table-box--occupied .ot-chair {
     background: #ff6b6b;
     box-shadow: 0 0 8px rgba(255, 107, 107, 0.35);
-}
-
-.order-taker-pos-app .ot-my-orders-empty {
-    padding: 1.25rem 0.75rem;
-    text-align: center;
-    font-size: 0.78rem;
-    color: var(--rp-text-soft);
-    line-height: 1.4;
 }
 
 .order-taker-pos-app .ot-no-session {
@@ -992,17 +831,6 @@
     .order-taker-pos-app.rp-view-menu .rp-checkout-head,
     .order-taker-pos-app:not(.rp-view-cart) .rp-checkout-head {
         flex-shrink: 0;
-    }
-}
-
-@media (max-width: 991.98px) {
-    .order-taker-pos-app .ot-table-board-body--split {
-        grid-template-columns: 1fr;
-    }
-
-    .order-taker-pos-app .ot-my-orders {
-        position: static;
-        max-height: 18rem;
     }
 }
 

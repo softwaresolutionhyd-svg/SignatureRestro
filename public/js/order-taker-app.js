@@ -26,6 +26,7 @@
     let selectedTableName = boot.resumeTableName || null;
     let pendingMode = !!editOrderId;
     let moveTableOrderId = null;
+    let boardTab = 'tables';
 
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -496,7 +497,21 @@
     function showTableBoard() {
         document.querySelector('.order-taker-pos-app')?.classList.remove('ot-screen-order');
         $('#otOrderScreen')?.classList.add('d-none');
+        setBoardTab('tables');
         window.history.replaceState({}, '', routes.index || '/order-taker');
+    }
+
+    function setBoardTab(nextTab) {
+        boardTab = nextTab === 'pending' ? 'pending' : 'tables';
+        const isPending = boardTab === 'pending';
+        $('#otBoardTabTables')?.classList.toggle('is-active', !isPending);
+        $('#otBoardTabTables')?.setAttribute('aria-selected', isPending ? 'false' : 'true');
+        $('#otBoardTabPending')?.classList.toggle('is-active', isPending);
+        $('#otBoardTabPending')?.setAttribute('aria-selected', isPending ? 'true' : 'false');
+        $('#otBoardPanelTables')?.classList.toggle('d-none', isPending);
+        $('#otBoardPanelPending')?.classList.toggle('d-none', !isPending);
+        $('#otAreaFilters')?.classList.toggle('d-none', isPending);
+        $('.ot-table-legend')?.classList.toggle('d-none', isPending);
     }
 
     function updateOrderHeader() {
@@ -831,7 +846,13 @@
             startNewOrder(tableId, tableName, 'dine_in');
         });
 
-        $('#otMyOrdersList')?.addEventListener('click', (e) => {
+        $('#otBoardTabs')?.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-board-tab]');
+            if (!btn) return;
+            setBoardTab(btn.dataset.boardTab || 'tables');
+        });
+
+        $('#otPendingOrdersGrid')?.addEventListener('click', (e) => {
             const moveBtn = e.target.closest('[data-action="move-table"]');
             if (moveBtn) {
                 e.preventDefault();
@@ -849,7 +870,7 @@
                 return;
             }
 
-            const row = e.target.closest('.ot-my-order-row, [data-action="open-order"]');
+            const row = e.target.closest('[data-action="open-order"]');
             if (!row || row.disabled) return;
             const orderId = Number(row.dataset.orderId);
             const amendable = row.dataset.amendable === '1';
@@ -993,6 +1014,7 @@
     function init() {
         renderMenuCategories();
         bindEvents();
+        setBoardTab('tables');
 
         if (boot.resumeOrderId) {
             editOrderId = boot.resumeOrderId;

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=47">
-<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=19">
+<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=20">
 @endpush
 
 @section('content')
@@ -128,8 +128,19 @@
                     @endforeach
                 </div>
             @endif
-            <div class="ot-table-board-body ot-table-board-body--split">
-                <div class="ot-table-areas" id="otTableGrid">
+            <div class="ot-board-tabs" id="otBoardTabs" role="tablist" aria-label="Order taker panels">
+                <button type="button" class="btn btn-sm rp-order-tab is-active" id="otBoardTabTables" data-board-tab="tables" role="tab" aria-selected="true">
+                    <i class="bi bi-grid-3x3-gap-fill"></i> Tables
+                </button>
+                <button type="button" class="btn btn-sm rp-order-tab" id="otBoardTabPending" data-board-tab="pending" role="tab" aria-selected="false">
+                    <i class="bi bi-hourglass-split"></i> Pending Orders
+                    <span class="badge rp-badge-count rp-badge-pending" id="otPendingCount">{{ count($allOrders ?? []) }}</span>
+                </button>
+            </div>
+
+            <div class="ot-table-board-body">
+                <div class="ot-board-panel" id="otBoardPanelTables" data-board-panel="tables">
+                    <div class="ot-table-areas" id="otTableGrid">
                     @foreach(($tableBoardGroups ?? []) as $idx => $area)
                         <section class="ot-sitting-area{{ $idx === 0 ? '' : ' d-none' }}"
                                  data-area-key="{{ $area['id'] ?? ('name:'.$area['name']) }}">
@@ -164,64 +175,68 @@
                             </div>
                         </section>
                     @endforeach
+                    </div>
                 </div>
 
-                <aside class="ot-my-orders" id="otMyOrders" aria-label="All pending orders">
-                    <div class="ot-my-orders-head">
-                        <span class="ot-my-orders-title"><i class="bi bi-receipt"></i> All Orders</span>
-                        <span class="ot-my-orders-count">{{ count($allOrders ?? []) }}</span>
+                <div class="ot-board-panel d-none" id="otBoardPanelPending" data-board-panel="pending" aria-label="Pending orders">
+                    <div class="rp-bills-head ot-pending-head">
+                        <div class="rp-bills-head-main">
+                            <span class="rp-bills-head-title">Pending Orders</span>
+                            <span class="rp-bills-head-count">{{ count($allOrders ?? []) }} bill{{ count($allOrders ?? []) === 1 ? '' : 's' }}</span>
+                        </div>
+                        <span class="rp-bills-head-hint">Order kholne ke liye card par click karein.</span>
                     </div>
-                    <div class="ot-my-orders-list" id="otMyOrdersList">
+                    <div class="rp-menu-grid rp-bills-grid ot-pending-grid" id="otPendingOrdersGrid">
                         @forelse(($allOrders ?? []) as $mo)
                             @php
                                 $canOpen = (bool) ($mo['amendable'] ?? false);
                                 $canMove = ($mo['service_type'] ?? null) === 'dine_in' && ! empty($mo['table_id']);
                             @endphp
-                            <div class="ot-my-order-card{{ $canOpen ? ' ot-my-order-card--live' : '' }}"
+                            <div class="rp-order-card rp-order-card--grid rp-order-card--pending-wrap{{ $canOpen ? '' : ' opacity-75' }}"
                                  data-order-id="{{ $mo['id'] }}"
                                  data-order-no="{{ $mo['order_no'] }}"
                                  data-service-type="{{ $mo['service_type'] ?? '' }}"
                                  data-table-id="{{ $mo['table_id'] ?? '' }}"
                                  data-amendable="{{ $canOpen ? '1' : '0' }}">
                                 <button type="button"
-                                        class="ot-my-order-row{{ $canOpen ? ' ot-my-order-row--live' : '' }}"
+                                        class="rp-order-card-link text-start bg-transparent border-0 w-100"
                                         data-action="open-order"
                                         data-order-id="{{ $mo['id'] }}"
                                         data-amendable="{{ $canOpen ? '1' : '0' }}"
                                         @if(! $canOpen) disabled @endif>
-                                    <span class="ot-my-order-main">
-                                        <span class="ot-my-order-no">{{ $mo['order_no'] }}</span>
-                                        <span class="ot-my-order-by">by: {{ $mo['punched_by'] ?? '—' }}</span>
-                                        <span class="ot-my-order-meta">
-                                            @if(!empty($mo['table_name']))
-                                                {{ $mo['table_name'] }} ·
-                                            @endif
-                                            {{ $mo['service_label'] }}
-                                            · {{ $mo['items_count'] }} items
-                                        </span>
-                                    </span>
-                                    <span class="ot-my-order-side">
-                                        <span class="ot-my-order-time">{{ $mo['punched_at'] }}</span>
-                                        <span class="ot-my-order-total">{{ $currency }}{{ number_format((float) $mo['grand_total'], 0) }}</span>
-                                        <span class="ot-my-order-badge ot-my-order-badge--open">Pending</span>
-                                    </span>
+                                    <div class="rp-oc-no">{{ $mo['order_no'] }}</div>
+                                    <div class="rp-oc-meta">
+                                        @if(!empty($mo['table_name']))
+                                            {{ $mo['table_name'] }} ·
+                                        @endif
+                                        {{ $mo['service_label'] }}
+                                    </div>
+                                    <div class="rp-oc-by">by: {{ $mo['punched_by'] ?? '—' }}</div>
+                                    <div class="rp-oc-meta">{{ $currency }}{{ number_format((float) $mo['grand_total'], 0) }} · {{ $mo['items_count'] }} items</div>
+                                    <div class="rp-oc-meta">{{ $mo['punched_at'] }}</div>
+                                    <div class="rp-oc-open">Open order <i class="bi bi-arrow-right-short"></i></div>
                                 </button>
                                 @if($canMove)
-                                    <button type="button"
-                                            class="ot-my-order-move-btn"
+                                    <div class="rp-oc-move-wrap">
+                                        <button type="button"
+                                            class="btn btn-sm rp-oc-move-table"
                                             data-action="move-table"
                                             data-order-id="{{ $mo['id'] }}"
                                             data-order-no="{{ $mo['order_no'] }}"
                                             data-table-id="{{ $mo['table_id'] }}">
-                                        <i class="bi bi-arrow-left-right"></i> Move Table
-                                    </button>
+                                            <i class="bi bi-arrow-left-right"></i> Move Table
+                                        </button>
+                                    </div>
                                 @endif
                             </div>
                         @empty
-                            <div class="ot-my-orders-empty">Koi pending order nahi.</div>
+                            <div class="rp-empty rp-empty--menu">
+                                <span class="rp-empty-icon"><i class="bi bi-hourglass-split"></i></span>
+                                <span>Koi pending order nahi.</span>
+                            </div>
                         @endforelse
                     </div>
-                </aside>
+                </div>
             </div>
         @endif
     </div>
@@ -387,6 +402,7 @@
         'menuCategories' => $menuCategories,
         'tableBoard' => $tableBoard,
         'allOrders' => $allOrders ?? [],
+        'pendingOrdersCount' => count($allOrders ?? []),
         'settings' => [
             'tax_mode' => $taxMode,
             'default_tax_rate' => $defaultTaxRate,
@@ -421,5 +437,5 @@
 <script>
 window.ORDER_TAKER_BOOTSTRAP = @json($otBootstrap);
 </script>
-<script src="{{ asset('js/order-taker-app.js') }}?v=18"></script>
+<script src="{{ asset('js/order-taker-app.js') }}?v=20"></script>
 @endsection
