@@ -159,7 +159,12 @@
     @if($billKitchenNotes !== '')
         <div class="bill-notes">
             <div class="bill-notes-label">Complete bill Notes:</div>
-            <div>{{ $billKitchenNotes }}</div>
+            @foreach(preg_split("/\r\n|\n|\r/", $billKitchenNotes) ?: [] as $noteLine)
+                @php $noteLine = trim((string) $noteLine); @endphp
+                @if($noteLine !== '')
+                    <div>({{ $noteLine }})</div>
+                @endif
+            @endforeach
         </div>
     @endif
 
@@ -184,7 +189,7 @@
                 </tr>
                 @if(trim((string) ($line->notes ?? '')) !== '')
                 <tr>
-                    <td colspan="2" class="item-note">*{{ $line->notes }}</td>
+                    <td colspan="2" class="item-note">({{ $line->notes }})</td>
                 </tr>
                 @endif
             @endforeach

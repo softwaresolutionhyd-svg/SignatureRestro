@@ -493,7 +493,11 @@ final class NetworkPrinterService
             $out .= $this->line('-'.$qty.'x '.$name) . "\n";
             $out .= self::BOLD_OFF;
             if ($reason !== '') {
-                $out .= $this->line('** Reason: '.$reason) . "\n";
+                $out .= $this->kitchenBracketLines($reason);
+            }
+            $itemNotes = trim((string) ($item['notes'] ?? ''));
+            if ($itemNotes !== '') {
+                $out .= $this->kitchenBracketLines($itemNotes);
             }
             $out .= $this->line('**Permitted By '.$permittedBy.'.**') . "\n";
             $out .= "\n";
@@ -552,7 +556,7 @@ final class NetworkPrinterService
      * Layout:
      *   Department (center) → Company (center) → Bill# / DateTime
      *   → Table No (center, large) → by: name → Complete bill Notes
-     *   → [+ NEW ITEMS if addon] → Items | QTY → *notes → blank lines → END → Cut
+     *   → [+ NEW ITEMS if addon] → Items | QTY → (notes) → blank lines → END → Cut
      *
      * @param  Collection<int, PosOrderItem>|iterable<int, PosOrderItem>  $items
      */
@@ -619,13 +623,7 @@ final class NetworkPrinterService
         $billNotes = trim((string) ($order->kitchen_notes ?? ''));
         if ($billNotes !== '') {
             $out .= self::BOLD_ON . $this->line('Complete bill Notes:') . self::BOLD_OFF . "\n";
-            foreach (preg_split("/\r\n|\n|\r/", $billNotes) ?: [] as $noteLine) {
-                $noteLine = trim((string) $noteLine);
-                if ($noteLine === '') {
-                    continue;
-                }
-                $out .= $this->line($noteLine) . "\n";
-            }
+            $out .= $this->kitchenBracketLines($billNotes);
         }
 
         $out .= $this->rule();
@@ -647,7 +645,7 @@ final class NetworkPrinterService
 
             $notes = trim((string) ($item->notes ?? ''));
             if ($notes !== '') {
-                $out .= $this->line('*' . $notes) . "\n";
+                $out .= $this->kitchenBracketLines($notes);
             }
             $out .= "\n"; // gap between item lines
         }
@@ -1007,6 +1005,34 @@ final class NetworkPrinterService
     private function line(string $text): string
     {
         return $this->clip($text);
+    }
+
+    /** Kitchen slips: item instructions and void reasons print as (text). */
+    private function kitchenBracketText(string $text): string
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return '';
+        }
+        if (preg_match('/^\(.*\)$/s', $text)) {
+            return $text;
+        }
+
+        return '('.$text.')';
+    }
+
+    private function kitchenBracketLines(string $text): string
+    {
+        $out = '';
+        foreach (preg_split("/\r\n|\n|\r/", $text) ?: [] as $noteLine) {
+            $noteLine = trim((string) $noteLine);
+            if ($noteLine === '') {
+                continue;
+            }
+            $out .= $this->line($this->kitchenBracketText($noteLine)) . "\n";
+        }
+
+        return $out;
     }
 
     private function rule(): string
