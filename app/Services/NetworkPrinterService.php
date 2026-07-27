@@ -230,7 +230,8 @@ final class NetworkPrinterService
 
             $dept = $this->resolveItemDepartment($product);
             if ($dept && ! empty($dept->printer_ip)) {
-                $groups[$dept->id] = $dept;
+                $groups[$dept->id]['dept'] = $dept;
+                $groups[$dept->id]['items'][] = $item;
             } else {
                 $unrouted++;
             }
@@ -248,12 +249,15 @@ final class NetworkPrinterService
         $results = [];
         $anyOk = false;
 
-        foreach ($groups as $dept) {
+        foreach ($groups as $group) {
+            /** @var \App\Models\InventoryDepartment $dept */
+            $dept = $group['dept'];
             $payload = $this->buildTableMoveSlip(
                 $order,
                 (string) $dept->name,
                 $fromTableName,
-                $toTableName
+                $toTableName,
+                $group['items'] ?? []
             );
 
             try {
@@ -281,21 +285,30 @@ final class NetworkPrinterService
         ];
     }
 
+    /**
+     * @param  iterable<\App\Models\PosOrderItem>  $items
+     */
     public function buildTableMoveSlip(
         PosOrder $order,
         string $departmentName,
         string $fromTableName,
-        string $toTableName
+        string $toTableName,
+        iterable $items = []
     ): string {
         $out = self::INIT;
 
+        // Main heading
         $out .= self::ALIGN_CENTER . self::SIZE_DOUBLE . self::BOLD_ON;
-        $out .= $this->clipWide(strtoupper(trim($departmentName) ?: 'KITCHEN')) . "\n";
+        $out .= $this->clipWide('MOVE TABLE') . "\n";
         $out .= self::SIZE_NORMAL . self::BOLD_OFF;
 
-        $out .= self::ALIGN_CENTER . self::BOLD_ON;
-        $out .= $this->clip('TABLE MOVE') . "\n";
-        $out .= self::BOLD_OFF . "\n";
+        // Department
+        $dept = strtoupper(trim($departmentName));
+        if ($dept !== '') {
+            $out .= self::ALIGN_CENTER . self::BOLD_ON;
+            $out .= $this->clip($dept) . "\n";
+            $out .= self::BOLD_OFF;
+        }
 
         $out .= self::ALIGN_LEFT;
         $out .= $this->twoCol('Bill#: '.($order->order_no ?? $order->id), now()->format('d-M-Y h:i A')) . "\n";
@@ -306,12 +319,35 @@ final class NetworkPrinterService
         $from = trim($fromTableName) !== '' ? trim($fromTableName) : '—';
         $to = trim($toTableName) !== '' ? trim($toTableName) : '—';
 
-        $out .= "\n" . self::ALIGN_CENTER . self::BOLD_ON;
-        $out .= $this->clip('Table no# '.$from) . "\n";
+        $out .= "\n" . self::ALIGN_CENTER . self::SIZE_DOUBLE . self::BOLD_ON;
+        $out .= $this->clipWide('Table no# '.$from) . "\n";
+        $out .= self::SIZE_NORMAL;
         $out .= $this->clip('ka customer') . "\n";
-        $out .= $this->clip('Table no# '.$to) . "\n";
+        $out .= self::SIZE_DOUBLE;
+        $out .= $this->clipWide('Table no# '.$to) . "\n";
+        $out .= self::SIZE_NORMAL;
         $out .= $this->clip('py move ho gya hai') . "\n";
         $out .= self::BOLD_OFF;
+
+        $itemRows = [];
+        foreach ($items as $item) {
+            $name = method_exists($item, 'displayName')
+                ? (string) $item->displayName()
+                : trim((string) ($item->item_name ?? $item->product?->name ?? 'Item'));
+            $qty = (float) ($item->qty ?? 0);
+            if ($name === '' || $qty <= 0) {
+                continue;
+            }
+            $itemRows[] = [$name, $qty];
+        }
+
+        if ($itemRows !== []) {
+            $out .= "\n" . self::ALIGN_LEFT . self::BOLD_ON;
+            $out .= $this->kitchenItemRow('Items', 'QTY') . self::BOLD_OFF . "\n";
+            foreach ($itemRows as [$name, $qty]) {
+                $out .= $this->kitchenItemRow($name, (string) (abs($qty - round($qty)) < 0.001 ? (int) round($qty) : $qty)) . "\n";
+            }
+        }
 
         $out .= "\n\n" . self::ALIGN_CENTER . self::BOLD_ON;
         $out .= $this->clip('*** END ***') . "\n";

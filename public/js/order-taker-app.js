@@ -670,6 +670,25 @@
                 body?.querySelectorAll('.ot-mt-pick').forEach((b) => { if (!b.dataset.locked) b.disabled = false; });
                 return;
             }
+
+            const print = data.print || {};
+            const printedOk = Array.isArray(print.results)
+                ? print.results.filter((r) => r && r.ok).map((r) => r.department).filter(Boolean)
+                : [];
+            const printedFail = Array.isArray(print.results)
+                ? print.results.filter((r) => r && !r.ok).map((r) => r.department || 'Printer').filter(Boolean)
+                : [];
+
+            let msg = data.message || 'Table move ho gayi.';
+            if (printedOk.length) {
+                msg += '\n\nMOVE TABLE slip print: ' + printedOk.join(', ');
+            } else if (print.message) {
+                msg += '\n\nPrint: ' + print.message;
+            }
+            if (printedFail.length) {
+                msg += '\nFail: ' + printedFail.join(', ');
+            }
+            alert(msg);
             window.location.reload();
         } catch (err) {
             alert('Table move request fail ho gayi.');

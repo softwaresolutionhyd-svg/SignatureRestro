@@ -1493,7 +1493,25 @@
 
             moveTableModalInstance.hide();
             renderOrderCards();
-            alert(data.message || `Table move: ${tableName}`);
+
+            const print = data.print || {};
+            const printedOk = Array.isArray(print.results)
+                ? print.results.filter((r) => r && r.ok).map((r) => r.department).filter(Boolean)
+                : [];
+            const printedFail = Array.isArray(print.results)
+                ? print.results.filter((r) => r && !r.ok).map((r) => r.department || 'Printer').filter(Boolean)
+                : [];
+
+            let msg = data.message || `Table move: ${tableName}`;
+            if (printedOk.length) {
+                msg += '\n\nMOVE TABLE slip print: ' + printedOk.join(', ');
+            } else if (print.message) {
+                msg += '\n\nPrint: ' + print.message;
+            }
+            if (printedFail.length) {
+                msg += '\nFail: ' + printedFail.join(', ');
+            }
+            alert(msg);
         } catch (err) {
             alert('Table move request fail ho gayi.');
             btns.forEach(b => { b.disabled = false; });
