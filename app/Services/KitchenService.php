@@ -600,36 +600,67 @@ final class KitchenService
     }
 
     /**
-     * Recipe consumption for today: kitchen served items + orders paid today.
+     * Recipe consumption for the current open POS session (served + paid sale orders).
      *
      * @return list<array{product_id: int, name: string, uom: string, qty: float}>
      */
     public function todayRecipeConsumption(): array
     {
-        $start = Carbon::now()->startOfDay();
-        $end = Carbon::now()->endOfDay();
+        $session = $this->openPosSession();
+        if ($session === null) {
+            return [];
+        }
+
+        $sessionId = (int) $session->id;
 
         $items = PosOrderItem::query()
             ->with(['product.uomConversions'])
-            ->where(function ($outer) use ($start, $end) {
+            ->where(function ($outer) use ($sessionId) {
                 if (Schema::hasColumn('pos_order_items', 'kitchen_served_at')) {
-                    $outer->where(function ($q) use ($start, $end) {
+                    $outer->where(function ($q) use ($sessionId) {
                         $q->whereNotNull('kitchen_served_at')
-                            ->whereBetween('kitchen_served_at', [$start, $end]);
+                            ->whereHas('order', fn ($o) => $o->where('session_id', $sessionId));
                     });
                 }
 
-                $outer->orWhereHas('order', function ($q) use ($start, $end) {
-                    $q->where('status', 'paid')
-                        ->where('type', 'sale')
-                        ->whereNotNull('paid_at')
-                        ->whereBetween('paid_at', [$start, $end]);
+                $outer->orWhereHas('order', function ($q) use ($sessionId) {
+                    $q->where('session_id', $sessionId)
+                        ->where('status', 'paid')
+                        ->where('type', 'sale');
                 });
             })
             ->get()
             ->unique('id');
 
         return $this->recipeConsumptionFromItems($items);
+    }
+
+    public function currentSessionConsumptionLabel(): string
+    {
+        $session = $this->openPosSession();
+        if ($session === null) {
+            return 'Koi open POS session nahi';
+        }
+
+        $parts = [];
+        if (trim((string) ($session->session_no ?? '')) !== '') {
+            $parts[] = 'Session '.trim((string) $session->session_no);
+        }
+        if ($session->business_date) {
+            $parts[] = $session->business_date->format('d M Y');
+        } elseif ($session->opened_at) {
+            $parts[] = $session->opened_at->timezone(config('app.timezone'))->format('d M Y');
+        }
+
+        return $parts !== [] ? implode(' · ', $parts) : 'Current session';
+    }
+
+    private function openPosSession(): ?PosSession
+    {
+        return PosSession::query()
+            ->where('status', 'open')
+            ->latest('id')
+            ->first();
     }
 
     /**

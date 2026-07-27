@@ -13,7 +13,7 @@
         <div class="d-flex align-items-center gap-2 flex-wrap">
             <div class="kitchen-stat"><span id="kitchenActiveCount">{{ $activeCount }}</span> active</div>
             <button type="button" class="btn btn-outline-primary btn-sm" id="kitchenTodayConsumptionBtn">
-                <i class="bi bi-list-check"></i> Aaj ki consumption
+                <i class="bi bi-list-check"></i> Session consumption
             </button>
             <button type="button" class="btn btn-outline-secondary btn-sm" id="kitchenRefreshBtn">
                 <i class="bi bi-arrow-clockwise"></i> Refresh
@@ -49,7 +49,7 @@
     <div class="modal-dialog modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header py-2">
-                <h5 class="modal-title fs-6" id="kitchenTodayConsumptionModalLabel">Aaj ki consumption</h5>
+                <h5 class="modal-title fs-6" id="kitchenTodayConsumptionModalLabel">Session consumption</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body py-3" id="kitchenTodayConsumptionBody">

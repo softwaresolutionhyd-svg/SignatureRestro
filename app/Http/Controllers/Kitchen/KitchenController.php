@@ -44,9 +44,12 @@ class KitchenController extends Controller
 
     public function todayConsumption(): View
     {
+        $sessionLabel = $this->kitchen->currentSessionConsumptionLabel();
+
         return view('kitchen.partials.today-consumption', [
             'todayConsumption' => $this->kitchen->todayRecipeConsumption(),
-            'todayLabel' => now()->format('d M Y'),
+            'todayLabel' => $sessionLabel,
+            'sessionOpen' => $sessionLabel !== 'Koi open POS session nahi',
         ]);
     }
 
