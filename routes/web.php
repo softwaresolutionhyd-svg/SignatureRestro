@@ -250,6 +250,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
             Route::delete('/hold/{orderId}', [PosController::class, 'discardHeld'])->whereNumber('orderId')->name('hold.discard');
             Route::get('/resume/{order}', [PosController::class, 'resume'])->name('resume');
             Route::post('/reopen/{order}', [PosController::class, 'reopenPaidBill'])->name('reopen');
+            Route::post('/move-table/{order}', [PosController::class, 'moveTable'])->name('move-table');
             Route::get('/receipt/{order}/unpaid', [PosController::class, 'unpaidReceipt'])->name('receipt.unpaid');
             Route::get('/kitchen/{order}', [PosController::class, 'kitchenSlip'])->name('kitchen');
             Route::post('/kitchen-print/{order}', [PosController::class, 'kitchenPrintNetwork'])->name('kitchen-print');
@@ -267,6 +268,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
         Route::post('/', [\App\Http\Controllers\OrderTaker\OrderTakerController::class, 'store'])->name('store');
         Route::get('/{order}/edit', [\App\Http\Controllers\OrderTaker\OrderTakerController::class, 'edit'])->name('edit');
         Route::put('/{order}', [\App\Http\Controllers\OrderTaker\OrderTakerController::class, 'update'])->name('update');
+        Route::post('/{order}/move-table', [\App\Http\Controllers\OrderTaker\OrderTakerController::class, 'moveTable'])->name('move-table');
     });
 
     Route::prefix('kitchen')->name('kitchen.')->middleware('moduleAccess')->group(function () {

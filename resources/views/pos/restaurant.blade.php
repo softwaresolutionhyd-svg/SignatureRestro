@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=50">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=51">
 @endpush
 
 @section('content')
@@ -526,11 +526,12 @@
             'removedItemsPrint' => $removedItemsPrintStub,
             'kitchenVoids' => route('restaurant-pos.kitchen-voids'),
             'reopen' => $reopenStub,
+            'moveTable' => str_replace('999999999', '__ID__', route('restaurant-pos.move-table', ['order' => 999999999])),
         ],
     ];
 @endphp
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=65"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=66"></script>
 @endsection

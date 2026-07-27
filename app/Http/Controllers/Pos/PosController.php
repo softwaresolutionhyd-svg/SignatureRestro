@@ -1796,6 +1796,46 @@ class PosController extends Controller
             ->with('success', "Bill {$order->order_no} reopen ho gayi — ab edit kar ke dubara pay karein.");
     }
 
+    public function moveTable(Request $request, PosOrder $order): \Illuminate\Http\JsonResponse
+    {
+        $data = $request->validate([
+            'table_id' => ['required', 'integer', 'exists:tenant.pos_tables,id'],
+        ]);
+
+        try {
+            $result = DB::connection('tenant')->transaction(function () use ($order, $data) {
+                $locked = PosOrder::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+
+                return $this->orderTaker->moveOrderToTable($locked, (int) $data['table_id']);
+            });
+        } catch (\Throwable $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => $e->getMessage() ?: 'Table move fail ho gayi.',
+            ], 422);
+        }
+
+        /** @var PosOrder $moved */
+        $moved = $result['order'];
+
+        return response()->json([
+            'ok' => true,
+            'message' => sprintf(
+                'Order %s: Table %s → %s',
+                $moved->order_no,
+                $result['from_table_name'],
+                $result['to_table_name']
+            ),
+            'order' => $this->posOrderDetailsPayload($moved->fresh(['table', 'items.product', 'payments', 'user:id,name'])),
+            'from_table_id' => $result['from_table_id'],
+            'from_table_name' => $result['from_table_name'],
+            'to_table_id' => $result['to_table_id'],
+            'to_table_name' => $result['to_table_name'],
+            'table_board' => $result['table_board'],
+            'print' => $result['print'],
+        ]);
+    }
+
     /** Super admin: permanently delete a paid POS bill and reverse its stock impact. */
     public function destroyPaidBill(Request $request, PosOrder $order): RedirectResponse
     {

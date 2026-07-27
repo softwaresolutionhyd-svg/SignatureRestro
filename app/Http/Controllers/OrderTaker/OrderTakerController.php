@@ -6,10 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Models\InventoryProduct;
 use App\Models\PosOrder;
 use App\Models\PosTable;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use App\Models\Setting;
 use App\Services\OrderTakerService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class OrderTakerController extends Controller
@@ -87,6 +89,49 @@ class OrderTakerController extends Controller
 
         return redirect()->route('order-taker.index')
             ->with('success', 'Bill update ho gayi — kitchen printer + kitchen screen par update bhej diya.');
+    }
+
+    public function moveTable(Request $request, PosOrder $order): JsonResponse
+    {
+        abort_unless($order->status === 'draft', 404);
+
+        $data = $request->validate([
+            'table_id' => ['required', 'integer', 'exists:tenant.pos_tables,id'],
+        ]);
+
+        try {
+            $result = DB::connection('tenant')->transaction(function () use ($order, $data) {
+                $locked = PosOrder::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+
+                return $this->orderTaker->moveOrderToTable($locked, (int) $data['table_id']);
+            });
+        } catch (\Throwable $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => $e->getMessage() ?: 'Table move fail ho gayi.',
+            ], 422);
+        }
+
+        /** @var PosOrder $moved */
+        $moved = $result['order'];
+
+        return response()->json([
+            'ok' => true,
+            'message' => sprintf(
+                'Order %s: Table %s → %s',
+                $moved->order_no,
+                $result['from_table_name'],
+                $result['to_table_name']
+            ),
+            'order_id' => (int) $moved->id,
+            'order_no' => $moved->order_no,
+            'from_table_id' => $result['from_table_id'],
+            'from_table_name' => $result['from_table_name'],
+            'to_table_id' => $result['to_table_id'],
+            'to_table_name' => $result['to_table_name'],
+            'table_board' => $result['table_board'],
+            'print' => $result['print'],
+        ]);
     }
 
     /**

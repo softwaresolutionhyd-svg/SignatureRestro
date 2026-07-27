@@ -202,6 +202,126 @@ final class NetworkPrinterService
     }
 
     /**
+     * Notify each item department printer that the guest moved tables.
+     *
+     * @return array{ok: bool, results: list<array{department: string, ok: bool, error?: string}>, unrouted: int, message?: string}
+     */
+    public function dispatchTableMovePrints(PosOrder $order, string $fromTableName, string $toTableName): array
+    {
+        $this->ensureKitchenAgentSchema();
+
+        $order->loadMissing([
+            'user:id,name',
+            'items.product.departments:id,name,printer_ip,printer_port',
+            'items.product.department:id,name,printer_ip,printer_port',
+        ]);
+
+        $groups = [];
+        $unrouted = 0;
+
+        foreach ($order->items as $item) {
+            $product = $item->product;
+            if ($product && ! $product->relationLoaded('departments')) {
+                $product->load(['departments:id,name,printer_ip,printer_port']);
+            }
+            if ($product && ! $product->relationLoaded('department')) {
+                $product->load(['department:id,name,printer_ip,printer_port']);
+            }
+
+            $dept = $this->resolveItemDepartment($product);
+            if ($dept && ! empty($dept->printer_ip)) {
+                $groups[$dept->id] = $dept;
+            } else {
+                $unrouted++;
+            }
+        }
+
+        if ($groups === []) {
+            return [
+                'ok' => false,
+                'results' => [],
+                'unrouted' => $unrouted,
+                'message' => 'Table move notice ka department printer set nahi. Inventory → Kitchen Agents check karein.',
+            ];
+        }
+
+        $results = [];
+        $anyOk = false;
+
+        foreach ($groups as $dept) {
+            $payload = $this->buildTableMoveSlip(
+                $order,
+                (string) $dept->name,
+                $fromTableName,
+                $toTableName
+            );
+
+            try {
+                $this->send(
+                    (string) $dept->printer_ip,
+                    (int) ($dept->printer_port ?: 9100),
+                    $payload
+                );
+                $results[] = ['department' => (string) $dept->name, 'ok' => true];
+                $anyOk = true;
+            } catch (\Throwable $e) {
+                $results[] = [
+                    'department' => (string) $dept->name,
+                    'ok' => false,
+                    'error' => $e->getMessage(),
+                ];
+            }
+        }
+
+        return [
+            'ok' => $anyOk,
+            'results' => $results,
+            'unrouted' => $unrouted,
+            'message' => $anyOk ? null : 'Table move print fail hua.',
+        ];
+    }
+
+    public function buildTableMoveSlip(
+        PosOrder $order,
+        string $departmentName,
+        string $fromTableName,
+        string $toTableName
+    ): string {
+        $out = self::INIT;
+
+        $out .= self::ALIGN_CENTER . self::SIZE_DOUBLE . self::BOLD_ON;
+        $out .= $this->clipWide(strtoupper(trim($departmentName) ?: 'KITCHEN')) . "\n";
+        $out .= self::SIZE_NORMAL . self::BOLD_OFF;
+
+        $out .= self::ALIGN_CENTER . self::BOLD_ON;
+        $out .= $this->clip('TABLE MOVE') . "\n";
+        $out .= self::BOLD_OFF . "\n";
+
+        $out .= self::ALIGN_LEFT;
+        $out .= $this->twoCol('Bill#: '.($order->order_no ?? $order->id), now()->format('d-M-Y h:i A')) . "\n";
+        if ($order->user?->name) {
+            $out .= $this->line('by: '.$order->user->name) . "\n";
+        }
+
+        $from = trim($fromTableName) !== '' ? trim($fromTableName) : '—';
+        $to = trim($toTableName) !== '' ? trim($toTableName) : '—';
+
+        $out .= "\n" . self::ALIGN_CENTER . self::BOLD_ON;
+        $out .= $this->clip('Table no# '.$from) . "\n";
+        $out .= $this->clip('ka customer') . "\n";
+        $out .= $this->clip('Table no# '.$to) . "\n";
+        $out .= $this->clip('py move ho gya hai') . "\n";
+        $out .= self::BOLD_OFF;
+
+        $out .= "\n\n" . self::ALIGN_CENTER . self::BOLD_ON;
+        $out .= $this->clip('*** END ***') . "\n";
+        $out .= self::BOLD_OFF;
+        $out .= self::FEED . self::CUT;
+
+        return $out;
+    }
+
+    /**
      * Print "Removed Items (Don't make)" slips to each item's department printer.
      *
      * @param  list<array{product_id?: int, qty?: float|int|string, reason?: string, name?: string, item_name?: string, notes?: string, is_custom?: bool}>  $voids

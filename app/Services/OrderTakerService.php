@@ -221,6 +221,78 @@ final class OrderTakerService
     }
 
     /**
+     * Move a pending dine-in draft order to another free table and notify kitchen printers.
+     *
+     * @return array{
+     *   order: PosOrder,
+     *   from_table_id: ?int,
+     *   from_table_name: string,
+     *   to_table_id: int,
+     *   to_table_name: string,
+     *   table_board: list<array<string, mixed>>,
+     *   print: array<string, mixed>
+     * }
+     */
+    public function moveOrderToTable(PosOrder $order, int $newTableId): array
+    {
+        if ((string) Setting::get('pos_enable_tables', '1') === '0') {
+            throw new RuntimeException('Tables feature band hai.');
+        }
+
+        if ($order->status !== 'draft') {
+            throw new RuntimeException('Sirf pending order move ho sakti hai.');
+        }
+
+        if ($order->serviceTypeKey() !== PosOrder::SERVICE_DINE_IN) {
+            throw new RuntimeException('Move table sirf dine-in orders ke liye hai.');
+        }
+
+        if ($newTableId <= 0) {
+            throw new RuntimeException('Nayi table select karein.');
+        }
+
+        $order->loadMissing(['table:id,name', 'items.product']);
+
+        $fromTableId = $order->table_id ? (int) $order->table_id : null;
+        $fromTableName = $order->table?->name
+            ? (string) $order->table->name
+            : ($fromTableId ? 'Table '.$fromTableId : '—');
+
+        if ($fromTableId !== null && $fromTableId === $newTableId) {
+            throw new RuntimeException('Order pehle se isi table par hai.');
+        }
+
+        $newTable = PosTable::query()->whereKey($newTableId)->where('active', true)->first();
+        if ($newTable === null) {
+            throw new RuntimeException('Selected table nahi mili.');
+        }
+
+        $this->assertTableAvailable($newTableId, (int) $order->id, true);
+
+        $order->update(['table_id' => $newTableId]);
+        $order->unsetRelation('table');
+        $order->load(['table:id,name', 'user:id,name', 'items.product.departments:id,name,printer_ip,printer_port', 'items.product.department:id,name,printer_ip,printer_port']);
+
+        $toTableName = (string) ($order->table?->name ?: $newTable->name);
+
+        $print = app(NetworkPrinterService::class)->dispatchTableMovePrints(
+            $order,
+            $fromTableName,
+            $toTableName
+        );
+
+        return [
+            'order' => $order,
+            'from_table_id' => $fromTableId,
+            'from_table_name' => $fromTableName,
+            'to_table_id' => $newTableId,
+            'to_table_name' => $toTableName,
+            'table_board' => $this->tableBoard(),
+            'print' => $print,
+        ];
+    }
+
+    /**
      * @return list<array{
      *   id: int,
      *   name: string,

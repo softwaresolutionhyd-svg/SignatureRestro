@@ -1340,6 +1340,118 @@
         form.submit();
     }
 
+    let moveTableModalEl = null;
+    let moveTableModalInstance = null;
+    let moveTableOrderId = null;
+
+    function openMoveTableModal(orderId, orderNo) {
+        moveTableOrderId = orderId;
+
+        if (!moveTableModalEl) {
+            moveTableModalEl = document.createElement('div');
+            moveTableModalEl.id = 'rpMoveTableModal';
+            moveTableModalEl.className = 'modal fade';
+            moveTableModalEl.setAttribute('tabindex', '-1');
+            moveTableModalEl.innerHTML = `
+                <div class="modal-dialog modal-dialog-centered modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="rpMoveTableTitle">Select New Table</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body" id="rpMoveTableBody" style="max-height:60vh;overflow-y:auto;"></div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        </div>
+                    </div>
+                </div>`;
+            document.body.appendChild(moveTableModalEl);
+            moveTableModalInstance = new window.bootstrap.Modal(moveTableModalEl, { backdrop: 'static' });
+
+            moveTableModalEl.querySelector('#rpMoveTableBody').addEventListener('click', (e) => {
+                const btn = e.target.closest('.rp-mt-table-btn');
+                if (!btn || btn.disabled) return;
+                const tableId = Number(btn.dataset.tableId);
+                const tableName = btn.dataset.tableName || '';
+                if (!tableId) return;
+                confirmMoveTable(tableId, tableName);
+            });
+        }
+
+        const board = boot.tableBoard || [];
+        const currentOrder = (boot.pendingBillsDetail || []).find(o => Number(o.id) === Number(orderId));
+        const currentTableId = currentOrder?.table_id || 0;
+
+        moveTableModalEl.querySelector('#rpMoveTableTitle').textContent = `Select New Table — ${orderNo || 'Order'}`;
+
+        const body = moveTableModalEl.querySelector('#rpMoveTableBody');
+        const freeTables = board.filter(t => t.status === 'free' && Number(t.id) !== Number(currentTableId));
+
+        if (!freeTables.length) {
+            body.innerHTML = '<div class="text-center text-secondary py-4">Koi free table nahi hai abhi.</div>';
+        } else {
+            body.innerHTML = `<div class="d-flex flex-wrap gap-2 justify-content-center">
+                ${freeTables.map(t => `
+                    <button type="button" class="btn btn-outline-success rp-mt-table-btn px-3 py-3"
+                            data-table-id="${t.id}" data-table-name="${escHtml(t.name)}"
+                            style="min-width:80px;">
+                        <div class="fw-bold" style="font-size:1.1rem;">${escHtml(t.name)}</div>
+                        <div class="text-success small">Free</div>
+                    </button>
+                `).join('')}
+            </div>`;
+        }
+
+        moveTableModalInstance.show();
+    }
+
+    async function confirmMoveTable(tableId, tableName) {
+        if (!moveTableOrderId) return;
+        const url = (routes.moveTable || '').replace('__ID__', String(moveTableOrderId));
+        if (!url) { alert('Move table route missing.'); return; }
+
+        const btns = moveTableModalEl.querySelectorAll('.rp-mt-table-btn');
+        btns.forEach(b => { b.disabled = true; });
+
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': csrf,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ table_id: tableId }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.ok) {
+                alert(data.message || 'Table move fail ho gayi.');
+                btns.forEach(b => { b.disabled = false; });
+                return;
+            }
+
+            const pending = boot.pendingBillsDetail || [];
+            const idx = pending.findIndex(o => Number(o.id) === Number(moveTableOrderId));
+            if (idx >= 0) {
+                pending[idx].table_id = data.to_table_id;
+                pending[idx].table_name = data.to_table_name;
+            }
+
+            if (Array.isArray(data.table_board)) {
+                boot.tableBoard = data.table_board;
+                applyTableBoard(data.table_board);
+            }
+
+            moveTableModalInstance.hide();
+            renderOrderCards();
+            alert(data.message || `Table move: ${tableName}`);
+        } catch (err) {
+            alert('Table move request fail ho gayi.');
+            btns.forEach(b => { b.disabled = false; });
+        }
+    }
+
     function clearBillsMenuHead() {
         $('#rpBillsHead')?.remove();
         $('#rpMenuCats')?.classList.remove('d-none');
@@ -1528,13 +1640,20 @@
             }
             grid.innerHTML = orders.map((o) => {
                 const resumeUrl = (routes.resume || '').replace('__ID__', String(o.id));
-                return `<a class="rp-order-card rp-order-card--grid" href="${escHtml(resumeUrl)}">
-                    <div class="rp-oc-no">${escHtml(o.order_no)}</div>
-                    <div class="rp-oc-meta">${escHtml(orderMetaLabel(o))} · ${escHtml(orderMetaDetail(o))}</div>
-                    ${orderPunchedByHtml(o)}
-                    <div class="rp-oc-meta">${escHtml(fmtMoney(o.grand_total))} · ${o.items_count || 0} items</div>
-                    <div class="rp-oc-open">Open bill <i class="bi bi-arrow-right-short"></i></div>
-                </a>`;
+                const showMoveBtn = posTablesEnabled && o.table_id && o.service_type === 'dine_in';
+                const moveBtn = showMoveBtn
+                    ? `<button type="button" class="btn btn-sm rp-oc-move-table" data-action="move-table" data-order-id="${escHtml(String(o.id))}" data-order-no="${escHtml(o.order_no)}"><i class="bi bi-arrow-left-right"></i> Move Table</button>`
+                    : '';
+                return `<div class="rp-order-card rp-order-card--grid rp-order-card--pending-wrap">
+                    <a class="rp-order-card-link" href="${escHtml(resumeUrl)}">
+                        <div class="rp-oc-no">${escHtml(o.order_no)}</div>
+                        <div class="rp-oc-meta">${escHtml(orderMetaLabel(o))} · ${escHtml(orderMetaDetail(o))}</div>
+                        ${orderPunchedByHtml(o)}
+                        <div class="rp-oc-meta">${escHtml(fmtMoney(o.grand_total))} · ${o.items_count || 0} items</div>
+                        <div class="rp-oc-open">Open bill <i class="bi bi-arrow-right-short"></i></div>
+                    </a>
+                    ${moveBtn ? `<div class="rp-oc-move-wrap">${moveBtn}</div>` : ''}
+                </div>`;
             }).join('');
             return;
         }
@@ -2861,6 +2980,14 @@
             setMenuCategory(btn.dataset.catId || null);
         });
         $('#rpMenuGrid')?.addEventListener('click', (e) => {
+            const moveBtn = e.target.closest('[data-action="move-table"]');
+            if (moveBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                openMoveTableModal(moveBtn.dataset.orderId, moveBtn.dataset.orderNo || '');
+                return;
+            }
+
             const reopenBtn = e.target.closest('[data-action="reopen-paid"]');
             if (reopenBtn) {
                 e.preventDefault();

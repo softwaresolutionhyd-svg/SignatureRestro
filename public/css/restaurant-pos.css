@@ -837,6 +837,43 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     color: #fcd98a;
 }
 
+.restaurant-pos-app .rp-order-card--pending-wrap {
+    padding: 0 !important;
+    display: flex;
+    flex-direction: column;
+}
+.restaurant-pos-app .rp-order-card--pending-wrap .rp-order-card-link {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.85rem 0.95rem 0.5rem;
+    text-decoration: none;
+    color: inherit;
+    flex: 1;
+}
+.restaurant-pos-app .rp-order-card--pending-wrap .rp-order-card-link:hover {
+    color: inherit;
+    opacity: .92;
+}
+.restaurant-pos-app .rp-oc-move-wrap {
+    padding: 0 0.7rem 0.65rem;
+    display: flex;
+    justify-content: flex-end;
+}
+.restaurant-pos-app .rp-oc-move-table {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #a5f3fc;
+    border: 1px solid rgba(165,243,252,0.3);
+    border-radius: 5px;
+    background: rgba(165,243,252,0.08);
+    padding: 0.18rem 0.55rem;
+}
+.restaurant-pos-app .rp-oc-move-table:hover {
+    background: rgba(165,243,252,0.18);
+    color: #fff;
+}
+
 .restaurant-pos-app .rp-badge-cancelled {
     background: #dc2626;
     color: #fff;
