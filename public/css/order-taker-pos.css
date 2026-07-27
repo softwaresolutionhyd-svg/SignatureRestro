@@ -319,17 +319,30 @@
     padding: 0.4rem;
 }
 
+.order-taker-pos-app .ot-my-order-card {
+    margin-bottom: 0.3rem;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.22);
+    overflow: hidden;
+}
+
+.order-taker-pos-app .ot-my-order-card--live:hover {
+    border-color: rgba(61, 214, 140, 0.45);
+    background: rgba(34, 160, 107, 0.12);
+}
+
 .order-taker-pos-app .ot-my-order-row {
     width: 100%;
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 0.5rem;
-    padding: 0.55rem 0.55rem;
-    margin-bottom: 0.3rem;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 10px;
-    background: rgba(0, 0, 0, 0.22);
+    padding: 0.55rem 0.55rem 0.35rem;
+    margin-bottom: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
     color: var(--rp-text);
     text-align: left;
     cursor: pointer;
@@ -343,8 +356,7 @@
 }
 
 .order-taker-pos-app .ot-my-order-row--live:not(:disabled):hover {
-    border-color: rgba(61, 214, 140, 0.45);
-    background: rgba(34, 160, 107, 0.12);
+    background: transparent;
 }
 
 .order-taker-pos-app .ot-my-order-main {
@@ -406,22 +418,26 @@
 }
 
 .order-taker-pos-app .ot-my-order-move-btn {
-    margin-top: 0.3rem;
+    display: flex;
+    width: calc(100% - 0.7rem);
+    margin: 0 0.35rem 0.4rem;
     border: 1px solid rgba(125, 211, 252, 0.32);
     background: rgba(14, 165, 233, 0.12);
     color: #a5f3fc;
-    border-radius: 999px;
-    padding: 0.18rem 0.5rem;
-    font-size: 0.58rem;
+    border-radius: 8px;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.68rem;
     font-weight: 700;
     line-height: 1.2;
-    display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
+    justify-content: center;
+    gap: 0.3rem;
+    cursor: pointer;
+    font-family: inherit;
 }
 
 .order-taker-pos-app .ot-my-order-move-btn:hover {
-    background: rgba(14, 165, 233, 0.2);
+    background: rgba(14, 165, 233, 0.22);
     color: #fff;
 }
 

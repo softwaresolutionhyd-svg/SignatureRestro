@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=47">
-<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=16">
+<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=17">
 @endpush
 
 @section('content')
@@ -173,41 +173,50 @@
                     </div>
                     <div class="ot-my-orders-list" id="otMyOrdersList">
                         @forelse(($allOrders ?? []) as $mo)
-                            <button type="button"
-                                    class="ot-my-order-row{{ ($mo['amendable'] ?? false) ? ' ot-my-order-row--live' : '' }}"
-                                    data-order-id="{{ $mo['id'] }}"
-                                    data-order-no="{{ $mo['order_no'] }}"
-                                    data-service-type="{{ $mo['service_type'] ?? '' }}"
-                                    data-table-id="{{ $mo['table_id'] ?? '' }}"
-                                    data-amendable="{{ ($mo['amendable'] ?? false) ? '1' : '0' }}"
-                                    @if(!($mo['amendable'] ?? false)) disabled @endif>
-                                <span class="ot-my-order-main">
-                                    <span class="ot-my-order-no">{{ $mo['order_no'] }}</span>
-                                    <span class="ot-my-order-by">by: {{ $mo['punched_by'] ?? '—' }}</span>
-                                    <span class="ot-my-order-meta">
-                                        @if(!empty($mo['table_name']))
-                                            {{ $mo['table_name'] }} ·
-                                        @endif
-                                        {{ $mo['service_label'] }}
-                                        · {{ $mo['items_count'] }} items
+                            @php
+                                $canOpen = (bool) ($mo['amendable'] ?? false);
+                                $canMove = ($mo['service_type'] ?? null) === 'dine_in' && ! empty($mo['table_id']);
+                            @endphp
+                            <div class="ot-my-order-card{{ $canOpen ? ' ot-my-order-card--live' : '' }}"
+                                 data-order-id="{{ $mo['id'] }}"
+                                 data-order-no="{{ $mo['order_no'] }}"
+                                 data-service-type="{{ $mo['service_type'] ?? '' }}"
+                                 data-table-id="{{ $mo['table_id'] ?? '' }}"
+                                 data-amendable="{{ $canOpen ? '1' : '0' }}">
+                                <button type="button"
+                                        class="ot-my-order-row{{ $canOpen ? ' ot-my-order-row--live' : '' }}"
+                                        data-action="open-order"
+                                        data-order-id="{{ $mo['id'] }}"
+                                        data-amendable="{{ $canOpen ? '1' : '0' }}"
+                                        @if(! $canOpen) disabled @endif>
+                                    <span class="ot-my-order-main">
+                                        <span class="ot-my-order-no">{{ $mo['order_no'] }}</span>
+                                        <span class="ot-my-order-by">by: {{ $mo['punched_by'] ?? '—' }}</span>
+                                        <span class="ot-my-order-meta">
+                                            @if(!empty($mo['table_name']))
+                                                {{ $mo['table_name'] }} ·
+                                            @endif
+                                            {{ $mo['service_label'] }}
+                                            · {{ $mo['items_count'] }} items
+                                        </span>
                                     </span>
-                                </span>
-                                <span class="ot-my-order-side">
-                                    <span class="ot-my-order-time">{{ $mo['punched_at'] }}</span>
-                                    <span class="ot-my-order-total">{{ $currency }}{{ number_format((float) $mo['grand_total'], 0) }}</span>
-                                    <span class="ot-my-order-badge ot-my-order-badge--open">Pending</span>
-                                    @if(($mo['service_type'] ?? null) === 'dine_in' && !empty($mo['table_id']))
-                                        <button type="button"
-                                                class="ot-my-order-move-btn"
-                                                data-action="move-table"
-                                                data-order-id="{{ $mo['id'] }}"
-                                                data-order-no="{{ $mo['order_no'] }}"
-                                                data-table-id="{{ $mo['table_id'] }}">
-                                            <i class="bi bi-arrow-left-right"></i> Move Table
-                                        </button>
-                                    @endif
-                                </span>
-                            </button>
+                                    <span class="ot-my-order-side">
+                                        <span class="ot-my-order-time">{{ $mo['punched_at'] }}</span>
+                                        <span class="ot-my-order-total">{{ $currency }}{{ number_format((float) $mo['grand_total'], 0) }}</span>
+                                        <span class="ot-my-order-badge ot-my-order-badge--open">Pending</span>
+                                    </span>
+                                </button>
+                                @if($canMove)
+                                    <button type="button"
+                                            class="ot-my-order-move-btn"
+                                            data-action="move-table"
+                                            data-order-id="{{ $mo['id'] }}"
+                                            data-order-no="{{ $mo['order_no'] }}"
+                                            data-table-id="{{ $mo['table_id'] }}">
+                                        <i class="bi bi-arrow-left-right"></i> Move Table
+                                    </button>
+                                @endif
+                            </div>
                         @empty
                             <div class="ot-my-orders-empty">Koi pending order nahi.</div>
                         @endforelse
@@ -412,5 +421,5 @@
 <script>
 window.ORDER_TAKER_BOOTSTRAP = @json($otBootstrap);
 </script>
-<script src="{{ asset('js/order-taker-app.js') }}?v=15"></script>
+<script src="{{ asset('js/order-taker-app.js') }}?v=16"></script>
 @endsection

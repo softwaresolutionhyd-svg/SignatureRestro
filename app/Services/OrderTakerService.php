@@ -495,6 +495,7 @@ final class OrderTakerService
                 'order_no' => (string) $order->order_no,
                 'service_type' => $order->serviceTypeKey(),
                 'service_label' => $order->serviceTypeLabel() ?: 'Order',
+                'table_id' => $order->table_id ? (int) $order->table_id : null,
                 'table_name' => $order->table?->name ? (string) $order->table->name : null,
                 'items_count' => (int) $order->items_count,
                 'grand_total' => (float) $order->grand_total,

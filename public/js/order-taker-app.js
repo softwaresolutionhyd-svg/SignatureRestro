@@ -814,13 +814,17 @@
                 moveTableOrderId = Number(moveBtn.dataset.orderId);
                 const orderNo = moveBtn.dataset.orderNo || '';
                 const currentTableId = Number(moveBtn.dataset.tableId);
-                $('#otMoveTableTitle').textContent = `Select New Table — ${orderNo}`;
+                const title = $('#otMoveTableTitle');
+                if (title) title.textContent = `Select New Table — ${orderNo}`;
                 renderMoveTableModal(currentTableId);
-                window.bootstrap?.Modal.getOrCreateInstance($('#otMoveTableModal'))?.show();
+                const modalEl = $('#otMoveTableModal');
+                if (modalEl && window.bootstrap?.Modal) {
+                    window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+                }
                 return;
             }
 
-            const row = e.target.closest('.ot-my-order-row');
+            const row = e.target.closest('.ot-my-order-row, [data-action="open-order"]');
             if (!row || row.disabled) return;
             const orderId = Number(row.dataset.orderId);
             const amendable = row.dataset.amendable === '1';
