@@ -2412,6 +2412,17 @@ body.admin-app-body:has(.restaurant-pos-app) .restaurant-pos-app .rp-checkout-fo
     min-width: 170px;
 }
 
+.rp-pay-modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.rp-pay-modal-actions .btn-outline-success {
+    font-weight: 600;
+}
+
 /* Split Bill modal */
 .rp-split-mode-list {
     display: flex;

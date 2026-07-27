@@ -2047,7 +2047,7 @@
         return formData;
     }
 
-    async function postCheckout(extraFields = {}) {
+    async function postCheckout(extraFields = {}, { skipPrint = false } = {}) {
         if (checkoutInFlight) return false;
         if (!prepareSubmit('checkout')) return false;
 
@@ -2071,11 +2071,11 @@
                 throw new Error(data.message || validationMsg || 'Payment failed.');
             }
 
-            const networkPrinted = data.order_id && await tryCashierNetworkPrint(data.order_id);
+            const networkPrinted = !skipPrint && data.order_id && await tryCashierNetworkPrint(data.order_id);
 
             applyCheckoutSuccess(data);
 
-            if (data.receipt_url) {
+            if (!skipPrint && data.receipt_url) {
                 const qs = networkPrinted ? 'noprint=1' : 'autoprint=1';
                 window.open(
                     data.receipt_url + (data.receipt_url.includes('?') ? '&' : '?') + qs,
@@ -2198,7 +2198,9 @@
 
         if ($('#rpPayModalTotal')) $('#rpPayModalTotal').textContent = fmtMoney(grand);
         if ($('#rpCashChange')) $('#rpCashChange').textContent = fmtMoney(change);
-        if ($('#rpPayModalConfirm')) $('#rpPayModalConfirm').disabled = !ok;
+        const disablePay = !ok;
+        if ($('#rpPayModalConfirm')) $('#rpPayModalConfirm').disabled = disablePay;
+        if ($('#rpPayModalMarkPaid')) $('#rpPayModalMarkPaid').disabled = disablePay;
         $('#rpCashInsufficient')?.classList.toggle('d-none', ok || tendered <= 0);
     }
 
@@ -2228,7 +2230,7 @@
         modal.show();
     }
 
-    async function confirmPayModal() {
+    async function confirmPayModal({ printBill = true } = {}) {
         const grand = calcCartTotals().grand;
         const tendered = Number($('#rpCashTendered')?.value || 0);
         if (tendered < grand - 0.001) {
@@ -2237,20 +2239,24 @@
         }
 
         const change = Math.max(0, Math.round((tendered - grand) * 100) / 100);
-        const confirmBtn = $('#rpPayModalConfirm');
+        const confirmBtn = printBill ? $('#rpPayModalConfirm') : $('#rpPayModalMarkPaid');
+        const otherBtn = printBill ? $('#rpPayModalMarkPaid') : $('#rpPayModalConfirm');
         if (confirmBtn) confirmBtn.disabled = true;
+        if (otherBtn) otherBtn.disabled = true;
 
         try {
             await postCheckout({
                 cash_tendered: tendered,
                 cash_change: change,
-            });
+            }, { skipPrint: !printBill });
             getPayModal()?.hide();
         } catch (e) {
             alert(e.message || 'Payment failed.');
             updatePayModalAmounts();
         } finally {
             if (confirmBtn) confirmBtn.disabled = false;
+            if (otherBtn) otherBtn.disabled = false;
+            updatePayModalAmounts();
         }
     }
 
@@ -3246,7 +3252,8 @@
         $('#rpPrintUnpaidBtn')?.addEventListener('click', () => printUnpaidBill());
         $('#rpWhatsappBtn')?.addEventListener('click', () => openDeliveryWhatsapp());
         $('#rpPayBtn')?.addEventListener('click', () => openPayModal());
-        $('#rpPayModalConfirm')?.addEventListener('click', () => confirmPayModal());
+        $('#rpPayModalConfirm')?.addEventListener('click', () => confirmPayModal({ printBill: true }));
+        $('#rpPayModalMarkPaid')?.addEventListener('click', () => confirmPayModal({ printBill: false }));
         $('#rpCashSuggestions')?.addEventListener('click', (e) => {
             const btn = e.target.closest('.rp-cash-chip');
             if (!btn) return;

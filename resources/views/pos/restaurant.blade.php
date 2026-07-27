@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=55">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=56">
 @endpush
 
 @section('content')
@@ -487,8 +487,11 @@
                 </div>
                 <p class="text-danger small mb-0 mt-2 d-none" id="rpCashInsufficient">Amount kam hai — bill se zyada ya barabar enter karein.</p>
             </div>
-            <div class="modal-footer border-0 pt-0">
+            <div class="modal-footer border-0 pt-0 rp-pay-modal-actions">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-outline-success" id="rpPayModalMarkPaid" disabled>
+                    Just Mark as Paid
+                </button>
                 <button type="button" class="btn btn-rp-primary" id="rpPayModalConfirm" disabled>
                     <i class="bi bi-printer"></i> Pay &amp; Print Bill
                 </button>
@@ -578,5 +581,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=71"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=72"></script>
 @endsection
