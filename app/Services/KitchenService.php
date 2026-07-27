@@ -54,22 +54,8 @@ final class KitchenService
 
         $query = PosOrder::query()
             ->whereNull('kitchen_completed_at')
+            ->where('status', 'draft')
             ->whereHas('items')
-            ->where(function ($q) {
-                $q->where('status', 'draft')
-                    ->orWhere(function ($w) {
-                        $w->where('status', 'paid')
-                            ->where(function ($inner) {
-                                $inner->where('customer_type', 'mess_use')
-                                    ->orWhere('customer_type', 'ast_offr')
-                                    ->orWhereNull('customer_type');
-                            })
-                            ->where(function ($inner) {
-                                $inner->whereNull('room_no')
-                                    ->orWhere('room_no', '');
-                            });
-                    });
-            })
             ->when($hasOrderTakerColumns, function ($q) use ($session) {
                 $q->where(function ($outer) use ($session) {
                     if ($session) {
@@ -879,6 +865,32 @@ final class KitchenService
                 $order->ready_for_pos_at?->timestamp ?? $order->created_at?->timestamp ?? 0,
             ])
             ->values();
+    }
+
+    /**
+     * Paid bills leave the kitchen board (payment = no longer active kitchen work).
+     */
+    public function dismissFromKitchenWhenPaid(PosOrder $order): void
+    {
+        if ($order->status !== 'paid') {
+            return;
+        }
+
+        if (! Schema::hasColumn($order->getTable(), 'kitchen_completed_at')) {
+            return;
+        }
+
+        if ($order->kitchen_completed_at !== null) {
+            return;
+        }
+
+        $payload = ['kitchen_completed_at' => now()];
+        if (Schema::hasColumn($order->getTable(), 'kitchen_status')) {
+            $payload['kitchen_status'] = PosOrder::KITCHEN_STATUS_SERVED;
+        }
+
+        $order->update($payload);
+        $this->activeOrdersCache = null;
     }
 
     public function clearKitchenCompletion(PosOrder $order): void

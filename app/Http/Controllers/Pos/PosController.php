@@ -1387,6 +1387,8 @@ class PosController extends Controller
                     ->delete();
             }
 
+            $kitchen->dismissFromKitchenWhenPaid($order);
+
             return $order;
         });
         } catch (\RuntimeException $e) {
