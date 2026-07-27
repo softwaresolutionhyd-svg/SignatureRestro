@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=47">
-<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=15">
+<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=16">
 @endpush
 
 @section('content')
@@ -176,6 +176,9 @@
                             <button type="button"
                                     class="ot-my-order-row{{ ($mo['amendable'] ?? false) ? ' ot-my-order-row--live' : '' }}"
                                     data-order-id="{{ $mo['id'] }}"
+                                    data-order-no="{{ $mo['order_no'] }}"
+                                    data-service-type="{{ $mo['service_type'] ?? '' }}"
+                                    data-table-id="{{ $mo['table_id'] ?? '' }}"
                                     data-amendable="{{ ($mo['amendable'] ?? false) ? '1' : '0' }}"
                                     @if(!($mo['amendable'] ?? false)) disabled @endif>
                                 <span class="ot-my-order-main">
@@ -193,6 +196,16 @@
                                     <span class="ot-my-order-time">{{ $mo['punched_at'] }}</span>
                                     <span class="ot-my-order-total">{{ $currency }}{{ number_format((float) $mo['grand_total'], 0) }}</span>
                                     <span class="ot-my-order-badge ot-my-order-badge--open">Pending</span>
+                                    @if(($mo['service_type'] ?? null) === 'dine_in' && !empty($mo['table_id']))
+                                        <button type="button"
+                                                class="ot-my-order-move-btn"
+                                                data-action="move-table"
+                                                data-order-id="{{ $mo['id'] }}"
+                                                data-order-no="{{ $mo['order_no'] }}"
+                                                data-table-id="{{ $mo['table_id'] }}">
+                                            <i class="bi bi-arrow-left-right"></i> Move Table
+                                        </button>
+                                    @endif
                                 </span>
                             </button>
                         @empty
@@ -337,10 +350,27 @@
     <input type="hidden" name="kitchen_notes" id="otFormKitchenNotes" value="">
     <input type="hidden" name="items" id="otFormItems" value="">
 </form>
+
+<div class="modal fade" id="otMoveTableModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="otMoveTableTitle">Select New Table</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="px-3 pt-2" id="otMoveTableAreaTabs"></div>
+            <div class="modal-body" id="otMoveTableBody" style="max-height:55vh;overflow-y:auto;"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('scripts')
 @php
+    $moveTableStub = str_replace('999999999', '__ID__', route('order-taker.move-table', ['order' => 999999999]));
     $otBootstrap = [
         'csrf' => csrf_token(),
         'currency' => $currency,
@@ -375,11 +405,12 @@
             'store' => route('order-taker.store'),
             'update' => $updateStub,
             'index' => route('order-taker.index'),
+            'moveTable' => $moveTableStub,
         ],
     ];
 @endphp
 <script>
 window.ORDER_TAKER_BOOTSTRAP = @json($otBootstrap);
 </script>
-<script src="{{ asset('js/order-taker-app.js') }}?v=14"></script>
+<script src="{{ asset('js/order-taker-app.js') }}?v=15"></script>
 @endsection

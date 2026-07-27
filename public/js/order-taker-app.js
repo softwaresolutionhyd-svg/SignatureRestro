@@ -25,6 +25,7 @@
     let selectedTableId = boot.resumeTableId || boot.startTableId || null;
     let selectedTableName = boot.resumeTableName || null;
     let pendingMode = !!editOrderId;
+    let moveTableOrderId = null;
 
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -592,6 +593,84 @@
         window.location.href = `${routes.index}?order_id=${orderId}`;
     }
 
+    function renderMoveTableModal(currentTableId) {
+        const tabsWrap = $('#otMoveTableAreaTabs');
+        const body = $('#otMoveTableBody');
+        if (!tabsWrap || !body) return;
+
+        const areaMap = {};
+        (boot.tableBoard || []).forEach((t) => {
+            const key = t.sitting_area_id != null ? String(t.sitting_area_id) : 'none';
+            const name = t.sitting_area_name || 'Other';
+            if (!areaMap[key]) areaMap[key] = { name, tables: [] };
+            areaMap[key].tables.push(t);
+        });
+        const areas = Object.entries(areaMap);
+        const multiArea = areas.length > 1;
+
+        if (multiArea) {
+            tabsWrap.innerHTML = `<div class="ot-mt-area-tabs-inner">
+                <button type="button" class="ot-mt-area-tab is-active" data-area-key="all">All</button>
+                ${areas.map(([key, area]) => `<button type="button" class="ot-mt-area-tab" data-area-key="${escHtml(key)}">${escHtml(area.name)}</button>`).join('')}
+            </div>`;
+        } else {
+            tabsWrap.innerHTML = '';
+        }
+
+        body.innerHTML = areas.map(([key, area]) => `
+            <section class="ot-mt-area-section" data-area-key="${escHtml(key)}">
+                ${multiArea ? `<div class="ot-mt-area-title">${escHtml(area.name)}</div>` : ''}
+                <div class="ot-mt-grid">
+                    ${area.tables.map((t) => {
+                        const isCurrent = Number(t.id) === Number(currentTableId);
+                        const isFree = !isCurrent && t.status === 'free';
+                        const cls = isFree ? 'ot-mt-table-btn--free' : 'ot-mt-table-btn--occupied';
+                        const label = isCurrent ? 'Current' : (isFree ? 'Free' : (t.order_no || 'Reserved'));
+                        return `<button type="button" class="ot-mt-table-btn ${cls}" data-table-id="${t.id}" data-table-name="${escHtml(t.name)}" ${isFree ? '' : 'disabled data-locked="1"'}>
+                            <span class="ot-mt-shape">
+                                <span class="ot-mt-chair ot-mt-chair--n"></span>
+                                <span class="ot-mt-chair ot-mt-chair--e"></span>
+                                <span class="ot-mt-chair ot-mt-chair--s"></span>
+                                <span class="ot-mt-chair ot-mt-chair--w"></span>
+                                <span class="ot-mt-top"><span class="ot-mt-name">${escHtml(t.name)}</span></span>
+                            </span>
+                            <span class="ot-mt-label">${escHtml(label)}</span>
+                        </button>`;
+                    }).join('')}
+                </div>
+            </section>
+        `).join('');
+    }
+
+    async function submitMoveTable(tableId) {
+        if (!moveTableOrderId || !routes.moveTable || !boot.csrf) return;
+        const url = routes.moveTable.replace('__ID__', String(moveTableOrderId));
+        const body = $('#otMoveTableBody');
+        body?.querySelectorAll('.ot-mt-table-btn').forEach((b) => { b.disabled = true; });
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': boot.csrf,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ table_id: tableId }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.ok) {
+                alert(data.message || 'Table move fail ho gayi.');
+                body?.querySelectorAll('.ot-mt-table-btn').forEach((b) => { if (!b.dataset.locked) b.disabled = false; });
+                return;
+            }
+            window.location.reload();
+        } catch (err) {
+            alert('Table move request fail ho gayi.');
+            body?.querySelectorAll('.ot-mt-table-btn').forEach((b) => { if (!b.dataset.locked) b.disabled = false; });
+        }
+    }
+
     function submitOrder() {
         if (!cart.length) {
             alert('Kam az kam aik item add karein.');
@@ -728,6 +807,19 @@
         });
 
         $('#otMyOrdersList')?.addEventListener('click', (e) => {
+            const moveBtn = e.target.closest('[data-action="move-table"]');
+            if (moveBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                moveTableOrderId = Number(moveBtn.dataset.orderId);
+                const orderNo = moveBtn.dataset.orderNo || '';
+                const currentTableId = Number(moveBtn.dataset.tableId);
+                $('#otMoveTableTitle').textContent = `Select New Table — ${orderNo}`;
+                renderMoveTableModal(currentTableId);
+                window.bootstrap?.Modal.getOrCreateInstance($('#otMoveTableModal'))?.show();
+                return;
+            }
+
             const row = e.target.closest('.ot-my-order-row');
             if (!row || row.disabled) return;
             const orderId = Number(row.dataset.orderId);
@@ -735,6 +827,25 @@
             if (!orderId || !amendable) return;
             const board = (boot.tableBoard || []).find((t) => Number(t.order_id) === orderId);
             startEditOrder(orderId, board?.id || null, board?.name || null);
+        });
+
+        $('#otMoveTableAreaTabs')?.addEventListener('click', (e) => {
+            const tab = e.target.closest('.ot-mt-area-tab');
+            if (!tab) return;
+            $$('#otMoveTableAreaTabs .ot-mt-area-tab').forEach((b) => b.classList.toggle('is-active', b === tab));
+            const key = tab.dataset.areaKey || 'all';
+            $$('#otMoveTableBody .ot-mt-area-section').forEach((section) => {
+                const show = key === 'all' || section.dataset.areaKey === key;
+                section.classList.toggle('d-none', !show);
+            });
+        });
+
+        $('#otMoveTableBody')?.addEventListener('click', (e) => {
+            const btn = e.target.closest('.ot-mt-table-btn');
+            if (!btn || btn.disabled) return;
+            const tableId = Number(btn.dataset.tableId);
+            if (!tableId) return;
+            submitMoveTable(tableId);
         });
 
         $$('.ot-quick-type').forEach((btn) => {
