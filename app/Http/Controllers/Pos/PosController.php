@@ -3319,6 +3319,8 @@ class PosController extends Controller
             'service_type' => $order->serviceTypeKey(),
             'service_type_label' => $order->serviceTypeLabel(),
             'guest_name' => $order->guest_name,
+            'is_split' => $this->orderIsSplitBill($order),
+            'split_label' => $this->orderSplitLabel($order),
             'waiter_name' => $order->waiter_name,
             'punched_by' => $punchedBy !== '' ? $punchedBy : null,
             'order_notes' => trim((string) ($order->order_notes ?? '')),
@@ -3366,6 +3368,26 @@ class PosController extends Controller
                 'kitchen_served_at' => $item->kitchen_served_at?->format('H:i'),
             ])->values()->all(),
         ];
+    }
+
+    private function orderIsSplitBill(PosOrder $order): bool
+    {
+        return $this->orderSplitLabel($order) !== null;
+    }
+
+    private function orderSplitLabel(PosOrder $order): ?string
+    {
+        $guest = trim((string) ($order->guest_name ?? ''));
+        if ($guest === '') {
+            return null;
+        }
+        if (preg_match('/ · Split (.+)$/u', $guest, $m) === 1) {
+            $label = trim((string) ($m[1] ?? ''));
+
+            return $label !== '' ? $label : null;
+        }
+
+        return null;
     }
 
     /** @return array<string, mixed> */

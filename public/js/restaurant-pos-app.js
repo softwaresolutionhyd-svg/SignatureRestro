@@ -340,16 +340,36 @@
         return 'Dine-in';
     }
 
+    function orderIsSplit(order) {
+        if (order?.is_split) return true;
+        return / · Split /.test(String(order?.guest_name || ''));
+    }
+
+    function orderSplitLabel(order) {
+        const fromApi = String(order?.split_label || '').trim();
+        if (fromApi) return fromApi;
+        const m = String(order?.guest_name || '').match(/ · Split (.+)$/);
+        return m ? m[1].trim() : 'Split';
+    }
+
+    function orderSplitIconHtml(order) {
+        if (!orderIsSplit(order)) return '';
+        const tip = `Split bill — ${orderSplitLabel(order)}`;
+        return `<span class="rp-oc-split-icon" title="${escHtml(tip)}" aria-label="${escHtml(tip)}"><i class="bi bi-scissors" aria-hidden="true"></i></span>`;
+    }
+
     function orderMetaDetail(order) {
         const parts = [];
+        const guestRaw = String(order.guest_name || '').trim();
+        const guestBase = guestRaw.includes(' · Split ') ? guestRaw.split(' · Split ')[0].trim() : guestRaw;
         if (order.service_type === 'dine_in' || order.service_type_label === 'Dine-in') {
             if (order.table_name) parts.push('Table ' + order.table_name);
-            else if (order.guest_name) parts.push('Table ' + order.guest_name);
+            else if (guestBase) parts.push('Table ' + guestBase);
         } else if (order.service_type === 'delivery' || order.service_type_label === 'Delivery') {
-            if (order.guest_name) parts.push(order.guest_name);
+            if (guestBase) parts.push(guestBase);
             if (order.room_no) parts.push(order.room_no);
-        } else if (order.guest_name) {
-            parts.push(order.guest_name);
+        } else if (guestBase) {
+            parts.push(guestBase);
         }
         return parts.join(' · ') || '—';
     }
@@ -1712,7 +1732,7 @@
                     : '';
                 return `<div class="rp-order-card rp-order-card--grid rp-order-card--pending-wrap">
                     <a class="rp-order-card-link" href="${escHtml(resumeUrl)}">
-                        <div class="rp-oc-no">${escHtml(o.order_no)}</div>
+                        <div class="rp-oc-no">${escHtml(o.order_no)}${orderSplitIconHtml(o)}</div>
                         <div class="rp-oc-meta">${escHtml(orderMetaLabel(o))} · ${escHtml(orderMetaDetail(o))}</div>
                         ${orderPunchedByHtml(o)}
                         <div class="rp-oc-meta">${escHtml(fmtMoney(o.grand_total))} · ${o.items_count || 0} items</div>

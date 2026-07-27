@@ -837,6 +837,28 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     color: #fcd98a;
 }
 
+.restaurant-pos-app .rp-oc-no {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+}
+
+.restaurant-pos-app .rp-oc-split-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 999px;
+    background: rgba(168, 85, 247, 0.18);
+    color: #d8b4fe;
+    font-size: 0.62rem;
+    line-height: 1;
+    flex-shrink: 0;
+    border: 1px solid rgba(216, 180, 254, 0.35);
+}
+
 .restaurant-pos-app .rp-order-card--pending-wrap {
     padding: 0 !important;
     display: flex;
