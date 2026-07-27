@@ -624,17 +624,23 @@
                     ${area.tables.map((t) => {
                         const isCurrent = Number(t.id) === Number(currentTableId);
                         const isFree = !isCurrent && t.status === 'free';
-                        const cls = isFree ? 'ot-mt-table-btn--free' : 'ot-mt-table-btn--occupied';
-                        const label = isCurrent ? 'Current' : (isFree ? 'Free' : (t.order_no || 'Reserved'));
-                        return `<button type="button" class="ot-mt-table-btn ${cls}" data-table-id="${t.id}" data-table-name="${escHtml(t.name)}" ${isFree ? '' : 'disabled data-locked="1"'}>
-                            <span class="ot-mt-shape">
-                                <span class="ot-mt-chair ot-mt-chair--n"></span>
-                                <span class="ot-mt-chair ot-mt-chair--e"></span>
-                                <span class="ot-mt-chair ot-mt-chair--s"></span>
-                                <span class="ot-mt-chair ot-mt-chair--w"></span>
-                                <span class="ot-mt-top"><span class="ot-mt-name">${escHtml(t.name)}</span></span>
+                        const statusClass = isFree ? 'ot-table-box--free' : 'ot-table-box--occupied';
+                        const label = isCurrent ? 'Current' : (isFree ? 'Available' : (t.order_no || 'Reserved'));
+                        return `<button type="button"
+                                class="ot-table-box ${statusClass} ot-mt-pick"
+                                data-table-id="${t.id}"
+                                data-table-name="${escHtml(t.name)}"
+                                ${isFree ? '' : 'disabled data-locked="1"'}>
+                            <span class="ot-table-shape" aria-hidden="true">
+                                <span class="ot-chair ot-chair--n"></span>
+                                <span class="ot-chair ot-chair--e"></span>
+                                <span class="ot-chair ot-chair--s"></span>
+                                <span class="ot-chair ot-chair--w"></span>
+                                <span class="ot-table-top">
+                                    <span class="ot-table-box-no">${escHtml(t.name)}</span>
+                                </span>
                             </span>
-                            <span class="ot-mt-label">${escHtml(label)}</span>
+                            <span class="ot-table-box-meta${isFree ? ' ot-table-box-meta--free' : ''}">${escHtml(label)}</span>
                         </button>`;
                     }).join('')}
                 </div>
@@ -644,10 +650,10 @@
 
     async function submitMoveTable(tableId) {
         if (!moveTableOrderId || !routes.moveTable || !boot.csrf) return;
-        const url = routes.moveTable.replace('__ID__', String(moveTableOrderId));
         const body = $('#otMoveTableBody');
-        body?.querySelectorAll('.ot-mt-table-btn').forEach((b) => { b.disabled = true; });
+        body?.querySelectorAll('.ot-mt-pick').forEach((b) => { b.disabled = true; });
         try {
+            const url = routes.moveTable.replace('__ID__', String(moveTableOrderId));
             const res = await fetch(url, {
                 method: 'POST',
                 headers: {
@@ -661,13 +667,13 @@
             const data = await res.json().catch(() => ({}));
             if (!res.ok || !data.ok) {
                 alert(data.message || 'Table move fail ho gayi.');
-                body?.querySelectorAll('.ot-mt-table-btn').forEach((b) => { if (!b.dataset.locked) b.disabled = false; });
+                body?.querySelectorAll('.ot-mt-pick').forEach((b) => { if (!b.dataset.locked) b.disabled = false; });
                 return;
             }
             window.location.reload();
         } catch (err) {
             alert('Table move request fail ho gayi.');
-            body?.querySelectorAll('.ot-mt-table-btn').forEach((b) => { if (!b.dataset.locked) b.disabled = false; });
+            body?.querySelectorAll('.ot-mt-pick').forEach((b) => { if (!b.dataset.locked) b.disabled = false; });
         }
     }
 
@@ -845,7 +851,7 @@
         });
 
         $('#otMoveTableBody')?.addEventListener('click', (e) => {
-            const btn = e.target.closest('.ot-mt-table-btn');
+            const btn = e.target.closest('.ot-mt-pick');
             if (!btn || btn.disabled) return;
             const tableId = Number(btn.dataset.tableId);
             if (!tableId) return;

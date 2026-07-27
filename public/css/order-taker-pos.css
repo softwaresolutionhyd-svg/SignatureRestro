@@ -441,73 +441,86 @@
     color: #fff;
 }
 
-.order-taker-pos-app .ot-mt-area-tabs-inner {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    padding-bottom: 0.6rem;
-    border-bottom: 1px solid #e5e7eb;
+/* Move Table modal — Bootstrap moves it to <body>, so do NOT scope under .order-taker-pos-app */
+#otMoveTableModal .modal-content {
+    background: #0f141c;
+    color: #e8edf5;
+    border: 1px solid rgba(255,255,255,0.08);
+}
+#otMoveTableModal .modal-header,
+#otMoveTableModal .modal-footer {
+    border-color: rgba(255,255,255,0.08);
+}
+#otMoveTableModal .modal-title { color: #e8edf5; font-weight: 700; }
+#otMoveTableModal .btn-close { filter: invert(1); opacity: .7; }
+#otMoveTableModal .modal-body {
+    background: #0c1016;
 }
 
-.order-taker-pos-app .ot-mt-area-tab {
-    padding: 0.28rem 0.85rem;
+#otMoveTableModal .ot-mt-area-tabs-inner {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.25rem 0 0.75rem;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+#otMoveTableModal .ot-mt-area-tab {
+    padding: 0.32rem 0.9rem;
     border-radius: 999px;
-    border: 1.5px solid #d1d5db;
-    background: #f9fafb;
-    color: #374151;
+    border: 1.5px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.05);
+    color: #c7d0dc;
     font-size: 0.78rem;
     font-weight: 600;
     cursor: pointer;
     transition: background .15s, border-color .15s, color .15s;
 }
-
-.order-taker-pos-app .ot-mt-area-tab.is-active {
-    background: #1d4ed8;
-    border-color: #1d4ed8;
+#otMoveTableModal .ot-mt-area-tab:hover { background: rgba(255,255,255,0.1); color: #fff; }
+#otMoveTableModal .ot-mt-area-tab.is-active {
+    background: #c9892a;
+    border-color: #c9892a;
     color: #fff;
 }
-
-.order-taker-pos-app .ot-mt-area-title {
+#otMoveTableModal .ot-mt-area-title {
     font-size: 0.72rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: .05em;
-    color: #6b7280;
-    padding: 0.6rem 0 0.3rem;
+    letter-spacing: .06em;
+    color: #8b97a8;
+    padding: 0.75rem 0.25rem 0.35rem;
 }
-
-.order-taker-pos-app .ot-mt-grid {
+#otMoveTableModal .ot-mt-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(6.2rem, 1fr));
-    gap: 0.85rem 0.7rem;
-    padding: 0.5rem;
+    grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+    gap: 1rem 0.85rem;
+    padding: 0.35rem 0.15rem 0.75rem;
 }
-
-.order-taker-pos-app .ot-mt-table-btn {
+#otMoveTableModal .ot-table-box {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.3rem;
-    padding: 0.3rem 0.2rem 0.45rem;
+    justify-content: flex-start;
+    gap: 0.35rem;
+    min-height: 0;
+    padding: 0.35rem 0.25rem 0.5rem;
     border: none;
     border-radius: 0;
     background: transparent;
+    color: #e8edf5;
     cursor: pointer;
-    transition: transform .15s ease;
+    transition: transform 0.15s ease;
     font-family: inherit;
+    box-shadow: none;
 }
-
-.order-taker-pos-app .ot-mt-table-btn:hover:not(:disabled) { transform: translateY(-2px); }
-.order-taker-pos-app .ot-mt-table-btn:disabled { opacity: .7; cursor: not-allowed; }
-
-.order-taker-pos-app .ot-mt-shape {
+#otMoveTableModal .ot-table-box:hover:not(:disabled) { transform: translateY(-2px); }
+#otMoveTableModal .ot-table-box:disabled { opacity: 0.78; cursor: not-allowed; }
+#otMoveTableModal .ot-table-shape {
     position: relative;
-    width: 5rem;
-    height: 5rem;
+    width: 5.5rem;
+    height: 5.5rem;
     flex-shrink: 0;
 }
-
-.order-taker-pos-app .ot-mt-top {
+#otMoveTableModal .ot-table-top {
     position: absolute;
     inset: 18% 18%;
     border-radius: 22%;
@@ -515,61 +528,57 @@
     align-items: center;
     justify-content: center;
     border: 2px solid transparent;
-    background: #fff;
+    background: #151b24;
     z-index: 2;
 }
-
-.order-taker-pos-app .ot-mt-chair {
+#otMoveTableModal .ot-chair {
     position: absolute;
-    border-radius: 0.25rem;
+    background: #6b7280;
+    border-radius: 0.28rem;
     z-index: 1;
 }
-
-.order-taker-pos-app .ot-mt-chair--n, .order-taker-pos-app .ot-mt-chair--s { width: 38%; height: 14%; left: 31%; }
-.order-taker-pos-app .ot-mt-chair--e, .order-taker-pos-app .ot-mt-chair--w { width: 14%; height: 38%; top: 31%; }
-.order-taker-pos-app .ot-mt-chair--n { top: 2%; }
-.order-taker-pos-app .ot-mt-chair--s { bottom: 2%; }
-.order-taker-pos-app .ot-mt-chair--e { right: 2%; }
-.order-taker-pos-app .ot-mt-chair--w { left: 2%; }
-
-.order-taker-pos-app .ot-mt-name {
-    font-size: 0.92rem;
+#otMoveTableModal .ot-chair--n,
+#otMoveTableModal .ot-chair--s { width: 38%; height: 14%; left: 31%; }
+#otMoveTableModal .ot-chair--e,
+#otMoveTableModal .ot-chair--w { width: 14%; height: 38%; top: 31%; }
+#otMoveTableModal .ot-chair--n { top: 2%; }
+#otMoveTableModal .ot-chair--s { bottom: 2%; }
+#otMoveTableModal .ot-chair--e { right: 2%; }
+#otMoveTableModal .ot-chair--w { left: 2%; }
+#otMoveTableModal .ot-table-box-no {
+    font-size: 1.05rem;
     font-weight: 800;
     line-height: 1.1;
-    color: #1c1917;
+    letter-spacing: -0.02em;
 }
-
-.order-taker-pos-app .ot-mt-label {
-    font-size: 0.66rem;
-    line-height: 1.15;
+#otMoveTableModal .ot-table-box-meta {
+    font-size: 0.68rem;
+    color: #8b97a8;
+    line-height: 1.2;
     text-align: center;
 }
-
-.order-taker-pos-app .ot-mt-table-btn--free .ot-mt-top {
-    border-color: rgba(61, 214, 140, .65);
-    background: linear-gradient(160deg, rgba(34, 160, 107, .15) 0%, #fff 65%);
-    box-shadow: 0 0 12px rgba(34, 160, 107, .18);
+#otMoveTableModal .ot-table-box-meta--free {
+    color: #3dd68c;
+    font-weight: 600;
 }
-
-.order-taker-pos-app .ot-mt-table-btn--free .ot-mt-chair {
+#otMoveTableModal .ot-table-box--free .ot-table-top {
+    border-color: rgba(61, 214, 140, 0.65);
+    background: linear-gradient(160deg, rgba(34, 160, 107, 0.28) 0%, #151b24 65%);
+    box-shadow: 0 0 16px rgba(34, 160, 107, 0.22);
+}
+#otMoveTableModal .ot-table-box--free .ot-chair {
     background: #3dd68c;
-    box-shadow: 0 0 6px rgba(61, 214, 140, .3);
+    box-shadow: 0 0 8px rgba(61, 214, 140, 0.35);
 }
-
-.order-taker-pos-app .ot-mt-table-btn--free .ot-mt-label { color: #16a34a; font-weight: 600; }
-
-.order-taker-pos-app .ot-mt-table-btn--occupied .ot-mt-top {
-    border-color: rgba(255, 107, 107, .65);
-    background: linear-gradient(160deg, rgba(201, 42, 42, .15) 0%, #fff 65%);
-    box-shadow: 0 0 12px rgba(201, 42, 42, .18);
+#otMoveTableModal .ot-table-box--occupied .ot-table-top {
+    border-color: rgba(255, 107, 107, 0.7);
+    background: linear-gradient(160deg, rgba(201, 42, 42, 0.32) 0%, #151b24 65%);
+    box-shadow: 0 0 16px rgba(201, 42, 42, 0.25);
 }
-
-.order-taker-pos-app .ot-mt-table-btn--occupied .ot-mt-chair {
+#otMoveTableModal .ot-table-box--occupied .ot-chair {
     background: #ff6b6b;
-    box-shadow: 0 0 6px rgba(255, 107, 107, .3);
+    box-shadow: 0 0 8px rgba(255, 107, 107, 0.35);
 }
-
-.order-taker-pos-app .ot-mt-table-btn--occupied .ot-mt-label { color: #dc2626; font-weight: 600; }
 
 .order-taker-pos-app .ot-my-orders-empty {
     padding: 1.25rem 0.75rem;
