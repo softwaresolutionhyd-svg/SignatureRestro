@@ -286,6 +286,8 @@ final class NetworkPrinterService
     }
 
     /**
+     * Table move notice — centered: Moved Table → Table no# → moved to → Table no# → END.
+     *
      * @param  iterable<\App\Models\PosOrderItem>  $items  Unused — kept for call-site compatibility
      */
     public function buildTableMoveSlip(
@@ -295,21 +297,31 @@ final class NetworkPrinterService
         string $toTableName,
         iterable $items = []
     ): string {
-        $out = self::INIT;
-
-        $out .= self::ALIGN_CENTER . self::SIZE_DOUBLE . self::BOLD_ON;
-        $out .= $this->clipWide('MOVE TABLE') . "\n";
-        $out .= self::SIZE_NORMAL . self::BOLD_OFF;
-
         $from = trim($fromTableName) !== '' ? trim($fromTableName) : '—';
         $to = trim($toTableName) !== '' ? trim($toTableName) : '—';
 
-        $out .= "\n" . self::ALIGN_CENTER . self::BOLD_ON;
-        $out .= $this->clip('Table no# '.$from.' ka Customer') . "\n";
-        $out .= $this->clip('Table no# '.$to.' py move ho gya hai') . "\n";
-        $out .= self::BOLD_OFF;
+        $out = self::INIT;
 
-        $out .= "\n\n" . self::FEED . self::CUT;
+        $out .= self::ALIGN_CENTER . self::SIZE_DOUBLE . self::BOLD_ON;
+        $out .= $this->clipWide('Moved Table') . "\n";
+        $out .= self::SIZE_NORMAL . self::BOLD_OFF;
+
+        $out .= "\n" . self::ALIGN_CENTER . self::SIZE_WIDE . self::BOLD_ON;
+        $out .= $this->clipWide('Table no# '.$from) . "\n";
+        $out .= self::SIZE_NORMAL . self::BOLD_OFF;
+
+        $out .= self::ALIGN_CENTER;
+        $out .= $this->line('moved to') . "\n";
+
+        $out .= self::SIZE_WIDE . self::BOLD_ON;
+        $out .= $this->clipWide('Table no# '.$to) . "\n";
+        $out .= self::SIZE_NORMAL . self::BOLD_OFF;
+
+        $out .= "\n\n";
+        $out .= self::ALIGN_CENTER . self::BOLD_ON;
+        $out .= "END\n";
+        $out .= self::BOLD_OFF . self::ALIGN_LEFT;
+        $out .= self::CUT;
 
         return $out;
     }
