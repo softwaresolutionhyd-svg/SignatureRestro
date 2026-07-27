@@ -306,18 +306,18 @@ final class NetworkPrinterService
         $out .= $this->clipWide('Moved Table') . "\n";
         $out .= self::SIZE_NORMAL . self::BOLD_OFF;
 
-        $out .= "\n" . self::ALIGN_CENTER . self::SIZE_WIDE . self::BOLD_ON;
+        $out .= "\n\n" . self::ALIGN_CENTER . self::SIZE_WIDE . self::BOLD_ON;
         $out .= $this->clipWide('Table no# '.$from) . "\n";
         $out .= self::SIZE_NORMAL . self::BOLD_OFF;
 
-        $out .= self::ALIGN_CENTER;
+        $out .= "\n\n" . self::ALIGN_CENTER;
         $out .= $this->line('moved to') . "\n";
 
-        $out .= self::SIZE_WIDE . self::BOLD_ON;
+        $out .= "\n\n" . self::SIZE_WIDE . self::BOLD_ON;
         $out .= $this->clipWide('Table no# '.$to) . "\n";
         $out .= self::SIZE_NORMAL . self::BOLD_OFF;
 
-        $out .= "\n\n";
+        $out .= "\n\n\n";
         $out .= self::ALIGN_CENTER . self::BOLD_ON;
         $out .= "END\n";
         $out .= self::BOLD_OFF . self::ALIGN_LEFT;
