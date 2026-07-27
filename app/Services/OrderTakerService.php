@@ -456,7 +456,9 @@ final class OrderTakerService
      *   grand_total: float,
      *   punched_by: string,
      *   amendable: bool,
-     *   punched_at: string
+     *   punched_at: string,
+     *   is_split: bool,
+     *   split_label: ?string
      * }>
      */
     public function allPendingOrdersForOrderTaker(): array
@@ -487,8 +489,11 @@ final class OrderTakerService
             ->filter(fn (PosOrder $order) => $order->isDueForServeDay())
             ->take(60);
 
-        return $orders->map(function (PosOrder $order) {
+        $splitIndicator = app(PosOrderSplitIndicator::class);
+
+        return $orders->map(function (PosOrder $order) use ($splitIndicator) {
             $when = $order->ready_for_pos_at ?? $order->created_at;
+            $splitLabel = $splitIndicator->splitLabel($order);
 
             return [
                 'id' => (int) $order->id,
@@ -502,6 +507,8 @@ final class OrderTakerService
                 'punched_by' => trim((string) ($order->user?->name ?? '')) ?: '—',
                 'amendable' => $this->isPendingAmendable($order),
                 'punched_at' => $when?->format('h:i A') ?? '',
+                'is_split' => $splitLabel !== null,
+                'split_label' => $splitLabel,
             ];
         })->values()->all();
     }

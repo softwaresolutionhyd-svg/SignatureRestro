@@ -40,6 +40,7 @@ use App\Services\ManufacturingStockService;
 use App\Services\AutoJournalService;
 use App\Services\NetworkPrinterService;
 use App\Services\OrderTakerService;
+use App\Services\PosOrderSplitIndicator;
 use App\Services\PosPendingBillsService;
 use App\Services\PosSessionSummaryService;
 use App\Services\Sync\SyncAwareDelete;

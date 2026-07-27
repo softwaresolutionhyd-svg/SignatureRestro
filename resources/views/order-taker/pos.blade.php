@@ -204,7 +204,17 @@
                                         data-order-id="{{ $mo['id'] }}"
                                         data-amendable="{{ $canOpen ? '1' : '0' }}"
                                         @if(! $canOpen) disabled @endif>
-                                    <div class="rp-oc-no">{{ $mo['order_no'] }}</div>
+                                    <div class="rp-oc-no">
+                                        {{ $mo['order_no'] }}
+                                        @if(!empty($mo['is_split']))
+                                            @php
+                                                $splitTip = 'Split bill — ' . ($mo['split_label'] ?? 'Split');
+                                            @endphp
+                                            <span class="rp-oc-split-icon" title="{{ $splitTip }}" aria-label="{{ $splitTip }}">
+                                                <i class="bi bi-scissors" aria-hidden="true"></i>
+                                            </span>
+                                        @endif
+                                    </div>
                                     <div class="rp-oc-meta">
                                         @if(!empty($mo['table_name']))
                                             {{ $mo['table_name'] }} ·
