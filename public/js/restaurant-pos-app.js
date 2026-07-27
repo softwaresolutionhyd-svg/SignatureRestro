@@ -2395,6 +2395,7 @@
                 kitchen_served: !!ri.kitchen_served,
                 kitchen_pending: !!ri.kitchen_pending,
                 kitchen_locked_qty: kitchenLockedFromResume(ri),
+                order_item_id: ri.id ? Number(ri.id) : null,
             });
         });
         renderAll();
@@ -2535,98 +2536,173 @@
         }
     }
 
-    async function tryQuotationNetworkPrint(formData) {
-        const url = routes.quotationPrint || '';
-        if (!url || !csrf) return { ok: false, fallback: true };
+    function splitBillMode() {
+        const checked = document.querySelector('.rp-split-mode-check:checked');
+        return checked?.value || 'item';
+    }
+
+    function syncSplitBillPanes() {
+        const mode = splitBillMode();
+        $('#rpSplitItemPane')?.classList.toggle('d-none', mode !== 'item');
+        $('#rpSplitMemberPane')?.classList.toggle('d-none', mode !== 'member');
+    }
+
+    function onSplitModeToggle(e) {
+        const box = e.target.closest('.rp-split-mode-check');
+        if (!box) return;
+        if (box.checked) {
+            document.querySelectorAll('.rp-split-mode-check').forEach((el) => {
+                if (el !== box) el.checked = false;
+            });
+        } else {
+            // Always keep one selected
+            box.checked = true;
+        }
+        syncSplitBillPanes();
+    }
+
+    function splitBillError(msg) {
+        const el = $('#rpSplitBillError');
+        if (!el) return;
+        if (!msg) {
+            el.classList.add('d-none');
+            el.textContent = '';
+            return;
+        }
+        el.textContent = msg;
+        el.classList.remove('d-none');
+    }
+
+    function openSplitBillModal() {
+        if (!resumeOrderId) {
+            alert('Pehle pending bill open/resume karein, phir Split Bill use karein.');
+            return;
+        }
+        if (!cart.length) {
+            alert('Bill me items nahi hain.');
+            return;
+        }
+
+        const list = $('#rpSplitItemList');
+        if (list) {
+            const rows = cart.filter((r) => Number(r.order_item_id) > 0);
+            const source = rows.length ? rows : (boot.resumeItems || []).filter((r) => Number(r.id) > 0);
+            if (!source.length) {
+                alert('Split ke liye pehle Hold Order / Kitchen Print se bill save karein.');
+                return;
+            }
+            list.innerHTML = source.map((r, idx) => {
+                const id = Number(r.order_item_id || r.id);
+                const name = escHtml(r.name || r.item_name || 'Item');
+                const qty = escHtml(fmtQty(r.qty));
+                const amount = escHtml(fmtMoney((Number(r.qty) || 0) * (Number(r.unit_price) || 0)));
+                return `<label class="rp-split-item-row">
+                    <input type="checkbox" class="rp-split-item-check" value="${id}" data-idx="${idx}">
+                    <span class="rp-split-item-main">
+                        <strong>${name}</strong>
+                        <small>Qty ${qty} · ${amount}</small>
+                    </span>
+                </label>`;
+            }).join('');
+        }
+
+        const memberInput = $('#rpSplitMemberCount');
+        if (memberInput) memberInput.value = '2';
+        const itemCheck = document.querySelector('.rp-split-mode-check[value="item"]');
+        const memberCheck = document.querySelector('.rp-split-mode-check[value="member"]');
+        if (itemCheck) itemCheck.checked = true;
+        if (memberCheck) memberCheck.checked = false;
+        syncSplitBillPanes();
+        splitBillError('');
+
+        const modalEl = $('#rpSplitBillModal');
+        if (modalEl && window.bootstrap?.Modal) {
+            window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        }
+    }
+
+    async function confirmSplitBill() {
+        if (!resumeOrderId) {
+            splitBillError('Pending bill open nahi.');
+            return;
+        }
+        const mode = splitBillMode();
+        const payload = { mode };
+        if (mode === 'item') {
+            const ids = Array.from(document.querySelectorAll('.rp-split-item-check:checked'))
+                .map((el) => Number(el.value))
+                .filter((id) => id > 0);
+            if (!ids.length) {
+                splitBillError('Kam az kam aik item select karein.');
+                return;
+            }
+            payload.item_ids = ids;
+        } else {
+            const members = Number($('#rpSplitMemberCount')?.value || 0);
+            if (!Number.isFinite(members) || members < 2) {
+                splitBillError('Members kam az kam 2 likhein.');
+                return;
+            }
+            payload.members = Math.min(20, Math.floor(members));
+        }
+
+        const url = (routes.splitBill || '').replace('__ID__', String(resumeOrderId));
+        if (!url || !csrf) {
+            splitBillError('Split route missing.');
+            return;
+        }
+
+        const btn = $('#rpSplitBillConfirm');
+        if (btn) btn.disabled = true;
+        splitBillError('');
+
         try {
             const res = await fetch(url, {
                 method: 'POST',
                 headers: {
                     Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': csrf,
+                    'Content-Type': 'application/json',
                 },
-                body: formData,
+                body: JSON.stringify(payload),
             });
             const data = await res.json().catch(() => ({}));
-            if (res.ok && data.ok) return { ok: true, fallback: false };
-            if (data.fallback) return { ok: false, fallback: true, message: data.message };
-            if (data.message) alert(data.message);
-            return { ok: false, fallback: false, message: data.message };
-        } catch (e) {
-            return { ok: false, fallback: true };
-        }
-    }
-
-    function buildQuotationFormData() {
-        applySaleModePricing();
-        const totals = calcCartTotals();
-        const formData = new FormData();
-        formData.append('_token', csrf);
-        formData.append('items', JSON.stringify(cartItemsForSubmit()));
-        formData.append('service_type', selectedServiceType());
-        formData.append('order_notes', '');
-        formData.append('kitchen_notes', ($('#rpBillKitchenNotes')?.value || '').trim());
-        formData.append('bill_tax_percent', String(($('#rpSubmitForm')?.querySelector('[name="bill_tax_percent"]')?.value) || '0'));
-        formData.append('bill_discount_percent', String(($('#rpSubmitForm')?.querySelector('[name="bill_discount_percent"]')?.value) || '0'));
-        formData.append('client_subtotal', String(totals.subtotal));
-        formData.append('client_discount_total', String(totals.discount));
-        formData.append('client_tax_total', String(totals.tax));
-        formData.append('client_service_charge_total', String(totals.serviceCharge || 0));
-        formData.append('client_grand_total', String(totals.grand));
-        formData.append('autoprint', '1');
-        return formData;
-    }
-
-    function openQuotationPreviewFallback(formData) {
-        const url = routes.receiptQuotation || '';
-        if (!url) {
-            throw new Error('Quotation preview route missing.');
-        }
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = url;
-        form.target = '_blank';
-        form.style.display = 'none';
-        formData.forEach((value, key) => {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = key;
-            input.value = value;
-            form.appendChild(input);
-        });
-        document.body.appendChild(form);
-        form.submit();
-        form.remove();
-    }
-
-    async function printQuotationBill() {
-        if (!canVoidKitchenItems) {
-            alert('Quotation bill sirf manager/admin print kar sakta hai.');
-            return;
-        }
-        if (!cart.length) {
-            alert('Pehle item add karein.');
-            return;
-        }
-
-        const btn = $('#rpQuotationPrintBtn');
-        if (btn) btn.disabled = true;
-        try {
-            // Quotation: no table required, no order saved to pending/paid records.
-            const formData = buildQuotationFormData();
-            const result = await tryQuotationNetworkPrint(formData);
-            if (result.ok) {
-                resetForNewBill();
+            if (!res.ok || !data.ok) {
+                splitBillError(data.message || 'Bill split fail ho gayi.');
                 return;
             }
-            if (result.fallback) {
-                openQuotationPreviewFallback(formData);
-                resetForNewBill();
-                return;
+
+            // Merge created + updated original into pending list
+            const updates = Array.isArray(data.pending_updates) ? data.pending_updates : [];
+            let pending = Array.isArray(boot.pendingBillsDetail) ? [...boot.pendingBillsDetail] : [];
+            updates.forEach((row) => {
+                const idx = pending.findIndex((o) => Number(o.id) === Number(row.id));
+                if (idx >= 0) pending[idx] = { ...pending[idx], ...row };
+                else pending.unshift(row);
+            });
+            boot.pendingBillsDetail = pending;
+            if (Array.isArray(data.table_board)) {
+                boot.tableBoard = data.table_board;
+                applyTableBoard(data.table_board);
             }
-            throw new Error(result.message || 'Quotation bill print nahi ho saki.');
+            updateOrderTabCounts();
+
+            const modalEl = $('#rpSplitBillModal');
+            if (modalEl && window.bootstrap?.Modal) {
+                window.bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+            }
+
+            alert(data.message || 'Bill split ho gayi.');
+            // Reload original (first share) so cart matches DB
+            const resumeUrl = (routes.resume || '').replace('__ID__', String(data.original?.id || resumeOrderId));
+            if (resumeUrl) {
+                window.location.href = resumeUrl;
+            } else {
+                window.location.reload();
+            }
         } catch (e) {
-            alert(e.message || 'Quotation bill print nahi ho saki.');
+            splitBillError('Split request fail ho gayi.');
         } finally {
             if (btn) btn.disabled = false;
         }
@@ -3142,7 +3218,11 @@
         $('#rpHoldBtn')?.addEventListener('click', () => submitHoldOrder());
         $('#rpKitchenPrintBtn')?.addEventListener('click', () => submitKitchenPrint());
         $('#rpCancelOrderBtn')?.addEventListener('click', () => requestCancelWholeOrder());
-        $('#rpQuotationPrintBtn')?.addEventListener('click', () => printQuotationBill());
+        $('#rpSplitBillBtn')?.addEventListener('click', () => openSplitBillModal());
+        document.querySelectorAll('.rp-split-mode-check').forEach((el) => {
+            el.addEventListener('change', onSplitModeToggle);
+        });
+        $('#rpSplitBillConfirm')?.addEventListener('click', () => confirmSplitBill());
         $('#rpPrintUnpaidBtn')?.addEventListener('click', () => printUnpaidBill());
         $('#rpWhatsappBtn')?.addEventListener('click', () => openDeliveryWhatsapp());
         $('#rpPayBtn')?.addEventListener('click', () => openPayModal());
@@ -3295,6 +3375,7 @@
                 kitchen_served: !!ri.kitchen_served,
                 kitchen_pending: !!ri.kitchen_pending,
                 kitchen_locked_qty: kitchenLockedFromResume(ri),
+                order_item_id: ri.id ? Number(ri.id) : null,
             });
         });
     }

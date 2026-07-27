@@ -1836,6 +1836,63 @@ class PosController extends Controller
         ]);
     }
 
+    public function splitBill(Request $request, PosOrder $order, \App\Services\PosBillSplitService $splitter): JsonResponse
+    {
+        $data = $request->validate([
+            'mode' => ['required', 'in:item,member'],
+            'item_ids' => ['required_if:mode,item', 'array'],
+            'item_ids.*' => ['integer'],
+            'members' => ['required_if:mode,member', 'integer', 'min:2', 'max:20'],
+        ]);
+
+        $session = $this->requireOpenSessionForUser(Auth::user());
+        $draft = $this->findDraftOrderForSession($session, (int) $order->id, $request->user());
+        if ($draft === null) {
+            return response()->json(['ok' => false, 'message' => 'Pending bill nahi mili / access nahi.'], 404);
+        }
+
+        try {
+            $result = DB::connection('tenant')->transaction(function () use ($draft, $data, $splitter) {
+                $locked = PosOrder::query()->whereKey($draft->id)->lockForUpdate()->firstOrFail();
+                if (($data['mode'] ?? '') === 'member') {
+                    return $splitter->splitMemberWise($locked, (int) $data['members']);
+                }
+
+                return $splitter->splitItemWise($locked, $data['item_ids'] ?? []);
+            });
+        } catch (\Throwable $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => $e->getMessage() ?: 'Bill split fail ho gayi.',
+            ], 422);
+        }
+
+        /** @var PosOrder $original */
+        $original = $result['original'];
+        /** @var list<PosOrder> $created */
+        $created = $result['created'];
+
+        $pendingPayload = collect([$original])
+            ->merge($created)
+            ->map(fn (PosOrder $o) => $this->posOrderDetailsPayload($o))
+            ->values()
+            ->all();
+
+        return response()->json([
+            'ok' => true,
+            'message' => sprintf(
+                'Bill split ho gayi — %s + %d new pending bill%s.',
+                $original->order_no,
+                count($created),
+                count($created) === 1 ? '' : 's'
+            ),
+            'original' => $this->posOrderDetailsPayload($original),
+            'created' => collect($created)->map(fn (PosOrder $o) => $this->posOrderDetailsPayload($o))->values()->all(),
+            'pending_updates' => $pendingPayload,
+            'table_board' => $this->orderTaker->tableBoard(),
+        ]);
+    }
+
     /** Super admin: permanently delete a paid POS bill and reverse its stock impact. */
     public function destroyPaidBill(Request $request, PosOrder $order): RedirectResponse
     {

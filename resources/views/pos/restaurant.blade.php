@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=53">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=54">
 @endpush
 
 @section('content')
@@ -60,6 +60,7 @@
         ->values()
         ->all();
     $resumeItems = collect($resumedOrder?->items ?? [])->map(fn ($i) => [
+        'id' => (int) $i->id,
         'product_id' => $i->product_id,
         'name' => $i->displayName(),
         'item_name' => $i->item_name,
@@ -319,10 +320,10 @@
                     <button type="button" class="btn btn-danger btn-sm d-none" id="rpCancelOrderBtn" title="Kitchen print ke baad poora order cancel (reason zaroori)">
                         <i class="bi bi-x-circle"></i> Cancel Order
                     </button>
-                    <button type="button" class="btn btn-outline-info btn-sm" id="rpQuotationPrintBtn" title="Customer ko Quotation Bill cashier printer se print karein">
-                        <i class="bi bi-file-earmark-text"></i> Print Quotation
-                    </button>
                 @endif
+                <button type="button" class="btn btn-outline-info btn-sm" id="rpSplitBillBtn" title="Pending bill ko item-wise ya member-wise split karein">
+                    <i class="bi bi-scissors"></i> Split Bill
+                </button>
                 @if($posSettings['allow_bill_print'] ?? true)
                     <button type="button" class="btn btn-outline-light btn-sm" id="rpPrintUnpaidBtn" title="Thermal printer par unpaid bill print karein">
                         <i class="bi bi-printer"></i> Print Unpaid Bill
@@ -366,6 +367,53 @@
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Back</button>
                 <button type="button" class="btn btn-danger" id="rpRemoveConfirm">
                     <i class="bi bi-check-lg"></i> Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="rpSplitBillModal" tabindex="-1" aria-labelledby="rpSplitBillModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-pay-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold" id="rpSplitBillModalLabel">Split Bill</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <p class="small text-secondary mb-3">Pending bill ko 2 tareeqon se split kar sakte ho — baad me dono pending orders me dikhengi.</p>
+                <div class="rp-split-mode-list mb-3">
+                    <label class="rp-split-mode-row">
+                        <input type="checkbox" class="rp-split-mode-check" name="rpSplitModeItem" value="item" checked>
+                        <span>
+                            <strong>Item Wise Split</strong>
+                            <small>Select items jo nayi pending bill me chali jayein</small>
+                        </span>
+                    </label>
+                    <label class="rp-split-mode-row">
+                        <input type="checkbox" class="rp-split-mode-check" name="rpSplitModeMember" value="member">
+                        <span>
+                            <strong>Member Wise Split</strong>
+                            <small>Members count ke hisaab se bill equally divide</small>
+                        </span>
+                    </label>
+                </div>
+
+                <div id="rpSplitItemPane">
+                    <div class="fw-semibold small mb-2">Items select karein</div>
+                    <div id="rpSplitItemList" class="rp-split-item-list"></div>
+                </div>
+                <div id="rpSplitMemberPane" class="d-none">
+                    <label for="rpSplitMemberCount" class="form-label fw-semibold mb-1">Members kitne hain?</label>
+                    <input type="number" class="form-control" id="rpSplitMemberCount" min="2" max="20" step="1" value="2">
+                    <div class="small text-secondary mt-2">Bill equal shares me pending orders ban jayengi.</div>
+                </div>
+                <p class="text-danger small mb-0 mt-2 d-none" id="rpSplitBillError"></p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-info text-white" id="rpSplitBillConfirm">
+                    <i class="bi bi-scissors"></i> Split Now
                 </button>
             </div>
         </div>
@@ -483,8 +531,6 @@
     $kitchenStub = str_replace('999999999', '__ID__', route('restaurant-pos.kitchen', ['order' => 999999999]));
     $kitchenPrintStub = str_replace('999999999', '__ID__', route('restaurant-pos.kitchen-print', ['order' => 999999999]));
     $cashierPrintStub = str_replace('999999999', '__ID__', route('restaurant-pos.cashier-print', ['order' => 999999999]));
-    $quotationPrintUrl = route('restaurant-pos.quotation-print');
-    $receiptQuotationUrl = route('restaurant-pos.receipt.quotation');
     $removedItemsPrintStub = str_replace('999999999', '__ID__', route('restaurant-pos.removed-items-print', ['order' => 999999999]));
     $discardStub = str_replace('999999999', '__ID__', route('restaurant-pos.hold.discard', ['orderId' => 999999999]));
     $reopenStub = str_replace('999999999', '__ID__', route('restaurant-pos.reopen', ['order' => 999999999]));
@@ -521,17 +567,16 @@
             'kitchen' => $kitchenStub,
             'kitchenPrint' => $kitchenPrintStub,
             'cashierPrint' => $cashierPrintStub,
-            'quotationPrint' => $quotationPrintUrl,
-            'receiptQuotation' => $receiptQuotationUrl,
             'removedItemsPrint' => $removedItemsPrintStub,
             'kitchenVoids' => route('restaurant-pos.kitchen-voids'),
             'reopen' => $reopenStub,
             'moveTable' => str_replace('999999999', '__ID__', route('restaurant-pos.move-table', ['order' => 999999999])),
+            'splitBill' => str_replace('999999999', '__ID__', route('restaurant-pos.split-bill', ['order' => 999999999])),
         ],
     ];
 @endphp
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=69"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=70"></script>
 @endsection
