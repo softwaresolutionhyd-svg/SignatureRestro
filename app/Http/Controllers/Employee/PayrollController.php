@@ -9,7 +9,7 @@ use App\Support\ActivityLogger;
 use App\Support\EnsuresPayrollSchema;
 use App\Services\AutoJournalService;
 use App\Services\EmployeeLoanService;
-use App\Services\PayrollFoodBillSettlementService;
+use App\Services\PayrollPaidExpenseService;
 use App\Services\PayrollSalaryService;
 use App\Services\Sync\CloudSyncService;
 use App\Services\Sync\SyncPayrollQueueService;
@@ -28,6 +28,7 @@ class PayrollController extends Controller
         private readonly EmployeeLoanService $loanService,
         private readonly CloudSyncService $cloudSync,
         private readonly SyncPayrollQueueService $syncPayrollQueue,
+        private readonly PayrollPaidExpenseService $payrollPaidExpense,
     ) {}
 
     public function index(Request $request)
@@ -188,6 +189,8 @@ class PayrollController extends Controller
         $payrollEntry->status = 'paid';
         $payrollEntry->paid_at = now();
         $payrollEntry->save();
+
+        $this->payrollPaidExpense->syncFromPaidPayroll($payrollEntry, auth()->id());
 
         $this->foodBillSettlement->settle($payrollEntry, auth()->id());
         $this->loanService->recordPaymentOnPaid($payrollEntry, auth()->id());

@@ -24,6 +24,7 @@ class ExpenseCategorySeeder extends Seeder
             ['name' => 'Software & Tools', 'description' => 'Licenses, subscriptions, SaaS tools'],
             ['name' => 'Medical', 'description' => 'Medical, health, insurance related'],
             ['name' => 'Miscellaneous', 'description' => 'Other business expenses'],
+            ['name' => 'Salaries Expense', 'description' => 'Employee salary payments from payroll'],
         ];
 
         foreach ($categories as $cat) {
