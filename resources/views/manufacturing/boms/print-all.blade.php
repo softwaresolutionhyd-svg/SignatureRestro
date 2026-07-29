@@ -45,37 +45,31 @@
         .doc-head .sub { margin: 0; font-size: 13px; color: #444; }
         .doc-head .meta { margin: 6px 0 0; font-size: 11px; color: #666; }
         .recipe {
-            margin-bottom: 22px;
-            padding-bottom: 14px;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
             border-bottom: 1px dashed #bbb;
             page-break-inside: avoid;
             break-inside: avoid;
         }
         .recipe:last-child { border-bottom: none; margin-bottom: 0; }
         .dish-name {
-            margin: 0 0 4px;
+            margin: 0 0 8px;
             font-size: 16px;
             font-weight: 700;
             letter-spacing: 0.2px;
         }
-        .dish-meta {
-            margin: 0 0 10px;
-            font-size: 11px;
-            color: #555;
-        }
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 11px;
+            font-size: 12px;
         }
         th, td {
             border: 1px solid #333;
-            padding: 5px 7px;
+            padding: 5px 8px;
             vertical-align: top;
         }
         th { background: #f3f4f6; text-align: left; font-weight: 700; }
-        td.num, th.num { text-align: right; white-space: nowrap; }
-        tfoot th { background: #eef2ff; }
+        td.qty, th.qty { text-align: right; white-space: nowrap; width: 140px; }
         .empty-ing { color: #666; font-style: italic; padding: 8px 0; }
         @media print {
             body { padding: 0; background: #fff; }
@@ -94,7 +88,7 @@
     <div class="sheet">
         <header class="doc-head">
             <h1>{{ $companyName }}</h1>
-            <p class="sub">All Recipes / Bills of Materials</p>
+            <p class="sub">All Recipes</p>
             <p class="meta">
                 Printed {{ now()->timezone(config('app.timezone'))->format('d M Y, h:i A') }}
                 · {{ $boms->count() }} recipe{{ $boms->count() === 1 ? '' : 's' }}
@@ -105,24 +99,8 @@
         </header>
 
         @forelse($boms as $bom)
-            @php
-                $product = $bom->finishedProduct;
-                $batchQty = (float) $bom->batch_qty;
-                $batchUom = (string) ($product?->uom ?? '');
-                $recipeCost = (float) ($bom->line_cost_per_batch ?? 0);
-                $perUnit = $batchQty > 0 ? round($recipeCost / $batchQty, 4) : 0.0;
-            @endphp
             <section class="recipe">
-                <h2 class="dish-name">{{ $product?->name ?? '—' }}</h2>
-                <p class="dish-meta">
-                    @if($product?->sku)
-                        SKU: {{ $product->sku }} ·
-                    @endif
-                    BoM: {{ $bom->name }} ·
-                    Batch: {{ fmt_num($batchQty, 3) }} {{ $batchUom }} ·
-                    {{ $bom->active ? 'Active' : 'Inactive' }} ·
-                    {{ $bom->lines->count() }} ingredient{{ $bom->lines->count() === 1 ? '' : 's' }}
-                </p>
+                <h2 class="dish-name">{{ $bom->finishedProduct?->name ?? '—' }}</h2>
 
                 @if($bom->lines->isEmpty())
                     <div class="empty-ing">No ingredients in this recipe.</div>
@@ -130,53 +108,19 @@
                     <table>
                         <thead>
                             <tr>
-                                <th style="width:36px;">#</th>
                                 <th>Ingredient</th>
-                                <th class="num" style="width:110px;">Quantity</th>
-                                <th class="num" style="width:110px;">Rate</th>
-                                <th class="num" style="width:100px;">Amount</th>
+                                <th class="qty">Quantity</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach($bom->lines as $line)
-                                @php
-                                    $component = $line->component;
-                                    $qty = (float) $line->qty;
-                                    $uom = $line->effectiveUom();
-                                    $amount = (float) $line->lineMaterialCostPerBatch();
-                                    $rate = $qty > 0 ? ($amount / $qty) : (float) ($component?->cost ?? 0);
-                                @endphp
                                 <tr>
-                                    <td>{{ $loop->iteration }}</td>
-                                    <td>
-                                        {{ $component?->name ?? '—' }}
-                                        @if($component?->sku)
-                                            <span style="color:#666;font-size:10px;"> ({{ $component->sku }})</span>
-                                        @endif
-                                    </td>
-                                    <td class="num">{{ fmt_num($qty, 3) }} {{ $uom }}</td>
-                                    <td class="num">{{ fmt_num($rate, 4) }}</td>
-                                    <td class="num">{{ fmt_num($amount, 2) }}</td>
+                                    <td>{{ $line->component?->name ?? '—' }}</td>
+                                    <td class="qty">{{ fmt_num((float) $line->qty, 3) }} {{ $line->effectiveUom() }}</td>
                                 </tr>
                             @endforeach
                         </tbody>
-                        <tfoot>
-                            <tr>
-                                <th colspan="4" class="num">Total recipe cost (per batch)</th>
-                                <th class="num">{{ fmt_num($recipeCost, 2) }}</th>
-                            </tr>
-                            @if($batchQty > 0)
-                                <tr>
-                                    <th colspan="4" class="num">Cost per {{ $batchUom !== '' ? $batchUom : 'unit' }}</th>
-                                    <th class="num">{{ fmt_num($perUnit, 4) }}</th>
-                                </tr>
-                            @endif
-                        </tfoot>
                     </table>
-                @endif
-
-                @if($bom->notes)
-                    <p style="margin:8px 0 0;font-size:11px;color:#555;"><strong>Notes:</strong> {{ $bom->notes }}</p>
                 @endif
             </section>
         @empty

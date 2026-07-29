@@ -120,77 +120,27 @@ class BomController extends Controller
             fwrite($out, "\xEF\xBB\xBF");
             fputcsv($out, [
                 'Dish Name',
-                'Dish SKU',
-                'BoM Name',
-                'Batch Qty',
-                'Batch UOM',
-                'Status',
-                'Ingredient #',
                 'Ingredient',
-                'Ingredient SKU',
-                'Qty',
-                'UOM',
-                'Rate',
-                'Amount',
-                'Recipe Cost (batch)',
-                'Cost per Unit',
+                'Quantity',
+                'Unit',
             ]);
 
             foreach ($boms as $bom) {
                 /** @var ManufacturingBom $bom */
-                $product = $bom->finishedProduct;
-                $dishName = (string) ($product?->name ?? '—');
-                $dishSku = (string) ($product?->sku ?? '');
-                $batchUom = (string) ($product?->uom ?? '');
-                $batchQty = (float) $bom->batch_qty;
-                $status = $bom->active ? 'Active' : 'Inactive';
-                $recipeCost = (float) ($bom->line_cost_per_batch ?? 0);
-                $perUnit = $batchQty > 0 ? round($recipeCost / $batchQty, 4) : 0.0;
+                $dishName = (string) ($bom->finishedProduct?->name ?? '—');
 
                 if ($bom->lines->isEmpty()) {
-                    fputcsv($out, [
-                        $dishName,
-                        $dishSku,
-                        $bom->name,
-                        $batchQty,
-                        $batchUom,
-                        $status,
-                        '',
-                        '',
-                        '',
-                        '',
-                        '',
-                        '',
-                        '',
-                        $recipeCost,
-                        $perUnit,
-                    ]);
+                    fputcsv($out, [$dishName, '', '', '']);
                     continue;
                 }
 
-                foreach ($bom->lines as $index => $line) {
-                    $component = $line->component;
+                foreach ($bom->lines as $line) {
                     $qty = (float) $line->qty;
-                    $uom = $line->effectiveUom();
-                    $amount = (float) $line->lineMaterialCostPerBatch();
-                    $rate = $qty > 0 ? round($amount / $qty, 4) : (float) ($component?->cost ?? 0);
-
                     fputcsv($out, [
                         $dishName,
-                        $dishSku,
-                        $bom->name,
-                        $batchQty,
-                        $batchUom,
-                        $status,
-                        $index + 1,
-                        (string) ($component?->name ?? '—'),
-                        (string) ($component?->sku ?? ''),
-                        $qty,
-                        $uom,
-                        $rate,
-                        round($amount, 2),
-                        $recipeCost,
-                        $perUnit,
+                        (string) ($line->component?->name ?? '—'),
+                        rtrim(rtrim(number_format($qty, 3, '.', ''), '0'), '.') ?: '0',
+                        $line->effectiveUom(),
                     ]);
                 }
             }
@@ -239,17 +189,7 @@ class BomController extends Controller
             ->orderBy('name')
             ->get();
 
-        return $boms->map(function (ManufacturingBom $bom) {
-            try {
-                $lineCost = (float) $bom->materialCostPerBatch();
-            } catch (\Throwable $e) {
-                report($e);
-                $lineCost = 0.0;
-            }
-            $bom->setAttribute('line_cost_per_batch', $lineCost);
-
-            return $bom;
-        });
+        return $boms;
     }
 
     public function create(Request $request): View
