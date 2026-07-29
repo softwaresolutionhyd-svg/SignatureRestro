@@ -184,6 +184,8 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
     Route::prefix('manufacturing')->name('manufacturing.')->group(function () {
         Route::middleware('moduleAccess')->group(function () {
             Route::get('/', [ManufacturingController::class, 'index'])->name('index');
+            Route::get('boms/print-all', [ManufacturingBomController::class, 'printAll'])->name('boms.print-all');
+            Route::get('boms/export', [ManufacturingBomController::class, 'exportExcel'])->name('boms.export');
             Route::resource('boms', ManufacturingBomController::class);
             Route::post('orders/{order}/complete', [ManufacturingOrderController::class, 'complete'])->name('orders.complete');
             Route::resource('orders', ManufacturingOrderController::class)->only(['index', 'create', 'store', 'show', 'destroy']);

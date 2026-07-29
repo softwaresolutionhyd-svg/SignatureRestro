@@ -12,9 +12,11 @@ use App\Services\Sync\SyncAwareDelete;
 use App\Support\IngredientsCategory;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class BomController extends Controller
 {
@@ -96,6 +98,158 @@ class BomController extends Controller
         $bomReturnPath = $this->safeInternalReturnUrl($request->query('return'));
 
         return view('manufacturing.boms.index', compact('boms', 'q', 'finishedProductId', 'filterProduct', 'bomReturnPath'));
+    }
+
+    public function printAll(Request $request): View
+    {
+        $boms = $this->filteredBomsForExport($request);
+        $companyName = (string) Setting::get('company_name', config('app.name'));
+        $q = trim((string) $request->query('q', ''));
+
+        return view('manufacturing.boms.print-all', compact('boms', 'companyName', 'q'));
+    }
+
+    public function exportExcel(Request $request): StreamedResponse
+    {
+        $boms = $this->filteredBomsForExport($request);
+        $filename = 'recipes-'.now()->format('Y-m-d-His').'.csv';
+
+        return response()->streamDownload(function () use ($boms) {
+            $out = fopen('php://output', 'w');
+            // UTF-8 BOM so Excel opens Urdu/special chars correctly
+            fwrite($out, "\xEF\xBB\xBF");
+            fputcsv($out, [
+                'Dish Name',
+                'Dish SKU',
+                'BoM Name',
+                'Batch Qty',
+                'Batch UOM',
+                'Status',
+                'Ingredient #',
+                'Ingredient',
+                'Ingredient SKU',
+                'Qty',
+                'UOM',
+                'Rate',
+                'Amount',
+                'Recipe Cost (batch)',
+                'Cost per Unit',
+            ]);
+
+            foreach ($boms as $bom) {
+                /** @var ManufacturingBom $bom */
+                $product = $bom->finishedProduct;
+                $dishName = (string) ($product?->name ?? '—');
+                $dishSku = (string) ($product?->sku ?? '');
+                $batchUom = (string) ($product?->uom ?? '');
+                $batchQty = (float) $bom->batch_qty;
+                $status = $bom->active ? 'Active' : 'Inactive';
+                $recipeCost = (float) ($bom->line_cost_per_batch ?? 0);
+                $perUnit = $batchQty > 0 ? round($recipeCost / $batchQty, 4) : 0.0;
+
+                if ($bom->lines->isEmpty()) {
+                    fputcsv($out, [
+                        $dishName,
+                        $dishSku,
+                        $bom->name,
+                        $batchQty,
+                        $batchUom,
+                        $status,
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+                        $recipeCost,
+                        $perUnit,
+                    ]);
+                    continue;
+                }
+
+                foreach ($bom->lines as $index => $line) {
+                    $component = $line->component;
+                    $qty = (float) $line->qty;
+                    $uom = $line->effectiveUom();
+                    $amount = (float) $line->lineMaterialCostPerBatch();
+                    $rate = $qty > 0 ? round($amount / $qty, 4) : (float) ($component?->cost ?? 0);
+
+                    fputcsv($out, [
+                        $dishName,
+                        $dishSku,
+                        $bom->name,
+                        $batchQty,
+                        $batchUom,
+                        $status,
+                        $index + 1,
+                        (string) ($component?->name ?? '—'),
+                        (string) ($component?->sku ?? ''),
+                        $qty,
+                        $uom,
+                        $rate,
+                        round($amount, 2),
+                        $recipeCost,
+                        $perUnit,
+                    ]);
+                }
+            }
+
+            fclose($out);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    /**
+     * All matching BoMs (no pagination) for print / Excel — same filters as index.
+     *
+     * @return Collection<int, ManufacturingBom>
+     */
+    private function filteredBomsForExport(Request $request): Collection
+    {
+        $q = trim((string) $request->query('q', ''));
+        $finishedProductId = $request->filled('finished_product') ? $request->integer('finished_product') : null;
+
+        $boms = ManufacturingBom::query()
+            ->with([
+                'finishedProduct:id,sku,name,uom',
+                'lines' => fn ($query) => $query->orderBy('sort_order'),
+                'lines.component' => fn ($query) => $query->with([
+                    'uomConversions' => fn ($c) => $c->where('active', true),
+                ]),
+            ])
+            ->withCount('lines')
+            ->when($finishedProductId, fn ($query) => $query->where('finished_product_id', $finishedProductId))
+            ->when($q !== '', function ($query) use ($q) {
+                $query->where(function ($sub) use ($q) {
+                    $sub->where('name', 'like', "%{$q}%")
+                        ->orWhereHas('finishedProduct', function ($p) use ($q) {
+                            $p->where('sku', 'like', "%{$q}%")
+                                ->orWhere('name', 'like', "%{$q}%");
+                        });
+                });
+            })
+            ->orderBy(
+                InventoryProduct::query()
+                    ->select('name')
+                    ->whereColumn('inventory_products.id', 'manufacturing_boms.finished_product_id')
+                    ->limit(1)
+            )
+            ->orderBy('name')
+            ->get();
+
+        return $boms->map(function (ManufacturingBom $bom) {
+            try {
+                $lineCost = (float) $bom->materialCostPerBatch();
+            } catch (\Throwable $e) {
+                report($e);
+                $lineCost = 0.0;
+            }
+            $bom->setAttribute('line_cost_per_batch', $lineCost);
+
+            return $bom;
+        });
     }
 
     public function create(Request $request): View

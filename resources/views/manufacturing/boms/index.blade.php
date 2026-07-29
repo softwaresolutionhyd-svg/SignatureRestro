@@ -41,8 +41,22 @@
             <input type="text" name="q" value="{{ $q }}" class="form-control" placeholder="Search name, SKU…" style="max-width:260px;">
             <button class="btn btn-outline-primary" type="submit">Search</button>
         </form>
-        <div class="d-flex align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
             <span class="badge text-bg-light border">{{ $boms->total() }} total</span>
+            <a href="{{ route('manufacturing.boms.print-all', array_filter([
+                'q' => $q !== '' ? $q : null,
+                'finished_product' => $finishedProductId ?: null,
+            ], fn ($v) => $v !== null && $v !== '')) }}"
+               class="btn btn-outline-secondary" target="_blank" rel="noopener">
+                <i class="bi bi-printer me-1"></i> Print all recipes
+            </a>
+            <a href="{{ route('manufacturing.boms.export', array_filter([
+                'q' => $q !== '' ? $q : null,
+                'finished_product' => $finishedProductId ?: null,
+            ], fn ($v) => $v !== null && $v !== '')) }}"
+               class="btn btn-outline-success">
+                <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
+            </a>
             <a href="{{ route('manufacturing.boms.create', array_filter([
                 'finished_product_id' => $finishedProductId ?: null,
                 'return' => $bomReturnPath ?? null,
