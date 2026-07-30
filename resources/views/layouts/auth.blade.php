@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="{{ app()->getLocale() === 'ur' ? 'rtl' : 'ltr' }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -523,9 +523,24 @@
         .auth-shell.auth-shell--solo {
             grid-column: 1 / -1;
         }
+
+        .auth-locale-switcher {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 1100;
+        }
+
+        html[dir="rtl"] .auth-locale-switcher {
+            right: auto;
+            left: 1rem;
+        }
     </style>
 </head>
 <body class="auth-body">
+    <div class="auth-locale-switcher">
+        @include('partials.locale-switcher')
+    </div>
     @yield('content')
 </body>
 </html>

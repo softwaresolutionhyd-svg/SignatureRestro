@@ -12,31 +12,31 @@ final class AdminBreadcrumbs
         $name = request()->route()?->getName() ?? '';
 
         if ($name === 'dashboard' || $name === 'home') {
-            return [['label' => 'Dashboard', 'url' => null]];
+            return self::translateItems([['label' => 'Dashboard', 'url' => null]]);
         }
 
         if ($name === 'analytics') {
-            return [['label' => 'Dashboard', 'url' => route('dashboard')], ['label' => 'Analytics', 'url' => null]];
+            return self::translateItems([['label' => 'Dashboard', 'url' => route('dashboard')], ['label' => 'Analytics', 'url' => null]]);
         }
 
         if (str_starts_with($name, 'platform.manual-update.')) {
-            return [
+            return self::translateItems([
                 ['label' => 'Dashboard', 'url' => route('dashboard')],
                 ['label' => 'Manual update', 'url' => null],
-            ];
+            ]);
         }
 
         if (str_starts_with($name, 'platform.updates.')) {
-            return self::platformUpdates($name);
+            return self::translateItems(self::platformUpdates($name));
         }
 
         $dash = ['label' => 'Dashboard', 'url' => route('dashboard')];
 
         if (str_starts_with($name, 'updates.')) {
-            return [$dash, ['label' => 'Updates', 'url' => null]];
+            return self::translateItems([$dash, ['label' => 'Updates', 'url' => null]]);
         }
 
-        return match (true) {
+        return self::translateItems(match (true) {
             str_starts_with($name, 'activity-logs.') => [$dash, ['label' => 'Activity logs', 'url' => null]],
             str_starts_with($name, 'admin.') => self::admin($name, $dash),
             $name === 'admin' => [$dash, ['label' => 'Admin', 'url' => null]],
@@ -61,7 +61,19 @@ final class AdminBreadcrumbs
             str_starts_with($name, 'contacts.')    => self::contacts($name, $dash),
             str_starts_with($name, 'credit-book.') => [$dash, ['label' => 'Credit Book', 'url' => null]],
             default => [$dash, ['label' => 'App', 'url' => null]],
-        };
+        });
+    }
+
+    /**
+     * @param  list<array{label: string, url: ?string}>  $items
+     * @return list<array{label: string, url: ?string}>
+     */
+    private static function translateItems(array $items): array
+    {
+        return array_map(
+            fn (array $item): array => ['label' => __($item['label']), 'url' => $item['url']],
+            $items
+        );
     }
 
     /**

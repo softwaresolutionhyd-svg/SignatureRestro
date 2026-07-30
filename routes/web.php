@@ -62,6 +62,7 @@ use App\Http\Controllers\Auth\PasswordResetRequestController as GuestPasswordRes
 use App\Http\Controllers\Auth\TotpVerificationController;
 use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\Admin\PasswordResetRequestController as AdminPasswordResetRequestController;
+use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\SyncStatusController;
 
 /*
@@ -80,6 +81,8 @@ Route::get('/', function () {
         ? redirect()->route('dashboard')
         : redirect()->route('login');
 });
+
+Route::post('/locale', LocaleController::class)->name('locale.switch');
 
 Route::post('/deploy/hooks/migrate', [DeployHookController::class, 'migrate'])
     ->middleware('throttle:10,1')

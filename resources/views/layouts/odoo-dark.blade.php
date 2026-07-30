@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="{{ app()->getLocale() === 'ur' ? 'rtl' : 'ltr' }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -319,9 +319,11 @@
                 <!-- Company Selector -->
                 <div class="odoo-company-selector dropdown-toggle" data-bs-toggle="dropdown">
                     <i class="bi bi-building"></i>
-                    <span>My Company</span>
+                    <span>{{ __('My Company') }}</span>
                     <i class="bi bi-chevron-down small"></i>
                 </div>
+
+                @include('partials.locale-switcher')
 
                 <!-- Discuss Icon -->
                 <div class="odoo-nav-icon">
@@ -342,13 +344,13 @@
                 <!-- User Dropdown -->
                 <ul class="dropdown-menu odoo-dropdown dropdown-menu-end">
                     <li class="odoo-dropdown-header">{{ auth()->user()->email }}</li>
-                    <li><a class="dropdown-item odoo-dropdown-item" href="#"><i class="bi bi-person me-2"></i> Profile</a></li>
-                    <li><a class="dropdown-item odoo-dropdown-item" href="#"><i class="bi bi-gear me-2"></i> Settings</a></li>
+                    <li><a class="dropdown-item odoo-dropdown-item" href="#"><i class="bi bi-person me-2"></i> {{ __('Profile') }}</a></li>
+                    <li><a class="dropdown-item odoo-dropdown-item" href="#"><i class="bi bi-gear me-2"></i> {{ __('Settings') }}</a></li>
                     <li><hr class="dropdown-divider" style="border-color: #444444;"></li>
                     <li>
                         <a class="dropdown-item odoo-dropdown-item" href="#"
                            onclick="event.preventDefault();document.getElementById('logout-form').submit();">
-                            <i class="bi bi-box-arrow-right me-2"></i> Logout
+                            <i class="bi bi-box-arrow-right me-2"></i> {{ __('Logout') }}
                         </a>
                         <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
                             @csrf

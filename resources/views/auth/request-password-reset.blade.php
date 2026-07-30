@@ -1,6 +1,6 @@
 @extends('layouts.auth')
 
-@section('title', 'Password reset request')
+@section('title', __('Password reset request'))
 
 @php($loginBrand = login_page_branding())
 
@@ -19,8 +19,8 @@
                 <h1 class="auth-company-name">{{ $loginBrand['company_name'] }}</h1>
             </div>
 
-            <p class="auth-heading">Password reset ki request</p>
-            <p class="text-secondary small mb-3">Apna email likhein. Agar account mojood ho ga to admin ko request jaye gi. Admin reset ke baad naya password <strong>Abcd1234</strong> ho ga.</p>
+            <p class="auth-heading">{{ __('Password reset request') }}</p>
+            <p class="text-secondary small mb-3">{{ __('Apna email likhein. Agar account mojood ho ga to admin ko request jaye gi. Admin reset ke baad naya password Abcd1234 ho ga.') }}</p>
 
             @if (session('status'))
                 <div class="alert alert-success small">{{ session('status') }}</div>
@@ -45,8 +45,8 @@
                     @enderror
                 </div>
 
-                <button type="submit" class="auth-btn-submit">Request bhejein</button>
-                <a class="auth-forgot text-decoration-none d-block text-center mt-2" href="{{ route('login') }}">Wapas login</a>
+                <button type="submit" class="auth-btn-submit">{{ __('Request bhejein') }}</button>
+                <a class="auth-forgot text-decoration-none d-block text-center mt-2" href="{{ route('login') }}">{{ __('Wapas login') }}</a>
             </form>
         </div>
     </div>
@@ -54,6 +54,6 @@
 
 <div class="auth-footer-global">
     <img src="{{ asset('images/stair-logo.svg') }}" alt="Stair" width="36" height="36">
-    <span>Stair by Software Solutions</span>
+    <span>{{ __('Stair by Software Solutions') }}</span>
 </div>
 @endsection

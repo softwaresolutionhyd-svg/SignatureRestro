@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="{{ app()->getLocale() === 'ur' ? 'rtl' : 'ltr' }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -319,22 +319,22 @@
             
             <nav class="odoo-nav">
                 <a href="{{ route('dashboard') }}" class="odoo-nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}">
-                    <i class="bi bi-speedometer2"></i> Dashboard
+                    <i class="bi bi-speedometer2"></i> {{ __('Dashboard') }}
                 </a>
                 <a href="{{ route('restaurant-pos.index') }}" class="odoo-nav-item {{ request()->routeIs('restaurant-pos.*') ? 'active' : '' }}">
-                    <i class="bi bi-shop"></i> Restaurant POS
+                    <i class="bi bi-shop"></i> {{ __('Restaurant POS') }}
                 </a>
                 <a href="{{ route('inventory.index') }}" class="odoo-nav-item {{ request()->routeIs('inventory.*') ? 'active' : '' }}">
-                    <i class="bi bi-box-seam"></i> Inventory
+                    <i class="bi bi-box-seam"></i> {{ __('Inventory') }}
                 </a>
                 <a href="{{ route('purchase.index') }}" class="odoo-nav-item {{ request()->routeIs('purchase.*') ? 'active' : '' }}">
-                    <i class="bi bi-cart3"></i> Purchase
+                    <i class="bi bi-cart3"></i> {{ __('Purchase') }}
                 </a>
                 <a href="{{ route('employees.index') }}" class="odoo-nav-item {{ request()->routeIs('employees.*') ? 'active' : '' }}">
-                    <i class="bi bi-people-fill"></i> Employees
+                    <i class="bi bi-people-fill"></i> {{ __('Employees') }}
                 </a>
                 <a href="{{ route('maintenance.index') }}" class="odoo-nav-item {{ request()->routeIs('maintenance.*') ? 'active' : '' }}">
-                    <i class="bi bi-tools"></i> Maintenance
+                    <i class="bi bi-tools"></i> {{ __('Maintenance') }}
                 </a>
                 <a href="{{ route('custom-forms.index') }}" class="odoo-nav-item {{ request()->routeIs('custom-forms.*') ? 'active' : '' }}">
                     <i class="bi bi-file-earmark-text"></i> Custom Forms
@@ -363,6 +363,7 @@
                 </div>
 
                 <div class="odoo-user-menu">
+                    @include('partials.locale-switcher')
                     <div class="dropdown">
                         <button class="btn btn-sm position-relative" type="button" data-bs-toggle="dropdown">
                             <i class="bi bi-bell"></i>
@@ -371,8 +372,8 @@
                             </span>
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <li><h6 class="dropdown-header">Notifications</h6></li>
-                            <li><a class="dropdown-item" href="#">No new notifications</a></li>
+                            <li><h6 class="dropdown-header">{{ __('Notifications') }}</h6></li>
+                            <li><a class="dropdown-item" href="#">{{ __('No new notifications') }}</a></li>
                         </ul>
                     </div>
 
@@ -392,7 +393,7 @@
                             <li>
                                 <a class="dropdown-item" href="#"
                                    onclick="event.preventDefault();document.getElementById('logout-form').submit();">
-                                    <i class="bi bi-box-arrow-right me-2"></i> Logout
+                                    <i class="bi bi-box-arrow-right me-2"></i> {{ __('Logout') }}
                                 </a>
                                 <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
                                     @csrf

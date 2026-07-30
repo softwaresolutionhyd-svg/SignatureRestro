@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="{{ app()->getLocale() === 'ur' ? 'rtl' : 'ltr' }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -21,7 +21,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     @stack('head')
 </head>
-<body class="admin-app-body @if(request()->routeIs('dashboard')) admin-app-body--dashboard @endif">
+<body class="admin-app-body @if(request()->routeIs('dashboard')) admin-app-body--dashboard @endif @if(app()->getLocale() === 'ur') rtl @endif">
     <div class="app-shell">
         @include('partials.admin.topbar')
 

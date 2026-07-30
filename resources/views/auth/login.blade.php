@@ -26,14 +26,14 @@
             @endif
             <div class="auth-hero-badge">
                 <i class="bi bi-stars"></i>
-                <span>Management Portal</span>
+                <span>{{ __('Management Portal') }}</span>
             </div>
-            <h2 class="auth-hero-title">Fine dining.<br>Flawless operations.</h2>
-            <p class="auth-hero-text">Manage orders, staff, inventory and reports — all in one elegant workspace.</p>
+            <h2 class="auth-hero-title">{{ __('Fine dining.') }}<br>{{ __('Flawless operations.') }}</h2>
+            <p class="auth-hero-text">{{ __('Manage orders, staff, inventory and reports - all in one elegant workspace.') }}</p>
             <ul class="auth-hero-features">
-                <li><i class="bi bi-check2-circle"></i> Real-time order tracking</li>
-                <li><i class="bi bi-check2-circle"></i> Kitchen &amp; floor coordination</li>
-                <li><i class="bi bi-check2-circle"></i> Secure staff access</li>
+                <li><i class="bi bi-check2-circle"></i> {{ __('Real-time order tracking') }}</li>
+                <li><i class="bi bi-check2-circle"></i> {{ __('Kitchen & floor coordination') }}</li>
+                <li><i class="bi bi-check2-circle"></i> {{ __('Secure staff access') }}</li>
             </ul>
         </div>
     </div>
@@ -109,7 +109,7 @@
 
                     <a class="auth-forgot text-decoration-none" href="{{ route('password-reset-request.create') }}">
                         <i class="bi bi-shield-lock"></i>
-                        Password reset ki request (admin)
+                        {{ __('Password reset request') }} (admin)
                     </a>
                 </form>
             </div>
@@ -121,7 +121,7 @@
                 <span>{{ $loginBrand['company_name'] }}</span>
             @else
                 <img src="{{ asset('images/stair-logo.svg') }}" alt="Stair" width="32" height="32">
-                <span>Stair by Software Solutions</span>
+                <span>{{ __('Stair by Software Solutions') }}</span>
             @endif
         </div>
     </div>

@@ -1,6 +1,6 @@
 @extends('layouts.admin')
 
-@section('title', 'Dashboard — ' . config('app.name'))
+@section('title', __('Dashboard') . ' — ' . config('app.name'))
 
 @section('content')
 @php($u = auth()->user())
@@ -15,7 +15,11 @@
     {{-- Greeting row --}}
     <div class="odoo-launcher-meta">
         <span class="odoo-meta-greeting">
-            Good <span id="greetWord">{{ date('H') < 12 ? 'morning' : (date('H') < 18 ? 'afternoon' : 'evening') }}</span>,
+            @if(app()->getLocale() === 'ur')
+                <span id="greetWord">{{ trans('messages.' . (date('H') < 12 ? 'morning' : (date('H') < 18 ? 'afternoon' : 'evening'))) }}</span> {{ __('Good') }},
+            @else
+                {{ __('Good') }} <span id="greetWord">{{ trans('messages.' . (date('H') < 12 ? 'morning' : (date('H') < 18 ? 'afternoon' : 'evening'))) }}</span>,
+            @endif
             <strong>{{ $u->name }}</strong>
             @if($u->loginUsername())
                 <span class="text-secondary fw-normal">({{ $u->loginUsername() }})</span>
@@ -33,7 +37,7 @@
 
     @if(!$u->isSuperAdmin() && !$u->hasAnyModuleLauncherAccess() && !$linkedEmployee)
         <div class="alert alert-warning shadow-sm mb-3" style="max-width: 520px; margin-left: auto; margin-right: auto;">
-            Aap ke account par abhi koi <strong>module access</strong> set nahi. App use karne ke liye admin se modules ki ijazat lein.
+            {!! __('Aap ke account par abhi koi :module set nahi. App use karne ke liye admin se modules ki ijazat lein.', ['module' => '<strong>' . __('module access') . '</strong>']) !!}
         </div>
     @endif
 
@@ -50,7 +54,7 @@
                     <path d="M4 18l10-8 8 5 10-10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
                 </svg>
             </div>
-            <span class="odoo-label">Analytics</span>
+            <span class="odoo-label">{{ __('Analytics') }}</span>
         </a>
         @endif
 
@@ -65,7 +69,7 @@
                     <circle cx="28" cy="24" r="3" fill="currentColor" opacity="0.8"/>
                 </svg>
             </div>
-            <span class="odoo-label">Restaurant POS</span>
+            <span class="odoo-label">{{ __('Restaurant POS') }}</span>
         </a>
         @endif
 
@@ -79,7 +83,7 @@
                     <path d="M26 26h4M28 24v4" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
                 </svg>
             </div>
-            <span class="odoo-label">Closing</span>
+            <span class="odoo-label">{{ __('Closing') }}</span>
         </a>
         @endif
 
@@ -93,7 +97,7 @@
                     <path d="M28 12h4M30 10v4" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
                 </svg>
             </div>
-            <span class="odoo-label">Order Taker</span>
+            <span class="odoo-label">{{ __('Order Taker') }}</span>
         </a>
         @endif
 
@@ -106,7 +110,7 @@
                     <path d="M20 6v6M16 8h8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
                 </svg>
             </div>
-            <span class="odoo-label">Kitchen</span>
+            <span class="odoo-label">{{ __('Kitchen') }}</span>
         </a>
         @endif
 
@@ -119,7 +123,7 @@
                     <circle cx="30" cy="14" r="4" fill="currentColor" opacity="0.85"/>
                 </svg>
             </div>
-            <span class="odoo-label">Order Status</span>
+            <span class="odoo-label">{{ __('Order Status') }}</span>
         </a>
         @endif
 
@@ -132,7 +136,7 @@
                     <circle cx="28" cy="30" r="2.5" fill="currentColor"/>
                 </svg>
             </div>
-            <span class="odoo-label">Purchase</span>
+            <span class="odoo-label">{{ __('Purchase') }}</span>
         </a>
         @endif
 
@@ -144,7 +148,7 @@
                     <path d="M20 4v32M6 12l14 8 14-8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
                 </svg>
             </div>
-            <span class="odoo-label">Inventory</span>
+            <span class="odoo-label">{{ __('Inventory') }}</span>
         </a>
         @endif
 
@@ -157,7 +161,7 @@
                     <circle cx="20" cy="21" r="3" fill="currentColor" opacity="0.85"/>
                 </svg>
             </div>
-            <span class="odoo-label">Manufacturing</span>
+            <span class="odoo-label">{{ __('Manufacturing') }}</span>
         </a>
         @endif
 
@@ -169,7 +173,7 @@
                     <circle cx="11.5" cy="28.5" r="1.7" fill="currentColor"/>
                 </svg>
             </div>
-            <span class="odoo-label">Maintenance</span>
+            <span class="odoo-label">{{ __('Maintenance') }}</span>
         </a>
         @endif
 
@@ -183,7 +187,7 @@
                     <path d="M34 30c0-3.866-1.79-7-4-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
                 </svg>
             </div>
-            <span class="odoo-label">HR</span>
+            <span class="odoo-label">{{ __('HR') }}</span>
         </a>
         @endif
 
@@ -196,7 +200,7 @@
                     <path d="M30 6v8M26 10h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
             </div>
-            <span class="odoo-label">Contacts</span>
+            <span class="odoo-label">{{ __('Contacts') }}</span>
         </a>
         @endif
 
@@ -211,7 +215,7 @@
                     <path d="M30 6v4M28 8h4" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
                 </svg>
             </div>
-            <span class="odoo-label">Credit Book</span>
+            <span class="odoo-label">{{ __('Credit Book') }}</span>
         </a>
         @endif
 
@@ -229,7 +233,7 @@
                     <rect x="18" y="28" width="5" height="4" rx="1" fill="currentColor" opacity="0.7"/>
                 </svg>
             </div>
-            <span class="odoo-label">Calendar</span>
+            <span class="odoo-label">{{ __('Calendar') }}</span>
         </a>
         @endif
 
@@ -244,7 +248,7 @@
                     <path d="M30 26v4l2.5 2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
             </div>
-            <span class="odoo-label">Expenses</span>
+            <span class="odoo-label">{{ __('Expenses') }}</span>
         </a>
         @endif
 
@@ -259,7 +263,7 @@
                     <path d="M27 30h6M30 27v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
             </div>
-            <span class="odoo-label">Accounts</span>
+            <span class="odoo-label">{{ __('Accounts') }}</span>
         </a>
         @endif
 
@@ -273,7 +277,7 @@
                     <path d="M4 10l10-6 8 5 10-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
                 </svg>
             </div>
-            <span class="odoo-label">Reports</span>
+            <span class="odoo-label">{{ __('Reports') }}</span>
         </a>
         @endif
 
@@ -285,7 +289,7 @@
                     <path d="M20 4v4M20 32v4M4 20h4M32 20h4M7.5 7.5l2.8 2.8M29.7 29.7l2.8 2.8M29.7 10.3l2.8-2.8M7.5 32.5l2.8-2.8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
                 </svg>
             </div>
-            <span class="odoo-label">Settings</span>
+            <span class="odoo-label">{{ __('Settings') }}</span>
         </a>
         @endif
 
@@ -297,9 +301,13 @@
 @section('scripts')
 <script>
 (function () {
-    const days   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-    const greets = { morning: [5,11], afternoon: [12,17], evening: [18,23] };
+    const days = @json(trans('messages.days'));
+    const months = @json(trans('messages.months'));
+    const greetingWords = {
+        morning: @json(trans('messages.morning')),
+        afternoon: @json(trans('messages.afternoon')),
+        evening: @json(trans('messages.evening'))
+    };
 
     function pad(n) { return String(n).padStart(2, '0'); }
 
@@ -321,7 +329,7 @@
             let word = 'evening';
             if (h >= 5  && h <= 11) word = 'morning';
             else if (h >= 12 && h <= 17) word = 'afternoon';
-            greetEl.textContent = word;
+            greetEl.textContent = greetingWords[word];
         }
     }
 

@@ -2,8 +2,8 @@
     <div class="container-fluid align-items-center gap-2 flex-nowrap">
         <a href="{{ route('dashboard') }}"
            class="admin-brand-stair flex-shrink-0 d-inline-flex align-items-center justify-content-center text-decoration-none"
-           title="Dashboard"
-           aria-label="Stair — go to dashboard">
+          title="{{ __('Dashboard') }}"
+          aria-label="{{ __('Dashboard') }}">
             <img src="{{ asset('images/stair-logo.svg') }}"
                  width="40"
                  height="40"
@@ -28,21 +28,22 @@
         </nav>
 
         <div class="d-flex align-items-center gap-2 flex-shrink-0">
+            @include('partials.locale-switcher')
             @if(config('sync.enabled') && config('sync.role') === 'local')
             <button type="button"
                     id="sync-status-badge"
                     class="btn btn-sm border-0 bg-white bg-opacity-10 text-white d-inline-flex align-items-center gap-1"
-                    title="Cloud sync status — click to sync now"
+                    title="{{ __('Cloud sync status - click to sync now') }}"
                     style="opacity:0.9;">
                 <span id="sync-status-dot" class="rounded-circle d-inline-block" style="width:8px;height:8px;background:#9ca3af;"></span>
-                <span id="sync-status-label" class="small">Sync</span>
+                <span id="sync-status-label" class="small">{{ __('Sync') }}</span>
             </button>
             @endif
             <span class="badge admin-topbar-badge d-none d-sm-inline">
                 @if(auth()->user()?->loginUsername())
-                    User: <span class="fw-semibold">{{ auth()->user()->loginUsername() }}</span>
+                    {{ __('User:') }} <span class="fw-semibold">{{ auth()->user()->loginUsername() }}</span>
                 @else
-                    Role: <span class="fw-semibold">{{ auth()->user()?->role }}</span>
+                    {{ __('Role:') }} <span class="fw-semibold">{{ auth()->user()?->role }}</span>
                 @endif
             </span>
 
@@ -63,20 +64,20 @@
             @if(auth()->user() && in_array(auth()->user()->role, ['company_admin', 'super_admin', 'admin'], true))
             <a href="{{ route('activity-logs.index') }}"
                class="btn btn-sm border-0 bg-white bg-opacity-10 text-white"
-               title="Activity logs"
+               title="{{ __('Activity logs') }}"
                style="opacity:0.75; transition:opacity .15s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.75">
                 <i class="bi bi-journal-text"></i>
             </a>
             <a href="{{ route('admin.users.index') }}"
                class="btn btn-sm border-0 bg-white bg-opacity-10 text-white"
-               title="Users & roles"
+               title="{{ __('Users & roles') }}"
                style="opacity:0.75; transition:opacity .15s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.75">
                 <i class="bi bi-person-gear"></i>
             </a>
             @if(auth()->user() && in_array(auth()->user()->role, ['company_admin', 'super_admin'], true) && \App\Models\PasswordResetRequest::tableExists())
             <a href="{{ route('admin.password-reset-requests.index') }}"
                class="btn btn-sm border-0 bg-white bg-opacity-10 text-white position-relative"
-               title="Password reset requests"
+               title="{{ __('Password reset requests') }}"
                style="opacity:0.75; transition:opacity .15s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.75">
                 <i class="bi bi-key"></i>
                 @if($pendingPasswordResetCount > 0)
@@ -86,7 +87,7 @@
             @endif
             <a href="{{ route('settings.index') }}"
                class="btn btn-sm border-0 bg-white bg-opacity-10 text-white"
-               title="Settings"
+               title="{{ __('Settings') }}"
                style="opacity:0.75; transition:opacity .15s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.75">
                 <i class="bi bi-gear"></i>
             </a>
@@ -95,7 +96,7 @@
             @if(auth()->user()?->isPlatformSuperAdmin())
                 <a href="{{ route('platform.manual-update.index') }}"
                    class="btn btn-sm border-0 bg-white bg-opacity-10 text-white"
-                   title="Manual ZIP update"
+                   title="{{ __('Manual ZIP update') }}"
                    style="opacity:0.75; transition:opacity .15s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.75">
                     <i class="bi bi-cloud-upload"></i>
                 </a>
@@ -110,14 +111,14 @@
                     <li><hr class="dropdown-divider"></li>
                     <li>
                         <a class="dropdown-item" href="{{ route('profile.edit') }}">
-                            <i class="bi bi-person me-2"></i> Profile
+                            <i class="bi bi-person me-2"></i> {{ __('Profile') }}
                         </a>
                     </li>
                     <li><hr class="dropdown-divider"></li>
                     <li>
                         <a class="dropdown-item" href="#"
                            onclick="event.preventDefault();document.getElementById('logout-form').submit();">
-                            <i class="bi bi-box-arrow-right me-2"></i> Logout
+                            <i class="bi bi-box-arrow-right me-2"></i> {{ __('Logout') }}
                         </a>
                         <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
                             @csrf
