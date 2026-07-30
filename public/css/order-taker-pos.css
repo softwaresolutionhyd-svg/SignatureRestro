@@ -121,6 +121,14 @@
     padding-top: 0;
 }
 
+.order-taker-pos-app .ot-pending-head .rp-bills-head-title {
+    color: #f8fafc;
+}
+
+.order-taker-pos-app .ot-pending-head .rp-bills-head-hint {
+    color: #cbd5e1;
+}
+
 .order-taker-pos-app .ot-pending-grid {
     align-content: start;
 }
