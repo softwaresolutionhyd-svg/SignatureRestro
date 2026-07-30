@@ -1,20 +1,20 @@
 @extends('layouts.admin')
-@section('title', 'Analytics — ' . $company)
+@section('title', __('Analytics') . ' — ' . $company)
 
 @section('content')
 
 {{-- ── Header ─────────────────────────────────────────────────────────── --}}
 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
     <div>
-        <h4 class="fw-bold mb-0">Analytics Overview</h4>
-        <div class="text-secondary small">Real-time business snapshot — {{ now()->format('l, d M Y') }}</div>
+        <h4 class="fw-bold mb-0">{{ __('Analytics Overview') }}</h4>
+        <div class="text-secondary small">{{ __('Real-time business snapshot') }} — {{ now()->translatedFormat('l, d M Y') }}</div>
     </div>
     <div class="d-flex gap-2">
         <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
             <svg width="14" height="14" fill="none" viewBox="0 0 20 20" class="me-1"><path d="M5 4v4h10V4M5 16H3V9h14v7h-2M5 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-            Print
+            {{ __('Print') }}
         </button>
-        <a href="{{ route('dashboard') }}" class="btn btn-outline-secondary btn-sm">← Home</a>
+        <a href="{{ route('dashboard') }}" class="btn btn-outline-secondary btn-sm">← {{ __('Home') }}</a>
     </div>
 </div>
 
@@ -22,13 +22,13 @@
 <div class="row g-3 mb-4">
     @php
     $kpis = [
-        ['label'=>'Income This Month',     'value'=> $currency . fmt_num($incomeThisMonth,2),      'sub'=>'Restaurant sales · '.($incomeGrowth >= 0 ? '▲ ' : '▼ ').abs($incomeGrowth).'% vs last month', 'color'=>'#7c3aed','icon'=>'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z'],
-        ['label'=>'Restaurant Income (month)',   'value'=> $currency . fmt_num($cafeProfitMonth,2),      'sub'=>'Restaurant profit only (sales − discount − product cost)',            'color'=>$cafeProfitMonth>=0?'#16a34a':'#dc2626','icon'=>'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6'],
-        ['label'=>'Purchases This Month',  'value'=> $currency . fmt_num($purchasesMonth,2),       'sub'=>'Confirmed & received POs',                                       'color'=>'#0ea5e9','icon'=>'M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z'],
-        ['label'=>'Expenses This Month',   'value'=> $currency . fmt_num($expensesMonth,2),        'sub'=>'Approved & paid expenses',                                       'color'=>'#f59e0b','icon'=>'M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z'],
-        ['label'=>'Outstanding Credit',    'value'=> $currency . fmt_num($outstandingCredit,2),    'sub'=>'Total unpaid credit dues',                                       'color'=>'#ef4444','icon'=>'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2'],
-        ['label'=>'Active Employees',      'value'=> $activeEmployees,                                   'sub'=>'Currently active staff',                                         'color'=>'#ec4899','icon'=>'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z'],
-        ['label'=>'Total Products',        'value'=> $totalProducts,                                     'sub'=> $outOfStock . ' out of stock · ' . $lowStock . ' low',           'color'=>'#14b8a6','icon'=>'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'],
+        ['label'=>__('Income This Month'), 'value'=> $currency . fmt_num($incomeThisMonth,2), 'sub'=>__('Restaurant sales') . ' · ' . ($incomeGrowth >= 0 ? '▲ ' : '▼ ') . abs($incomeGrowth) . '% ' . __('vs last month'), 'color'=>'#7c3aed','icon'=>'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z'],
+        ['label'=>__('Restaurant Income (month)'), 'value'=> $currency . fmt_num($cafeProfitMonth,2), 'sub'=>__('Restaurant profit only (sales - discount - product cost)'), 'color'=>$cafeProfitMonth>=0?'#16a34a':'#dc2626','icon'=>'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6'],
+        ['label'=>__('Purchases This Month'), 'value'=> $currency . fmt_num($purchasesMonth,2), 'sub'=>__('Confirmed & received POs'), 'color'=>'#0ea5e9','icon'=>'M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z'],
+        ['label'=>__('Expenses This Month'), 'value'=> $currency . fmt_num($expensesMonth,2), 'sub'=>__('Approved & paid expenses'), 'color'=>'#f59e0b','icon'=>'M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z'],
+        ['label'=>__('Outstanding Credit'), 'value'=> $currency . fmt_num($outstandingCredit,2), 'sub'=>__('Total unpaid credit dues'), 'color'=>'#ef4444','icon'=>'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2'],
+        ['label'=>__('Active Employees'), 'value'=> $activeEmployees, 'sub'=>__('Currently active staff'), 'color'=>'#ec4899','icon'=>'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z'],
+        ['label'=>__('Total Products'), 'value'=> $totalProducts, 'sub'=> $outOfStock . ' ' . __('out of stock') . ' · ' . $lowStock . ' ' . __('low'), 'color'=>'#14b8a6','icon'=>'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'],
     ];
     @endphp
     @foreach($kpis as $k)
@@ -54,8 +54,8 @@
     <div class="col-12 col-xl-8">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-header bg-white d-flex align-items-center justify-content-between py-3">
-                <div class="fw-semibold small">Sales Revenue — Last 30 Days</div>
-                <span class="badge rounded-pill" style="background:#7c3aed22;color:#7c3aed;font-size:11px;">Area Chart</span>
+                <div class="fw-semibold small">{{ __('Sales Revenue - Last 30 Days') }}</div>
+                <span class="badge rounded-pill" style="background:#7c3aed22;color:#7c3aed;font-size:11px;">{{ __('Area Chart') }}</span>
             </div>
             <div class="card-body py-3" style="min-height:240px;">
                 <canvas id="chartSales30" style="max-height:220px;"></canvas>
@@ -65,7 +65,7 @@
     <div class="col-12 col-xl-4">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-header bg-white d-flex align-items-center justify-content-between py-3">
-                <div class="fw-semibold small">Hourly Sales — Today</div>
+                <div class="fw-semibold small">{{ __('Hourly Sales - Today') }}</div>
                 <span class="badge rounded-pill" style="background:#f97316;color:#fff;font-size:11px;">{{ now()->format('d M') }}</span>
             </div>
             <div class="card-body py-3" style="min-height:240px;">
@@ -80,8 +80,8 @@
     <div class="col-12 col-xl-8">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-header bg-white d-flex align-items-center justify-content-between py-3">
-                <div class="fw-semibold small">Monthly Sales vs Purchases — Last 12 Months</div>
-                <span class="badge rounded-pill" style="background:#0ea5e922;color:#0ea5e9;font-size:11px;">Bar Chart</span>
+                <div class="fw-semibold small">{{ __('Monthly Sales vs Purchases - Last 12 Months') }}</div>
+                <span class="badge rounded-pill" style="background:#0ea5e922;color:#0ea5e9;font-size:11px;">{{ __('Bar Chart') }}</span>
             </div>
             <div class="card-body py-3" style="min-height:240px;">
                 <canvas id="chartMonthly" style="max-height:220px;"></canvas>
@@ -91,14 +91,14 @@
     <div class="col-12 col-xl-4">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-header bg-white d-flex align-items-center justify-content-between py-3">
-                <div class="fw-semibold small">Payment Method — This Month</div>
-                <span class="badge rounded-pill" style="background:#22c55e22;color:#22c55e;font-size:11px;">Doughnut</span>
+                <div class="fw-semibold small">{{ __('Payment Method - This Month') }}</div>
+                <span class="badge rounded-pill" style="background:#22c55e22;color:#22c55e;font-size:11px;">{{ __('Doughnut') }}</span>
             </div>
             <div class="card-body d-flex flex-column align-items-center justify-content-center py-3">
                 <canvas id="chartPayMethod" style="max-height:180px;max-width:180px;"></canvas>
                 <div class="d-flex gap-4 mt-3 small">
-                    <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#22c55e;margin-right:4px;"></span>Cash: {{ $currency }}{{ fmt_num($cashSales,2) }}</span>
-                    <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#ef4444;margin-right:4px;"></span>Credit: {{ $currency }}{{ fmt_num($creditSales,2) }}</span>
+                    <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#22c55e;margin-right:4px;"></span>{{ __('Cash') }}: {{ $currency }}{{ fmt_num($cashSales,2) }}</span>
+                    <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#ef4444;margin-right:4px;"></span>{{ __('Credit') }}: {{ $currency }}{{ fmt_num($creditSales,2) }}</span>
                 </div>
             </div>
         </div>
@@ -110,8 +110,8 @@
     <div class="col-12 col-xl-7">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-header bg-white d-flex align-items-center justify-content-between py-3">
-                <div class="fw-semibold small">Top 10 Products by Revenue — Last 30 Days</div>
-                <span class="badge rounded-pill" style="background:#f59e0b22;color:#f59e0b;font-size:11px;">Horizontal Bar</span>
+                <div class="fw-semibold small">{{ __('Top 10 Products by Revenue - Last 30 Days') }}</div>
+                <span class="badge rounded-pill" style="background:#f59e0b22;color:#f59e0b;font-size:11px;">{{ __('Horizontal Bar') }}</span>
             </div>
             <div class="card-body py-3" style="min-height:280px;">
                 <canvas id="chartTopProd" style="max-height:260px;"></canvas>
@@ -121,8 +121,8 @@
     <div class="col-12 col-xl-5">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-header bg-white d-flex align-items-center justify-content-between py-3">
-                <div class="fw-semibold small">Expenses by Category</div>
-                <span class="badge rounded-pill" style="background:#14b8a622;color:#14b8a6;font-size:11px;">Pie Chart</span>
+                <div class="fw-semibold small">{{ __('Expenses by Category') }}</div>
+                <span class="badge rounded-pill" style="background:#14b8a622;color:#14b8a6;font-size:11px;">{{ __('Pie Chart') }}</span>
             </div>
             <div class="card-body d-flex align-items-center justify-content-center py-3" style="min-height:280px;">
                 @if($expCatVal->sum() > 0)
@@ -130,7 +130,7 @@
                 @else
                 <div class="text-secondary small text-center">
                     <svg width="36" height="36" fill="none" viewBox="0 0 36 36" class="mb-2 opacity-25"><circle cx="18" cy="18" r="14" stroke="currentColor" stroke-width="2"/><path d="M18 10v8l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                    <div>No approved expenses yet</div>
+                    <div>{{ __('No approved expenses yet') }}</div>
                 </div>
                 @endif
             </div>
@@ -143,8 +143,8 @@
     <div class="col-12 col-md-6">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-header bg-white d-flex align-items-center justify-content-between py-3">
-                <div class="fw-semibold small">Inventory by Category</div>
-                <span class="badge rounded-pill" style="background:#0ea5e922;color:#0ea5e9;font-size:11px;">Doughnut</span>
+                <div class="fw-semibold small">{{ __('Inventory by Category') }}</div>
+                <span class="badge rounded-pill" style="background:#0ea5e922;color:#0ea5e9;font-size:11px;">{{ __('Doughnut') }}</span>
             </div>
             <div class="card-body d-flex align-items-center justify-content-center py-3" style="min-height:220px;">
                 <canvas id="chartInvCat" style="max-height:200px;max-width:200px;"></canvas>
@@ -154,14 +154,14 @@
     <div class="col-12 col-md-6">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-header bg-white d-flex align-items-center justify-content-between py-3">
-                <div class="fw-semibold small">Employees by Department</div>
-                <span class="badge rounded-pill" style="background:#ec489922;color:#ec4899;font-size:11px;">Doughnut</span>
+                <div class="fw-semibold small">{{ __('Employees by Department') }}</div>
+                <span class="badge rounded-pill" style="background:#ec489922;color:#ec4899;font-size:11px;">{{ __('Doughnut') }}</span>
             </div>
             <div class="card-body d-flex align-items-center justify-content-center py-3" style="min-height:220px;">
                 @if($empDeptCount->sum() > 0)
                 <canvas id="chartEmpDept" style="max-height:200px;max-width:200px;"></canvas>
                 @else
-                <div class="text-secondary small text-center">No active employees</div>
+                <div class="text-secondary small text-center">{{ __('No active employees') }}</div>
                 @endif
             </div>
         </div>
@@ -173,8 +173,8 @@
     <div class="col-12 col-xl-7">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-header bg-white d-flex align-items-center justify-content-between py-3">
-                <div class="fw-semibold small">Top Debtors — Outstanding Credit</div>
-                <span class="badge rounded-pill" style="background:#ef444422;color:#ef4444;font-size:11px;">Bar Chart</span>
+                <div class="fw-semibold small">{{ __('Top Debtors - Outstanding Credit') }}</div>
+                <span class="badge rounded-pill" style="background:#ef444422;color:#ef4444;font-size:11px;">{{ __('Bar Chart') }}</span>
             </div>
             <div class="card-body py-3" style="min-height:220px;">
                 @if($debtorVal->sum() > 0)
@@ -182,7 +182,7 @@
                 @else
                 <div class="text-secondary small text-center mt-5">
                     <svg width="36" height="36" fill="none" viewBox="0 0 36 36" class="mb-2 opacity-25"><path d="M18 8v20M8 18h20" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
-                    <div>No outstanding credit dues</div>
+                    <div>{{ __('No outstanding credit dues') }}</div>
                 </div>
                 @endif
             </div>
@@ -191,8 +191,8 @@
     <div class="col-12 col-xl-5">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-header bg-white d-flex align-items-center justify-content-between py-3">
-                <div class="fw-semibold small">Expense Status Breakdown</div>
-                <span class="badge rounded-pill" style="background:#f59e0b22;color:#f59e0b;font-size:11px;">Bar</span>
+                <div class="fw-semibold small">{{ __('Expense Status Breakdown') }}</div>
+                <span class="badge rounded-pill" style="background:#f59e0b22;color:#f59e0b;font-size:11px;">{{ __('Bar') }}</span>
             </div>
             <div class="card-body py-3" style="min-height:220px;">
                 <canvas id="chartExpStatus" style="max-height:200px;"></canvas>
@@ -209,12 +209,12 @@
             <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <div>
-            <div class="fw-semibold small">Inventory Alert</div>
+            <div class="fw-semibold small">{{ __('Inventory Alert') }}</div>
             <div class="small text-secondary">
-                @if($outOfStock > 0)<span class="text-danger fw-semibold">{{ $outOfStock }} products out of stock</span>@endif
+                @if($outOfStock > 0)<span class="text-danger fw-semibold">{{ $outOfStock }} {{ __('products out of stock') }}</span>@endif
                 @if($outOfStock > 0 && $lowStock > 0) &nbsp;·&nbsp; @endif
-                @if($lowStock > 0)<span class="text-warning fw-semibold">{{ $lowStock }} products low stock</span>@endif
-                &nbsp;— <a href="{{ route('inventory.index') }}" class="text-primary small">View Inventory →</a>
+                @if($lowStock > 0)<span class="text-warning fw-semibold">{{ $lowStock }} {{ __('products low stock') }}</span>@endif
+                &nbsp;— <a href="{{ route('inventory.index') }}" class="text-primary small">{{ __('View Inventory') }} →</a>
             </div>
         </div>
     </div>
@@ -271,7 +271,7 @@ function alpha(hex, a) {
             labels: lbl,
             datasets: [
                 {
-                    label: 'Revenue',
+                    label: @json(__('Revenue')),
                     data: rev,
                     fill: true,
                     backgroundColor: alpha(C.violet, 0.12),
@@ -283,7 +283,7 @@ function alpha(hex, a) {
                     yAxisID: 'y',
                 },
                 {
-                    label: 'Orders',
+                    label: @json(__('Orders')),
                     data: ord,
                     fill: false,
                     borderColor: C.orange,
@@ -317,7 +317,7 @@ function alpha(hex, a) {
         data: {
             labels: lbl,
             datasets: [{
-                label: 'Revenue',
+                label: @json(__('Revenue')),
                 data: val,
                 backgroundColor: val.map(v => v > 0 ? alpha(C.orange, 0.85) : alpha(C.orange, 0.15)),
                 borderRadius: 4,
@@ -344,8 +344,8 @@ function alpha(hex, a) {
         data: {
             labels: lbl,
             datasets: [
-                { label: 'Sales', data: sales, backgroundColor: alpha(C.violet, 0.8), borderRadius: 4 },
-                { label: 'Purchases', data: purch, backgroundColor: alpha(C.blue, 0.75), borderRadius: 4 },
+                { label: @json(__('Sales')), data: sales, backgroundColor: alpha(C.violet, 0.8), borderRadius: 4 },
+                { label: @json(__('Purchases')), data: purch, backgroundColor: alpha(C.blue, 0.75), borderRadius: 4 },
             ]
         },
         options: {
@@ -365,7 +365,7 @@ function alpha(hex, a) {
     new Chart(document.getElementById('chartPayMethod'), {
         type: 'doughnut',
         data: {
-            labels: ['Cash', 'Credit'],
+            labels: [@json(__('Cash')), @json(__('Credit'))],
             datasets: [{
                 data: [{{ $cashSales }}, {{ $creditSales }}],
                 backgroundColor: [alpha(C.green, 0.85), alpha(C.red, 0.85)],
@@ -391,7 +391,7 @@ function alpha(hex, a) {
         data: {
             labels: lbl,
             datasets: [{
-                label: 'Revenue',
+                label: @json(__('Revenue')),
                 data: rev,
                 backgroundColor: PALETTE.map(c => alpha(c, 0.8)),
                 borderRadius: 5,
@@ -500,7 +500,7 @@ function alpha(hex, a) {
         data: {
             labels: lbl,
             datasets: [{
-                label: 'Balance Due',
+                label: @json(__('Balance Due')),
                 data: val,
                 backgroundColor: alpha(C.red, 0.75),
                 borderRadius: 4,
@@ -521,7 +521,7 @@ function alpha(hex, a) {
 // ── 10. Expense status ───────────────────────────────────────────────
 (function() {
     const statuses = ['draft','submitted','approved','paid','refused'];
-    const labels   = ['Draft','Submitted','Approved','Paid','Refused'];
+    const labels   = [@json(__('Draft')), @json(__('Submitted')), @json(__('Approved')), @json(__('Paid')), @json(__('Refused'))];
     const colors   = [alpha(C.amber,0.75), alpha(C.blue,0.75), alpha(C.green,0.75), alpha(C.violet,0.85), alpha(C.red,0.75)];
     const data = @json($expStatus);
     const counts = statuses.map(s => data[s]?.cnt ?? 0);
@@ -532,7 +532,7 @@ function alpha(hex, a) {
         data: {
             labels: labels,
             datasets: [
-                { label: 'Count',  data: counts, backgroundColor: colors, borderRadius: 4, yAxisID: 'y' },
+                { label: @json(__('Count')),  data: counts, backgroundColor: colors, borderRadius: 4, yAxisID: 'y' },
             ]
         },
         options: {
