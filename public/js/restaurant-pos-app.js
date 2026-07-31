@@ -1959,7 +1959,7 @@
                 return false;
             }
             if (!isCreditMode && !canPosPay) {
-                alert('Pay sirf cashier kar sakta hai.');
+                alert('Pay sirf cashier ya manager kar sakta hai.');
                 return false;
             }
         }

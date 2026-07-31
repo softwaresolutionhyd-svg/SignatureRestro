@@ -357,8 +357,10 @@ class PosController extends Controller
         $isManager = $this->employeeIsPosManager($employee);
         $isCashier = $this->employeeIsPosCashier($employee);
 
+        // Manager gets the same POS checkout surface as admin/cashier:
+        // pay, discount, credit, cancel / kitchen void.
         return [
-            'can_pay' => $isCashier,
+            'can_pay' => $isManager || $isCashier,
             'can_discount' => $isManager || $isCashier,
             'can_discount_credit' => $isManager,
             'is_manager' => $isManager,
@@ -438,14 +440,26 @@ class PosController extends Controller
 
     private function employeeIsPosManager(Employee $employee): bool
     {
-        $designation = $this->employeeDesignationText($employee);
+        if ($this->labelMatchesPosManager($this->employeeDesignationText($employee))) {
+            return true;
+        }
 
-        return $designation !== ''
-            && (
-                str_contains($designation, 'manager')
-                || str_contains($designation, 'owner')
-                || str_contains($designation, 'admin')
-            );
+        return $this->labelMatchesPosManager($this->employeeStaffCategoryText($employee));
+    }
+
+    private function labelMatchesPosManager(string $value): bool
+    {
+        if ($value === '') {
+            return false;
+        }
+
+        foreach (['manager', 'owner', 'admin', 'supervis', 'proprietor', 'director'] as $keyword) {
+            if (str_contains($value, $keyword)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function posUsesSharedBills(?User $user): bool
@@ -511,7 +525,7 @@ class PosController extends Controller
             if ($isCredit) {
                 abort_unless($caps['can_discount_credit'], 403, 'Credit sirf manager de sakta hai.');
             } else {
-                abort_unless($caps['can_pay'], 403, 'Pay sirf cashier kar sakta hai.');
+                abort_unless($caps['can_pay'], 403, 'Pay sirf cashier ya manager kar sakta hai.');
             }
         }
 
