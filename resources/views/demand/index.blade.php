@@ -157,12 +157,7 @@
     </template>
 
     <datalist id="demandIngredientOptions"></datalist>
-    <script type="application/json" id="demandIngredientsJson">@json($ingredients->map(fn ($p) => [
-        'id' => (string) $p->id,
-        'label' => trim(($p->sku ? $p->sku.' — ' : '').$p->name),
-        'uom' => (string) $p->uom,
-        'warehouse' => fmt_num((float) ($p->warehouse_qty ?? 0), 3),
-    ])->values())</script>
+    <script type="application/json" id="demandIngredientsJson">@json($ingredientsJson)</script>
 @endif
 
 @if($tab === 'today')

@@ -80,11 +80,24 @@ class DemandController extends Controller
             }
         }
 
+        $ingredientsJson = $ingredients->map(function ($p) {
+            $sku = trim((string) ($p->sku ?? ''));
+            $name = trim((string) ($p->name ?? ''));
+
+            return [
+                'id' => (string) $p->id,
+                'label' => trim(($sku !== '' ? $sku.' — ' : '').$name),
+                'uom' => (string) $p->uom,
+                'warehouse' => fmt_num((float) ($p->warehouse_qty ?? 0), 3),
+            ];
+        })->values()->all();
+
         return view('demand.index', [
             'tab' => $tab,
             'canCreate' => $canCreate,
             'departments' => $departments,
             'ingredients' => $ingredients,
+            'ingredientsJson' => $ingredientsJson,
             'todaysDemands' => $todaysDemands,
             'today' => $today,
         ]);
