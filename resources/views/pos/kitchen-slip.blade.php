@@ -5,7 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Kitchen {{ $order->order_no }}</title>
     <style>
-        @page { size: 80mm auto; margin: 3mm; }
+        /* Fixed height required — `80mm auto` is ignored by Chrome/Edge → falls back to A4. */
+        @page {
+            size: 80mm 297mm;
+            margin: 2mm;
+        }
         * { box-sizing: border-box; }
         html, body {
             margin: 0;
@@ -15,11 +19,12 @@
             line-height: 1.35;
             color: #000;
             background: #fff;
+            width: 80mm;
             max-width: 80mm;
             margin-left: auto;
             margin-right: auto;
         }
-        .r-wrap { padding: 4px 6px 12px; }
+        .r-wrap { padding: 4px 6px 12px; width: 100%; }
         .center { text-align: center; }
         .bold { font-weight: 700; }
         .muted { color: #333; }
@@ -109,7 +114,16 @@
         .noprint { margin-top: 12px; text-align: center; }
         @media print {
             .noprint { display: none !important; }
-            html, body { max-width: none; }
+            html, body {
+                width: 76mm !important;
+                max-width: 76mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            .r-wrap {
+                width: 76mm !important;
+                max-width: 76mm !important;
+            }
             .table-no { font-size: 20px; }
             table.items td.item-name { font-size: 16px; }
             table.items td.item-qty { font-size: 16px; }

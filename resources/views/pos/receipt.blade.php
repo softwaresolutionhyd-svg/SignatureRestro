@@ -5,7 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Receipt {{ $order->order_no }}</title>
     <style>
-        @page { size: 80mm auto; margin: 3mm; }
+        /* Fixed height required — `80mm auto` is ignored by Chrome/Edge → falls back to A4. */
+        @page {
+            size: 80mm 297mm;
+            margin: 2mm;
+        }
         * { box-sizing: border-box; }
         html, body {
             margin: 0;
@@ -15,11 +19,12 @@
             line-height: 1.45;
             color: #000;
             background: #fff;
+            width: 80mm;
             max-width: 80mm;
             margin-left: auto;
             margin-right: auto;
         }
-        .r-wrap { padding: 4px 6px 12px; }
+        .r-wrap { padding: 4px 6px 12px; width: 100%; }
         .center { text-align: center; }
         .bold { font-weight: 700; }
         .muted { color: #333; }
@@ -106,7 +111,18 @@
         .noprint { margin-top: 12px; text-align: center; }
         @media print {
             .noprint { display: none !important; }
-            html, body { max-width: none; }
+            html, body {
+                width: 76mm !important;
+                max-width: 76mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #fff !important;
+            }
+            .r-wrap {
+                width: 76mm !important;
+                max-width: 76mm !important;
+                padding: 0 1mm 4mm !important;
+            }
         }
     </style>
 </head>
@@ -282,7 +298,7 @@
     <a href="{{ $backUrl ?? route('restaurant-pos.index') }}" style="display:block;text-align:center;text-decoration:none;font-weight:700;padding:14px 16px;border-radius:10px;margin-bottom:10px;background:#0d6efd;color:#fff;font-size:15px;">{{ $backLabel ?? '← Back to Restaurant POS' }}</a>
     @if(!empty($allowBillPrint))
         <button type="button" onclick="window.print()" style="display:block;width:100%;padding:10px;font-size:14px;cursor:pointer;border:1px solid #999;border-radius:8px;background:#fff;">Print again</button>
-        <p style="font-size:10px;color:#666;text-align:center;margin:10px 0 0;">Same-tab receipt — no pop-up blocker.</p>
+        <p style="font-size:10px;color:#666;text-align:center;margin:10px 0 0;">80mm thermal receipt — printer select karein, More settings → Paper size: 80mm (ya Roll paper). Office A4 printer pe page bada dikhega.</p>
     @endif
 </div>
 @if(!empty($autoPrint))
