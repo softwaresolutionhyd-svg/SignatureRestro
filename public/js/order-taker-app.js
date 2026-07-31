@@ -1011,10 +1011,37 @@
         });
     }
 
+    function formatOccupiedElapsed(ms) {
+        const totalSec = Math.max(0, Math.floor(ms / 1000));
+        const h = Math.floor(totalSec / 3600);
+        const m = Math.floor((totalSec % 3600) / 60);
+        const s = totalSec % 60;
+        const pad = (n) => String(n).padStart(2, '0');
+        if (h > 0) return `${h}:${pad(m)}:${pad(s)}`;
+        return `${pad(m)}:${pad(s)}`;
+    }
+
+    function tickOccupiedTimers() {
+        const now = Date.now();
+        $$('.ot-table-timer[data-occupied-at]').forEach((el) => {
+            const start = Date.parse(el.getAttribute('data-occupied-at') || '');
+            if (!Number.isFinite(start)) return;
+            el.textContent = formatOccupiedElapsed(now - start);
+        });
+    }
+
+    let occupiedTimerInterval = null;
+    function startOccupiedTimers() {
+        tickOccupiedTimers();
+        if (occupiedTimerInterval) clearInterval(occupiedTimerInterval);
+        occupiedTimerInterval = setInterval(tickOccupiedTimers, 1000);
+    }
+
     function init() {
         renderMenuCategories();
         bindEvents();
         setBoardTab('tables');
+        startOccupiedTimers();
 
         if (boot.resumeOrderId) {
             editOrderId = boot.resumeOrderId;

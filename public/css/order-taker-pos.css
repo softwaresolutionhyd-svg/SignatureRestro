@@ -296,6 +296,18 @@
     font-weight: 600;
 }
 
+.order-taker-pos-app .ot-table-timer {
+    color: #ffb4a8;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+}
+
+.order-taker-pos-app .ot-table-timer::before {
+    content: "⏱ ";
+    font-weight: 500;
+}
+
 /* Move Table modal — Bootstrap moves it to <body>, so do NOT scope under .order-taker-pos-app */
 #otMoveTableModal .modal-content {
     background: #0f141c;

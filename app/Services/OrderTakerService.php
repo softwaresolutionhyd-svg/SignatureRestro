@@ -304,7 +304,8 @@ final class OrderTakerService
      *   order_no: ?string,
      *   amendable: bool,
      *   items_count: int,
-     *   grand_total: float
+     *   grand_total: float,
+     *   occupied_at: ?string
      * }>
      */
     public function tableBoard(): array
@@ -329,6 +330,7 @@ final class OrderTakerService
                 /** @var PosOrder|null $order */
                 $order = $occupied->get($table->id);
                 $area = $hasArea ? $table->sittingArea : null;
+                $startedAt = $order?->created_at;
 
                 return [
                     'id' => (int) $table->id,
@@ -342,6 +344,7 @@ final class OrderTakerService
                     'amendable' => $order !== null ? $this->isPendingAmendable($order) : false,
                     'items_count' => $order ? (int) $order->items_count : 0,
                     'grand_total' => $order ? (float) $order->grand_total : 0.0,
+                    'occupied_at' => $startedAt ? $startedAt->toIso8601String() : null,
                 ];
             })
             ->sort(function (array $a, array $b) {

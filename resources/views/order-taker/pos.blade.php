@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=47">
-<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=21">
+<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=22">
 @endpush
 
 @section('content')
@@ -167,6 +167,11 @@
                                         @if($t['status'] === 'occupied')
                                             <span class="ot-table-box-meta">{{ $t['order_no'] }}</span>
                                             <span class="ot-table-box-meta">{{ $t['items_count'] }} items</span>
+                                            @if(!empty($t['occupied_at']))
+                                                <span class="ot-table-box-meta ot-table-timer"
+                                                      data-occupied-at="{{ $t['occupied_at'] }}"
+                                                      title="Order punch ke baad ka time">00:00</span>
+                                            @endif
                                         @else
                                             <span class="ot-table-box-meta ot-table-box-meta--free">Available</span>
                                         @endif
@@ -447,5 +452,5 @@
 <script>
 window.ORDER_TAKER_BOOTSTRAP = @json($otBootstrap);
 </script>
-<script src="{{ asset('js/order-taker-app.js') }}?v=20"></script>
+<script src="{{ asset('js/order-taker-app.js') }}?v=21"></script>
 @endsection
