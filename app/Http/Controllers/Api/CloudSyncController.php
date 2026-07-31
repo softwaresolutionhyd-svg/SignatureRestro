@@ -12,8 +12,17 @@ class CloudSyncController extends Controller
 {
     public function ping(CloudSyncService $sync, SyncTargetSchemaService $schema): JsonResponse
     {
+        // Schema ensure is expensive — do it rarely, not on every status ping.
         if ($sync->isCloudRole()) {
-            $schema->ensureAll();
+            try {
+                $done = \Illuminate\Support\Facades\Cache::get('sync:cloud_schema_ping');
+                if (! $done) {
+                    $schema->ensureAll();
+                    \Illuminate\Support\Facades\Cache::put('sync:cloud_schema_ping', true, now()->addHours(6));
+                }
+            } catch (\Throwable) {
+                // Reachability must stay cheap even if cache/schema fails.
+            }
         }
 
         return response()->json([

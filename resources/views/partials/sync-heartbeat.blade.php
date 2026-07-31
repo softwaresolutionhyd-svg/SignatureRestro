@@ -93,12 +93,17 @@
             const data = await res.json().catch(() => ({}));
             // Prefer explicit online; if missing, keep previous (avoid false No net)
             const online = (typeof data.online === 'boolean') ? data.online : lastStatus.online;
+            const pendingAfter = Number(data.pending ?? lastStatus.pending ?? 0);
             paint({
                 online: online,
-                pending: data.pending ?? lastStatus.pending ?? 0
+                pending: pendingAfter
             });
             if (Number(data.pulled || 0) > 0 && label && online) {
                 label.textContent = 'Pulled ' + data.pulled;
+            }
+            // Continue backlog in short chunks instead of one long Syncing…
+            if (autoPush && online && pendingAfter > 0 && Number(data.pushed || 0) > 0) {
+                setTimeout(function () { syncNow(true, false); }, 400);
             }
         } catch (e) {
             // Network blip on local request — re-check status instead of forcing No net

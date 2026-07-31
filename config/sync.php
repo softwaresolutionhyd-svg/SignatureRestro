@@ -25,10 +25,13 @@ return [
     'token' => (string) env('SYNC_TOKEN', ''),
 
     // Max rows per HTTP request (higher = fewer round-trips)
-    'batch_size' => (int) env('SYNC_BATCH_SIZE', 250),
+    'batch_size' => (int) env('SYNC_BATCH_SIZE', 100),
+
+    // Cap batches per browser/API push so "Syncing…" stays short; heartbeat continues the rest
+    'max_batches_per_request' => (int) env('SYNC_MAX_BATCHES_PER_REQUEST', 2),
 
     // Seconds between status checks in the browser
-    'heartbeat_seconds' => (int) env('SYNC_HEARTBEAT_SECONDS', 12),
+    'heartbeat_seconds' => (int) env('SYNC_HEARTBEAT_SECONDS', 20),
 
     // Run pull every N heartbeats (push runs immediately when pending)
     'heartbeat_pull_every' => (int) env('SYNC_HEARTBEAT_PULL_EVERY', 4),
@@ -37,13 +40,13 @@ return [
     'auto_push_heartbeat' => (bool) env('SYNC_AUTO_PUSH_HEARTBEAT', true),
 
     // Cache hosting ping result (seconds) — avoids wait every status poll
-    'remote_ping_cache_seconds' => (int) env('SYNC_REMOTE_PING_CACHE_SECONDS', 60),
+    'remote_ping_cache_seconds' => (int) env('SYNC_REMOTE_PING_CACHE_SECONDS', 90),
 
     // HTTP timeout for push/pull batches (seconds)
-    'push_timeout_seconds' => (int) env('SYNC_PUSH_TIMEOUT_SECONDS', 15),
+    'push_timeout_seconds' => (int) env('SYNC_PUSH_TIMEOUT_SECONDS', 20),
 
     // Min seconds between background push attempts
-    'push_debounce_seconds' => (int) env('SYNC_PUSH_DEBOUNCE_SECONDS', 5),
+    'push_debounce_seconds' => (int) env('SYNC_PUSH_DEBOUNCE_SECONDS', 15),
 
     // Min seconds between background pull attempts
     'pull_debounce_seconds' => (int) env('SYNC_PULL_DEBOUNCE_SECONDS', 25),

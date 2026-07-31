@@ -106,7 +106,8 @@ class CloudSyncService
             return ['ok' => false, 'pushed' => 0, 'pending' => $this->pendingCount(), 'message' => 'SYNC_REMOTE_URL / SYNC_TOKEN missing.'];
         }
 
-        $batchSize = max(1, (int) config('sync.batch_size', 250));
+        $batchSize = max(1, (int) config('sync.batch_size', 100));
+        $maxBatches = max(1, (int) config('sync.max_batches_per_request', 2));
         $pushTimeout = max(3, (int) config('sync.push_timeout_seconds', 20));
         $pushed = 0;
 
@@ -119,111 +120,137 @@ class CloudSyncService
             ];
         }
 
-        $this->markPushAttempted();
+        $lock = null;
+        try {
+            $lock = \Illuminate\Support\Facades\Cache::lock('sync:push_lock', max(30, $pushTimeout * $maxBatches + 10));
+            if (! $lock->get()) {
+                return [
+                    'ok' => true,
+                    'pushed' => 0,
+                    'pending' => $this->pendingCount(),
+                    'message' => 'Push already in progress.',
+                ];
+            }
+        } catch (\Throwable) {
+            $lock = null;
+        }
 
+        $this->markPushAttempted();
         $this->ensureTargetSchemaOnce();
 
-        while (true) {
-            $items = SyncQueueItem::query()
-                ->whereNull('synced_at')
-                ->orderBy('id')
-                ->limit($batchSize)
-                ->get();
+        try {
+            $batchesRun = 0;
+            while ($batchesRun < $maxBatches) {
+                $batchesRun++;
+                $items = SyncQueueItem::query()
+                    ->whereNull('synced_at')
+                    ->orderBy('id')
+                    ->limit($batchSize)
+                    ->get();
 
-            if ($items->isEmpty()) {
-                break;
+                if ($items->isEmpty()) {
+                    break;
+                }
+
+                $payload = [
+                    'changes' => $items->map(fn (SyncQueueItem $item) => [
+                        'id' => $item->id,
+                        'table' => $item->table_name,
+                        'key' => $item->record_key,
+                        'action' => $item->action,
+                        'payload' => $item->payload,
+                    ])->values()->all(),
+                ];
+
+                try {
+                    $response = Http::timeout($pushTimeout)
+                        ->connectTimeout(3)
+                        ->withToken($token)
+                        ->acceptJson()
+                        ->post($url.'/api/sync/push', $payload);
+                } catch (Throwable $e) {
+                    foreach ($items as $item) {
+                        $item->forceFill([
+                            'attempts' => min(254, (int) $item->attempts + 1),
+                            'last_error' => $e->getMessage(),
+                        ])->save();
+                    }
+
+                    return [
+                        'ok' => false,
+                        'pushed' => $pushed,
+                        'pending' => $this->pendingCount(),
+                        'message' => 'Hosting unreachable: '.$e->getMessage(),
+                    ];
+                }
+
+                if (! $response->successful()) {
+                    $message = (string) ($response->json('message') ?? $response->body());
+                    foreach ($items as $item) {
+                        $item->forceFill([
+                            'attempts' => min(254, (int) $item->attempts + 1),
+                            'last_error' => $message,
+                        ])->save();
+                    }
+
+                    return [
+                        'ok' => false,
+                        'pushed' => $pushed,
+                        'pending' => $this->pendingCount(),
+                        'message' => 'Hosting rejected sync: '.$message,
+                    ];
+                }
+
+                $applied = collect($response->json('applied', []))->map(fn ($id) => (int) $id)->all();
+                $failed = collect($response->json('failed', []))->keyBy(fn ($row) => (int) ($row['id'] ?? 0));
+                $strippedForRetry = false;
+                $syncedIds = [];
+
+                foreach ($items as $item) {
+                    $itemId = (int) $item->id;
+                    if (in_array($itemId, $applied, true)) {
+                        $syncedIds[] = $itemId;
+                        continue;
+                    }
+
+                    $err = $failed->get($itemId);
+                    $errorText = is_array($err) ? (string) ($err['error'] ?? 'unknown') : 'not applied';
+
+                    if (str_contains($errorText, 'Duplicate entry')) {
+                        $syncedIds[] = $itemId;
+                        continue;
+                    }
+
+                    if ($this->stripUnknownColumnFromQueueItem($item, $errorText)) {
+                        $strippedForRetry = true;
+                        continue;
+                    }
+
+                    $item->forceFill([
+                        'attempts' => min(254, (int) $item->attempts + 1),
+                        'last_error' => $errorText,
+                    ])->save();
+                }
+
+                if ($syncedIds !== []) {
+                    SyncQueueItem::query()
+                        ->whereIn('id', $syncedIds)
+                        ->update([
+                            'synced_at' => now(),
+                            'last_error' => null,
+                        ]);
+                    $pushed += count($syncedIds);
+                }
+
+                if ($failed->isNotEmpty() && ! $strippedForRetry) {
+                    break;
+                }
             }
-
-            $payload = [
-                'changes' => $items->map(fn (SyncQueueItem $item) => [
-                    'id' => $item->id,
-                    'table' => $item->table_name,
-                    'key' => $item->record_key,
-                    'action' => $item->action,
-                    'payload' => $item->payload,
-                ])->values()->all(),
-            ];
-
+        } finally {
             try {
-                $response = Http::timeout($pushTimeout)
-                    ->connectTimeout(3)
-                    ->withToken($token)
-                    ->acceptJson()
-                    ->post($url.'/api/sync/push', $payload);
-            } catch (Throwable $e) {
-                foreach ($items as $item) {
-                    $item->forceFill([
-                        'attempts' => min(254, (int) $item->attempts + 1),
-                        'last_error' => $e->getMessage(),
-                    ])->save();
-                }
-
-                return [
-                    'ok' => false,
-                    'pushed' => $pushed,
-                    'pending' => $this->pendingCount(),
-                    'message' => 'Hosting unreachable: '.$e->getMessage(),
-                ];
-            }
-
-            if (! $response->successful()) {
-                $message = (string) ($response->json('message') ?? $response->body());
-                foreach ($items as $item) {
-                    $item->forceFill([
-                        'attempts' => min(254, (int) $item->attempts + 1),
-                        'last_error' => $message,
-                    ])->save();
-                }
-
-                return [
-                    'ok' => false,
-                    'pushed' => $pushed,
-                    'pending' => $this->pendingCount(),
-                    'message' => 'Hosting rejected sync: '.$message,
-                ];
-            }
-
-            $applied = collect($response->json('applied', []))->map(fn ($id) => (int) $id)->all();
-            $failed = collect($response->json('failed', []))->keyBy(fn ($row) => (int) ($row['id'] ?? 0));
-            $strippedForRetry = false;
-
-            foreach ($items as $item) {
-                if (in_array((int) $item->id, $applied, true)) {
-                    $item->forceFill([
-                        'synced_at' => now(),
-                        'last_error' => null,
-                    ])->save();
-                    $pushed++;
-                    continue;
-                }
-
-                $err = $failed->get((int) $item->id);
-                $errorText = is_array($err) ? (string) ($err['error'] ?? 'unknown') : 'not applied';
-
-                if (str_contains($errorText, 'Duplicate entry')) {
-                    $item->forceFill([
-                        'synced_at' => now(),
-                        'last_error' => null,
-                    ])->save();
-                    $pushed++;
-
-                    continue;
-                }
-
-                if ($this->stripUnknownColumnFromQueueItem($item, $errorText)) {
-                    $strippedForRetry = true;
-
-                    continue;
-                }
-
-                $item->forceFill([
-                    'attempts' => min(254, (int) $item->attempts + 1),
-                    'last_error' => $errorText,
-                ])->save();
-            }
-
-            if ($failed->isNotEmpty() && ! $strippedForRetry) {
-                break;
+                $lock?->release();
+            } catch (\Throwable) {
+                // ignore
             }
         }
 
@@ -288,7 +315,7 @@ class CloudSyncService
         $failed = [];
 
         if ($this->isCloudRole()) {
-            $this->schemaService->ensureAll();
+            $this->ensureTargetSchemaOnce();
         }
 
         SyncOutboxRecorder::$applyingRemote = true;
@@ -349,10 +376,6 @@ class CloudSyncService
                             $connection->table($table)->updateOrInsert(['id' => $key], $payload);
                         } else {
                             unset($payload['id']);
-                            // Kitchen printer columns must exist before filterPayloadForTable strips them.
-                            if ($table === 'inventory_departments') {
-                                $this->schemaService->ensureAll();
-                            }
                             $payload = $this->filterPayloadForTable($connection, $table, $payload);
                             $connection->table($table)->updateOrInsert(['id' => $key], $payload);
 
@@ -1291,8 +1314,37 @@ class CloudSyncService
      */
     protected function filterPullChangesSkippingLocalPending(array $changes): array
     {
-        if (! Schema::hasTable('sync_queue')) {
+        if (! Schema::hasTable('sync_queue') || $changes === []) {
             return $changes;
+        }
+
+        $byTable = [];
+        foreach ($changes as $change) {
+            $table = (string) ($change['table'] ?? '');
+            $key = (string) ($change['key'] ?? '');
+            if ($table === '' || $key === '') {
+                continue;
+            }
+            $byTable[$table][] = $key;
+        }
+
+        $pendingSet = [];
+        foreach ($byTable as $table => $keys) {
+            $keys = array_values(array_unique($keys));
+            if ($keys === []) {
+                continue;
+            }
+
+            $pendingKeys = SyncQueueItem::query()
+                ->whereNull('synced_at')
+                ->where('table_name', $table)
+                ->whereIn('record_key', $keys)
+                ->pluck('record_key')
+                ->all();
+
+            foreach ($pendingKeys as $pendingKey) {
+                $pendingSet[$table.'|'.$pendingKey] = true;
+            }
         }
 
         $out = [];
@@ -1302,12 +1354,7 @@ class CloudSyncService
             if ($table === '' || $key === '') {
                 continue;
             }
-            $pending = SyncQueueItem::query()
-                ->whereNull('synced_at')
-                ->where('table_name', $table)
-                ->where('record_key', $key)
-                ->exists();
-            if ($pending) {
+            if (isset($pendingSet[$table.'|'.$key])) {
                 continue;
             }
             $out[] = $change;
@@ -1425,6 +1472,7 @@ class CloudSyncService
     public function status(): array
     {
         $online = $this->isLocalRole() ? $this->remoteReachable() : true;
+        $pullEnabled = (bool) config('sync.pull_enabled', false);
 
         return [
             'enabled' => (bool) config('sync.enabled'),
@@ -1436,10 +1484,11 @@ class CloudSyncService
             'last_receive_at' => $this->getMeta('last_receive_at'),
             'last_pull_at' => $this->getMeta('last_pull_at'),
             'auto_push' => (bool) config('sync.auto_push_heartbeat', true),
-            'auto_pull' => (bool) config('sync.pull_enabled', false) && (bool) config('sync.auto_pull', false),
-            'pull_enabled' => (bool) config('sync.pull_enabled', false),
+            'auto_pull' => $pullEnabled && (bool) config('sync.auto_pull', false),
+            'pull_enabled' => $pullEnabled,
             'cloud_read_only' => config('sync.role') === 'cloud' && (bool) config('sync.cloud_read_only', true),
-            'pull_tables' => count($this->resolvePullTables()),
+            // Avoid SHOW TABLES on every heartbeat — expensive and unused by the badge.
+            'pull_tables' => $pullEnabled ? 1 : 0,
         ];
     }
 
