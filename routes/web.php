@@ -42,6 +42,7 @@ use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\CreditBookController;
 use App\Http\Controllers\MaintenanceController;
+use App\Http\Controllers\DemandController;
 use App\Http\Controllers\GuestRoom\GuestRoomDashboardController;
 use App\Http\Controllers\GuestRoom\RoomCategoryController;
 use App\Http\Controllers\GuestRoom\RoomController as GuestRoomRoomController;
@@ -210,6 +211,12 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
         Route::post('/categories', [MaintenanceController::class, 'storeCategory'])->name('categories.store');
         Route::post('/opening-stock', [MaintenanceController::class, 'setOpeningStock'])->name('opening-stock.set');
         Route::delete('/purge', [MaintenanceController::class, 'purgeAll'])->name('purge');
+    });
+
+    Route::prefix('demand')->name('demand.')->middleware('moduleAccess')->group(function () {
+        Route::get('/', [DemandController::class, 'index'])->name('index');
+        Route::post('/', [DemandController::class, 'store'])->name('store');
+        Route::post('/lines/{line}/issue', [DemandController::class, 'issueLine'])->name('lines.issue');
     });
 
     Route::prefix('custom-forms')->name('custom-forms.')->middleware('moduleAccess')->group(function () {

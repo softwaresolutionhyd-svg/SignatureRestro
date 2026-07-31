@@ -177,6 +177,19 @@
         </a>
         @endif
 
+        @if($u->canAccessDemand())
+        <a class="odoo-app" href="{{ route('demand.index') }}">
+            <div class="odoo-icon" style="--icon-color:#ea580c;">
+                <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M10 12h20v18H10z" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round"/>
+                    <path d="M14 12V9a6 6 0 0 1 12 0v3" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/>
+                    <path d="M16 20h8M16 25h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <span class="odoo-label">{{ __('Demand') }}</span>
+        </a>
+        @endif
+
         @if($u->canViewModule('hr'))
         <a class="odoo-app" href="{{ route('hr.index') }}">
             <div class="odoo-icon" style="--icon-color:#ec4899;">

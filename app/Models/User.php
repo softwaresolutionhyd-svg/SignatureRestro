@@ -130,6 +130,10 @@ class User extends Authenticatable
         }
 
         if (ModuleAccess::isAdminOnlyModule($module)) {
+            if ($module === 'demand') {
+                return $this->canAccessDemand();
+            }
+
             return $this->canAccessPosClosing();
         }
 
@@ -198,6 +202,78 @@ class User extends Authenticatable
     public function canManagePayroll(): bool
     {
         return $this->hasManagerDesignationAccess();
+    }
+
+    /** Demand module launcher — Admin, Manager, or Storekeeper. */
+    public function canAccessDemand(): bool
+    {
+        if ($this->bypassesModulePermissions() || ($this->role ?? null) === 'admin') {
+            return true;
+        }
+
+        if ($this->isStorekeeperStaff()) {
+            return true;
+        }
+
+        return $this->hasManagerDesignationOnly();
+    }
+
+    /** Create Demand tab — Admin / Manager only. */
+    public function canCreateStockDemand(): bool
+    {
+        if ($this->bypassesModulePermissions() || ($this->role ?? null) === 'admin') {
+            return true;
+        }
+
+        return $this->hasManagerDesignationOnly();
+    }
+
+    /** Issue from Today's Demand — Admin, Manager, Storekeeper. */
+    public function canIssueStockDemand(): bool
+    {
+        return $this->canAccessDemand();
+    }
+
+    private function hasManagerDesignationOnly(): bool
+    {
+        $employee = $this->resolveEmployeeForAccess();
+        if ($employee === null) {
+            return false;
+        }
+
+        return $this->designationGrantsManagerAccess($employee);
+    }
+
+    public function isStorekeeperStaff(): bool
+    {
+        $employee = $this->resolveEmployeeForAccess();
+        if ($employee === null) {
+            return false;
+        }
+
+        $employee->loadMissing(['designation:id,name', 'staffCategory:id,name']);
+
+        $labels = [
+            mb_strtolower(trim((string) ($employee->designation?->name ?? '')), 'UTF-8'),
+            mb_strtolower(trim((string) ($employee->staffCategory?->name ?? '')), 'UTF-8'),
+        ];
+
+        if (Schema::connection('tenant')->hasColumn('employees', 'designation')) {
+            $labels[] = mb_strtolower(trim((string) $employee->getAttribute('designation')), 'UTF-8');
+        }
+
+        foreach ($labels as $label) {
+            if ($label === '') {
+                continue;
+            }
+            foreach (['storekeep', 'store keep', 'store-keep', 'store keeper', 'warehouse keep', 'store incharge', 'store in-charge'] as $keyword) {
+                if (str_contains($label, $keyword)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private function hasManagerDesignationAccess(): bool

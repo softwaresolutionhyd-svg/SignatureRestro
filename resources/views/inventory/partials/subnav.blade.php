@@ -53,6 +53,11 @@ $alertBadge = $lowStockBadge + $outBadge;
         <a href="{{ route('maintenance.index') }}" class="btn btn-outline-primary {{ request()->routeIs('maintenance.*') ? 'active' : '' }}">
             <i class="bi bi-tools me-1"></i> {{ __('Maintenance') }}
         </a>
+        @if(auth()->user()?->canAccessDemand())
+        <a href="{{ route('demand.index') }}" class="btn btn-outline-primary {{ request()->routeIs('demand.*') ? 'active' : '' }}">
+            <i class="bi bi-clipboard2-check me-1"></i> {{ __('Demand') }}
+        </a>
+        @endif
         <a href="{{ route('inventory.low-stock') }}" class="btn {{ request()->routeIs('inventory.low-stock') ? 'btn-warning' : 'btn-outline-warning' }} position-relative">
             <svg width="14" height="14" fill="none" viewBox="0 0 20 20" class="me-1"><path d="M10 2L2 17h16L10 2z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 7v4M10 13h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
             {{ __('Low Stock') }}

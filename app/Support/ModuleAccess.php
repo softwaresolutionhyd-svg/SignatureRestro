@@ -16,6 +16,7 @@ final class ModuleAccess
         'hr' => 'HR',
         'manufacturing' => 'Manufacturing',
         'maintenance' => 'Maintenance',
+        'demand' => 'Demand',
         'custom-forms' => 'Custom Forms',
         'expenses' => 'Expenses',
         'accounts' => 'Accounts',
@@ -29,6 +30,7 @@ final class ModuleAccess
     /** Only company admin / manager designation — not assignable in employee permission matrix. */
     public const ADMIN_ONLY_MODULES = [
         'pos-closing',
+        'demand',
     ];
 
     /** Legacy permission keys merged when checking HR access. */

@@ -56,7 +56,19 @@ class EnsureUserHasModuleAccess
         }
 
         if (ModuleAccess::isAdminOnlyModule($module)) {
-            if (! $user instanceof User || ! $user->canAccessPosClosing()) {
+            if (! $user instanceof User) {
+                abort(403);
+            }
+
+            if ($module === 'demand') {
+                if (! $user->canAccessDemand()) {
+                    abort(403);
+                }
+
+                return $next($request);
+            }
+
+            if (! $user->canAccessPosClosing()) {
                 abort(403);
             }
 
@@ -126,6 +138,14 @@ class EnsureUserHasModuleAccess
 
         if ($routeName === 'inventory.stock-check.submit' && $method === 'POST') {
             return 'create';
+        }
+
+        if ($routeName === 'demand.store' && $method === 'POST') {
+            return 'create';
+        }
+
+        if ($routeName === 'demand.lines.issue' && $method === 'POST') {
+            return 'edit';
         }
 
         if ($routeName === 'manufacturing.orders.complete') {
