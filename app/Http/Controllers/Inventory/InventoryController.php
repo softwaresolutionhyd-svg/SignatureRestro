@@ -18,12 +18,13 @@ class InventoryController extends Controller
             'products'        => InventoryProduct::query()->count(),
             'active_products' => InventoryProduct::query()->where('active', true)->count(),
             'on_hand_total'   => (float) InventoryProduct::query()->sum('qty_on_hand'),
-            'moves_today'     => InventoryMove::query()->whereDate('created_at', now()->toDateString())->count(),
+            'moves_today'     => InventoryMove::query()->excludingPosSales()->whereDate('created_at', now()->toDateString())->count(),
             'low_stock'       => InventoryProduct::where('active', true)->where('for_purchase', true)->where('reorder_level', '>', 0)->whereRaw('qty_on_hand <= reorder_level')->excludingActiveBomFinishedProducts()->count(),
             'out_of_stock'    => InventoryProduct::where('active', true)->where('for_purchase', true)->where('qty_on_hand', '<=', 0)->count(),
         ];
 
         $recentMoves = InventoryMove::query()
+            ->excludingPosSales()
             ->with(['product:id,sku,name,uom', 'user:id,name'])
             ->latest()
             ->limit(10)

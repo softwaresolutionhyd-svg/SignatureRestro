@@ -62,4 +62,15 @@ class InventoryMove extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+
+    /**
+     * Hide automatic POS sale/refund inventory deductions from Stock Moves UI.
+     */
+    public function scopeExcludingPosSales($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereNull('note')
+                ->orWhere('note', 'not like', 'POS %');
+        });
+    }
 }

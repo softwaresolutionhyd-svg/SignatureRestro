@@ -27,6 +27,7 @@ class MoveController extends Controller
         $type = $request->query('type');
 
         $moves = InventoryMove::query()
+            ->excludingPosSales()
             ->with(['product:id,sku,name,uom', 'user:id,name'])
             ->when(in_array($type, ['in', 'out', 'adjust', 'wastage', 'transfer'], true), fn ($q) => $q->where('type', $type))
             ->latest()
