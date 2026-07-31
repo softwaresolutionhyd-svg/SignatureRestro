@@ -193,7 +193,8 @@ final class InventoryStockService
                 ));
             }
 
-            $warehouseRow->update(['qty_on_hand' => round($available - $qtyBase, 3)]);
+            $qtyAfterWarehouse = round($available - $qtyBase, 3);
+            $warehouseRow->update(['qty_on_hand' => $qtyAfterWarehouse]);
             $this->addStock((int) $product->id, (int) $toDepartment->id, $qtyBase);
 
             InventoryMove::create([
@@ -206,8 +207,9 @@ final class InventoryStockService
                 'uom' => $uom,
                 'qty_uom' => $qtyUom,
                 'factor_to_base' => $factor,
-                'qty_before' => (float) $product->qty_on_hand,
-                'qty_after' => (float) $product->qty_on_hand,
+                // Show warehouse balance change (company total qty_on_hand is unchanged on transfer).
+                'qty_before' => $available,
+                'qty_after' => $qtyAfterWarehouse,
                 'reference' => $reference,
                 'note' => $note ?: sprintf('Issued to %s', $toDepartment->name),
             ]);
