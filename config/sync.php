@@ -95,6 +95,9 @@ return [
         'job_batches',
         'sync_queue',
         'sync_meta',
+        // Demand tables: skip until hosting has EnsuresStockDemandSchema deployed
+        'stock_demands',
+        'stock_demand_lines',
         'telescope_entries',
         'telescope_entries_tags',
         'telescope_monitoring',

@@ -221,6 +221,15 @@ class CloudSyncService
                         continue;
                     }
 
+                    // Hosting schema lag — don't leave badge stuck on Sync N forever.
+                    if (str_contains($errorText, 'Table missing:')) {
+                        $item->forceFill([
+                            'synced_at' => now(),
+                            'last_error' => $errorText.' (skipped — deploy schema on hosting)',
+                        ])->save();
+                        continue;
+                    }
+
                     if ($this->stripUnknownColumnFromQueueItem($item, $errorText)) {
                         $strippedForRetry = true;
                         continue;

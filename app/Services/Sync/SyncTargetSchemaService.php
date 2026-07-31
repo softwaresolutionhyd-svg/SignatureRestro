@@ -6,6 +6,7 @@ use App\Support\EnsuresEmployeeLoanSchema;
 use App\Support\EnsuresEmployeeStaffCategorySchema;
 use App\Support\EnsuresKitchenAgentSchema;
 use App\Support\EnsuresPayrollSchema;
+use App\Support\EnsuresStockDemandSchema;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
@@ -15,6 +16,7 @@ class SyncTargetSchemaService
     use EnsuresEmployeeStaffCategorySchema;
     use EnsuresKitchenAgentSchema;
     use EnsuresPayrollSchema;
+    use EnsuresStockDemandSchema;
 
     public function ensureAll(): void
     {
@@ -25,6 +27,7 @@ class SyncTargetSchemaService
                 $this->ensureEmployeeStaffCategorySchema($connection);
                 $this->ensureCreditLedgerPayrollColumn($connection);
                 $this->ensureKitchenAgentSchema($connection);
+                $this->ensureStockDemandSchema($connection);
             } catch (\Throwable $e) {
                 Log::warning('sync.schema_ensure_failed', [
                     'connection' => $connection,
