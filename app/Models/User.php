@@ -228,10 +228,24 @@ class User extends Authenticatable
         return $this->hasManagerDesignationOnly();
     }
 
-    /** Issue from Today's Demand — Admin, Manager, Storekeeper. */
+    /** Today's Demand — Storekeeper only (not Admin / Manager). */
+    public function canViewTodaysDemand(): bool
+    {
+        if ($this->bypassesModulePermissions() || ($this->role ?? null) === 'admin') {
+            return false;
+        }
+
+        if ($this->hasManagerDesignationOnly()) {
+            return false;
+        }
+
+        return $this->isStorekeeperStaff();
+    }
+
+    /** Issue from Today's Demand — Storekeeper only. */
     public function canIssueStockDemand(): bool
     {
-        return $this->canAccessDemand();
+        return $this->canViewTodaysDemand();
     }
 
     private function hasManagerDesignationOnly(): bool

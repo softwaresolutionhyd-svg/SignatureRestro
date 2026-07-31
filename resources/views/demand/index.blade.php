@@ -9,7 +9,7 @@
         <h4 class="fw-bold mb-0">{{ __('Demand') }}</h4>
         <div class="text-secondary small">
             @if($canCreate)
-                {{ __('Ingredients demand create karein aur warehouse se department ko issue karein.') }}
+                {{ __('Ingredients demand create karein — issue Storekeeper karega.') }}
             @else
                 {{ __('Aaj ki demands dekhein aur warehouse stock se issue karein.') }}
             @endif
@@ -45,15 +45,14 @@
     </div>
 @endif
 
+@if($canCreate && $canViewToday)
 <ul class="nav nav-tabs mb-4" role="tablist">
-    @if($canCreate)
-        <li class="nav-item">
-            <a class="nav-link {{ $tab === 'create' ? 'active' : '' }}"
-               href="{{ route('demand.index', ['tab' => 'create']) }}">
-                <i class="bi bi-plus-circle me-1"></i> {{ __('Create Demand') }}
-            </a>
-        </li>
-    @endif
+    <li class="nav-item">
+        <a class="nav-link {{ $tab === 'create' ? 'active' : '' }}"
+           href="{{ route('demand.index', ['tab' => 'create']) }}">
+            <i class="bi bi-plus-circle me-1"></i> {{ __('Create Demand') }}
+        </a>
+    </li>
     <li class="nav-item">
         <a class="nav-link {{ $tab === 'today' ? 'active' : '' }}"
            href="{{ route('demand.index', ['tab' => 'today']) }}">
@@ -61,6 +60,7 @@
         </a>
     </li>
 </ul>
+@endif
 
 @if($tab === 'create' && $canCreate)
     <div class="card shadow-sm">
@@ -119,9 +119,6 @@
                     <button type="submit" class="btn btn-primary" @disabled($departments->isEmpty() || $ingredients->isEmpty())>
                         <i class="bi bi-send me-1"></i> {{ __('Submit Demand') }}
                     </button>
-                    <a href="{{ route('demand.index', ['tab' => 'today']) }}" class="btn btn-outline-secondary">
-                        {{ __("Today's Demand") }}
-                    </a>
                 </div>
             </form>
         </div>
@@ -160,7 +157,7 @@
     <script type="application/json" id="demandIngredientsJson">@json($ingredientsJson)</script>
 @endif
 
-@if($tab === 'today')
+@if($tab === 'today' && $canViewToday)
     <div class="card shadow-sm">
         <div class="card-header bg-white d-flex align-items-center justify-content-between flex-wrap gap-2">
             <div class="fw-semibold">{{ __("Today's Demand") }}</div>

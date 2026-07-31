@@ -26,11 +26,17 @@ class DemandController extends Controller
         abort_unless($user?->canAccessDemand(), 403);
 
         $canCreate = (bool) $user->canCreateStockDemand();
+        $canViewToday = (bool) $user->canViewTodaysDemand();
+        abort_unless($canCreate || $canViewToday, 403);
+
         $tab = (string) $request->query('tab', $canCreate ? 'create' : 'today');
         if (! in_array($tab, ['create', 'today'], true)) {
             $tab = $canCreate ? 'create' : 'today';
         }
-        if (! $canCreate) {
+        if ($tab === 'today' && ! $canViewToday) {
+            $tab = 'create';
+        }
+        if ($tab === 'create' && ! $canCreate) {
             $tab = 'today';
         }
 
@@ -40,7 +46,7 @@ class DemandController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        $ingredients = $this->ingredientProducts();
+        $ingredients = $canCreate ? $this->ingredientProducts() : collect();
         $warehouse = $this->stockService->ensureWarehouse();
         $warehouseId = (int) $warehouse->id;
 
@@ -52,31 +58,35 @@ class DemandController extends Controller
         }
 
         $today = now()->toDateString();
-        $todaysDemands = StockDemand::query()
-            ->with([
-                'department:id,name',
-                'creator:id,name',
-                'lines.product:id,sku,name,uom',
-            ])
-            ->whereDate('demand_date', $today)
-            ->whereIn('status', ['pending', 'partial', 'issued'])
-            ->orderByDesc('id')
-            ->get();
+        $todaysDemands = collect();
 
-        foreach ($todaysDemands as $demand) {
-            foreach ($demand->lines as $line) {
-                $whQty = $this->stockService->stockQty((int) $line->product_id, $warehouseId);
-                $remaining = $line->remainingQtyBase();
-                $line->setAttribute('warehouse_qty', $whQty);
-                $line->setAttribute('remaining_qty_base', $remaining);
-                $line->setAttribute(
-                    'can_issue',
-                    ! $line->isFullyIssued() && $whQty + 0.0005 >= $remaining && $remaining > 0
-                );
-                $line->setAttribute(
-                    'out_of_stock',
-                    ! $line->isFullyIssued() && $whQty + 0.0005 < $remaining
-                );
+        if ($canViewToday) {
+            $todaysDemands = StockDemand::query()
+                ->with([
+                    'department:id,name',
+                    'creator:id,name',
+                    'lines.product:id,sku,name,uom',
+                ])
+                ->whereDate('demand_date', $today)
+                ->whereIn('status', ['pending', 'partial', 'issued'])
+                ->orderByDesc('id')
+                ->get();
+
+            foreach ($todaysDemands as $demand) {
+                foreach ($demand->lines as $line) {
+                    $whQty = $this->stockService->stockQty((int) $line->product_id, $warehouseId);
+                    $remaining = $line->remainingQtyBase();
+                    $line->setAttribute('warehouse_qty', $whQty);
+                    $line->setAttribute('remaining_qty_base', $remaining);
+                    $line->setAttribute(
+                        'can_issue',
+                        ! $line->isFullyIssued() && $whQty + 0.0005 >= $remaining && $remaining > 0
+                    );
+                    $line->setAttribute(
+                        'out_of_stock',
+                        ! $line->isFullyIssued() && $whQty + 0.0005 < $remaining
+                    );
+                }
             }
         }
 
@@ -95,6 +105,7 @@ class DemandController extends Controller
         return view('demand.index', [
             'tab' => $tab,
             'canCreate' => $canCreate,
+            'canViewToday' => $canViewToday,
             'departments' => $departments,
             'ingredients' => $ingredients,
             'ingredientsJson' => $ingredientsJson,
@@ -169,8 +180,8 @@ class DemandController extends Controller
         }
 
         return redirect()
-            ->route('demand.index', ['tab' => 'today'])
-            ->with('success', 'Demand create ho gayi.');
+            ->route('demand.index', ['tab' => 'create'])
+            ->with('success', 'Demand create ho gayi. Storekeeper Today\'s Demand mein issue karega.');
     }
 
     public function issueLine(Request $request, StockDemandLine $line)
