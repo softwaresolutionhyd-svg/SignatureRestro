@@ -126,21 +126,7 @@ class PosController extends Controller
 
         $heldOrders = $this->heldOrdersForSession($session, $user);
 
-        $paidOrders = PosOrder::query()
-            ->where('session_id', $session->id)
-            ->where('status', 'paid')
-            ->when($session->opened_at, function ($q) use ($session) {
-                $q->where(function ($sub) use ($session) {
-                    $sub->where('paid_at', '>=', $session->opened_at)
-                        ->orWhereNull('paid_at');
-                });
-            })
-            ->with(['table:id,name', 'payments:id,order_id,method,amount', 'items.product:id,name', 'user:id,name'])
-            ->withCount('items')
-            ->orderByDesc('paid_at')
-            ->orderByDesc('id')
-            ->limit(150)
-            ->get();
+        $paidOrders = $this->paidOrdersForSession($session, $user);
 
         $paidBillsDetail = $paidOrders
             ->map(fn (PosOrder $order) => $this->posOrderDetailsPayload($order))
@@ -506,15 +492,32 @@ class PosController extends Controller
      */
     private function resolvePosBillSessionIds(PosSession $session, ?User $user): array
     {
-        if ($this->posUsesSharedBills($user)) {
-            $date = $session->business_date instanceof \Illuminate\Support\Carbon
-                ? $session->business_date->toDateString()
-                : (string) ($session->business_date ?: $this->todayBusinessDate());
-
-            return $this->sessionIdsForBusinessDate($date);
+        if (! $this->posUsesSharedBills($user)) {
+            return [(int) $session->id];
         }
 
-        return [(int) $session->id];
+        $date = $session->business_date instanceof \Illuminate\Support\Carbon
+            ? $session->business_date->toDateString()
+            : (string) ($session->business_date ?: $this->todayBusinessDate());
+
+        $ids = $this->sessionIdsForBusinessDate($date);
+
+        // Managers / admins should see every open-floor bill, not only their own session day.
+        if ($user?->bypassesModulePermissions() || $this->posStaffCapabilities($user)['is_manager']) {
+            $openIds = PosSession::query()
+                ->where('status', 'open')
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            $ids = array_values(array_unique(array_merge(
+                $ids,
+                $this->sessionIdsForBusinessDate($this->todayBusinessDate()),
+                $openIds
+            )));
+        }
+
+        return $ids === [] ? [(int) $session->id] : $ids;
     }
 
     private function assertPosCheckoutPermissions(User $user, PosCheckoutRequest $request, bool $isCredit, bool $isCheckout): void
@@ -566,10 +569,15 @@ class PosController extends Controller
     public function sync(Request $request): JsonResponse
     {
         $this->ensurePosSessionDailyClosingSchema();
-        $session = $this->requireOpenSessionForUser(Auth::user());
+        $user = Auth::user();
+        $session = $this->requireOpenSessionForUser($user);
 
-        $heldOrders = $this->heldOrdersForSession($session);
+        $heldOrders = $this->heldOrdersForSession($session, $user);
         $pending = $heldOrders
+            ->map(fn (PosOrder $order) => $this->posOrderDetailsPayload($order))
+            ->values();
+
+        $paid = $this->paidOrdersForSession($session, $user)
             ->map(fn (PosOrder $order) => $this->posOrderDetailsPayload($order))
             ->values();
 
@@ -577,7 +585,8 @@ class PosController extends Controller
         if ($request->filled('resume_order_id')) {
             $resumedOrder = $this->findDraftOrderForSession(
                 $session,
-                $request->integer('resume_order_id')
+                $request->integer('resume_order_id'),
+                $user
             );
 
             if ($resumedOrder !== null) {
@@ -601,7 +610,9 @@ class PosController extends Controller
 
         return response()->json([
             'pending' => $pending,
+            'paid' => $paid,
             'count' => $pending->count(),
+            'paid_count' => $paid->count(),
             'resumed' => $resumed,
             'table_board' => $this->orderTaker->tableBoard(),
         ]);
@@ -756,6 +767,38 @@ class PosController extends Controller
             ->filter(fn (PosOrder $order) => $order->isDueForServeDay())
             ->sortByDesc('id')
             ->values();
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, PosOrder>
+     */
+    private function paidOrdersForSession(PosSession $session, ?User $user = null): \Illuminate\Support\Collection
+    {
+        $user = $user ?? Auth::user();
+        $billSessionIds = $this->resolvePosBillSessionIds($session, $user);
+        if ($billSessionIds === []) {
+            return collect();
+        }
+
+        $oldestOpenedAt = PosSession::query()
+            ->whereIn('id', $billSessionIds)
+            ->min('opened_at');
+
+        return PosOrder::query()
+            ->whereIn('session_id', $billSessionIds)
+            ->where('status', 'paid')
+            ->when($oldestOpenedAt, function ($q) use ($oldestOpenedAt) {
+                $q->where(function ($sub) use ($oldestOpenedAt) {
+                    $sub->where('paid_at', '>=', $oldestOpenedAt)
+                        ->orWhereNull('paid_at');
+                });
+            })
+            ->with(['table:id,name', 'payments:id,order_id,method,amount', 'items.product:id,name', 'user:id,name'])
+            ->withCount('items')
+            ->orderByDesc('paid_at')
+            ->orderByDesc('id')
+            ->limit(150)
+            ->get();
     }
 
     private function findDraftOrderForSession(PosSession $session, int $orderId, ?User $user = null): ?PosOrder

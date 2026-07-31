@@ -3415,8 +3415,13 @@
             const data = await res.json();
             if (Array.isArray(data.pending)) {
                 boot.pendingBillsDetail = data.pending;
+            }
+            if (Array.isArray(data.paid)) {
+                boot.paidBillsDetail = data.paid;
+            }
+            if (Array.isArray(data.pending) || Array.isArray(data.paid)) {
                 updateOrderTabCounts();
-                if (orderListMode === 'pending') {
+                if (orderListMode === 'pending' || orderListMode === 'paid') {
                     renderOrderCards();
                 }
             }
