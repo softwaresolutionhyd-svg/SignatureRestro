@@ -1398,7 +1398,7 @@ class PosController extends Controller
                 SyncAwareDelete::relation($order->items());
             } else {
                 $order = PosOrder::create([
-                    'order_no'   => DailyOrderNumber::next(),
+                    'order_no'   => DailyOrderNumber::next($session),
                     'session_id' => $session->id,
                 ] + $orderPayload);
             }
@@ -1739,7 +1739,7 @@ class PosController extends Controller
             $itemsWithKitchenFlags = $kitchen->applyKitchenPendingFlags([], $itemsData, $sendToKitchen);
 
             $order = PosOrder::create([
-                'order_no' => DailyOrderNumber::next(),
+                'order_no' => DailyOrderNumber::next($session),
                 'session_id' => $session->id,
                 'user_id' => Auth::id(),
                 'status' => 'draft',

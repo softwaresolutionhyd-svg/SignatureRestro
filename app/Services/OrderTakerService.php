@@ -45,7 +45,7 @@ final class OrderTakerService
         $session = $this->openPosSession();
 
         $orderPayload = [
-            'order_no' => DailyOrderNumber::next(),
+            'order_no' => DailyOrderNumber::next($session),
             'session_id' => $session?->id,
             'user_id' => Auth::id(),
             'status' => 'draft',

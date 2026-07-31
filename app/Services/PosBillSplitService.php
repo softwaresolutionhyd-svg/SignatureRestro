@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\PosOrder;
 use App\Models\PosOrderItem;
+use App\Models\PosSession;
 use App\Models\Setting;
 use App\Support\DailyOrderNumber;
 use App\Support\PosServiceCharge;
@@ -210,8 +211,12 @@ final class PosBillSplitService
      */
     private function cloneOrderHeader(PosOrder $source, string $guestName, bool $clearTable = true): PosOrder
     {
+        $session = $source->session_id
+            ? PosSession::query()->find($source->session_id)
+            : null;
+
         $payload = [
-            'order_no' => DailyOrderNumber::next(),
+            'order_no' => DailyOrderNumber::next($session),
             'session_id' => $source->session_id,
             'user_id' => Auth::id() ?: $source->user_id,
             'status' => 'draft',
