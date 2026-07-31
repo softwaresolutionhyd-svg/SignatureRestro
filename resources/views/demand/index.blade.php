@@ -130,23 +130,20 @@
     <template id="demandLineTemplate">
         <tr class="demand-line-row">
             <td>
-                <select name="lines[__INDEX__][product_id]" class="form-select form-select-sm demand-product" required>
-                    <option value="">{{ __('Select ingredient...') }}</option>
-                    @foreach($ingredients as $p)
-                        <option value="{{ $p->id }}"
-                                data-uom="{{ $p->uom }}"
-                                data-warehouse="{{ fmt_num((float) ($p->warehouse_qty ?? 0), 3) }}">
-                            {{ $p->sku }} — {{ $p->name }}
-                        </option>
-                    @endforeach
-                </select>
+                <input type="text"
+                       class="form-control form-control-sm demand-product-search"
+                       placeholder="{{ __('Type name / SKU...') }}"
+                       autocomplete="off"
+                       list="demandIngredientOptions"
+                       required>
+                <input type="hidden" name="lines[__INDEX__][product_id]" class="demand-product-id" value="" required>
             </td>
             <td>
                 <input type="number" step="0.001" min="0.001" name="lines[__INDEX__][qty_uom]"
                        class="form-control form-control-sm" required value="1">
             </td>
             <td>
-                <input type="text" name="lines[__INDEX__][uom]" class="form-control form-control-sm demand-uom" required maxlength="30">
+                <input type="text" name="lines[__INDEX__][uom]" class="form-control form-control-sm demand-uom" required maxlength="30" readonly>
             </td>
             <td>
                 <span class="small text-secondary demand-wh">—</span>
@@ -158,6 +155,14 @@
             </td>
         </tr>
     </template>
+
+    <datalist id="demandIngredientOptions"></datalist>
+    <script type="application/json" id="demandIngredientsJson">@json($ingredients->map(fn ($p) => [
+        'id' => (string) $p->id,
+        'label' => trim(($p->sku ? $p->sku.' — ' : '').$p->name),
+        'uom' => (string) $p->uom,
+        'warehouse' => fmt_num((float) ($p->warehouse_qty ?? 0), 3),
+    ])->values())</script>
 @endif
 
 @if($tab === 'today')
@@ -258,34 +263,115 @@
     var body = document.getElementById('demandLinesBody');
     var tpl = document.getElementById('demandLineTemplate');
     var addBtn = document.getElementById('addDemandLine');
-    if (!body || !tpl || !addBtn) return;
+    var form = document.getElementById('demandCreateForm');
+    var datalist = document.getElementById('demandIngredientOptions');
+    var jsonEl = document.getElementById('demandIngredientsJson');
+    if (!body || !tpl || !addBtn || !datalist || !jsonEl) return;
+
+    var ingredients = [];
+    try {
+        ingredients = JSON.parse(jsonEl.textContent || '[]');
+    } catch (e) {
+        ingredients = [];
+    }
+
+    ingredients = ingredients.map(function (item) {
+        return {
+            id: String(item.id || ''),
+            label: String(item.label || '').trim(),
+            normalized: String(item.label || '').toLowerCase(),
+            uom: String(item.uom || ''),
+            warehouse: String(item.warehouse || '0')
+        };
+    });
 
     var index = 0;
 
-    function bindRow(row) {
-        var select = row.querySelector('.demand-product');
+    function findExact(term) {
+        var value = String(term || '').trim().toLowerCase();
+        if (!value) return null;
+        return ingredients.find(function (item) { return item.normalized === value; }) || null;
+    }
+
+    function findContains(term) {
+        var value = String(term || '').trim().toLowerCase();
+        if (!value) return null;
+        return ingredients.find(function (item) { return item.normalized.indexOf(value) !== -1; }) || null;
+    }
+
+    function fillDatalist(term) {
+        var query = String(term || '').trim().toLowerCase();
+        var list = !query
+            ? ingredients.slice(0, 60)
+            : ingredients.filter(function (item) {
+                return item.normalized.indexOf(query) !== -1;
+            }).slice(0, 100);
+
+        datalist.innerHTML = list.map(function (item) {
+            return '<option value="' + item.label.replace(/"/g, '&quot;') + '"></option>';
+        }).join('');
+    }
+
+    function setProduct(row, item) {
+        var search = row.querySelector('.demand-product-search');
+        var idInput = row.querySelector('.demand-product-id');
         var uom = row.querySelector('.demand-uom');
         var wh = row.querySelector('.demand-wh');
-        var remove = row.querySelector('.remove-demand-line');
 
-        function sync() {
-            var opt = select.options[select.selectedIndex];
-            if (!opt || !opt.value) {
-                uom.value = '';
-                wh.textContent = '—';
-                return;
-            }
-            uom.value = opt.getAttribute('data-uom') || '';
-            var w = opt.getAttribute('data-warehouse') || '0';
-            wh.textContent = w + ' ' + (uom.value || '');
+        if (!item) {
+            idInput.value = '';
+            uom.value = '';
+            wh.textContent = '—';
+            search.classList.remove('is-invalid');
+            return;
         }
 
-        select.addEventListener('change', sync);
+        search.value = item.label;
+        idInput.value = item.id;
+        uom.value = item.uom;
+        wh.textContent = item.warehouse + ' ' + item.uom;
+        search.classList.remove('is-invalid');
+    }
+
+    function bindRow(row) {
+        var search = row.querySelector('.demand-product-search');
+        var remove = row.querySelector('.remove-demand-line');
+
+        search.addEventListener('focus', function () {
+            fillDatalist(search.value);
+        });
+
+        search.addEventListener('input', function () {
+            var exact = findExact(search.value);
+            if (exact) {
+                setProduct(row, exact);
+            } else {
+                setProduct(row, null);
+            }
+            fillDatalist(search.value);
+        });
+
+        search.addEventListener('blur', function () {
+            var exact = findExact(search.value);
+            var partial = findContains(search.value);
+            if (exact) setProduct(row, exact);
+            else if (partial) setProduct(row, partial);
+            else if (!String(search.value || '').trim()) setProduct(row, null);
+        });
+
+        search.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            var exact = findExact(search.value);
+            var partial = findContains(search.value);
+            if (exact) setProduct(row, exact);
+            else if (partial) setProduct(row, partial);
+        });
+
         remove.addEventListener('click', function () {
             if (body.querySelectorAll('.demand-line-row').length <= 1) return;
             row.remove();
         });
-        sync();
     }
 
     function addRow() {
@@ -297,6 +383,25 @@
         bindRow(row);
     }
 
+    form.addEventListener('submit', function (e) {
+        var rows = body.querySelectorAll('.demand-line-row');
+        var ok = true;
+        rows.forEach(function (row) {
+            var idInput = row.querySelector('.demand-product-id');
+            var search = row.querySelector('.demand-product-search');
+            if (!idInput.value) {
+                ok = false;
+                search.classList.add('is-invalid');
+            }
+        });
+        if (!ok) {
+            e.preventDefault();
+            var firstBad = body.querySelector('.demand-product-search.is-invalid');
+            if (firstBad) firstBad.focus();
+        }
+    });
+
+    fillDatalist('');
     addBtn.addEventListener('click', addRow);
     addRow();
 })();
