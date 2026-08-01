@@ -33,7 +33,7 @@ class AttendanceController extends Controller
         $dates = $this->attendancePayroll->datesInMonth($month);
         [$startStr, $endStr] = $this->attendancePayroll->monthBounds($month);
 
-        $staffQuery = Employee::query()->orderBy('employee_no');
+        $staffQuery = Employee::query()->excludeAdminAccounts()->orderBy('employee_no');
         if ($activeOnly) {
             $staffQuery->where('active', true);
         }

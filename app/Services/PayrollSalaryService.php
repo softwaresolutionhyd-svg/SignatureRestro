@@ -113,7 +113,7 @@ class PayrollSalaryService
         $this->ensurePayrollSchema();
         $this->contactSync->syncAllEmployees();
 
-        $query = Employee::query()->orderBy('name');
+        $query = Employee::query()->excludeAdminAccounts()->orderBy('name');
         if ($activeOnly) {
             $query->where('active', true);
         }
@@ -184,6 +184,7 @@ class PayrollSalaryService
         }
 
         $query = Employee::query()
+            ->excludeAdminAccounts()
             ->with([
                 'designation:id,name',
                 'staffCategory:id,name,sort_order',

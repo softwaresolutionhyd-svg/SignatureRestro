@@ -47,6 +47,7 @@ class EmployeeLoanController extends Controller
         $this->ensureEmployeeLoanSchema();
 
         $employees = Employee::query()
+            ->excludeAdminAccounts()
             ->where('active', true)
             ->orderBy('employee_no')
             ->get(['id', 'name', 'employee_no']);

@@ -91,6 +91,31 @@ class Employee extends Model
         });
     }
 
+    /** Company/system admin employee rows (EMP-ADMIN-*) — not staff for HR lists. */
+    public function isAdminAccount(): bool
+    {
+        if (preg_match('/^EMP-ADMIN/i', trim((string) $this->employee_no))) {
+            return true;
+        }
+
+        $this->loadMissing('user:id,role');
+
+        return in_array($this->user?->role ?? null, ['company_admin', 'super_admin', 'admin'], true);
+    }
+
+    /** Hide admin/system accounts from Employees, Attendance, Payroll staff lists. */
+    public function scopeExcludeAdminAccounts(Builder $query): Builder
+    {
+        return $query
+            ->where('employee_no', 'not like', 'EMP-ADMIN%')
+            ->where(function (Builder $outer) {
+                $outer->whereDoesntHave('user')
+                    ->orWhereHas('user', function (Builder $userQuery) {
+                        $userQuery->whereNotIn('role', ['company_admin', 'super_admin', 'admin']);
+                    });
+            });
+    }
+
     /** Match employee ID (employee_no) or name — partial, case-insensitive on name. */
     public function scopeMatchingSearch(Builder $query, ?string $term): Builder
     {

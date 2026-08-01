@@ -36,6 +36,7 @@ class EmployeeController extends Controller
         }
 
         $employees = Employee::query()
+            ->excludeAdminAccounts()
             ->with(['designation:id,name', 'user:id,email'])
             ->when($employeeNo !== '', fn ($query) => $query->where('employee_no', 'like', "%{$employeeNo}%"))
             ->when($q !== '', function ($query) use ($q) {
