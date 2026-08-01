@@ -55,15 +55,12 @@
                 <tr>
                     <th>Employee #</th>
                     <th>
-                        @php
-                            $nameSortNext = ($sort ?? '') === 'name_az' ? 'name_za' : 'name_az';
-                            $nameSortQs = array_filter([
-                                'employee_no' => $employeeNo !== '' ? $employeeNo : null,
-                                'q' => $q !== '' ? $q : null,
-                                'sort' => $nameSortNext,
-                            ]);
-                        @endphp
-                        <a href="{{ route('employees.index', $nameSortQs) }}" class="text-decoration-none text-dark d-inline-flex align-items-center gap-1">
+                        <a href="{{ route('employees.index', array_filter([
+                                'employee_no' => ($employeeNo ?? '') !== '' ? $employeeNo : null,
+                                'q' => ($q ?? '') !== '' ? $q : null,
+                                'sort' => (($sort ?? '') === 'name_az') ? 'name_za' : 'name_az',
+                            ])) }}"
+                           class="text-decoration-none text-dark d-inline-flex align-items-center gap-1">
                             Name
                             @if(($sort ?? '') === 'name_az')
                                 <i class="bi bi-sort-alpha-down" title="A to Z"></i>
