@@ -163,10 +163,11 @@
             <div class="slip-row"><span class="slip-label">Employee Name</span><span class="slip-value">{{ $row['name'] }}</span></div>
             <div class="slip-row"><span class="slip-label">Designation</span><span class="slip-value">{{ $row['designation'] }}</span></div>
             <div class="slip-row"><span class="slip-label">Basic Salary</span><span class="slip-value">{{ number_format($row['basic_salary'], 2) }}</span></div>
+            <div class="slip-row"><span class="slip-label">Working Days (P+H)</span><span class="slip-value">{{ $row['working_days'] ?? 0 }}</span></div>
             <div class="slip-row"><span class="slip-label">Present Days</span><span class="slip-value">{{ $row['present_days'] ?? 0 }}</span></div>
             <div class="slip-row"><span class="slip-label">Holidays</span><span class="slip-value">{{ $row['holiday_days'] ?? 0 }}</span></div>
             <div class="slip-row"><span class="slip-label">Absent Days</span><span class="slip-value">{{ $row['absent_days'] ?? 0 }}</span></div>
-            <div class="slip-row"><span class="slip-label">Attendance Deduction</span><span class="slip-value">{{ number_format($row['deduction'], 2) }}</span></div>
+            <div class="slip-row"><span class="slip-label">Days Deduction (30 − working)</span><span class="slip-value">{{ number_format($row['deduction'], 2) }}</span></div>
             <div class="slip-row"><span class="slip-label">Food Bill (Credit)</span><span class="slip-value">{{ number_format($row['food_bill'], 2) }}</span></div>
             <div class="slip-row"><span class="slip-label">Loan</span><span class="slip-value">{{ number_format($row['loan'], 2) }}</span></div>
             @if($row['bonus'] > 0)

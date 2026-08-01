@@ -75,9 +75,10 @@ class AttendanceController extends Controller
             $summaries[$employee->id]['present'] = $counts['present'];
             $summaries[$employee->id]['absent'] = $counts['absent'];
             $summaries[$employee->id]['holiday'] = $counts['holiday'];
-            $summaries[$employee->id]['deduction'] = $this->attendancePayroll->absentDeductionAmount(
+            $workingDays = (int) $counts['present'] + (int) $counts['holiday'];
+            $summaries[$employee->id]['deduction'] = $this->attendancePayroll->workingDaysDeductionAmount(
                 (float) $employee->salary,
-                $counts['absent']
+                $workingDays
             );
         }
 
@@ -183,6 +184,6 @@ class AttendanceController extends Controller
                 'active_only' => $request->boolean('active_only', true) ? 1 : 0,
                 'employee_no' => trim((string) ($data['employee_no'] ?? '')),
             ], fn ($v) => $v !== '' && $v !== null))
-            ->with('status', 'Attendance save ho gayi — absent days ki salary payroll deduction mein update ho gayi.');
+            ->with('status', 'Attendance save ho gayi — payroll net salary working days (P+H) ke hisab se update ho gayi.');
     }
 }

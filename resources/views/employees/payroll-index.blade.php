@@ -37,6 +37,10 @@
                 <div>Paid net: <strong>{{ number_format($paidNet, 2) }}</strong></div>
             </div>
         </div>
+        <div class="card-footer bg-white small text-secondary py-2">
+            Net = <strong>(Base ÷ 30) × Days</strong> + Bonus − Food − Loan.
+            Days = Present + Holiday. Generate / Refresh attendance se sync karta hai.
+        </div>
     </div>
 
     <div class="card shadow-sm">

@@ -159,6 +159,34 @@ class AttendancePayrollService
         return round($basicSalary / self::WORKING_DAYS_PER_MONTH, 4);
     }
 
+    /** Earned pay for Present + Holiday days (capped at 30). */
+    public function earnedSalary(float $basicSalary, int $workingDays): float
+    {
+        if ($basicSalary <= 0 || $workingDays <= 0) {
+            return 0.0;
+        }
+
+        $days = min($workingDays, self::WORKING_DAYS_PER_MONTH);
+
+        return round($this->perDaySalary($basicSalary) * $days, 2);
+    }
+
+    /**
+     * Deduction so net base equals working-days pay:
+     * net_base = (basic / 30) × working_days.
+     */
+    public function workingDaysDeductionAmount(float $basicSalary, int $workingDays): float
+    {
+        if ($basicSalary <= 0) {
+            return 0.0;
+        }
+
+        $earned = $this->earnedSalary($basicSalary, $workingDays);
+
+        return round(max(0, $basicSalary - $earned), 2);
+    }
+
+    /** @deprecated Prefer workingDaysDeductionAmount — kept for older call sites. */
     public function absentDeductionAmount(float $basicSalary, int $absentDays): float
     {
         if ($absentDays <= 0 || $basicSalary <= 0) {
@@ -184,8 +212,9 @@ class AttendancePayrollService
             return;
         }
 
-        $absentDays = $this->countAbsentDays($employeeId, $period);
-        $entry->deduction = $this->absentDeductionAmount((float) $employee->salary, $absentDays);
+        $workingDays = $this->workingDaysMapForEmployees([$employeeId], $period)[$employeeId] ?? 0;
+        $entry->base_salary = (float) ($employee->salary ?? 0);
+        $entry->deduction = $this->workingDaysDeductionAmount((float) $entry->base_salary, $workingDays);
         $entry->recalculateNet();
         $entry->save();
     }

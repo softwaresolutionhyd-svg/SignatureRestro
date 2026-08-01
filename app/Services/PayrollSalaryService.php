@@ -63,12 +63,13 @@ class PayrollSalaryService
         Employee $employee,
         string $period,
         ?int $createdBy = null,
-        ?int $absentDays = null,
+        ?int $workingDays = null,
         ?float $foodBill = null,
     ): PayrollEntry {
         $base = (float) ($employee->salary ?? 0);
-        $absentDays = $absentDays ?? $this->attendancePayroll->countAbsentDays($employee->id, $period);
-        $deduction = $this->attendancePayroll->absentDeductionAmount($base, $absentDays);
+        $workingDays = $workingDays ?? $this->workingDaysForEmployee($employee->id, $period);
+        // Net base = (salary ÷ 30) × (Present + Holiday). Rest goes into deduction.
+        $deduction = $this->attendancePayroll->workingDaysDeductionAmount($base, $workingDays);
         $foodBill = $foodBill ?? $this->foodBillForEmployee($employee, $period);
 
         $entry = PayrollEntry::query()
@@ -119,7 +120,7 @@ class PayrollSalaryService
 
         $employees = $query->get();
         $employeeIds = $employees->pluck('id')->all();
-        $absentMap = $this->attendancePayroll->absentDaysMapForEmployees($employeeIds, $period);
+        $workingMap = $this->attendancePayroll->workingDaysMapForEmployees($employeeIds, $period);
         $foodBillMap = $this->foodBillMapForEmployees($employees, $period);
 
         foreach ($employees as $employee) {
@@ -127,7 +128,7 @@ class PayrollSalaryService
                 $employee,
                 $period,
                 $createdBy,
-                (int) ($absentMap[$employee->id] ?? 0),
+                (int) ($workingMap[$employee->id] ?? 0),
                 (float) ($foodBillMap[$employee->id] ?? 0),
             );
         }

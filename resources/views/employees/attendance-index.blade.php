@@ -138,8 +138,8 @@
 
     <div class="alert alert-info small mb-3">
         Har din <strong>P</strong> (Present), <strong>A</strong> (Absent), ya <strong>H</strong> (Holiday) select karein.
-        Sirf <strong>Absent</strong> par salary kat ti hai: <strong>Basic Salary ÷ 30</strong> per day.
-        Present aur Holiday par koi deduction nahi.
+        <strong>Net salary = (Basic ÷ 30) × (Present + Holiday)</strong>.
+        Absent aur blank din pay nahi milti.
     </div>
 
     <div class="card shadow-sm mb-3">
@@ -279,7 +279,7 @@
                 </table>
             </div>
             <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <span class="small text-secondary">Save karne par payroll draft mein absent deduction auto update hogi.</span>
+                <span class="small text-secondary">Save karne par payroll draft mein net salary working days (P+H) se auto update hogi.</span>
                 <button type="submit" class="btn btn-primary btn-sm">
                     <i class="bi bi-save me-1"></i> Save attendance
                 </button>
@@ -315,7 +315,9 @@
         if (hEl) hEl.textContent = String(h);
         if (dEl) {
             const perDay = Number(dEl.dataset.perDay || 0);
-            dEl.textContent = (perDay * a).toFixed(2);
+            const working = p + h;
+            const unpaid = Math.max(0, 30 - working);
+            dEl.textContent = (perDay * unpaid).toFixed(2);
         }
     }
 
