@@ -356,6 +356,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
 
             Route::get('/{employee}/edit', [EmployeeController::class, 'edit'])->name('edit');
             Route::put('/{employee}', [EmployeeController::class, 'update'])->name('update');
+            Route::delete('/{employee}/login-account', [EmployeeController::class, 'destroyLoginAccount'])->name('login-account.destroy');
             Route::delete('/{employee}', [EmployeeController::class, 'destroy'])->name('destroy');
         });
 

@@ -90,7 +90,17 @@
 
     <div class="col-12">
         <div class="border rounded-3 p-3 bg-light">
-            <div class="fw-semibold mb-2">Login Account (Username / Password)</div>
+            <div class="fw-semibold mb-2 d-flex align-items-center justify-content-between gap-2 flex-wrap">
+                <span>Login Account (Username / Password)</span>
+                @if(($employee->exists ?? false) && $employee->user && ($employee->user->role ?? '') === 'user')
+                    <button type="submit"
+                            form="employee-delete-login-form"
+                            class="btn btn-sm btn-outline-danger"
+                            onclick="return confirm('Sirf login account delete hogi. Employee ({{ $employee->employee_no }}) delete nahi hoga. Continue?');">
+                        <i class="bi bi-person-x me-1"></i> Delete Account
+                    </button>
+                @endif
+            </div>
             <div class="row g-3">
                 <div class="col-12 col-md-6">
                     <label class="form-label">Username</label>

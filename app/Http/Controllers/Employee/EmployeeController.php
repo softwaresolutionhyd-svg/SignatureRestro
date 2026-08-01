@@ -268,6 +268,41 @@ class EmployeeController extends Controller
         return redirect()->back()->with('status', 'Password updated for '.LoginUsername::display($employee->user->email).'.');
     }
 
+    public function destroyLoginAccount(Employee $employee)
+    {
+        $cid = current_company_id();
+        abort_if($cid === null || (int) $employee->company_id !== (int) $cid, 403);
+
+        $employee->load('user');
+        $user = $employee->user;
+
+        if ($user === null) {
+            return redirect()->back()->withErrors('Is employee ki koi login account nahi hai.');
+        }
+
+        if (! in_array($user->role ?? '', ['user'], true)) {
+            return redirect()->back()->withErrors('Admin / company admin account yahan se delete nahi ho sakti. Users & roles use karein.');
+        }
+
+        if ((int) auth()->id() === (int) $user->id) {
+            return redirect()->back()->withErrors('Apni khud ki login account yahan se delete nahi kar sakte.');
+        }
+
+        $username = LoginUsername::display($user->email);
+
+        $employee->forceFill(['user_id' => null])->save();
+        $user->delete();
+
+        ActivityLogger::log('employee.login_account_deleted', 'Employee login account deleted', $employee->fresh(), [
+            'username' => $username,
+            'employee_no' => $employee->employee_no,
+        ]);
+
+        return redirect()
+            ->route('employees.edit', $employee)
+            ->with('status', "Login account \"{$username}\" delete ho gayi. Employee record same hai.");
+    }
+
     public function destroy(Employee $employee)
     {
         $employee->load('user');

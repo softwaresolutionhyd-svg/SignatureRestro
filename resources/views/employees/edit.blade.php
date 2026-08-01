@@ -16,6 +16,15 @@
                 @method('PUT')
                 @include('employees.form')
             </form>
+            @if($employee->user && ($employee->user->role ?? '') === 'user')
+                <form id="employee-delete-login-form"
+                      method="POST"
+                      action="{{ route('employees.login-account.destroy', $employee) }}"
+                      class="d-none">
+                    @csrf
+                    @method('DELETE')
+                </form>
+            @endif
         </div>
     </div>
 
