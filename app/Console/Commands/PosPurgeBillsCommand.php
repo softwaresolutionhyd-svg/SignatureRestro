@@ -10,13 +10,13 @@ class PosPurgeBillsCommand extends Command
 {
     protected $signature = 'pos:purge-bills {--force : Skip confirmation}';
 
-    protected $description = 'Delete all POS orders (pending + paid bills), items, payments, and sessions';
+    protected $description = 'Delete all POS orders (pending + paid), items, payments, cash movements, sessions, and POS journals. Keeps products/tables.';
 
     public function handle(): int
     {
         if (! $this->option('force')) {
             if ($this->input->isInteractive()) {
-                if (! $this->confirm('Delete ALL POS bills, payments, order lines, and register sessions?')) {
+                if (! $this->confirm('Delete ALL POS bills, payments, order lines, cash movements, sessions, and POS journals? Products/tables stay.')) {
                     return self::FAILURE;
                 }
             } else {
@@ -26,8 +26,9 @@ class PosPurgeBillsCommand extends Command
             }
         }
 
-        if (! Schema::connection('tenant')->hasTable('pos_orders')) {
-            $this->warn('No pos_orders table — nothing to delete.');
+        if (! Schema::connection('tenant')->hasTable('pos_orders')
+            && ! Schema::connection('tenant')->hasTable('pos_sessions')) {
+            $this->warn('No POS tables — nothing to delete.');
 
             return self::SUCCESS;
         }
@@ -38,6 +39,23 @@ class PosPurgeBillsCommand extends Command
                     if (Schema::connection('tenant')->hasTable('credit_ledger')) {
                         $n = DB::connection('tenant')->table('credit_ledger')->whereNotNull('pos_order_id')->delete();
                         $this->line("Removed {$n} credit ledger row(s).");
+                    }
+
+                    if (Schema::connection('tenant')->hasTable('journal_entries')
+                        && Schema::connection('tenant')->hasTable('journal_entry_lines')) {
+                        $posEntryIds = DB::connection('tenant')->table('journal_entries')
+                            ->where('source', 'pos')
+                            ->pluck('id')
+                            ->all();
+                        if ($posEntryIds !== []) {
+                            $nl = DB::connection('tenant')->table('journal_entry_lines')
+                                ->whereIn('journal_entry_id', $posEntryIds)
+                                ->delete();
+                            $ne = DB::connection('tenant')->table('journal_entries')
+                                ->whereIn('id', $posEntryIds)
+                                ->delete();
+                            $this->line("Removed {$ne} POS journal entr(y/ies), {$nl} line(s).");
+                        }
                     }
 
                     if (Schema::connection('tenant')->hasTable('pos_payments')) {
@@ -64,6 +82,19 @@ class PosPurgeBillsCommand extends Command
                         $n = DB::connection('tenant')->table('pos_sessions')->delete();
                         $this->line("Removed {$n} register session row(s).");
                     }
+
+                    if (Schema::connection('tenant')->hasTable('sync_queue')) {
+                        $n = DB::connection('tenant')->table('sync_queue')
+                            ->whereIn('table_name', [
+                                'pos_orders',
+                                'pos_order_items',
+                                'pos_payments',
+                                'pos_sessions',
+                                'pos_cash_movements',
+                            ])
+                            ->delete();
+                        $this->line("Removed {$n} sync queue row(s) for POS tables.");
+                    }
                 });
             });
         } catch (\Throwable $e) {
@@ -72,7 +103,7 @@ class PosPurgeBillsCommand extends Command
             return self::FAILURE;
         }
 
-        $this->info('All POS bills and sessions deleted.');
+        $this->info('POS fresh: all bills/sessions cleared. Products and tables kept.');
 
         return self::SUCCESS;
     }
