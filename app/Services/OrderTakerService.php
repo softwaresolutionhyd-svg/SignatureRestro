@@ -614,6 +614,40 @@ final class OrderTakerService
 
         $kitchen = app(KitchenService::class);
         $oldItems = $order->items()->get()->all();
+
+        // Stale OT cart must not wipe kitchen-printed lines.
+        $normalizedInput = [];
+        foreach ($items as $item) {
+            $normalizedInput[] = [
+                'product_id' => (int) ($item['product_id'] ?? 0),
+                'item_name' => $item['item_name'] ?? null,
+                'is_custom' => (bool) ($item['is_custom'] ?? false),
+                'uom' => (string) ($item['uom'] ?? ''),
+                'qty' => (float) ($item['qty'] ?? 0),
+                'unit_price' => (float) ($item['unit_price'] ?? 0),
+                'tax_percent' => (float) ($item['tax_percent'] ?? 0),
+                'notes' => $item['notes'] ?? null,
+            ];
+        }
+        $preserved = $kitchen->appendMissingKitchenLockedNormalized($oldItems, $normalizedInput, []);
+        if (count($preserved) !== count($normalizedInput)) {
+            $items = array_map(static function (array $row) {
+                return [
+                    'product_id' => (int) ($row['product_id'] ?? 0),
+                    'item_name' => $row['item_name'] ?? null,
+                    'is_custom' => (bool) ($row['is_custom'] ?? false),
+                    'uom' => (string) ($row['uom'] ?? ''),
+                    'qty' => (float) ($row['qty'] ?? 0),
+                    'unit_price' => (float) ($row['unit_price'] ?? 0),
+                    'notes' => $row['notes'] ?? null,
+                ];
+            }, $preserved);
+            [$subtotal, $discountTotal, $taxTotal, $serviceTotal, $grandTotal, $lines] = $this->buildLines(
+                $items,
+                $order->serviceTypeKey()
+            );
+        }
+
         $itemsWithKitchenFlags = $kitchen->applyKitchenPendingFlags($oldItems, $lines);
 
         $wasKitchenServed = $order->kitchen_completed_at !== null;
@@ -628,8 +662,10 @@ final class OrderTakerService
             $kitchenPayload['kitchen_status'] = null;
         }
         if (Schema::hasColumn($order->getTable(), 'kitchen_status')) {
-            $hasNewKitchenItems = collect($itemsWithKitchenFlags)
-                ->contains(fn (array $item) => (bool) ($item['kitchen_pending'] ?? true));
+            $hasNewKitchenItems = collect($itemsWithKitchenFlags)->contains(
+                fn (array $item) => (bool) ($item['kitchen_pending'] ?? false)
+                    && empty($item['kitchen_printed_at'])
+            );
             if ($hasNewKitchenItems && (
                 $wasKitchenServed
                 || $order->kitchenStatusKey() === PosOrder::KITCHEN_STATUS_READY

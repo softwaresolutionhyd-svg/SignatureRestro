@@ -1627,9 +1627,10 @@ class PosController extends Controller
         $sendToKitchen = $this->isRestaurantPosRequest($request)
             ? $request->boolean('send_to_kitchen')
             : true;
+        $kitchenVoids = $this->normalizedKitchenVoids($request);
 
         try {
-            $order = DB::connection('tenant')->transaction(function () use ($request, $session, $itemsNormalized, $guestName, $roomNo, $waiterName, $serveTime, $serveDate, $orderNotes, $customerType, $saleMode, $serviceType, $restaurantTableId, $resumeOrderId, $clientTotals, $sendToKitchen, &$updatedExisting, $holdUser) {
+            $order = DB::connection('tenant')->transaction(function () use ($request, $session, $itemsNormalized, $guestName, $roomNo, $waiterName, $serveTime, $serveDate, $orderNotes, $customerType, $saleMode, $serviceType, $restaurantTableId, $resumeOrderId, $clientTotals, $sendToKitchen, &$updatedExisting, $holdUser, $kitchenVoids) {
             $enableTables = (string) Setting::get('pos_enable_tables', '1') !== '0';
             if ($this->isRestaurantPosRequest($request)) {
                 $tableId = $restaurantTableId;
@@ -1650,13 +1651,15 @@ class PosController extends Controller
                 : 0.0;
             $ownerDiscount = $this->isOwnerDiscountRequest($request, $pricing['allow_discount'], $saleMode);
             $billDiscount = $this->resolveBillDiscountPercent($request, $pricing['allow_discount'], $saleMode);
-            [$subtotal, $discountTotal, $taxTotal, $serviceTotal, $grandTotal, $itemsData] = $this->buildLines($itemsNormalized, [
+            $lineOpts = [
                 'tax_mode' => $pricing['tax_mode'],
                 'bill_tax_percent' => $billTax,
                 'bill_discount_percent' => $billDiscount,
                 'allow_discount' => $pricing['allow_discount'],
                 'service_type' => $serviceType,
-            ]);
+            ];
+            $workingNormalized = $itemsNormalized;
+            [$subtotal, $discountTotal, $taxTotal, $serviceTotal, $grandTotal, $itemsData] = $this->buildLines($workingNormalized, $lineOpts);
             if ($clientTotals !== null) {
                 if ($clientTotals['subtotal'] !== null) {
                     $subtotal = $clientTotals['subtotal'];
@@ -1708,6 +1711,23 @@ class PosController extends Controller
                 if ($existing) {
                     $kitchen = app(KitchenService::class);
                     $oldItems = $existing->items()->get()->all();
+                    $preservedNormalized = $kitchen->appendMissingKitchenLockedNormalized(
+                        $oldItems,
+                        $workingNormalized,
+                        $kitchenVoids
+                    );
+                    if (count($preservedNormalized) !== count($workingNormalized)) {
+                        $workingNormalized = $preservedNormalized;
+                        [$subtotal, $discountTotal, $taxTotal, $serviceTotal, $grandTotal, $itemsData] = $this->buildLines($workingNormalized, $lineOpts);
+                        // Stale cart missed kitchen lines — trust rebuilt server totals.
+                        $orderPayload['subtotal'] = $subtotal;
+                        $orderPayload['discount_total'] = $discountTotal;
+                        $orderPayload['tax_total'] = $taxTotal;
+                        $orderPayload['service_charge_percent'] = $serviceTotal > 0 ? PosServiceCharge::percent() : null;
+                        $orderPayload['service_charge_total'] = $serviceTotal;
+                        $orderPayload['grand_total'] = $grandTotal;
+                    }
+
                     $wasKitchenServed = $existing->kitchen_completed_at !== null;
                     $kitchenPayload = [];
 
@@ -1723,8 +1743,10 @@ class PosController extends Controller
                     }
 
                     $itemsWithKitchenFlags = $kitchen->applyKitchenPendingFlags($oldItems, $itemsData, $sendToKitchen);
-                    $hasNewKitchenItems = collect($itemsWithKitchenFlags)
-                        ->contains(fn (array $item) => (bool) ($item['kitchen_pending'] ?? true));
+                    $hasNewKitchenItems = collect($itemsWithKitchenFlags)->contains(
+                        fn (array $item) => (bool) ($item['kitchen_pending'] ?? false)
+                            && empty($item['kitchen_printed_at'])
+                    );
 
                     if ($hasNewKitchenItems && (
                         $wasKitchenServed
@@ -1761,7 +1783,7 @@ class PosController extends Controller
                 PosOrderItem::create(['order_id' => $order->id] + $item);
             }
 
-            return $order->fresh(['table']);
+            return $order->fresh(['table', 'items']);
         });
         } catch (\RuntimeException $e) {
             if ($request->expectsJson()) {
@@ -1773,10 +1795,10 @@ class PosController extends Controller
 
         if ($this->repairDraftOrderIfNeeded($order)) {
             $order->refresh();
-            $order->loadMissing('table');
+            $order->load(['table', 'items']);
         }
 
-        $removedPrint = $this->logKitchenVoids($order, $this->normalizedKitchenVoids($request));
+        $removedPrint = $this->logKitchenVoids($order, $kitchenVoids);
         $this->logItemReductions($order, $this->normalizedItemReductions($request));
 
         $message = $updatedExisting ? 'Held order updated.' : 'Order held successfully.';
@@ -1786,7 +1808,7 @@ class PosController extends Controller
                 'success' => true,
                 'message' => $message,
                 'updated' => $updatedExisting,
-                'order' => $this->posOrderDetailsPayload($order),
+                'order' => $this->posOrderDetailsPayload($order->loadMissing(['items.product', 'table', 'user', 'payments', 'contact'])),
                 'held_count' => $this->heldOrdersForSession($session)->count(),
                 'removed_print' => $removedPrint,
             ]);
@@ -3429,6 +3451,7 @@ class PosController extends Controller
             'pending_count' => $order->items->filter(fn (PosOrderItem $item) => ! $item->isKitchenServed() && (bool) $item->kitchen_pending)->count(),
             'timeline' => $order->orderTimelineSteps(),
             'items' => $order->items->map(fn (PosOrderItem $item) => [
+                'id' => (int) $item->id,
                 'product_id' => (int) $item->product_id,
                 'name' => $item->displayName(),
                 'item_name' => $item->item_name,
@@ -3595,6 +3618,8 @@ class PosController extends Controller
 
         $baseItems = $order->items->map(static fn ($i) => [
             'product_id' => $i->product_id,
+            'item_name' => $i->item_name,
+            'is_custom' => (bool) $i->is_custom,
             'uom' => $i->uom,
             'qty' => (float) $i->qty,
             'unit_price' => (float) $i->unit_price,
@@ -3655,6 +3680,7 @@ class PosController extends Controller
         }
 
         DB::connection('tenant')->transaction(function () use ($order, $best) {
+            $oldItems = $order->items()->get()->all();
             $order->update([
                 'sale_mode' => $best['sale'],
                 'subtotal' => $best['subtotal'],
@@ -3664,8 +3690,13 @@ class PosController extends Controller
                 'service_charge_percent' => ($best['service'] ?? 0) > 0 ? PosServiceCharge::percent() : null,
                 'grand_total' => $best['grand'],
             ]);
+            $itemsWithFlags = app(KitchenService::class)->applyKitchenPendingFlags(
+                $oldItems,
+                $best['itemsData'],
+                true
+            );
             SyncAwareDelete::relation($order->items());
-            foreach ($best['itemsData'] as $item) {
+            foreach ($itemsWithFlags as $item) {
                 PosOrderItem::create(['order_id' => $order->id] + $item);
             }
         });

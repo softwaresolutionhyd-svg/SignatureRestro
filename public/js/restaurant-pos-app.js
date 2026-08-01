@@ -2442,6 +2442,7 @@
                 notes: ri.notes || '',
                 kitchen_served: !!ri.kitchen_served,
                 kitchen_pending: !!ri.kitchen_pending,
+                kitchen_printed: !!ri.kitchen_printed,
                 kitchen_locked_qty: kitchenLockedFromResume(ri),
                 order_item_id: ri.id ? Number(ri.id) : null,
             });
@@ -3427,8 +3428,8 @@
         items.forEach((ri) => {
             const p = products.find((x) => Number(x.id) === Number(ri.product_id));
             const isCustom = !!ri.is_custom;
-            if (!isCustom && !p) return;
             const itemName = String(ri.item_name || ri.name || p?.name || 'Item').trim();
+            if (!itemName) return;
             const unitPrice = Number(ri.unit_price) || (isCustom ? 0 : (p ? unitPriceForProduct(p, ri.uom || p.uom) : 0));
             cart.push({
                 product_id: Number(ri.product_id) || posCustomProductId,
@@ -3437,12 +3438,13 @@
                 cart_key: isCustom ? customCartKey(itemName, unitPrice) : null,
                 name: itemName,
                 uom: isCustom ? 'unit' : (ri.uom || p?.uom || ''),
-                qty: Number(ri.qty) || 1,
+                qty: parseOrderQty(ri.qty),
                 unit_price: unitPrice,
                 tax_percent: Number(ri.tax_percent) || 0,
                 notes: ri.notes || '',
                 kitchen_served: !!ri.kitchen_served,
                 kitchen_pending: !!ri.kitchen_pending,
+                kitchen_printed: !!ri.kitchen_printed,
                 kitchen_locked_qty: kitchenLockedFromResume(ri),
                 order_item_id: ri.id ? Number(ri.id) : null,
             });

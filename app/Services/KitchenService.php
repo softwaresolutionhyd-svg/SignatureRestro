@@ -271,6 +271,70 @@ final class KitchenService
     }
 
     /**
+     * If a stale POS/OT cart omits kitchen-locked lines, put those qty back so a
+     * concurrent save cannot wipe items that already printed to kitchen.
+     *
+     * @param  list<PosOrderItem>  $oldItems
+     * @param  list<array<string, mixed>>  $newNormalized
+     * @param  list<array<string, mixed>>  $voids
+     * @return list<array<string, mixed>>
+     */
+    public function appendMissingKitchenLockedNormalized(array $oldItems, array $newNormalized, array $voids = []): array
+    {
+        $newQty = [];
+        foreach ($newNormalized as $item) {
+            $fp = $this->baseItemFingerprint($item);
+            $newQty[$fp] = ($newQty[$fp] ?? 0.0) + (float) ($item['qty'] ?? 0);
+        }
+
+        $voidQty = [];
+        foreach ($voids as $void) {
+            $fp = $this->baseItemFingerprint($void);
+            $voidQty[$fp] = ($voidQty[$fp] ?? 0.0) + (float) ($void['qty'] ?? 0);
+        }
+
+        $lockedQty = [];
+        /** @var array<string, PosOrderItem> $samples */
+        $samples = [];
+        foreach ($oldItems as $old) {
+            if (! $old instanceof PosOrderItem) {
+                continue;
+            }
+            $locked = $old->isKitchenServed()
+                || $old->kitchen_printed_at !== null
+                || (bool) $old->kitchen_pending;
+            if (! $locked) {
+                continue;
+            }
+            $fp = $this->baseItemFingerprint($old);
+            $lockedQty[$fp] = ($lockedQty[$fp] ?? 0.0) + (float) $old->qty;
+            $samples[$fp] = $old;
+        }
+
+        $out = $newNormalized;
+        foreach ($lockedQty as $fp => $qty) {
+            $missing = round($qty - ($voidQty[$fp] ?? 0.0) - ($newQty[$fp] ?? 0.0), 3);
+            if ($missing <= 0.0005) {
+                continue;
+            }
+            $old = $samples[$fp];
+            $out[] = [
+                'product_id' => (int) $old->product_id,
+                'item_name' => $old->item_name,
+                'is_custom' => (bool) $old->is_custom,
+                'uom' => (string) $old->uom,
+                'qty' => $missing,
+                'unit_price' => (float) $old->unit_price,
+                'discount_percent' => (float) ($old->discount_percent ?? 0),
+                'tax_percent' => (float) ($old->tax_percent ?? 0),
+                'notes' => $old->notes,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * Rebuild line kitchen flags so already-printed qty is never set pending again for re-print.
      * Only brand-new qty / new products become kitchen_pending (and unprinted).
      *
