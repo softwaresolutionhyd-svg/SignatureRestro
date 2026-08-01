@@ -13,7 +13,7 @@ final class WebAuthSession
 
     public const BOUND_USERNAME = 'auth_bound_username';
 
-    public static function establish(Request $request, User $user): void
+    public static function establish(Request $request, User $user, bool $remember = true): void
     {
         Auth::logout();
 
@@ -22,9 +22,10 @@ final class WebAuthSession
             $request->session()->regenerate(true);
         }
 
-        Auth::login($user, false);
+        // Remember cookie survives browser close so staff (order taker / POS) stay signed in.
+        Auth::login($user, $remember);
 
-        if ($user->remember_token) {
+        if (! $remember && $user->remember_token) {
             $user->forceFill(['remember_token' => null])->save();
         }
 

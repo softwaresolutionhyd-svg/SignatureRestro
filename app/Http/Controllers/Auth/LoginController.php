@@ -83,7 +83,8 @@ class LoginController extends Controller
 
         if ($user->hasTwoFactorEnabled()) {
             WebAuthSession::destroy($request);
-            $token = $this->loginTotp->startChallenge($user, false);
+            $remember = $request->boolean('remember', true);
+            $token = $this->loginTotp->startChallenge($user, $remember);
             $request->session()->put('login_totp_token', $token);
             $request->session()->put('login_totp_user_id', (int) $user->id);
             $this->clearLoginAttempts($request);
@@ -99,7 +100,9 @@ class LoginController extends Controller
 
     private function completeWebLogin(Request $request, User $user): void
     {
-        WebAuthSession::establish($request, $user);
+        // Default true: browser band hone par bhi login rahe (order taker / POS tablets).
+        $remember = $request->boolean('remember', true);
+        WebAuthSession::establish($request, $user, $remember);
         $this->authenticated($request, $user);
     }
 

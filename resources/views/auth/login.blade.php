@@ -102,6 +102,14 @@
                         @enderror
                     </div>
 
+                    <div class="form-check mt-3 mb-1">
+                        <input class="form-check-input" type="checkbox" name="remember" value="1" id="remember"
+                               @checked(old('remember', true))>
+                        <label class="form-check-label small" for="remember">
+                            {{ __('Stay signed in') }} — browser band hone par bhi login rahe
+                        </label>
+                    </div>
+
                     <button type="submit" class="auth-btn-submit">
                         <span>{{ __('Sign In') }}</span>
                         <i class="bi bi-arrow-right-short"></i>

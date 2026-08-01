@@ -70,7 +70,7 @@ class TotpVerificationController extends Controller
         $this->rateLimit->clear($rateKey);
         $request->session()->forget(['login_totp_token', 'login_totp_user_id']);
 
-        WebAuthSession::establish($request, $result['user']);
+        WebAuthSession::establish($request, $result['user'], (bool) ($result['remember'] ?? true));
 
         if ($result['user']->must_change_password ?? false) {
             session()->flash('warning', 'Security: pehle naya password set karein.');
