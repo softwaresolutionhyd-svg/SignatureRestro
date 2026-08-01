@@ -79,6 +79,7 @@ use App\Http\Controllers\SyncStatusController;
 
 // LAN-only: mkcert root CA for offline HTTPS / PWA install on phone/tablet.
 Route::get('/lan-ca.crt', \App\Http\Controllers\LanCaController::class)->name('lan-ca');
+Route::get('/install-app', \App\Http\Controllers\LanInstallGuideController::class)->name('lan-install');
 
 Route::get('/', function () {
     return auth()->check()

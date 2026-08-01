@@ -6,6 +6,7 @@
         </div>
         <div class="pwa-install-banner__actions">
             <button type="button" class="btn btn-sm btn-light" id="pwa-install-dismiss">{{ __('Not now') }}</button>
+            <a href="{{ url('/install-app') }}" class="btn btn-sm btn-outline-light d-none" id="pwa-setup-link">Setup guide</a>
             <a href="#" class="btn btn-sm btn-outline-light d-none" id="pwa-https-link">HTTPS open</a>
             <a href="{{ url('/lan-ca.crt') }}" class="btn btn-sm btn-outline-light d-none" id="pwa-ca-link" download="signature-lan-ca.crt">Install CA</a>
             <button type="button" class="btn btn-sm btn-primary" id="pwa-install-btn">{{ __('Install app') }}</button>
@@ -62,15 +63,17 @@
         return;
     }
 
-    var dismissKey = 'pwa_install_dismissed_v2';
+    var dismissKey = 'pwa_install_dismissed_v3';
     var deferredPrompt = null;
     var banner = document.getElementById('pwa-install-banner');
     var installBtn = document.getElementById('pwa-install-btn');
     var dismissBtn = document.getElementById('pwa-install-dismiss');
     var httpsLink = document.getElementById('pwa-https-link');
     var caLink = document.getElementById('pwa-ca-link');
+    var setupLink = document.getElementById('pwa-setup-link');
     var secureOk = window.isSecureContext === true;
     var host = window.location.hostname || '';
+    var isHttps = window.location.protocol === 'https:';
     var isLocalhost = host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
     var isPrivateIp = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
 
@@ -88,30 +91,36 @@
         if (!banner || isStandalone()) {
             return;
         }
-        if (localStorage.getItem(dismissKey) === '1' && mode !== 'insecure-lan') {
+        if (localStorage.getItem(dismissKey) === '1' && mode !== 'needs-ca' && mode !== 'insecure-lan') {
             return;
         }
         var text = banner.querySelector('.pwa-install-banner__text span');
+        if (installBtn) installBtn.classList.add('d-none');
+        if (httpsLink) httpsLink.classList.add('d-none');
+        if (caLink) caLink.classList.add('d-none');
+        if (setupLink) setupLink.classList.add('d-none');
+
         if (mode === 'ios' && text) {
             text.textContent = 'Share → Add to Home Screen se install karein';
-            if (installBtn) installBtn.classList.add('d-none');
-            if (httpsLink) httpsLink.classList.add('d-none');
-            if (caLink) caLink.classList.add('d-none');
         }
         if (mode === 'insecure-lan' && text) {
-            text.textContent = 'Offline install ke liye HTTPS chahiye. Pehle CA install, phir https://' + host + ' open karein.';
-            if (installBtn) installBtn.classList.add('d-none');
+            text.textContent = 'Install app ke liye pehle HTTPS + CA setup karein.';
             if (httpsLink) {
-                httpsLink.href = 'https://' + host + '/';
+                httpsLink.href = 'https://' + host + '/install-app';
+                httpsLink.textContent = 'Setup';
                 httpsLink.classList.remove('d-none');
             }
+            if (setupLink) setupLink.classList.remove('d-none');
+            if (caLink) caLink.classList.remove('d-none');
+        }
+        if (mode === 'needs-ca' && text) {
+            text.textContent = 'Certificate trust missing — isliye sirf shortcut aa raha hai. CA install karein.';
+            if (setupLink) setupLink.classList.remove('d-none');
             if (caLink) caLink.classList.remove('d-none');
         }
         if (mode === 'android' && text) {
             text.textContent = 'Install app for quick access';
             if (installBtn) installBtn.classList.remove('d-none');
-            if (httpsLink) httpsLink.classList.add('d-none');
-            if (caLink) caLink.classList.add('d-none');
         }
         banner.classList.remove('d-none');
     }
@@ -122,13 +131,13 @@
         }
     }
 
-    // HTTP on LAN IP is NOT installable — Chrome blocks beforeinstallprompt.
+    // Plain HTTP on LAN IP cannot install as PWA.
     if (!secureOk && isPrivateIp && !isLocalhost) {
         setTimeout(function () {
             if (!isStandalone()) {
                 showBanner('insecure-lan');
             }
-        }, 800);
+        }, 600);
         return;
     }
 
@@ -139,9 +148,6 @@
     window.addEventListener('beforeinstallprompt', function (e) {
         e.preventDefault();
         deferredPrompt = e;
-        if (installBtn) {
-            installBtn.classList.remove('d-none');
-        }
         showBanner('android');
     });
 
@@ -171,14 +177,19 @@
         });
     }
 
-    // iOS has no beforeinstallprompt — show Add to Home Screen tip.
+    // LAN HTTPS with untrusted cert: Chrome allows page but NEVER fires install prompt
+    // (only Create shortcut). Guide user to install CA.
     setTimeout(function () {
-        if (deferredPrompt || isStandalone() || !secureOk) {
+        if (deferredPrompt || isStandalone()) {
             return;
         }
         if (isIos()) {
             showBanner('ios');
+            return;
         }
-    }, 2500);
+        if (isPrivateIp && isHttps) {
+            showBanner('needs-ca');
+        }
+    }, 3500);
 })();
 </script>
