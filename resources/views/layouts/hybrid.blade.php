@@ -8,8 +8,7 @@
     <title>@yield('title', config('app.name'))</title>
 
     <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
-    <link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
-    <meta name="theme-color" content="#714B67">
+    @include('partials.pwa-head')
 
     <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -389,5 +388,6 @@
     </script>
 
     @yield('scripts')
+    @include('partials.pwa-register')
 </body>
 </html>

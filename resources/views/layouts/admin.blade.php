@@ -9,8 +9,7 @@
     <title>@yield('title', config('app.name'))</title>
 
     <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
-    <link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
-    <meta name="theme-color" content="#121212">
+    @include('partials.pwa-head')
     <link rel="preconnect" href="https://fonts.bunny.net" crossorigin>
 
     @vite(['resources/sass/app.scss', 'resources/js/app.js'])
@@ -51,14 +50,6 @@
     @stack('scripts')
     @yield('scripts')
     @include('partials.sync-heartbeat')
-    <script>
-        // Disable service worker on admin panel to avoid stale/offline shell
-        // replacing dynamic pages (e.g. BoMs index) in local development.
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then((regs) => {
-                regs.forEach((r) => r.unregister());
-            }).catch(() => {});
-        }
-    </script>
+    @include('partials.pwa-register')
 </body>
 </html>

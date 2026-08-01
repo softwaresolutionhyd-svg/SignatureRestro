@@ -7,14 +7,7 @@
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <title>@yield('title', __('Login')) — {{ config('app.name', 'Stair') }}</title>
-    <script>
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then((regs) => {
-                regs.forEach((r) => r.unregister());
-            }).catch(() => {});
-        }
-    </script>
-    <meta name="theme-color" content="#1a1410">
+    @include('partials.pwa-head')
     <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=playfair-display:500,600,700|dm-sans:400,500,600,700&display=swap" rel="stylesheet">
@@ -542,5 +535,6 @@
         @include('partials.locale-switcher')
     </div>
     @yield('content')
+    @include('partials.pwa-register')
 </body>
 </html>

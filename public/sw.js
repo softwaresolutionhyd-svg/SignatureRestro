@@ -1,10 +1,10 @@
-/* Minimal service worker for installability/offline shell */
-const CACHE_NAME = 'stair-shell-v3';
+/* Network-first service worker — required for Install App; does not cache HTML pages. */
+const CACHE_NAME = 'stair-shell-v4';
 const URLS_TO_CACHE = [
-  './',
-  './favicon.svg',
-  './images/stair-logo.svg',
-  './manifest.webmanifest'
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/manifest.webmanifest',
+  '/favicon.svg'
 ];
 
 self.addEventListener('install', (event) => {
@@ -23,30 +23,43 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
-  if (req.method !== 'GET') return;
+  if (req.method !== 'GET') {
+    return;
+  }
 
-  const url = new URL(req.url);
-  if (req.mode === 'navigate') {
+  // Always hit network for navigations / HTML — avoids stale CSRF / offline shell issues.
+  if (req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html')) {
     event.respondWith(fetch(req));
     return;
   }
 
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  const isStaticIcon =
+    url.pathname.startsWith('/icons/') ||
+    url.pathname.endsWith('.svg') ||
+    url.pathname.endsWith('.webmanifest');
+
+  if (!isStaticIcon) {
+    return;
+  }
+
   event.respondWith(
-    fetch(req)
-      .then((res) => {
-        const url = new URL(req.url);
-        // Never cache arbitrary HTML navigations: stale pages embed stale CSRF tokens → 419 on POST.
-        // Only cache the public shell (/) and static assets (e.g. svg).
-        const isRootShell =
-          req.mode === 'navigate' && (url.pathname === '/' || url.pathname === '');
-        const isSvg = url.pathname.endsWith('.svg');
-        if (url.origin === self.location.origin && (isRootShell || isSvg)) {
-          const copy = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(req, copy)).catch(() => {});
-        }
-        return res;
-      })
-      .catch(() => caches.match(req).then((cached) => cached || caches.match('./')))
+    caches.match(req).then((cached) => {
+      const network = fetch(req)
+        .then((res) => {
+          if (res && res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, copy)).catch(() => {});
+          }
+          return res;
+        })
+        .catch(() => cached);
+
+      return cached || network;
+    })
   );
 });
-

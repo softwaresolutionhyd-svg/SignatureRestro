@@ -10,8 +10,7 @@
     <title>{{ config('app.name', 'Stair') }}</title>
 
     <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
-    <link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
-    <meta name="theme-color" content="#6f42c1">
+    @include('partials.pwa-head')
 
     <!-- Fonts -->
     <link rel="dns-prefetch" href="//fonts.bunny.net">
@@ -87,12 +86,6 @@
         </main>
     </div>
 
-    <script>
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then((regs) => {
-                regs.forEach((r) => r.unregister());
-            }).catch(() => {});
-        }
-    </script>
+    @include('partials.pwa-register')
 </body>
 </html>
