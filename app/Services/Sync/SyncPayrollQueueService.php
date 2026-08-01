@@ -57,7 +57,9 @@ class SyncPayrollQueueService
             });
 
         Contact::withoutGlobalScope('company')
-            ->where('category', 'mess_bill')
+            ->whereIn('id', Employee::withoutGlobalScope('company')
+                ->whereNotNull('contact_id')
+                ->pluck('contact_id'))
             ->orderBy('id')
             ->each(function (Contact $row) use (&$queued) {
                 $this->recorder->recordModel($row, 'upsert');

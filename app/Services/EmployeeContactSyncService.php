@@ -35,12 +35,14 @@ class EmployeeContactSyncService
                 ->first();
         }
 
+        $employeeCategory = Contact::ensureEmployeesCategory();
+
         if ($contact === null) {
             $contact = Contact::create([
                 'name' => $employee->name,
                 'phone' => $employee->phone,
                 'email' => $employee->email,
-                'category' => 'mess_bill',
+                'category' => $employeeCategory,
                 'active' => (bool) $employee->active,
                 'notes' => 'Employee '.$employee->employee_no,
             ]);
@@ -74,6 +76,7 @@ class EmployeeContactSyncService
             'name' => $employee->name,
             'phone' => $employee->phone ?: $contact->phone,
             'email' => $employee->email ?: $contact->email,
+            'category' => Contact::ensureEmployeesCategory(),
             'active' => (bool) $employee->active,
             'notes' => 'Employee '.$employee->employee_no,
         ]);

@@ -56,6 +56,8 @@ class Contact extends Model
 
     public const SUPPLIER_CATEGORY = 'supplier';
 
+    public const EMPLOYEE_CATEGORY = 'employees';
+
     public static function ensureCategoryCatalog(): void
 
     {
@@ -95,6 +97,26 @@ class Contact extends Model
 
         return self::SUPPLIER_CATEGORY;
 
+    }
+
+    /** Make sure the built-in "Employees" category exists for HR-linked contacts. */
+    public static function ensureEmployeesCategory(): string
+    {
+        self::ensureCategoryCatalog();
+
+        $rows = self::categoryRows();
+
+        foreach ($rows as $row) {
+            if ($row['slug'] === self::EMPLOYEE_CATEGORY || strcasecmp($row['label'], 'Employees') === 0) {
+                return $row['slug'];
+            }
+        }
+
+        $rows[] = ['slug' => self::EMPLOYEE_CATEGORY, 'label' => 'Employees'];
+
+        self::persistCategoryRows($rows);
+
+        return self::EMPLOYEE_CATEGORY;
     }
 
 
