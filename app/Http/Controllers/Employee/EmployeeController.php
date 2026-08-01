@@ -30,6 +30,10 @@ class EmployeeController extends Controller
     {
         $q = trim((string) $request->query('q', ''));
         $employeeNo = trim((string) $request->query('employee_no', ''));
+        $sort = strtolower(trim((string) $request->query('sort', '')));
+        if (! in_array($sort, ['name_az', 'name_za', ''], true)) {
+            $sort = '';
+        }
 
         $employees = Employee::query()
             ->with(['designation:id,name', 'user:id,email'])
@@ -43,13 +47,21 @@ class EmployeeController extends Controller
                         ->orWhereHas('user', fn ($u) => $u->where('email', 'like', "%{$q}%")
                             ->orWhere('email', 'like', LoginUsername::toStoredValue($q).'%'));
                 });
-            })
-            ->orderBy('active', 'desc')
-            ->orderBy('employee_no')
+            });
+
+        if ($sort === 'name_az') {
+            $employees->orderByRaw('LOWER(name) asc')->orderBy('employee_no');
+        } elseif ($sort === 'name_za') {
+            $employees->orderByRaw('LOWER(name) desc')->orderBy('employee_no');
+        } else {
+            $employees->orderBy('active', 'desc')->orderBy('employee_no');
+        }
+
+        $employees = $employees
             ->paginate(Setting::pageSize('employees_per_page', 20))
             ->withQueryString();
 
-        return view('employees.index', compact('employees', 'q', 'employeeNo'));
+        return view('employees.index', compact('employees', 'q', 'employeeNo', 'sort'));
     }
 
     public function create()

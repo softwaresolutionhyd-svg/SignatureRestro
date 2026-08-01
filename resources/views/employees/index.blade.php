@@ -19,8 +19,13 @@
             <form class="d-flex flex-wrap gap-2 align-items-center" method="GET" action="{{ route('employees.index') }}">
                 <input type="text" name="employee_no" value="{{ $employeeNo }}" class="form-control" placeholder="Employee ID e.g. EMP-00001" style="max-width: 200px;">
                 <input type="text" name="q" value="{{ $q }}" class="form-control" placeholder="Search name, username, phone..." style="max-width: 260px;">
+                <select name="sort" class="form-select" style="max-width: 160px;" title="Sort by name" onchange="this.form.submit()">
+                    <option value="" @selected(($sort ?? '') === '')>Default</option>
+                    <option value="name_az" @selected(($sort ?? '') === 'name_az')>Name A → Z</option>
+                    <option value="name_za" @selected(($sort ?? '') === 'name_za')>Name Z → A</option>
+                </select>
                 <button class="btn btn-outline-primary" type="submit"><i class="bi bi-search me-1"></i> Filter</button>
-                @if($q !== '' || $employeeNo !== '')
+                @if($q !== '' || $employeeNo !== '' || ($sort ?? '') !== '')
                     <a class="btn btn-outline-secondary" href="{{ route('employees.index') }}">Clear</a>
                 @endif
             </form>
@@ -49,7 +54,26 @@
                 <thead class="table-light">
                 <tr>
                     <th>Employee #</th>
-                    <th>Name</th>
+                    <th>
+                        @php
+                            $nameSortNext = ($sort ?? '') === 'name_az' ? 'name_za' : 'name_az';
+                            $nameSortQs = array_filter([
+                                'employee_no' => $employeeNo !== '' ? $employeeNo : null,
+                                'q' => $q !== '' ? $q : null,
+                                'sort' => $nameSortNext,
+                            ]);
+                        @endphp
+                        <a href="{{ route('employees.index', $nameSortQs) }}" class="text-decoration-none text-dark d-inline-flex align-items-center gap-1">
+                            Name
+                            @if(($sort ?? '') === 'name_az')
+                                <i class="bi bi-sort-alpha-down" title="A to Z"></i>
+                            @elseif(($sort ?? '') === 'name_za')
+                                <i class="bi bi-sort-alpha-up" title="Z to A"></i>
+                            @else
+                                <i class="bi bi-arrow-down-up text-secondary" title="Sort A to Z"></i>
+                            @endif
+                        </a>
+                    </th>
                     <th>Designation</th>
                     <th>Username</th>
                     <th>Phone</th>
