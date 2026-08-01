@@ -1,18 +1,45 @@
-# Signature LAN — HTTPS (192.168.1.105 par "Not secure" hatane ke liye)
-# Run as Administrator:
-#   cd C:\laragon\www\signature\scripts
-#   .\enable-signature-lan-https.ps1
+# Signature LAN — HTTPS for offline phone/tablet PWA install
+# Chrome/Android only allow "Install app" on HTTPS (HTTP IP is blocked).
 #
-# PC browser: mkcert trust auto. Mobile/tablet: ek dafa root CA install (script batati hai).
+# Run as Administrator:
+#   scripts\enable-signature-lan-https.bat
+#
+# After setup, on phone/tablet open:
+#   https://YOUR-LAN-IP/
+# First time: install CA once from https://YOUR-LAN-IP/lan-ca.crt
+#   Android: Settings → Security → Install a certificate → CA certificate
 
 $ErrorActionPreference = 'Stop'
 
-$ServerIp    = '192.168.1.105'
 $ProjectRoot = 'C:/laragon/www/signature/public'
 $HttpdConf   = 'C:\laragon\bin\apache\httpd-2.4.54-win64-VS16\conf\httpd.conf'
 $ApacheBin   = 'C:\laragon\bin\apache\httpd-2.4.54-win64-VS16\bin\httpd.exe'
 $SslDir      = 'C:\laragon\etc\ssl\signature-lan'
 $VhostDest   = 'C:\laragon\etc\apache2\sites-enabled\auto.signature-lan-ssl.conf'
+$EnvFile     = 'C:\laragon\www\signature\.env'
+$LanCaDir    = 'C:\laragon\www\signature\storage\app\lan'
+
+function Get-LanIPv4 {
+    $preferred = @(
+        Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.IPAddress -notlike '127.*' -and
+                $_.PrefixOrigin -ne 'WellKnown' -and
+                $_.IPAddress -notlike '169.254.*' -and
+                ($_.InterfaceAlias -match 'Ethernet|Wi-?Fi|WLAN|Local Area')
+            } |
+            Sort-Object -Property @{Expression = {
+                if ($_.InterfaceAlias -match 'Ethernet') { 0 } else { 1 }
+            }} |
+            Select-Object -ExpandProperty IPAddress
+    )
+    if ($preferred -and $preferred.Count -gt 0) {
+        return [string]$preferred[0]
+    }
+    return '192.168.1.105'
+}
+
+$ServerIp = Get-LanIPv4
 
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
@@ -36,52 +63,51 @@ function Install-Mkcert {
     $url     = 'https://github.com/FiloSottile/mkcert/releases/download/v1.4.4/mkcert-v1.4.4-windows-amd64.exe'
 
     New-Item -ItemType Directory -Force -Path $destDir | Out-Null
-
     Write-Host 'mkcert download ho raha hai (GitHub)...' -ForegroundColor Yellow
-    try {
-        Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
-    } catch {
-        Write-Host 'Download fail. Manual:' -ForegroundColor Red
-        Write-Host "  Browser: $url" -ForegroundColor Yellow
-        Write-Host "  Save as: $dest" -ForegroundColor Yellow
-        throw
-    }
-
+    Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
     if (-not (Test-Path $dest)) {
         throw 'mkcert download complete nahi hua.'
     }
-
     Write-Host "[OK] mkcert saved: $dest" -ForegroundColor Green
     return $dest
 }
 
-function Ensure-ApacheLine {
-    param([string]$Path, [string]$Pattern, [string]$InsertAfter, [string]$NewLine)
-
+function Ensure-ApacheSslModule {
+    param([string]$Path)
     $lines = Get-Content $Path
-    if ($lines -match $Pattern) { return $false }
-
-    $updated = New-Object System.Collections.Generic.List[string]
-    $inserted = $false
-    $uncommented = $false
-    foreach ($line in $lines) {
-        if (-not $inserted -and $line -match '^\s*#LoadModule\s+ssl_module') {
-            $updated.Add(($line -replace '^\s*#', ''))
-            $uncommented = $true
-            $inserted = $true
-            continue
-        }
-        $updated.Add($line)
-        if (-not $inserted -and $line -match $InsertAfter) {
-            $updated.Add($NewLine)
-            $inserted = $true
+    if ($lines -match '^\s*LoadModule\s+ssl_module') {
+        return
+    }
+    $updated = foreach ($line in $lines) {
+        if ($line -match '^\s*#LoadModule\s+ssl_module') {
+            ($line -replace '^\s*#', '')
+        } else {
+            $line
         }
     }
-    if (-not $inserted -and -not $uncommented) {
-        $updated.Add($NewLine)
+    if (-not ($updated -match '^\s*LoadModule\s+ssl_module')) {
+        $updated = @($updated) + 'LoadModule ssl_module modules/mod_ssl.so'
     }
     Set-Content -Path $Path -Value $updated -Encoding ASCII
-    return $true
+}
+
+function Set-EnvValue {
+    param([string]$File, [string]$Key, [string]$Value)
+    if (-not (Test-Path $File)) { return }
+    $lines = Get-Content $File
+    $found = $false
+    $out = foreach ($line in $lines) {
+        if ($line -match "^\s*$Key\s*=") {
+            $found = $true
+            "$Key=$Value"
+        } else {
+            $line
+        }
+    }
+    if (-not $found) {
+        $out = @($out) + "$Key=$Value"
+    }
+    Set-Content -Path $File -Value $out -Encoding UTF8
 }
 
 Write-Host ''
@@ -94,7 +120,7 @@ if (-not $mkcert) {
 }
 Write-Host "[OK] mkcert: $mkcert" -ForegroundColor Green
 
-Write-Host 'Installing local trust root (PC browser ke liye)...' -ForegroundColor DarkGray
+Write-Host 'Installing local trust root (PC browser)...' -ForegroundColor DarkGray
 & $mkcert -install | Out-Null
 
 New-Item -ItemType Directory -Force -Path $SslDir | Out-Null
@@ -106,18 +132,37 @@ try {
 }
 Write-Host '[OK] SSL certificate generated.' -ForegroundColor Green
 
+$rootCa = & $mkcert -CAROOT
+$caPem = Join-Path $rootCa 'rootCA.pem'
+$lanCaDir = 'C:\laragon\www\signature\storage\app\lan'
+if (Test-Path $caPem) {
+    New-Item -ItemType Directory -Force -Path $lanCaDir | Out-Null
+    Copy-Item $caPem (Join-Path $lanCaDir 'lan-ca.crt') -Force
+    Copy-Item $caPem (Join-Path $lanCaDir 'rootCA.pem') -Force
+    Write-Host '[OK] Phone CA download route: /lan-ca.crt (LAN only)' -ForegroundColor Green
+}
+
 if (-not (Test-Path $HttpdConf)) {
     throw "httpd.conf not found: $HttpdConf"
 }
-
-$changed = $false
-if (Ensure-ApacheLine -Path $HttpdConf -Pattern '^\s*LoadModule\s+ssl_module' -InsertAfter '^\s*#LoadModule\s+ssl_module' -NewLine 'LoadModule ssl_module modules/mod_ssl.so') { $changed = $true }
-# Listen 443 mat add karein — Laragon httpd-ssl.conf mein pehle se hai (duplicate = Apache fail)
+Ensure-ApacheSslModule -Path $HttpdConf
 
 $vhost = @"
-# Signature LAN HTTPS — auto-generated (HTTP redirect OFF — pehle HTTPS test karein)
+# Signature LAN HTTPS — auto-generated for offline PWA install
 <VirtualHost *:443>
     ServerName $ServerIp
+    ServerAlias localhost 127.0.0.1
+    DocumentRoot "$ProjectRoot"
+    SSLEngine on
+    SSLCertificateFile "C:/laragon/etc/ssl/signature-lan/signature-lan.pem"
+    SSLCertificateKeyFile "C:/laragon/etc/ssl/signature-lan/signature-lan-key.pem"
+    <Directory "$ProjectRoot">
+        AllowOverride All
+        Require all granted
+    </Directory>
+</VirtualHost>
+
+<VirtualHost _default_:443>
     DocumentRoot "$ProjectRoot"
     SSLEngine on
     SSLCertificateFile "C:/laragon/etc/ssl/signature-lan/signature-lan.pem"
@@ -132,11 +177,28 @@ $vhost = @"
 Set-Content -Path $VhostDest -Value $vhost -Encoding ASCII
 Write-Host "[OK] Apache vhost: $VhostDest" -ForegroundColor Green
 
+# Keep HTTP IP vhost in sync
+$httpVhost = @"
+# Signature — phone/tablet IP access (port 80)
+<VirtualHost *:80>
+    ServerName $ServerIp
+    DocumentRoot "$ProjectRoot"
+    <Directory "$ProjectRoot">
+        AllowOverride All
+        Require all granted
+    </Directory>
+</VirtualHost>
+"@
+Set-Content -Path 'C:\laragon\etc\apache2\sites-enabled\00-signature-lan-ip.conf' -Value $httpVhost -Encoding ASCII
+
 $ruleName = 'Signature Laragon HTTPS (LAN 443)'
 if (-not (Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue)) {
     New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Protocol TCP -LocalPort 443 -Action Allow -Profile Private,Domain | Out-Null
     Write-Host '[OK] Firewall port 443 allow.' -ForegroundColor Green
 }
+
+Set-EnvValue -File $EnvFile -Key 'LAN_SERVER_IP' -Value $ServerIp
+Set-EnvValue -File $EnvFile -Key 'LAN_SERVER_URL' -Value "https://$ServerIp"
 
 if (Get-Process -Name httpd -ErrorAction SilentlyContinue) {
     Stop-Process -Name httpd -Force -ErrorAction SilentlyContinue
@@ -146,21 +208,19 @@ Start-Process -FilePath $ApacheBin -ArgumentList '-f', $HttpdConf -WindowStyle H
 Start-Sleep -Seconds 2
 Write-Host '[OK] Apache restarted.' -ForegroundColor Green
 
-$rootCa = & $mkcert -CAROOT
 $httpsUrl = "https://${ServerIp}"
 
 Write-Host ''
-Write-Host 'Done — ab yeh URL use karein:' -ForegroundColor Cyan
+Write-Host 'Done — phone/tablet pe YE URL use karein (http nahi):' -ForegroundColor Cyan
 Write-Host "  $httpsUrl" -ForegroundColor Green
+Write-Host "  ${httpsUrl}/login"
+Write-Host "  ${httpsUrl}/restaurant-pos"
 Write-Host "  ${httpsUrl}/order-taker"
-Write-Host "  ${httpsUrl}/pos"
 Write-Host ''
-Write-Host 'PC browser: lock icon / Secure dikhna chahiye (mkcert trust).' -ForegroundColor Green
+Write-Host 'Pehli dafa certificate trust (Android):' -ForegroundColor Yellow
+Write-Host "  1) Chrome: ${httpsUrl}/lan-ca.crt  download"
+Write-Host '  2) Settings → Security → Install a certificate → CA certificate'
+Write-Host '  3) Phir wapas https://IP open karke Install app'
 Write-Host ''
-Write-Host 'Mobile / tablet (ek dafa):' -ForegroundColor Yellow
-Write-Host "  Root CA file copy karein: $rootCa\rootCA.pem"
-Write-Host '  Android: Settings -> Security -> Install certificate -> CA certificate'
-Write-Host '  iPhone: AirDrop/email -> Profile install -> Settings -> General -> About -> Certificate Trust'
-Write-Host ''
-Write-Host 'Settings -> System -> LAN IP: https://192.168.1.105 (port khali)' -ForegroundColor Yellow
+Write-Host 'Agar warning aaye: Advanced → Proceed (unsafe) — phir bhi Install chal sakta hai.' -ForegroundColor DarkGray
 Write-Host ''

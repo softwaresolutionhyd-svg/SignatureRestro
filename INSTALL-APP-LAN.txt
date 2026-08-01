@@ -1,0 +1,30 @@
+# Offline phone/tablet — Install App (LAN IP)
+
+Chrome/Android HTTP IP pe Install App ALLOW nahi karta.
+Sirf HTTPS pe install hota hai.
+
+## 1) PC (ek dafa) — Admin
+Double-click:
+  C:\laragon\www\signature\scripts\enable-signature-lan-https.bat
+
+## 2) Phone / Tablet — pehli dafa CA
+Same WiFi pe browser kholo:
+  http://192.168.1.105/lan-ca.crt
+  (ya jo bhi PC ka LAN IP ho)
+
+Android:
+  Settings → Security → Install a certificate → CA certificate
+  → signature-lan-ca.crt select → Install
+
+## 3) App install
+Chrome mein YE URL open karo (http nahi):
+  https://192.168.1.105/
+
+Login ke baad "Install app" banner → Install.
+
+POS / Order Taker:
+  https://192.168.1.105/restaurant-pos
+  https://192.168.1.105/order-taker
+
+Agar certificate warning aaye: Advanced → Proceed, phir Install try karo.
+IP change ho to step 1 dubara chalao.

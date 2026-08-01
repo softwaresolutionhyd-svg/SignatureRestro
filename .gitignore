@@ -31,3 +31,6 @@ Signature-full-backup-*.zip
 
 # Cursor auto-push hook log
 .cursor/hooks/auto-push.log
+
+/storage/app/lan/
+
