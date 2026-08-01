@@ -382,6 +382,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
         Route::get('/sales',     [ReportsController::class, 'sales'])     ->name('sales');
         Route::get('/sales/service/{serviceType}', [ReportsController::class, 'salesByService'])->name('sales.service');
         Route::get('/sales/{order}', [ReportsController::class, 'salesShow'])->name('sales.show');
+        Route::post('/sales/{order}/cashier-print', [ReportsController::class, 'salesCashierPrint'])->name('sales.cashier-print');
         Route::get('/purchases', [ReportsController::class, 'purchases']) ->name('purchases');
         Route::get('/purchases/print', [ReportsController::class, 'purchasesPrint'])->name('purchases.print');
         Route::get('/inventory', [ReportsController::class, 'inventory']) ->name('inventory');

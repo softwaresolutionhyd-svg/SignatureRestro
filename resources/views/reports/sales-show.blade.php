@@ -7,8 +7,17 @@
         <h4 class="fw-bold mb-0">Order detail</h4>
         <div class="text-secondary small">Bill #{{ $order->order_no }} — items & amounts</div>
     </div>
-    <a href="{{ route('reports.sales') }}" class="btn btn-outline-secondary btn-sm">← Sales Report</a>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+        <button type="button" class="btn btn-primary btn-sm" id="salesCashierPrintBtn">
+            <i class="bi bi-printer me-1"></i> Print Bill
+        </button>
+        <a href="{{ route('restaurant-pos.receipt', $order) }}" class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener">
+            View Receipt
+        </a>
+        <a href="{{ route('reports.sales') }}" class="btn btn-outline-secondary btn-sm">← Sales Report</a>
+    </div>
 </div>
+<p id="salesPrintStatus" class="small mb-3" style="display:none;"></p>
 
 <div class="row g-3 mb-4">
     <div class="col-md-8">
@@ -128,8 +137,57 @@
                         </div>
                     @endforeach
                 @endif
+
+                <button type="button" class="btn btn-primary btn-sm w-100 mt-3" id="salesCashierPrintBtn2">
+                    <i class="bi bi-printer me-1"></i> Print Bill (Cashier)
+                </button>
             </div>
         </div>
     </div>
 </div>
+@endsection
+
+@section('scripts')
+<script>
+(() => {
+    const printUrl = @json(route('reports.sales.cashier-print', $order));
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    const statusEl = document.getElementById('salesPrintStatus');
+    const buttons = [document.getElementById('salesCashierPrintBtn'), document.getElementById('salesCashierPrintBtn2')].filter(Boolean);
+
+    function setStatus(msg, ok) {
+        if (!statusEl) return;
+        statusEl.style.display = 'block';
+        statusEl.className = 'small mb-3 ' + (ok ? 'text-success' : 'text-danger');
+        statusEl.textContent = msg;
+    }
+
+    async function printCashierBill() {
+        buttons.forEach((b) => { b.disabled = true; });
+        setStatus('Cashier printer pe bhej raha hai…', true);
+        try {
+            const res = await fetch(printUrl, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': csrf,
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.ok) {
+                setStatus(data.message || 'Print fail — cashier printer check karein.', false);
+                return;
+            }
+            setStatus(data.message || 'Bill print ho gaya.', true);
+        } catch (e) {
+            setStatus(e.message || 'Network error — print nahi hua.', false);
+        } finally {
+            buttons.forEach((b) => { b.disabled = false; });
+        }
+    }
+
+    buttons.forEach((b) => b.addEventListener('click', printCashierBill));
+})();
+</script>
 @endsection

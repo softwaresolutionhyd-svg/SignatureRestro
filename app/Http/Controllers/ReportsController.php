@@ -21,8 +21,10 @@ use App\Models\PurchaseOrderLine;
 use App\Models\PurchaseVendor;
 use App\Models\Setting;
 use App\Support\PosOrderMetrics;
+use App\Services\NetworkPrinterService;
 use App\Services\PosSessionSummaryService;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -609,7 +611,7 @@ class ReportsController extends Controller
     }
 
     /**
-     * View paid order line-item detail (no print).
+     * View paid order line-item detail.
      */
     public function salesShow(PosOrder $order)
     {
@@ -627,6 +629,51 @@ class ReportsController extends Controller
         $currency = Setting::get('currency_symbol', 'Rs.');
 
         return view('reports.sales-show', compact('order', 'currency'));
+    }
+
+    /** Print paid sales-report bill on CASHIER network printer (ESC/POS). */
+    public function salesCashierPrint(PosOrder $order): JsonResponse
+    {
+        abort_unless($order->status === 'paid', 404);
+
+        $ip = trim((string) Setting::get('cashier_printer_ip', ''));
+        if ($ip === '') {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Cashier printer set nahi (Inventory → Kitchen Agents → CASHIER).',
+            ]);
+        }
+
+        $order->load([
+            'items.product:id,name,sku',
+            'user:id,name',
+            'table:id,name',
+            'payments',
+            'contact:id,name,phone',
+        ]);
+
+        $settings = array_merge([
+            'company_name' => config('app.name'),
+            'company_address' => '',
+            'company_phone' => '',
+            'company_email' => '',
+            'company_logo' => '',
+            'currency_symbol' => 'Rs.',
+        ], Setting::all_map());
+
+        $logoPath = (string) ($settings['company_logo'] ?? '');
+        $settings['company_logo_abs_path'] = company_logo_path($logoPath) ?? '';
+
+        $printer = app(NetworkPrinterService::class);
+        $payload = $printer->buildBillSlip($order, $settings);
+
+        try {
+            $printer->send($ip, (int) (Setting::get('cashier_printer_port', 9100) ?: 9100), $payload);
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 500);
+        }
+
+        return response()->json(['ok' => true, 'message' => 'Bill cashier printer pe bhej diya.']);
     }
 
     /* ──────────────────────────────────────────
