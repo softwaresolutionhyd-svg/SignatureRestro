@@ -71,13 +71,11 @@
                         </td>
                         <td class="text-end">
                             <a class="btn btn-sm btn-outline-primary" href="{{ route('employees.loans.edit', $loan) }}">View / Edit</a>
-                            @if(($loan->payments_count ?? 0) === 0)
-                                <form class="d-inline" method="POST" action="{{ route('employees.loans.destroy', $loan) }}" onsubmit="return confirm('Delete this loan?');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
-                                </form>
-                            @endif
+                            <form class="d-inline" method="POST" action="{{ route('employees.loans.destroy', $loan) }}" onsubmit="return confirm('Is loan ki saari entries delete ho jayengi (payment history bhi). Continue?');">
+                                @csrf
+                                @method('DELETE')
+                                <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                            </form>
                         </td>
                     </tr>
                 @empty

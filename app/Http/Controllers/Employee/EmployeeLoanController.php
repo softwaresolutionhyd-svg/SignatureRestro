@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Employee;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\EmployeeLoan;
+use App\Models\PayrollEntry;
 use App\Models\Setting;
 use App\Support\ActivityLogger;
 use App\Support\EnsuresEmployeeLoanSchema;
@@ -154,12 +155,29 @@ class EmployeeLoanController extends Controller
         abort_unless(auth()->user()?->canManagePayroll(), 403);
         $this->ensureEmployeeLoanSchema();
 
-        if ($loan->payments()->exists()) {
-            return back()->withErrors('Loan delete nahi ho sakta — payment history maujood hai.');
-        }
+        $employeeId = (int) $loan->employee_id;
 
+        // Payments + loan row — staff often need to wipe test / wrong loans.
+        $loan->payments()->delete();
         $loan->delete();
 
-        return redirect()->route('employees.loans.index')->with('status', 'Loan deleted.');
+        // Unpaid payroll drafts: clear auto loan installment for this employee.
+        $drafts = PayrollEntry::query()
+            ->where('employee_id', $employeeId)
+            ->where('status', '!=', 'paid')
+            ->where('loan', '>', 0)
+            ->get();
+
+        foreach ($drafts as $entry) {
+            $entry->loan = 0;
+            $entry->recalculateNet();
+            $entry->save();
+        }
+
+        ActivityLogger::log('employee_loan.deleted', 'Employee loan deleted', null, [
+            'employee_id' => $employeeId,
+        ]);
+
+        return redirect()->route('employees.loans.index')->with('status', 'Loan entry delete ho gayi.');
     }
 }
