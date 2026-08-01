@@ -43,6 +43,7 @@
     let removeReasonModalInstance = null;
     let cancelWholeOrderPending = false;
     let resumeSaveLock = Promise.resolve();
+    let kitchenPrintBusy = false;
     let checkoutInFlight = false;
     let payments = [{ method: 'cash', amount: 0 }];
     let orderType = 'sale';
@@ -2544,18 +2545,22 @@
                     return;
                 }
 
-                // fallback === true means no department printer configured → use browser print.
-                if (!data.fallback) {
-                    const failed = (data.results || []).filter((r) => !r.ok);
-                    if (failed.length) {
-                        alert('Network print fail hua (browser print try kar rahe hain):\n' +
-                            failed.map((r) => `• ${r.department}: ${r.error || 'error'}`).join('\n'));
-                    } else if (data.message) {
-                        alert(data.message);
-                    }
+                // Only browser-fallback when no department printer is configured.
+                // Other failures must NOT open a full kitchen slip (causes whole-order reprints).
+                if (data.fallback) {
+                    return browserPrintKitchenSlip(orderId);
                 }
+
+                const failed = (data.results || []).filter((r) => !r.ok);
+                if (failed.length) {
+                    alert('Kitchen print fail hua:\n' +
+                        failed.map((r) => `• ${r.department}: ${r.error || 'error'}`).join('\n'));
+                } else if (data.message) {
+                    alert(data.message);
+                }
+                return;
             } catch (e) {
-                // Ignore and fall back to browser print below.
+                // Network/HTTP error → browser slip (still only unprinted pending lines).
             }
         }
 
@@ -2783,7 +2788,21 @@
     }
 
     function enqueueResumeSave(task) {
-        const run = resumeSaveLock.then(task, task);
+        const run = resumeSaveLock.then(async () => {
+            let waits = 0;
+            while (kitchenPrintBusy && waits < 200) {
+                await new Promise((r) => setTimeout(r, 50));
+                waits += 1;
+            }
+            return task();
+        }, async () => {
+            let waits = 0;
+            while (kitchenPrintBusy && waits < 200) {
+                await new Promise((r) => setTimeout(r, 50));
+                waits += 1;
+            }
+            return task();
+        });
         resumeSaveLock = run.catch(() => {});
         return run;
     }
@@ -3095,6 +3114,7 @@
 
         const kitchenBtn = $('#rpKitchenPrintBtn');
         if (kitchenBtn) kitchenBtn.disabled = true;
+        kitchenPrintBusy = true;
         try {
             let order = null;
             if (resumeOrderId) {
@@ -3136,6 +3156,7 @@
         } catch (e) {
             alert(e.message || 'Kitchen print failed.');
         } finally {
+            kitchenPrintBusy = false;
             if (kitchenBtn) kitchenBtn.disabled = false;
         }
     }

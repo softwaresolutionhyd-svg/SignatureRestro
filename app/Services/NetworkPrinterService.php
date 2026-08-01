@@ -155,13 +155,25 @@ final class NetworkPrinterService
 
         $company = Setting::get('company_name', config('app.name'));
         $results = [];
-        $printedIds = [];
+        $kitchen = app(KitchenService::class);
+        $successFingerprints = [];
+
+        // Mark BEFORE send so a concurrent hold/save cannot recreate lines as "unprinted"
+        // and cause the next kitchen print to dump the whole order again.
+        $preMarkIds = [];
+        foreach ($groups as $group) {
+            foreach ($group['items'] as $gi) {
+                $preMarkIds[] = (int) $gi->id;
+            }
+        }
+        $kitchen->markItemsKitchenPrinted($preMarkIds);
 
         foreach ($groups as $group) {
             /** @var InventoryDepartment $dept */
             $dept = $group['dept'];
             /** @var list<PosOrderItem> $groupItems */
             $groupItems = $group['items'];
+            $groupIds = array_map(static fn (PosOrderItem $gi) => (int) $gi->id, $groupItems);
             $payload = $this->buildKitchenSlip(
                 $order,
                 (string) $dept->name,
@@ -174,9 +186,10 @@ final class NetworkPrinterService
                 $this->send((string) $dept->printer_ip, (int) ($dept->printer_port ?: 9100), $payload);
                 $results[] = ['department' => (string) $dept->name, 'ok' => true];
                 foreach ($groupItems as $gi) {
-                    $printedIds[] = (int) $gi->id;
+                    $successFingerprints[] = $kitchen->baseItemFingerprint($gi);
                 }
             } catch (\Throwable $e) {
+                $kitchen->clearItemsKitchenPrinted($groupIds);
                 $results[] = [
                     'department' => (string) $dept->name,
                     'ok' => false,
@@ -185,11 +198,11 @@ final class NetworkPrinterService
             }
         }
 
-        if ($printedIds !== []) {
-            app(KitchenService::class)->markItemsKitchenPrinted($printedIds);
-        }
-
         $anyOk = collect($results)->contains(fn ($r) => $r['ok'] === true);
+        if ($anyOk && $successFingerprints !== []) {
+            $order->unsetRelation('items');
+            $kitchen->markUnprintedPendingMatchingFingerprints($order, $successFingerprints);
+        }
 
         return [
             'ok' => $anyOk,
@@ -568,7 +581,7 @@ final class NetworkPrinterService
      * Layout:
      *   Department (center) → Company (center) → Bill# / DateTime
      *   → Table No (center, large) → by: name → Complete bill Notes
-     *   → [+ NEW ITEMS if addon] → Items | QTY → (notes) → blank lines → END → Cut
+     *   → [Add Items if addon] → Items | QTY → (notes) → blank lines → END → Cut
      *
      * @param  Collection<int, PosOrderItem>|iterable<int, PosOrderItem>  $items
      */
@@ -642,7 +655,7 @@ final class NetworkPrinterService
 
         if ($isAddonPrint) {
             $out .= self::ALIGN_CENTER . self::BOLD_ON;
-            $out .= $this->clip('+ NEW ITEMS') . "\n";
+            $out .= $this->clip('Add Items') . "\n";
             $out .= self::BOLD_OFF . self::ALIGN_LEFT;
         }
 

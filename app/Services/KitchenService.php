@@ -384,6 +384,59 @@ final class KitchenService
     }
 
     /**
+     * Undo a pre-send mark when the department printer job fails.
+     *
+     * @param  list<int>  $itemIds
+     */
+    public function clearItemsKitchenPrinted(array $itemIds): void
+    {
+        $itemIds = array_values(array_unique(array_filter(array_map('intval', $itemIds))));
+        if ($itemIds === [] || ! $this->tenantItemsHasColumn('kitchen_printed_at')) {
+            return;
+        }
+
+        PosOrderItem::query()
+            ->whereIn('id', $itemIds)
+            ->update(['kitchen_printed_at' => null]);
+    }
+
+    /**
+     * After a successful ticket, mark any live unprinted pending lines whose
+     * product fingerprint matches (covers item-row recreate races mid-print).
+     *
+     * @param  list<string>  $fingerprints
+     */
+    public function markUnprintedPendingMatchingFingerprints(PosOrder $order, array $fingerprints): void
+    {
+        if (! $this->tenantItemsHasColumn('kitchen_printed_at')) {
+            return;
+        }
+
+        $wanted = [];
+        foreach ($fingerprints as $fp) {
+            $fp = trim((string) $fp);
+            if ($fp !== '') {
+                $wanted[$fp] = true;
+            }
+        }
+        if ($wanted === []) {
+            return;
+        }
+
+        $ids = [];
+        foreach ($order->items()->get() as $item) {
+            if (! (bool) $item->kitchen_pending || $item->isKitchenServed() || $item->kitchen_printed_at !== null) {
+                continue;
+            }
+            if (isset($wanted[$this->baseItemFingerprint($item)])) {
+                $ids[] = (int) $item->id;
+            }
+        }
+
+        $this->markItemsKitchenPrinted($ids);
+    }
+
+    /**
      * Mark all currently printable (pending + unprinted) lines on an order.
      */
     public function markOrderPendingKitchenPrinted(PosOrder $order): void
