@@ -95,6 +95,23 @@
             border-top: 2px solid #000;
         }
         .r-bill-status--unpaid { font-size: 18px; }
+        .table-no {
+            text-align: center;
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: 0.03em;
+            margin: 8px 0 4px;
+            line-height: 1.15;
+            text-transform: uppercase;
+        }
+        .table-no-label {
+            display: block;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            margin-bottom: 2px;
+            color: #222;
+        }
         .r-status-spacer {
             height: 1.6em;
             line-height: 1.1;
@@ -123,6 +140,7 @@
                 max-width: 76mm !important;
                 padding: 0 1mm 4mm !important;
             }
+            .table-no { font-size: 22px; }
         }
     </style>
 </head>
@@ -144,6 +162,16 @@
     if ($logoSrc === '' && ! empty($settings['company_logo'])) {
         $logoSrc = company_logo_data_uri((string) $settings['company_logo'])
             ?: (company_logo_url((string) $settings['company_logo']) ?? '');
+    }
+    $tablesEnabled = ! empty($settings['pos_enable_tables']) && $settings['pos_enable_tables'] === '1';
+    $tableLabel = null;
+    if ($tablesEnabled && $order->table) {
+        $tableLabel = trim((string) $order->table->name) ?: null;
+    }
+    if ($tableLabel === null || $tableLabel === '') {
+        $roomNo = trim((string) ($order->room_no ?? ''));
+        $guestName = trim((string) ($order->guest_name ?? ''));
+        $tableLabel = $roomNo !== '' ? 'Room '.$roomNo : ($guestName !== '' ? $guestName : null);
     }
 @endphp
 <div class="r-wrap">
@@ -172,24 +200,27 @@
 
     <hr class="line">
 
+    @if($tableLabel)
+        <div class="table-no">
+            <span class="table-no-label">TABLE NO</span>
+            {{ $tableLabel }}
+        </div>
+        <hr class="line">
+    @endif
+
     <div class="r-info">
         @if(!empty($isQuotation))
             <div class="tot-row"><span class="muted">Order Type:</span><span class="bold">{{ $orderType }}</span></div>
         @elseif(!empty($isUnpaid))
+            <div class="tot-row"><span class="muted">Bill #:</span><span class="bold">{{ $order->order_no }}</span></div>
             <div class="tot-row"><span class="muted">Order Type:</span><span class="bold">{{ $orderType }}</span></div>
-            @if(!empty($settings['pos_enable_tables']) && $settings['pos_enable_tables'] === '1' && $order->table)
-                <div class="tot-row"><span class="muted">Table</span><span class="bold">{{ $order->table->name }}</span></div>
-            @endif
         @else
             <div class="tot-row"><span class="muted">Invoice Number:</span><span class="bold">{{ $order->order_no }}</span></div>
             <div class="tot-row"><span class="muted">Order Type:</span><span class="bold">{{ $orderType }}</span></div>
-            @if(!empty($settings['pos_enable_tables']) && $settings['pos_enable_tables'] === '1' && $order->table)
-                <div class="tot-row"><span class="muted">Table</span><span class="bold">{{ $order->table->name }}</span></div>
-            @endif
-            @if($order->guest_name)
+            @if($order->guest_name && ! ($tableLabel && trim((string) $order->guest_name) === $tableLabel))
                 <div class="tot-row"><span class="muted">Guest</span><span>{{ $order->guest_name }}</span></div>
             @endif
-            @if($order->room_no)
+            @if($order->room_no && ! ($tableLabel && str_starts_with($tableLabel, 'Room ')))
                 <div class="tot-row"><span class="muted">Room</span><span>{{ $order->room_no }}</span></div>
             @endif
             @if($order->waiter_name)
