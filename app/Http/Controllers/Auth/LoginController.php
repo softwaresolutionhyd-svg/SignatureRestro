@@ -37,17 +37,17 @@ class LoginController extends Controller
 
     public function showLoginForm(Request $request)
     {
-        $currentUser = Auth::user();
-
-        if ($currentUser === null && $request->hasSession()) {
-            // Stale session cookies cause CSRF mismatch on POST.
-            $request->session()->invalidate();
-            $request->session()->regenerate(true);
+        // PWA start used to open /login — keep signed-in staff on the app, not the form.
+        if (Auth::check()) {
+            return redirect()->intended($this->redirectPath());
         }
+
+        // Do NOT invalidate the session here. Wiping on every login view kills
+        // "Stay signed in" / remember cookies when the installed app is reopened.
 
         return response()
             ->view('auth.login', [
-                'currentUser' => $currentUser,
+                'currentUser' => null,
             ])
             ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
             ->header('Pragma', 'no-cache');

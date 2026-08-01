@@ -143,6 +143,10 @@
             Agar ab bhi sirf “Create shortcut” aaye: CA install nahi hui, galat file select hui, ya Chrome restart nahi hua.
             Step 1–4 dubara karo.
         </p>
+        <p class="ok" style="margin-top:12px">
+            Install ke baad login karein aur <strong>Stay signed in</strong> checked rakhein.
+            Purani app uninstall karke ek dafa naya Install karna behtar hai — phir band karne par logout nahi hona chahiye.
+        </p>
     </div>
 
     <p class="muted">Server: <code>{{ $host }}</code></p>

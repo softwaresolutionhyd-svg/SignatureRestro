@@ -92,11 +92,9 @@ class AppServiceProvider extends ServiceProvider
                 || $host === 'www.signature.restro'
                 || str_ends_with($host, '.signature.restro');
 
+            // Always align generated URLs to the browser host (LAN IP / HTTPS),
+            // otherwise PWA assets/cookies can point at APP_URL (signature.restro).
             if (! $isSignatureHost && ! $this->isLocalNetworkHost($host)) {
-                return;
-            }
-
-            if (! $isSignatureHost && ! $this->app->environment('local')) {
                 return;
             }
 

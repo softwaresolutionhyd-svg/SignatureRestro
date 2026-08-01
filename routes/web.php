@@ -96,11 +96,7 @@ Route::post('/deploy/hooks/migrate', [DeployHookController::class, 'migrate'])
 Auth::routes(['register' => false, 'reset' => false]);
 
 Route::get('/logout', function () {
-    if (auth()->check()) {
-        auth()->logout();
-        request()->session()->invalidate();
-        request()->session()->regenerateToken();
-    }
+    \App\Support\WebAuthSession::destroy(request());
 
     return redirect()->route('login');
 })->name('logout.get');

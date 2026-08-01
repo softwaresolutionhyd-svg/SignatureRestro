@@ -142,7 +142,8 @@
     }
 
     if (secureOk) {
-        navigator.serviceWorker.register(@json(asset('sw.js')), { scope: '/' }).catch(function () {});
+        // Same-origin path only — never register against APP_URL host (breaks LAN PWA cookies).
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function () {});
     }
 
     window.addEventListener('beforeinstallprompt', function (e) {

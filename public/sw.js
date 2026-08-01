@@ -1,5 +1,5 @@
 /* Network-first service worker — required for Install App; does not cache HTML pages. */
-const CACHE_NAME = 'stair-shell-v4';
+const CACHE_NAME = 'stair-shell-v5';
 const URLS_TO_CACHE = [
   '/icons/icon-192.png',
   '/icons/icon-512.png',
