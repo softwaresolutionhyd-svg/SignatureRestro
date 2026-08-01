@@ -4011,48 +4011,12 @@ class PosController extends Controller
      */
     private function assertKitchenLockedQuantitiesPreserved(array $existingItems, array $incomingItems, array $kitchenVoids = []): void
     {
-        $kitchen = app(KitchenService::class);
-        $lockedByFingerprint = [];
-        foreach ($existingItems as $existing) {
-            $qty = (float) $existing->qty;
-            if ($qty <= 0) {
-                continue;
-            }
-            $isServed = $existing->kitchen_served_at !== null;
-            $isPending = (bool) $existing->kitchen_pending && ! $isServed;
-            $isPrinted = $existing->kitchen_printed_at !== null && ! $isServed;
-            if (! $isServed && ! $isPending && ! $isPrinted) {
-                continue;
-            }
-            $fp = $kitchen->baseItemFingerprint($existing);
-            $lockedByFingerprint[$fp] = ($lockedByFingerprint[$fp] ?? 0) + $qty;
-        }
-
-        if ($lockedByFingerprint === []) {
-            return;
-        }
-
-        $voidByFingerprint = [];
-        foreach ($kitchenVoids as $void) {
-            $fp = $kitchen->baseItemFingerprint($void);
-            $voidByFingerprint[$fp] = ($voidByFingerprint[$fp] ?? 0) + (float) ($void['qty'] ?? 0);
-        }
-
-        $incomingByFingerprint = [];
-        foreach ($incomingItems as $incoming) {
-            $fp = $kitchen->baseItemFingerprint($incoming);
-            $incomingByFingerprint[$fp] = ($incomingByFingerprint[$fp] ?? 0) + (float) ($incoming['qty'] ?? 0);
-        }
-
-        foreach ($lockedByFingerprint as $fp => $lockedQty) {
-            $newQty = $incomingByFingerprint[$fp] ?? 0;
-            $allowedVoid = $voidByFingerprint[$fp] ?? 0;
-            $minimumQty = max(0.0, $lockedQty - $allowedVoid);
-            if ($newQty + 0.00001 < $minimumQty) {
-                throw ValidationException::withMessages([
-                    'items' => 'Kitchen me bheji hui items hataane ke liye reason dena zaroori hai.',
-                ]);
-            }
+        try {
+            app(KitchenService::class)->assertLockedQuantitiesPreserved($existingItems, $incomingItems, $kitchenVoids);
+        } catch (\RuntimeException $e) {
+            throw ValidationException::withMessages([
+                'items' => $e->getMessage(),
+            ]);
         }
     }
 

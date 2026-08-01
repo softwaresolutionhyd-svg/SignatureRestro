@@ -300,10 +300,7 @@ final class KitchenService
             if (! $old instanceof PosOrderItem) {
                 continue;
             }
-            $locked = $old->isKitchenServed()
-                || $old->kitchen_printed_at !== null
-                || (bool) $old->kitchen_pending;
-            if (! $locked) {
+            if (! $this->isKitchenLockedLine($old)) {
                 continue;
             }
             $fp = $this->baseItemFingerprint($old);
@@ -332,6 +329,66 @@ final class KitchenService
         }
 
         return $out;
+    }
+
+    public function isKitchenLockedLine(PosOrderItem $item): bool
+    {
+        if ($item->isKitchenServed()) {
+            return true;
+        }
+        if ($item->kitchen_printed_at !== null) {
+            return true;
+        }
+
+        return (bool) $item->kitchen_pending;
+    }
+
+    /**
+     * @param  list<PosOrderItem>  $existingItems
+     * @param  list<array<string, mixed>>  $incomingItems
+     * @param  list<array<string, mixed>>  $kitchenVoids
+     */
+    public function assertLockedQuantitiesPreserved(array $existingItems, array $incomingItems, array $kitchenVoids = []): void
+    {
+        $lockedByFingerprint = [];
+        foreach ($existingItems as $existing) {
+            if (! $existing instanceof PosOrderItem) {
+                continue;
+            }
+            $qty = (float) $existing->qty;
+            if ($qty <= 0 || ! $this->isKitchenLockedLine($existing)) {
+                continue;
+            }
+            $fp = $this->baseItemFingerprint($existing);
+            $lockedByFingerprint[$fp] = ($lockedByFingerprint[$fp] ?? 0) + $qty;
+        }
+
+        if ($lockedByFingerprint === []) {
+            return;
+        }
+
+        $voidByFingerprint = [];
+        foreach ($kitchenVoids as $void) {
+            $fp = $this->baseItemFingerprint($void);
+            $voidByFingerprint[$fp] = ($voidByFingerprint[$fp] ?? 0) + (float) ($void['qty'] ?? 0);
+        }
+
+        $incomingByFingerprint = [];
+        foreach ($incomingItems as $incoming) {
+            $fp = $this->baseItemFingerprint($incoming);
+            $incomingByFingerprint[$fp] = ($incomingByFingerprint[$fp] ?? 0) + (float) ($incoming['qty'] ?? 0);
+        }
+
+        foreach ($lockedByFingerprint as $fp => $lockedQty) {
+            $newQty = $incomingByFingerprint[$fp] ?? 0;
+            $allowedVoid = $voidByFingerprint[$fp] ?? 0;
+            $minimumQty = max(0.0, $lockedQty - $allowedVoid);
+            if ($newQty + 0.00001 < $minimumQty) {
+                throw new RuntimeException(
+                    'Kitchen me bheji / print hui items cart se gayab hain. Page refresh karke dubara try karein (void ke baghair remove nahi hoga).'
+                );
+            }
+        }
     }
 
     /**
