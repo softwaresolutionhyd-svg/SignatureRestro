@@ -267,6 +267,8 @@
         @elseif(!empty($isUnpaid))
             <div class="tot-row"><span class="muted">Bill #:</span><span class="bold">{{ $order->order_no }}</span></div>
             <div class="tot-row"><span class="muted">Order Type:</span><span class="bold">{{ $orderType }}</span></div>
+            <div class="tot-row"><span class="muted">Date</span><span>{{ ($order->updated_at ?? $order->created_at)?->format('d M Y H:i') }}</span></div>
+            <div class="tot-row"><span class="muted">Cashier</span><span>{{ $order->user->name ?? auth()->user()?->name ?? '—' }}</span></div>
         @else
             <div class="tot-row"><span class="muted">Invoice Number:</span><span class="bold">{{ $order->order_no }}</span></div>
             <div class="tot-row"><span class="muted">Order Type:</span><span class="bold">{{ $orderType }}</span></div>

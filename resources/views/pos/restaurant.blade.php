@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=57">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=58">
 @endpush
 
 @section('content')
@@ -273,10 +273,14 @@
                         <div class="rp-discount-controls">
                             <span class="rp-adjust-label">
                                 Discount
+                                <span class="rp-disc-mode" role="group" aria-label="Discount type">
+                                    <button type="button" class="rp-disc-mode-btn is-active" id="rpDiscModePct" data-mode="percent" title="Percent discount">%</button>
+                                    <button type="button" class="rp-disc-mode-btn" id="rpDiscModeRs" data-mode="amount" title="Rupees discount">Rs</button>
+                                </span>
                                 <input type="number" id="rpBillDiscount" class="form-control form-control-sm rp-summary-pct"
-                                       min="0" step="0.01" title="Bill discount %"
+                                       min="0" step="0.01" title="Bill discount"
                                        value="{{ $posSettings['resume_bill_discount_percent'] ?? 0 }}">
-                                <span class="rp-pct-sym">%</span>
+                                <span class="rp-pct-sym" id="rpDiscUnit">%</span>
                             </span>
                             @if($canPosDiscountCredit ?? false)
                             <button type="button" class="btn btn-outline-info btn-sm rp-owner-discount-btn" id="rpOwnerDiscountBtn" title="Owner ko 100% discount de kar bill close karein">
@@ -294,6 +298,12 @@
                     </div>
                 @endif
                 <div class="rp-total-row grand"><span>Total</span><span id="rpSumGrand">0.00</span></div>
+                @if($posStaffLabel !== '')
+                    <div class="rp-total-row rp-cashier-row">
+                        <span>Cashier</span>
+                        <span id="rpSumCashier">{{ $posStaffLabel }}</span>
+                    </div>
+                @endif
             </div>
 
             @if($canPosPay ?? false)
@@ -581,5 +591,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=78"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=79"></script>
 @endsection

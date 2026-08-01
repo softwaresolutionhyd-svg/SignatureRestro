@@ -22,6 +22,7 @@
     const posShowDiscount = canPosDiscount && settings.show_discount !== false;
     const resumeBillDiscount = Number(settings.resume_bill_discount_percent || 0);
     const resumeOwnerDiscount = settings.resume_is_owner_discount === true;
+    let discountMode = 'percent'; // 'percent' | 'amount' (Rs)
     const posTablesEnabled = boot.tablesEnabled !== undefined ? !!boot.tablesEnabled : !!settings.enable_tables;
     const posShowCustomerSection = settings.show_customer_section !== false;
     const canVoidKitchenItems = boot.canVoidKitchenItems === true;
@@ -502,11 +503,53 @@
         }
     }
 
-    function getBillDiscountPercent() {
+    function cartSubtotalOnly() {
+        let subtotal = 0;
+        cart.forEach((r) => {
+            subtotal += Number(r.qty) * Number(r.unit_price);
+        });
+        return Math.round(subtotal * 100) / 100;
+    }
+
+    function setDiscountMode(mode, { resetValue = false } = {}) {
+        discountMode = mode === 'amount' ? 'amount' : 'percent';
+        const pctBtn = $('#rpDiscModePct');
+        const rsBtn = $('#rpDiscModeRs');
+        const unit = $('#rpDiscUnit');
+        const discInput = $('#rpBillDiscount');
+        pctBtn?.classList.toggle('is-active', discountMode === 'percent');
+        rsBtn?.classList.toggle('is-active', discountMode === 'amount');
+        if (unit) unit.textContent = discountMode === 'amount' ? 'Rs' : '%';
+        discInput?.classList.toggle('rp-summary-amount', discountMode === 'amount');
+        if (discInput) {
+            discInput.title = discountMode === 'amount' ? 'Bill discount (Rs)' : 'Bill discount %';
+            discInput.max = discountMode === 'percent' ? '100' : '';
+            if (resetValue && !ownerDiscountActive) {
+                discInput.value = '0';
+            }
+        }
+    }
+
+    function getBillDiscountInputValue() {
         if (ownerDiscountActive) return 100;
-        if (posShowDiscount) return Number($('#rpBillDiscount')?.value || 0);
+        if (posShowDiscount) return Math.max(0, Number($('#rpBillDiscount')?.value || 0));
         if (resumeOwnerDiscount) return 100;
         return resumeBillDiscount;
+    }
+
+    /** Always returns equivalent % for server (0–100). */
+    function getBillDiscountPercent() {
+        if (ownerDiscountActive || (!posShowDiscount && resumeOwnerDiscount)) {
+            return 100;
+        }
+        const raw = getBillDiscountInputValue();
+        if (discountMode !== 'amount') {
+            return Math.min(100, raw);
+        }
+        const subtotal = cartSubtotalOnly();
+        if (subtotal <= 0 || raw <= 0) return 0;
+        const amount = Math.min(raw, subtotal);
+        return Math.round((amount / subtotal) * 100000) / 1000; // 3 dp like backend
     }
 
     function updateOwnerDiscountButton() {
@@ -544,6 +587,7 @@
         }
 
         ownerDiscountActive = true;
+        setDiscountMode('percent');
         const discInput = $('#rpBillDiscount');
         if (discInput) {
             discInput.value = '100';
@@ -565,8 +609,20 @@
             subtotal += s;
         });
         subtotal = Math.round(subtotal * 100) / 100;
-        const billDiscPct = getBillDiscountPercent();
-        let discount = billDiscPct > 0 ? Math.round(subtotal * billDiscPct / 100 * 100) / 100 : 0;
+        let discount = 0;
+        let billDiscPct = 0;
+        if (ownerDiscountActive || (!posShowDiscount && resumeOwnerDiscount)) {
+            billDiscPct = 100;
+            discount = subtotal;
+        } else if (discountMode === 'amount' && posShowDiscount) {
+            const rawRs = Math.max(0, Number($('#rpBillDiscount')?.value || 0));
+            discount = Math.min(rawRs, subtotal);
+            discount = Math.round(discount * 100) / 100;
+            billDiscPct = subtotal > 0 ? Math.round((discount / subtotal) * 100000) / 1000 : 0;
+        } else {
+            billDiscPct = getBillDiscountPercent();
+            discount = billDiscPct > 0 ? Math.round(subtotal * billDiscPct / 100 * 100) / 100 : 0;
+        }
         const tax = 0;
         const net = Math.round((subtotal - discount) * 100) / 100;
         const serviceCharge = serviceChargeApplies() && posServiceChargePercent > 0
@@ -2039,7 +2095,7 @@
                 : (isCreditMode ? [] : payments)
         );
         form.querySelector('[name="bill_tax_percent"]').value = '0';
-        form.querySelector('[name="bill_discount_percent"]').value = String(getBillDiscountPercent());
+        form.querySelector('[name="bill_discount_percent"]').value = String(calcCartTotals().billDiscPct);
         form.querySelector('[name="is_owner_discount"]').value = (ownerDiscountActive || resumeOwnerDiscount) ? '1' : '0';
         form.querySelector('[name="resume_order_id"]').value = resumeOrderId ? String(resumeOrderId) : '';
         const kitchenVoidsInput = form.querySelector('[name="kitchen_voids"]');
@@ -3345,10 +3401,38 @@
         $('#rpBillDiscount')?.addEventListener('input', () => {
             if (ownerDiscountActive) {
                 const raw = Number($('#rpBillDiscount')?.value || 0);
-                if (raw !== 100) {
+                if (discountMode === 'percent' && raw !== 100) {
+                    clearOwnerDiscount(false);
+                } else if (discountMode === 'amount') {
                     clearOwnerDiscount(false);
                 }
             }
+            if (discountMode === 'percent') {
+                const el = $('#rpBillDiscount');
+                if (el && Number(el.value) > 100) el.value = '100';
+            }
+            renderTotals();
+        });
+        $('#rpDiscModePct')?.addEventListener('click', () => {
+            if (ownerDiscountActive) return;
+            if (discountMode === 'percent') return;
+            const totals = calcCartTotals();
+            setDiscountMode('percent');
+            const el = $('#rpBillDiscount');
+            if (el) {
+                el.value = totals.subtotal > 0
+                    ? String(Math.round((totals.discount / totals.subtotal) * 10000) / 100)
+                    : '0';
+            }
+            renderTotals();
+        });
+        $('#rpDiscModeRs')?.addEventListener('click', () => {
+            if (ownerDiscountActive) return;
+            if (discountMode === 'amount') return;
+            const totals = calcCartTotals();
+            setDiscountMode('amount');
+            const el = $('#rpBillDiscount');
+            if (el) el.value = String(totals.discount || 0);
             renderTotals();
         });
 
@@ -3498,12 +3582,15 @@
         if (settings.resume_is_owner_discount) {
             ownerDiscountActive = true;
             if (canPosDiscountCredit) {
+                setDiscountMode('percent');
                 const discInput = $('#rpBillDiscount');
                 if (discInput) {
                     discInput.value = '100';
                     discInput.readOnly = true;
                 }
             }
+        } else {
+            setDiscountMode('percent');
         }
         bindEvents();
         applyTableBoard(boot.tableBoard || []);

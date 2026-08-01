@@ -805,8 +805,17 @@ final class NetworkPrinterService
             // Quotation: heading + Order Type only
             $out .= $this->line('Order Type: ' . $orderType) . "\n";
         } else {
-            // Unpaid: only Order Type (+ table already printed above)
+            // Unpaid provisional bill
+            $out .= $this->line('Bill #: ' . ($order->order_no ?? $order->id)) . "\n";
             $out .= $this->line('Order Type: ' . $orderType) . "\n";
+            $when = $order->updated_at ?? $order->created_at;
+            if ($when) {
+                $out .= $this->line('Date: ' . $when->format('d M Y H:i')) . "\n";
+            }
+            $cashierName = $order->user?->name ?? Auth::user()?->name;
+            if ($cashierName) {
+                $out .= $this->line('Cashier: ' . $cashierName) . "\n";
+            }
         }
 
         $out .= $this->rule() . "\n";

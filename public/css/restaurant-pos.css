@@ -1885,6 +1885,47 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     min-width: 0;
 }
 
+.restaurant-pos-app .rp-disc-mode {
+    display: inline-flex;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    margin: 0 0.15rem;
+}
+
+.restaurant-pos-app .rp-disc-mode-btn {
+    border: 0;
+    background: rgba(255, 255, 255, 0.06);
+    color: #9aa4b2;
+    font-size: 0.62rem;
+    font-weight: 700;
+    padding: 0.12rem 0.4rem;
+    line-height: 1.2;
+    cursor: pointer;
+}
+
+.restaurant-pos-app .rp-disc-mode-btn.is-active {
+    background: rgba(201, 162, 39, 0.28);
+    color: #f5e6b8;
+}
+
+.restaurant-pos-app .rp-summary-pct.rp-summary-amount {
+    width: 4.25rem;
+}
+
+.restaurant-pos-app .rp-cashier-row {
+    font-size: 0.72rem;
+    color: #a8b0bd;
+    margin-top: 0.15rem;
+}
+
+.restaurant-pos-app .rp-cashier-row span:last-child {
+    color: #e8c96a;
+    font-weight: 600;
+    text-align: right;
+    max-width: 62%;
+}
+
 .restaurant-pos-app .rp-owner-discount-btn {
     border-color: rgba(56, 189, 248, 0.45);
     color: #bae6fd;
