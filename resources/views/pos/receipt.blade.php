@@ -97,20 +97,27 @@
         .r-bill-status--unpaid { font-size: 18px; }
         .table-no {
             text-align: center;
-            font-size: 22px;
-            font-weight: 800;
-            letter-spacing: 0.03em;
-            margin: 8px 0 4px;
-            line-height: 1.15;
+            font-size: 28px;
+            font-weight: 900;
+            letter-spacing: 0.04em;
+            margin: 10px 0;
+            padding: 10px 6px;
+            line-height: 1.1;
             text-transform: uppercase;
+            border: 3px solid #000;
+            border-radius: 4px;
+            background: #000;
+            color: #fff;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
         .table-no-label {
             display: block;
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.08em;
-            margin-bottom: 2px;
-            color: #222;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.14em;
+            margin-bottom: 4px;
+            opacity: 0.95;
         }
         .r-status-spacer {
             height: 1.6em;
@@ -140,7 +147,14 @@
                 max-width: 76mm !important;
                 padding: 0 1mm 4mm !important;
             }
-            .table-no { font-size: 22px; }
+            .table-no {
+                font-size: 30px !important;
+                border: 3px solid #000 !important;
+                background: #000 !important;
+                color: #fff !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
         }
     </style>
 </head>
@@ -163,15 +177,17 @@
         $logoSrc = company_logo_data_uri((string) $settings['company_logo'])
             ?: (company_logo_url((string) $settings['company_logo']) ?? '');
     }
-    $tablesEnabled = ! empty($settings['pos_enable_tables']) && $settings['pos_enable_tables'] === '1';
-    $tableLabel = null;
-    if ($tablesEnabled && $order->table) {
-        $tableLabel = trim((string) $order->table->name) ?: null;
-    }
+    // Same as kitchen slip: show table whenever order has one.
+    $tableLabel = $order->table?->name
+        ? trim((string) $order->table->name)
+        : null;
     if ($tableLabel === null || $tableLabel === '') {
         $roomNo = trim((string) ($order->room_no ?? ''));
         $guestName = trim((string) ($order->guest_name ?? ''));
         $tableLabel = $roomNo !== '' ? 'Room '.$roomNo : ($guestName !== '' ? $guestName : null);
+    }
+    if ($tableLabel !== null && $tableLabel !== '' && ! preg_match('/^(table|room)\b/i', $tableLabel)) {
+        $tableLabel = 'Table '.$tableLabel;
     }
 @endphp
 <div class="r-wrap">
@@ -198,15 +214,14 @@
         @endif
     @endif
 
-    <hr class="line">
-
     @if($tableLabel)
         <div class="table-no">
             <span class="table-no-label">TABLE NO</span>
             {{ $tableLabel }}
         </div>
-        <hr class="line">
     @endif
+
+    <hr class="line">
 
     <div class="r-info">
         @if(!empty($isQuotation))

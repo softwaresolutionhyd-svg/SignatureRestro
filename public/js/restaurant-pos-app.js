@@ -358,20 +358,38 @@
         return `<span class="rp-oc-split-icon" title="${escHtml(tip)}" aria-label="${escHtml(tip)}"><i class="bi bi-scissors" aria-hidden="true"></i></span>`;
     }
 
+    function orderTableBanner(order) {
+        const guestRaw = String(order.guest_name || '').trim();
+        const guestBase = guestRaw.includes(' · Split ') ? guestRaw.split(' · Split ')[0].trim() : guestRaw;
+        let label = '';
+        if (order.table_name) {
+            label = String(order.table_name).trim();
+        } else if ((order.service_type === 'dine_in' || order.service_type_label === 'Dine-in') && guestBase) {
+            label = guestBase;
+        } else if (order.room_no) {
+            label = 'Room ' + String(order.room_no).trim();
+        }
+        if (!label) return '';
+        if (!/^(table|room)\b/i.test(label)) {
+            label = 'Table ' + label;
+        }
+        return `<div class="rp-oc-table">${escHtml(label)}</div>`;
+    }
+
     function orderMetaDetail(order) {
         const parts = [];
         const guestRaw = String(order.guest_name || '').trim();
         const guestBase = guestRaw.includes(' · Split ') ? guestRaw.split(' · Split ')[0].trim() : guestRaw;
         if (order.service_type === 'dine_in' || order.service_type_label === 'Dine-in') {
-            if (order.table_name) parts.push('Table ' + order.table_name);
-            else if (guestBase) parts.push('Table ' + guestBase);
+            // Table shown in rp-oc-table banner — keep other meta only.
+            if (!order.table_name && !guestBase && order.room_no) parts.push(order.room_no);
         } else if (order.service_type === 'delivery' || order.service_type_label === 'Delivery') {
             if (guestBase) parts.push(guestBase);
             if (order.room_no) parts.push(order.room_no);
         } else if (guestBase) {
             parts.push(guestBase);
         }
-        return parts.join(' · ') || '—';
+        return parts.join(' · ');
     }
 
     function orderPunchedByHtml(order) {
@@ -1611,6 +1629,7 @@
         return orders.filter((o) => {
             const hay = [
                 o.order_no,
+                o.table_name,
                 orderMetaLabel(o),
                 orderMetaDetail(o),
                 o.punched_by,
@@ -1732,8 +1751,9 @@
                     : '';
                 return `<div class="rp-order-card rp-order-card--grid rp-order-card--pending-wrap">
                     <a class="rp-order-card-link" href="${escHtml(resumeUrl)}">
+                        ${orderTableBanner(o)}
                         <div class="rp-oc-no">${escHtml(o.order_no)}${orderSplitIconHtml(o)}</div>
-                        <div class="rp-oc-meta">${escHtml(orderMetaLabel(o))} · ${escHtml(orderMetaDetail(o))}</div>
+                        <div class="rp-oc-meta">${escHtml(orderMetaLabel(o))}${orderMetaDetail(o) ? ' · ' + escHtml(orderMetaDetail(o)) : ''}</div>
                         ${orderPunchedByHtml(o)}
                         <div class="rp-oc-meta">${escHtml(fmtMoney(o.grand_total))} · ${o.items_count || 0} items</div>
                         <div class="rp-oc-open">Open bill <i class="bi bi-arrow-right-short"></i></div>
@@ -1761,8 +1781,9 @@
                 </button>`
                 : '';
             return `<div class="rp-order-card rp-order-card-paid rp-order-card--grid">
+                ${orderTableBanner(o)}
                 <div class="rp-oc-no">${escHtml(o.order_no)}</div>
-                <div class="rp-oc-meta">${escHtml(orderMetaLabel(o))} · ${escHtml(orderMetaDetail(o))}</div>
+                <div class="rp-oc-meta">${escHtml(orderMetaLabel(o))}${orderMetaDetail(o) ? ' · ' + escHtml(orderMetaDetail(o)) : ''}</div>
                 ${orderPunchedByHtml(o)}
                 <div class="rp-oc-meta">${escHtml(fmtMoney(o.grand_total))} · ${escHtml(o.payment_label || 'Paid')}</div>
                 ${paidAt ? `<div class="rp-oc-pay">${escHtml(paidAt)}</div>` : ''}

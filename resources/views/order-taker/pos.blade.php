@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=47">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=57">
 <link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=24">
 @endpush
 
@@ -209,6 +209,9 @@
                                         data-order-id="{{ $mo['id'] }}"
                                         data-amendable="{{ $canOpen ? '1' : '0' }}"
                                         @if(! $canOpen) disabled @endif>
+                                        @if(!empty($mo['table_name']))
+                                            <div class="rp-oc-table">Table {{ $mo['table_name'] }}</div>
+                                        @endif
                                     <div class="rp-oc-no">
                                         {{ $mo['order_no'] }}
                                         @if(!empty($mo['is_split']))
@@ -221,9 +224,6 @@
                                         @endif
                                     </div>
                                     <div class="rp-oc-meta">
-                                        @if(!empty($mo['table_name']))
-                                            {{ $mo['table_name'] }} ·
-                                        @endif
                                         {{ $mo['service_label'] }}
                                     </div>
                                     <div class="rp-oc-by">by: {{ $mo['punched_by'] ?? '—' }}</div>

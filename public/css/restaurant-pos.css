@@ -686,6 +686,21 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     color: #fcd98a;
 }
 
+.restaurant-pos-app .rp-order-card .rp-oc-table {
+    font-size: 1.05rem;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: 0.03em;
+    color: #fff;
+    background: #111827;
+    border: 2px solid #fcd98a;
+    border-radius: 10px;
+    padding: 0.35rem 0.5rem;
+    text-align: center;
+    text-transform: uppercase;
+    margin-bottom: 0.35rem;
+}
+
 .restaurant-pos-app .rp-order-card .rp-oc-meta {
     font-size: 0.68rem;
     color: var(--rp-text-soft);
