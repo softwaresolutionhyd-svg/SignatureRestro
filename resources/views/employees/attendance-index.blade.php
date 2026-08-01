@@ -222,7 +222,7 @@
                         <th class="att-sticky-summary">P</th>
                         <th class="att-sticky-summary">A</th>
                         <th class="att-sticky-summary">H</th>
-                        <th class="att-sticky-summary" style="min-width: 90px;">Deduction</th>
+                        <th class="att-sticky-summary" style="min-width: 100px;">Salary</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -233,7 +233,7 @@
                     @else
                         @foreach($employees as $employee)
                         @php
-                            $summary = $summaries[$employee->id] ?? ['present'=>0,'absent'=>0,'holiday'=>0,'deduction'=>0,'per_day'=>0];
+                            $summary = $summaries[$employee->id] ?? ['present'=>0,'absent'=>0,'holiday'=>0,'earned'=>0,'per_day'=>0];
                             $rowGrid = $grid[$employee->id] ?? [];
                         @endphp
                         <tr>
@@ -269,8 +269,8 @@
                             <td class="att-sticky-summary text-success" data-summary-p="{{ $employee->id }}">{{ $summary['present'] }}</td>
                             <td class="att-sticky-summary text-danger" data-summary-a="{{ $employee->id }}">{{ $summary['absent'] }}</td>
                             <td class="att-sticky-summary text-primary" data-summary-h="{{ $employee->id }}">{{ $summary['holiday'] }}</td>
-                            <td class="att-sticky-summary text-danger" data-summary-d="{{ $employee->id }}" data-per-day="{{ $summary['per_day'] }}">
-                                {{ number_format($summary['deduction'], 2) }}
+                            <td class="att-sticky-summary text-success fw-semibold" data-summary-pay="{{ $employee->id }}" data-per-day="{{ $summary['per_day'] }}">
+                                {{ number_format($summary['earned'], 2) }}
                             </td>
                         </tr>
                         @endforeach
@@ -309,15 +309,14 @@
         const pEl = document.querySelector(`[data-summary-p="${employeeId}"]`);
         const aEl = document.querySelector(`[data-summary-a="${employeeId}"]`);
         const hEl = document.querySelector(`[data-summary-h="${employeeId}"]`);
-        const dEl = document.querySelector(`[data-summary-d="${employeeId}"]`);
+        const payEl = document.querySelector(`[data-summary-pay="${employeeId}"]`);
         if (pEl) pEl.textContent = String(p);
         if (aEl) aEl.textContent = String(a);
         if (hEl) hEl.textContent = String(h);
-        if (dEl) {
-            const perDay = Number(dEl.dataset.perDay || 0);
-            const working = p + h;
-            const unpaid = Math.max(0, 30 - working);
-            dEl.textContent = (perDay * unpaid).toFixed(2);
+        if (payEl) {
+            const perDay = Number(payEl.dataset.perDay || 0);
+            const working = Math.min(30, p + h);
+            payEl.textContent = (perDay * working).toFixed(2);
         }
     }
 

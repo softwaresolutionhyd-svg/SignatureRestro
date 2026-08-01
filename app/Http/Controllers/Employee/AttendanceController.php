@@ -50,7 +50,7 @@ class AttendanceController extends Controller
                 'present' => 0,
                 'absent' => 0,
                 'holiday' => 0,
-                'deduction' => 0.0,
+                'earned' => 0.0,
                 'per_day' => $this->attendancePayroll->perDaySalary((float) $employee->salary),
             ];
         }
@@ -76,7 +76,7 @@ class AttendanceController extends Controller
             $summaries[$employee->id]['absent'] = $counts['absent'];
             $summaries[$employee->id]['holiday'] = $counts['holiday'];
             $workingDays = (int) $counts['present'] + (int) $counts['holiday'];
-            $summaries[$employee->id]['deduction'] = $this->attendancePayroll->workingDaysDeductionAmount(
+            $summaries[$employee->id]['earned'] = $this->attendancePayroll->earnedSalary(
                 (float) $employee->salary,
                 $workingDays
             );
