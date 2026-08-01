@@ -810,6 +810,125 @@
         form.submit();
     }
 
+    function buildConfirmBillMeta() {
+        const serviceType = pendingMode ? (boot.resumeServiceType || 'dine_in') : selectedServiceType();
+        const parts = [serviceTypeLabel(serviceType)];
+        if (serviceType === 'dine_in') {
+            const tableName = pendingMode
+                ? (boot.resumeTableName || selectedTableName || resolveTableName(boot.resumeTableId))
+                : (selectedTableName || resolveTableName(selectedTableId));
+            if (tableName) parts.push('Table ' + tableName);
+            else if (!posTablesEnabled) {
+                const tableNo = ($('#otTableNo')?.value || '').trim();
+                if (tableNo) parts.push('Table ' + tableNo);
+            }
+        } else if (serviceType === 'delivery') {
+            const name = ($('#otDeliveryName')?.value || boot.resumeGuestName || '').trim();
+            const phone = ($('#otDeliveryPhone')?.value || boot.resumeRoomNo || '').trim();
+            if (name) parts.push(name);
+            if (phone) parts.push(phone);
+        } else if (serviceType === 'takeaway') {
+            const contact = ($('#otTakeawayContact')?.value || boot.resumeRoomNo || boot.resumeGuestName || '').trim();
+            if (contact) parts.push(contact);
+        }
+        if (pendingMode && boot.resumeOrderNo) {
+            parts.unshift(boot.resumeOrderNo);
+        }
+        return parts.filter(Boolean).join(' · ');
+    }
+
+    function openConfirmBillModal() {
+        if (!cart.length) {
+            alert('Kam az kam aik item add karein.');
+            return;
+        }
+
+        const serviceType = pendingMode ? (boot.resumeServiceType || 'dine_in') : selectedServiceType();
+        if (!pendingMode) {
+            if (serviceType === 'dine_in') {
+                if (posTablesEnabled) {
+                    if (!selectedTableId) {
+                        alert('Table select karein.');
+                        showTableBoard();
+                        return;
+                    }
+                } else if (!($('#otTableNo')?.value || '').trim()) {
+                    alert('Table No. enter karein.');
+                    $('#otTableNo')?.focus();
+                    return;
+                }
+            } else if (serviceType === 'delivery') {
+                if (!($('#otDeliveryName')?.value || '').trim()) {
+                    alert('Customer name likhein.');
+                    $('#otDeliveryName')?.focus();
+                    return;
+                }
+                if (!($('#otDeliveryPhone')?.value || '').trim()) {
+                    alert('Phone number likhein.');
+                    $('#otDeliveryPhone')?.focus();
+                    return;
+                }
+            } else if (serviceType === 'takeaway') {
+                if (!($('#otTakeawayContact')?.value || '').trim()) {
+                    alert('Contact No. likhein.');
+                    $('#otTakeawayContact')?.focus();
+                    return;
+                }
+            }
+        }
+
+        syncItemNotesFromDom();
+
+        const meta = $('#otConfirmBillMeta');
+        const lines = $('#otConfirmBillLines');
+        const notesWrap = $('#otConfirmBillNotesWrap');
+        const notesEl = $('#otConfirmBillNotes');
+        const totalEl = $('#otConfirmBillTotal');
+        const title = $('#otConfirmBillTitle');
+        const submitLabel = $('#otConfirmBillSubmitLabel');
+
+        if (title) title.textContent = pendingMode ? 'Confirm Update Bill' : 'Confirm Bill';
+        if (submitLabel) submitLabel.textContent = pendingMode ? 'Confirm & Update' : 'Confirm & Send';
+        if (meta) meta.textContent = buildConfirmBillMeta();
+
+        if (lines) {
+            lines.innerHTML = cart.map((r) => {
+                const note = String(r.notes || '').trim();
+                return `<div class="ot-confirm-line">
+                    <div class="ot-confirm-line-main">
+                        <span class="ot-confirm-line-qty">${escHtml(fmtQty(r.qty))}×</span>
+                        <span class="ot-confirm-line-name">${escHtml(displayProductName(r.name))}</span>
+                    </div>
+                    <div class="ot-confirm-line-amt">${escHtml(fmtMoney(lineRowTotal(r)))}</div>
+                    ${note ? `<div class="ot-confirm-line-note">${escHtml(note)}</div>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        const kitchenNotes = ($('#otBillKitchenNotes')?.value || '').trim();
+        if (notesWrap && notesEl) {
+            if (kitchenNotes) {
+                notesEl.textContent = kitchenNotes;
+                notesWrap.classList.remove('d-none');
+            } else {
+                notesEl.textContent = '';
+                notesWrap.classList.add('d-none');
+            }
+        }
+
+        if (totalEl) totalEl.textContent = fmtMoney(calcCartTotals().grand);
+
+        const modalEl = $('#otConfirmBillModal');
+        if (modalEl && window.bootstrap?.Modal) {
+            window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            return;
+        }
+        // Fallback if Bootstrap modal missing
+        if (window.confirm('Bill confirm karein? Kitchen slip chali jayegi.')) {
+            submitOrder();
+        }
+    }
+
     function bindEvents() {
         $('#otAreaFilters')?.addEventListener('click', (e) => {
             const btn = e.target.closest('.ot-area-filter-btn');
@@ -1007,6 +1126,14 @@
 
         document.getElementById('otSendBtn')?.addEventListener('click', (e) => {
             e.preventDefault();
+            openConfirmBillModal();
+        });
+
+        document.getElementById('otConfirmBillSubmit')?.addEventListener('click', () => {
+            const modalEl = $('#otConfirmBillModal');
+            if (modalEl && window.bootstrap?.Modal) {
+                window.bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+            }
             submitOrder();
         });
     }

@@ -291,11 +291,6 @@
     max-width: 6.5rem;
 }
 
-.order-taker-pos-app .ot-table-box-meta--free {
-    color: #3dd68c;
-    font-weight: 600;
-}
-
 .order-taker-pos-app .ot-table-timer {
     color: #ffb4a8;
     font-weight: 700;
@@ -306,6 +301,110 @@
 .order-taker-pos-app .ot-table-timer::before {
     content: "⏱ ";
     font-weight: 500;
+}
+
+/* Confirm bill before kitchen send */
+#otConfirmBillModal .modal-content {
+    background: #0f141c;
+    color: #e8edf5;
+    border: 1px solid rgba(255,255,255,0.08);
+}
+#otConfirmBillModal .modal-header,
+#otConfirmBillModal .modal-footer {
+    background: #0f141c;
+    border-color: rgba(255,255,255,0.08);
+}
+#otConfirmBillModal .modal-title {
+    font-weight: 800;
+}
+#otConfirmBillModal .ot-confirm-meta {
+    font-size: 0.9rem;
+    color: #c8c8c8;
+    margin-bottom: 0.85rem;
+}
+#otConfirmBillModal .ot-confirm-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    margin-bottom: 0.85rem;
+}
+#otConfirmBillModal .ot-confirm-line {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.35rem 0.75rem;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 0.55rem;
+    background: rgba(255,255,255,0.03);
+}
+#otConfirmBillModal .ot-confirm-line-main {
+    display: flex;
+    gap: 0.45rem;
+    align-items: baseline;
+    min-width: 0;
+}
+#otConfirmBillModal .ot-confirm-line-name {
+    font-weight: 700;
+    color: #fff;
+}
+#otConfirmBillModal .ot-confirm-line-qty {
+    color: #f0c05a;
+    font-size: 0.9rem;
+    font-weight: 800;
+    flex-shrink: 0;
+}
+#otConfirmBillModal .ot-confirm-line-note {
+    grid-column: 1 / -1;
+    font-size: 0.8rem;
+    color: #a8a29e;
+}
+#otConfirmBillModal .ot-confirm-line-amt {
+    font-weight: 700;
+    color: #f0c05a;
+    white-space: nowrap;
+}
+#otConfirmBillModal .ot-confirm-notes {
+    margin-bottom: 0.85rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: 0.55rem;
+    background: rgba(255,255,255,0.04);
+    border: 1px dashed rgba(255,255,255,0.12);
+}
+#otConfirmBillModal .ot-confirm-notes-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #a8a29e;
+    margin-bottom: 0.25rem;
+}
+#otConfirmBillModal .ot-confirm-notes-text {
+    white-space: pre-wrap;
+    color: #e8edf5;
+}
+#otConfirmBillModal .ot-confirm-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0.15rem 0.35rem;
+    border-top: 1px dashed rgba(255,255,255,0.18);
+    font-size: 1.05rem;
+}
+#otConfirmBillModal .ot-confirm-total strong {
+    color: #f0c05a;
+}
+#otConfirmBillModal .ot-confirm-hint {
+    margin-top: 0.75rem;
+    font-size: 0.78rem;
+    color: #a8a29e;
+}
+#otConfirmBillModal .btn-close-white {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+#otConfirmBillModal #otConfirmBillSubmit {
+    background: linear-gradient(135deg, #e8b04a 0%, #c9892a 100%);
+    border-color: #c9892a;
+    color: #1a1208;
+    font-weight: 800;
 }
 
 /* Move Table modal — Bootstrap moves it to <body>, so do NOT scope under .order-taker-pos-app */

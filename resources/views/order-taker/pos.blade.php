@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=47">
-<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=22">
+<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=24">
 @endpush
 
 @section('content')
@@ -405,6 +405,39 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="otConfirmBillModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content ot-confirm-bill-modal">
+            <div class="modal-header">
+                <h5 class="modal-title" id="otConfirmBillTitle">Confirm Bill</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="ot-confirm-meta" id="otConfirmBillMeta"></div>
+                <div class="ot-confirm-lines" id="otConfirmBillLines"></div>
+                <div class="ot-confirm-notes d-none" id="otConfirmBillNotesWrap">
+                    <div class="ot-confirm-notes-label">Bill instructions</div>
+                    <div class="ot-confirm-notes-text" id="otConfirmBillNotes"></div>
+                </div>
+                <div class="ot-confirm-total">
+                    <span>Total</span>
+                    <strong id="otConfirmBillTotal">0.00</strong>
+                </div>
+                <p class="ot-confirm-hint mb-0">Confirm karein to kitchen slip jayegi. Ghalt item ho to Cancel karke theek karein.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal" id="otConfirmBillCancel">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-rp-primary" id="otConfirmBillSubmit">
+                    <i class="bi bi-send me-1"></i>
+                    <span id="otConfirmBillSubmitLabel">Confirm & Send</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('scripts')
@@ -452,5 +485,5 @@
 <script>
 window.ORDER_TAKER_BOOTSTRAP = @json($otBootstrap);
 </script>
-<script src="{{ asset('js/order-taker-app.js') }}?v=21"></script>
+<script src="{{ asset('js/order-taker-app.js') }}?v=23"></script>
 @endsection
