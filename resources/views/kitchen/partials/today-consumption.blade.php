@@ -9,7 +9,7 @@
     </div>
     <p class="kitchen-summary-hint mb-2">Is POS session me kitchen served items aur jo sale orders paid hue — recipe ke hisaab se total consumption.</p>
     @if(empty($sessionOpen))
-        <div class="kitchen-summary-empty">POS session open nahi — pehle cashier session start karein.</div>
+        <div class="kitchen-summary-empty">POS session open nahi — pehle cashier/manager session start karein.</div>
     @elseif(($todayConsumption ?? []) === [])
         <div class="kitchen-summary-empty">Is session me abhi koi consumption nahi (served / paid).</div>
     @else

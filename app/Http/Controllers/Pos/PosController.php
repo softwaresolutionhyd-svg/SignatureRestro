@@ -937,7 +937,7 @@ class PosController extends Controller
     public function openSession(PosOpenSessionRequest $request): RedirectResponse
     {
         $user = Auth::user();
-        abort_unless($this->userCanOpenPosSession($user), 403, 'POS session sirf cashier open kar sakta hai.');
+        abort_unless($this->userCanOpenPosSession($user), 403, 'POS session sirf cashier ya manager open kar sakta hai.');
 
         $this->ensurePosSessionDailyClosingSchema();
 
@@ -1030,14 +1030,15 @@ class PosController extends Controller
             ->first();
 
         if ($own !== null) {
-            if ($this->userIsPosCashier($user) && ! $this->posSessionShiftStarted($own)) {
+            if ($this->userCanOpenPosSession($user) && ! $this->posSessionShiftStarted($own)) {
                 return null;
             }
 
             return $own;
         }
 
-        if ($this->posUsesSharedBills($user) && ! $this->userIsPosCashier($user)) {
+        // Shared floor session: cashier/manager/admin can use any started open session.
+        if ($this->posUsesSharedBills($user)) {
             $query = PosSession::query()->where('status', 'open');
 
             if ($this->posSessionsHaveShiftStartedColumn()) {
@@ -1089,9 +1090,20 @@ class PosController extends Controller
         return $employee !== null && $this->employeeIsPosCashier($employee);
     }
 
+    private function userIsPosManager(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        $employee = $this->resolvePosEmployee($user);
+
+        return $employee !== null && $this->employeeIsPosManager($employee);
+    }
+
     private function userCanOpenPosSession(?User $user): bool
     {
-        return $this->userIsPosCashier($user);
+        return $this->userIsPosCashier($user) || $this->userIsPosManager($user);
     }
 
     /**

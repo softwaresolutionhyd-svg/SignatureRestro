@@ -99,7 +99,7 @@
 
         @if($canOpen)
             <p>Shift shuru karne ke liye pehle apni POS session open karein.<br>
-            <span class="text-secondary small">Sirf <strong>CASHIER</strong> designation wale employee.</span></p>
+            <span class="text-secondary small">Sirf <strong>CASHIER</strong> ya <strong>MANAGER</strong> designation wale employee.</span></p>
             <form method="POST" action="{{ route('restaurant-pos.session.open') }}" class="pos-open-form">
                 @csrf
                 <button type="submit" class="btn btn-open-session">
@@ -110,7 +110,7 @@
             <div class="pos-open-wait">
                 <i class="bi bi-hourglass-split me-1"></i>
                 POS session abhi open nahi hui.<br>
-                <strong>Cashier</strong> se pehle session open karwaein, phir POS use karein.<br>
+                <strong>Cashier</strong> ya <strong>Manager</strong> se pehle session open karwaein, phir POS use karein.<br>
                 <span class="small text-secondary">Session tab tak chalti rahegi jab tak manager/admin close na kare.</span>
             </div>
         @endif

@@ -130,7 +130,7 @@ final class OrderTakerService
     public function assertPosSessionStarted(): void
     {
         if (! $this->hasStartedPosSession()) {
-            throw new RuntimeException('POS session abhi open nahi hui. Pehle cashier se POS session open karwayein, phir order punch karein.');
+            throw new RuntimeException('POS session abhi open nahi hui. Pehle cashier ya manager se POS session open karwayein, phir order punch karein.');
         }
     }
 
