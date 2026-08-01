@@ -95,29 +95,23 @@
             border-top: 2px solid #000;
         }
         .r-bill-status--unpaid { font-size: 18px; }
+        /* Match POS pending/paid card table pill */
         .table-no {
+            display: block;
             text-align: center;
-            font-size: 28px;
+            font-size: 24px;
             font-weight: 900;
             letter-spacing: 0.04em;
-            margin: 10px 0;
-            padding: 10px 6px;
-            line-height: 1.1;
+            line-height: 1.15;
             text-transform: uppercase;
-            border: 3px solid #000;
-            border-radius: 4px;
-            background: #000;
+            margin: 8px 2px 10px;
+            padding: 8px 14px;
+            border: 2.5px solid #000;
+            border-radius: 999px;
+            background: #111;
             color: #fff;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
-        }
-        .table-no-label {
-            display: block;
-            font-size: 12px;
-            font-weight: 800;
-            letter-spacing: 0.14em;
-            margin-bottom: 4px;
-            opacity: 0.95;
         }
         .r-status-spacer {
             height: 1.6em;
@@ -148,10 +142,12 @@
                 padding: 0 1mm 4mm !important;
             }
             .table-no {
-                font-size: 30px !important;
+                font-size: 26px !important;
                 border: 3px solid #000 !important;
+                border-radius: 999px !important;
                 background: #000 !important;
                 color: #fff !important;
+                padding: 10px 12px !important;
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
             }
@@ -191,6 +187,11 @@
     }
 @endphp
 <div class="r-wrap">
+    {{-- Same pill style as Pending/Paid cards — table first --}}
+    @if($tableLabel)
+        <div class="table-no">{{ $tableLabel }}</div>
+    @endif
+
     @if(!empty($isQuotation))
         <div class="center r-bill-title">Quotation Bill</div>
     @elseif(!empty($isUnpaid))
@@ -212,13 +213,6 @@
         @if($companyPhone !== '')
             <div class="center r-meta"><span class="r-meta-label">Phone:</span> {{ $companyPhone }}</div>
         @endif
-    @endif
-
-    @if($tableLabel)
-        <div class="table-no">
-            <span class="table-no-label">TABLE NO</span>
-            {{ $tableLabel }}
-        </div>
     @endif
 
     <hr class="line">
