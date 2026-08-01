@@ -141,20 +141,29 @@
             padding: 0 2px;
             word-break: break-word;
         }
+        .r-cut-mark {
+            height: 8px;
+        }
         .noprint { margin-top: 12px; text-align: center; }
         @media print {
             .noprint { display: none !important; }
+            @page {
+                size: 80mm 297mm;
+                margin: 2mm 3mm;
+            }
             html, body {
-                width: 70mm !important;
-                max-width: 70mm !important;
-                margin: 0 !important;
+                width: 72mm !important;
+                max-width: 72mm !important;
+                margin: 0 auto !important;
                 padding: 0 !important;
                 background: #fff !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
             }
             .r-wrap {
-                width: 70mm !important;
-                max-width: 70mm !important;
-                padding: 0 2mm 4mm 1mm !important;
+                width: 72mm !important;
+                max-width: 72mm !important;
+                padding: 0 1mm 2mm 1mm !important;
             }
             .table-no {
                 font-size: 15px !important;
@@ -162,6 +171,12 @@
                 background: transparent !important;
                 color: #000 !important;
                 padding: 0 !important;
+            }
+            .r-powered {
+                page-break-after: always;
+            }
+            .r-cut-mark {
+                display: none;
             }
         }
     </style>
@@ -344,59 +359,102 @@
     @endif
 
     <div class="r-powered">Powered by softwaresolutions.pk</div>
+    <div class="r-cut-mark" aria-hidden="true"></div>
 </div>
 <div class="noprint" style="max-width:80mm;margin:12px auto 24px;padding:0 8px;">
     <a href="{{ $backUrl ?? route('restaurant-pos.index') }}" style="display:block;text-align:center;text-decoration:none;font-weight:700;padding:14px 16px;border-radius:10px;margin-bottom:10px;background:#0d6efd;color:#fff;font-size:15px;">{{ $backLabel ?? '← Back to Restaurant POS' }}</a>
     @if(!empty($allowBillPrint))
-        <button type="button" onclick="window.print()" style="display:block;width:100%;padding:10px;font-size:14px;cursor:pointer;border:1px solid #999;border-radius:8px;background:#fff;">Print again</button>
-        <p style="font-size:10px;color:#666;text-align:center;margin:10px 0 0;">80mm thermal receipt — printer select karein, More settings → Paper size: 80mm (ya Roll paper). Office A4 printer pe page bada dikhega.</p>
+        <button type="button" id="receiptThermalPrintBtn" style="display:block;width:100%;padding:12px;font-size:15px;font-weight:700;cursor:pointer;border:0;border-radius:8px;background:#111;color:#fff;margin-bottom:8px;">
+            Print (80mm Thermal)
+        </button>
+        <button type="button" id="receiptBrowserPrintBtn" style="display:block;width:100%;padding:10px;font-size:13px;cursor:pointer;border:1px solid #999;border-radius:8px;background:#fff;">
+            Browser print (fallback)
+        </button>
+        <p id="receiptPrintStatus" style="font-size:12px;color:#166534;text-align:center;margin:10px 0 0;display:none;"></p>
+        <p style="font-size:10px;color:#666;text-align:center;margin:10px 0 0;">
+            Thermal = Inventory → Kitchen Agents → <strong>CASHIER</strong> printer. Browser print A4 pe kharab nikalta hai — thermal use karein.
+        </p>
     @endif
 </div>
-@if(!empty($autoPrint))
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <script>
 (function () {
-    var printed = false;
-    function waitForImages(done) {
-        var imgs = Array.prototype.slice.call(document.images || []);
-        var finished = false;
-        var complete = function () {
-            if (finished) return;
-            finished = true;
-            done();
-        };
-        if (!imgs.length) {
-            complete();
-            return;
+    var orderId = @json((int) ($order->id ?? 0));
+    var printUrl = @json($order->id ? route('restaurant-pos.cashier-print', $order) : '');
+    var csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    var statusEl = document.getElementById('receiptPrintStatus');
+    var thermalBtn = document.getElementById('receiptThermalPrintBtn');
+    var browserBtn = document.getElementById('receiptBrowserPrintBtn');
+    var autoPrint = @json(!empty($autoPrint));
+
+    function setStatus(msg, ok) {
+        if (!statusEl) return;
+        statusEl.style.display = 'block';
+        statusEl.style.color = ok ? '#166534' : '#b91c1c';
+        statusEl.textContent = msg;
+    }
+
+    function browserPrint() {
+        window.print();
+    }
+
+    async function thermalPrint() {
+        if (!printUrl || !orderId) {
+            setStatus('Order print ke liye ready nahi.', false);
+            return false;
         }
-        var left = imgs.length;
-        var onOne = function () {
-            left -= 1;
-            if (left <= 0) complete();
-        };
-        imgs.forEach(function (img) {
-            if (img.complete) {
-                onOne();
-                return;
+        if (thermalBtn) thermalBtn.disabled = true;
+        try {
+            var res = await fetch(printUrl, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': csrf
+                }
+            });
+            var data = await res.json().catch(function () { return {}; });
+            if (res.ok && data.ok) {
+                setStatus('Thermal printer par print ho gaya (powered by ke baad cut).', true);
+                return true;
             }
-            img.addEventListener('load', onOne, { once: true });
-            img.addEventListener('error', onOne, { once: true });
-        });
-        setTimeout(complete, 2500);
+            if (data.fallback) {
+                setStatus((data.message || 'Cashier printer set nahi.') + ' Browser print use karein.', false);
+                return false;
+            }
+            setStatus(data.message || 'Thermal print fail.', false);
+            return false;
+        } catch (e) {
+            setStatus(e.message || 'Thermal print fail.', false);
+            return false;
+        } finally {
+            if (thermalBtn) thermalBtn.disabled = false;
+        }
     }
-    function doPrint() {
-        waitForImages(function () {
-            if (printed) return;
-            printed = true;
-            setTimeout(function () { window.print(); }, 150);
-        });
+
+    if (thermalBtn) {
+        thermalBtn.addEventListener('click', function () { thermalPrint(); });
     }
-    if (document.readyState === 'complete') {
-        doPrint();
-    } else {
-        window.addEventListener('load', doPrint);
+    if (browserBtn) {
+        browserBtn.addEventListener('click', browserPrint);
+    }
+
+    if (autoPrint) {
+        var ran = false;
+        function runAuto() {
+            if (ran) return;
+            ran = true;
+            thermalPrint().then(function (ok) {
+                if (!ok) {
+                    // No network printer → last resort browser dialog
+                    setTimeout(browserPrint, 200);
+                }
+            });
+        }
+        if (document.readyState === 'complete') runAuto();
+        else window.addEventListener('load', runAuto);
     }
 })();
 </script>
-@endif
 </body>
 </html>

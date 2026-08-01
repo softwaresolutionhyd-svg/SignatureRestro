@@ -755,18 +755,26 @@ final class NetworkPrinterService
 
         $out .= self::ALIGN_LEFT . "\n" . $this->rule();
 
+        // Prominent table (same idea as POS cards) — then bill meta
+        $tableBanner = '';
+        if ($order->table?->name) {
+            $tableBanner = 'TABLE '.trim((string) $order->table->name);
+        } else {
+            $where = $this->orderLocation($order);
+            if ($where !== '') {
+                $tableBanner = preg_match('/^(table|room)\b/i', $where) ? strtoupper($where) : 'TABLE '.$where;
+            }
+        }
+        if ($tableBanner !== '') {
+            $out .= self::ALIGN_CENTER . self::SIZE_TALL . self::BOLD_ON;
+            $out .= $this->clip($tableBanner) . "\n";
+            $out .= self::SIZE_NORMAL . self::BOLD_OFF . self::ALIGN_LEFT;
+            $out .= $this->rule();
+        }
+
         if ($isPaid) {
             $out .= $this->line('Invoice Number: ' . ($order->order_no ?? $order->id)) . "\n";
             $out .= $this->line('Order Type: ' . $orderType) . "\n";
-
-            if ($order->table?->name) {
-                $out .= $this->line('Table: ' . $order->table->name) . "\n";
-            } else {
-                $where = $this->orderLocation($order);
-                if ($where !== '') {
-                    $out .= $this->line('Table/Room: ' . $where) . "\n";
-                }
-            }
 
             $when = $order->paid_at ?? $order->updated_at ?? $order->created_at;
             if ($when) {
@@ -779,16 +787,8 @@ final class NetworkPrinterService
             // Quotation: heading + Order Type only
             $out .= $this->line('Order Type: ' . $orderType) . "\n";
         } else {
-            // Unpaid: only Order Type + Table
+            // Unpaid: only Order Type (+ table already printed above)
             $out .= $this->line('Order Type: ' . $orderType) . "\n";
-            if ($order->table?->name) {
-                $out .= $this->line('Table: ' . $order->table->name) . "\n";
-            } else {
-                $where = $this->orderLocation($order);
-                if ($where !== '') {
-                    $out .= $this->line('Table/Room: ' . $where) . "\n";
-                }
-            }
         }
 
         $out .= $this->rule() . "\n";
@@ -878,11 +878,12 @@ final class NetworkPrinterService
         $out .= self::ALIGN_CENTER . self::SIZE_TALL . self::BOLD_ON;
         $out .= $this->clip($statusLabel) . "\n";
         $out .= self::SIZE_NORMAL . self::BOLD_OFF;
-        $out .= "\n\n";
+        $out .= "\n";
         $out .= self::ALIGN_CENTER;
         $out .= $this->clip('Powered by softwaresolutions.pk') . "\n";
         $out .= self::ALIGN_LEFT;
-        $out .= self::FEED . self::CUT;
+        // Feed a little then cut — paper stops after powered-by line
+        $out .= self::FEED . self::FEED . self::CUT;
 
         return $out;
     }
