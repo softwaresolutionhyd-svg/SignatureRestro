@@ -8,7 +8,7 @@
         /* Fixed height required — `80mm auto` is ignored by Chrome/Edge → falls back to A4. */
         @page {
             size: 80mm 297mm;
-            margin: 2mm;
+            margin: 3mm 4mm 3mm 3mm;
         }
         * { box-sizing: border-box; }
         html, body {
@@ -19,12 +19,12 @@
             line-height: 1.45;
             color: #000;
             background: #fff;
-            width: 80mm;
-            max-width: 80mm;
+            width: 72mm;
+            max-width: 72mm;
             margin-left: auto;
             margin-right: auto;
         }
-        .r-wrap { padding: 4px 6px 12px; width: 100%; }
+        .r-wrap { padding: 4px 4px 12px 2px; width: 100%; overflow: hidden; }
         .center { text-align: center; }
         .bold { font-weight: 700; }
         .muted { color: #333; }
@@ -46,11 +46,11 @@
             scale: none;
             line-height: 1.25;
         }
-        .r-meta { margin: 2px 0; font-size: 10px; }
+        .r-meta { margin: 2px 0; font-size: 10px; word-break: break-word; }
         .r-meta-label { font-weight: 700; }
         .r-info { margin: 4px 0; }
         .r-info .tot-row { padding: 2px 0; }
-        table.items { width: 100%; border-collapse: separate; border-spacing: 0 4px; }
+        table.items { width: 100%; border-collapse: separate; border-spacing: 0 4px; table-layout: fixed; }
         table.items thead td {
             font-weight: 800;
             font-size: 10px;
@@ -65,17 +65,34 @@
         }
         table.items td.item-name {
             word-break: break-word;
-            padding-right: 2px;
-            width: 50%;
+            padding-right: 4px;
+            width: 46%;
             line-height: 1.25;
             letter-spacing: -0.02em;
         }
-        table.items td.item-qty { white-space: nowrap; text-align: center; width: 10%; font-size: 10px; padding-left: 0; }
-        table.items td.item-rate { white-space: nowrap; text-align: right; width: 18%; font-size: 10px; padding-left: 0; }
-        table.items td.amt { text-align: right; white-space: nowrap; width: 22%; padding-left: 0; }
+        table.items td.item-qty { white-space: nowrap; text-align: center; width: 12%; font-size: 10px; padding: 0 2px; }
+        table.items td.item-rate { white-space: nowrap; text-align: right; width: 18%; font-size: 10px; padding-left: 2px; padding-right: 2px; }
+        table.items td.amt { text-align: right; white-space: nowrap; width: 24%; padding-left: 2px; padding-right: 2px; }
         table.items td.item-note { font-size: 10px; padding-top: 0; padding-bottom: 2px; color: #333; }
-        .tot-row { display: flex; justify-content: space-between; padding: 2px 0; }
-        .totals-block { margin-top: 2px; }
+        .tot-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 2px 0;
+        }
+        .tot-row > span:first-child {
+            flex: 1 1 auto;
+            min-width: 0;
+            padding-right: 4px;
+        }
+        .tot-row > span:last-child {
+            flex: 0 0 auto;
+            text-align: right;
+            white-space: nowrap;
+            max-width: 48%;
+        }
+        .totals-block { margin-top: 2px; padding-right: 1px; }
         .totals-block .tot-row + .tot-row { padding-top: 3px; }
         .totals-block .pay-heading { font-weight: 700; margin: 6px 0 2px; font-size: 11px; }
         .r-grand-total {
@@ -95,61 +112,56 @@
             border-top: 2px solid #000;
         }
         .r-bill-status--unpaid { font-size: 18px; }
-        /* Match POS pending/paid card table pill */
+        /* Simple + slightly larger than body — no giant black pill */
         .table-no {
-            display: block;
             text-align: center;
-            font-size: 24px;
-            font-weight: 900;
-            letter-spacing: 0.04em;
-            line-height: 1.15;
+            font-size: 15px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+            line-height: 1.2;
             text-transform: uppercase;
-            margin: 8px 2px 10px;
-            padding: 8px 14px;
-            border: 2.5px solid #000;
-            border-radius: 999px;
-            background: #111;
-            color: #fff;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
+            margin: 6px 0 4px;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: #000;
         }
         .r-status-spacer {
             height: 1.6em;
             line-height: 1.1;
             margin: 4px 0 2px;
         }
-        .r-logo { max-width: 56mm; max-height: 22mm; object-fit: contain; margin: 0 auto 8px; display: block; }
+        .r-logo { max-width: 52mm; max-height: 22mm; object-fit: contain; margin: 0 auto 8px; display: block; }
         .r-powered {
             margin-top: 4px;
             text-align: center;
             font-size: 9px;
             color: #444;
             letter-spacing: 0.02em;
+            padding: 0 2px;
+            word-break: break-word;
         }
         .noprint { margin-top: 12px; text-align: center; }
         @media print {
             .noprint { display: none !important; }
             html, body {
-                width: 76mm !important;
-                max-width: 76mm !important;
+                width: 70mm !important;
+                max-width: 70mm !important;
                 margin: 0 !important;
                 padding: 0 !important;
                 background: #fff !important;
             }
             .r-wrap {
-                width: 76mm !important;
-                max-width: 76mm !important;
-                padding: 0 1mm 4mm !important;
+                width: 70mm !important;
+                max-width: 70mm !important;
+                padding: 0 2mm 4mm 1mm !important;
             }
             .table-no {
-                font-size: 26px !important;
-                border: 3px solid #000 !important;
-                border-radius: 999px !important;
-                background: #000 !important;
-                color: #fff !important;
-                padding: 10px 12px !important;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
+                font-size: 15px !important;
+                border: 0 !important;
+                background: transparent !important;
+                color: #000 !important;
+                padding: 0 !important;
             }
         }
     </style>
@@ -187,11 +199,6 @@
     }
 @endphp
 <div class="r-wrap">
-    {{-- Same pill style as Pending/Paid cards — table first --}}
-    @if($tableLabel)
-        <div class="table-no">{{ $tableLabel }}</div>
-    @endif
-
     @if(!empty($isQuotation))
         <div class="center r-bill-title">Quotation Bill</div>
     @elseif(!empty($isUnpaid))
@@ -213,6 +220,10 @@
         @if($companyPhone !== '')
             <div class="center r-meta"><span class="r-meta-label">Phone:</span> {{ $companyPhone }}</div>
         @endif
+    @endif
+
+    @if($tableLabel)
+        <div class="table-no">{{ $tableLabel }}</div>
     @endif
 
     <hr class="line">
