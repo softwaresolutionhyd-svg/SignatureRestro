@@ -974,17 +974,17 @@ class PosController extends Controller
         abort_unless(
             $user !== null && ($user->bypassesModulePermissions() || $user->canAccessPosClosing()),
             403,
-            'POS session sirf manager ya admin close kar sakta hai.'
+            __('Only manager or admin can close the POS session.')
         );
 
         $session = $this->getOpenPosSessionForUser($user);
-        abort_if($session === null, 404, 'Koi open POS session nahi hai.');
+        abort_if($session === null, 404, __('No open POS session.'));
 
         $heldDraft = $this->heldOrdersForSession($session, $user)->count();
         if ($heldDraft > 0) {
             return back()->with(
                 'error',
-                "Session close nahi ho sakti: {$heldDraft} pending bill(s) abhi bhi maujood hain. Pehle Restaurant POS par ja kar pay ya discard karein."
+                __('Session cannot be closed: :count pending bill(s) still exist. Pay or discard them on Restaurant POS first.', ['count' => $heldDraft])
             );
         }
 
@@ -994,7 +994,7 @@ class PosController extends Controller
             $request->filled('counted_cash') ? round((float) $request->input('counted_cash'), 2) : null
         );
 
-        return redirect()->route('reports.pos-sessions')->with('success', 'POS session close ho gayi aur save ho gayi.');
+        return redirect()->route('reports.pos-sessions')->with('success', __('POS session closed and saved.'));
     }
 
     private function finalizeSessionClose(PosSession $session, ?string $note = null, ?float $countedCash = null): void

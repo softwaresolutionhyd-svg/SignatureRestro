@@ -46,6 +46,11 @@ final class AdminBreadcrumbs
             str_starts_with($name, 'maintenance.') => [$dash, ['label' => 'Maintenance', 'url' => null]],
             str_starts_with($name, 'custom-forms.') => [$dash, ['label' => 'Custom Forms', 'url' => null]],
             str_starts_with($name, 'purchase.') => self::purchase($name, $dash),
+            str_starts_with($name, 'restaurant-pos.closing') => [
+                $dash,
+                ['label' => 'Restaurant POS', 'url' => route('restaurant-pos.index')],
+                ['label' => 'POS Closing', 'url' => null],
+            ],
             str_starts_with($name, 'restaurant-pos.') => [$dash, ['label' => 'Restaurant POS', 'url' => $name === 'restaurant-pos.index' ? null : route('restaurant-pos.index')]],
             str_starts_with($name, 'order-taker.') => [$dash, ['label' => 'Order Taker', 'url' => $name === 'order-taker.index' ? null : route('order-taker.index')]],
             str_starts_with($name, 'kitchen.') => [$dash, ['label' => 'Kitchen', 'url' => $name === 'kitchen.index' ? null : route('kitchen.index')]],

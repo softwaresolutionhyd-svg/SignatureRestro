@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" @if(app()->getLocale() === 'ur') dir="rtl" @endif>
 <head>
     <meta charset="utf-8">
-    <title>POS Session Report — {{ $session->session_no ?? $session->id }}</title>
+    <title>{{ __('POS Session Report') }} — {{ $session->session_no ?? $session->id }}</title>
     <style>
         * { box-sizing: border-box; }
 
@@ -11,7 +11,7 @@
         body {
             margin: 0;
             padding: 0;
-            font-family: Arial, Helvetica, sans-serif;
+            font-family: Arial, Helvetica, 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', sans-serif;
             font-size: 11pt;
             color: #000;
             background: #fff;
@@ -76,11 +76,11 @@
 
         th {
             font-weight: bold;
-            text-align: left;
+            text-align: start;
         }
 
         td.amt {
-            text-align: right;
+            text-align: end;
             width: 32%;
         }
 
@@ -112,92 +112,92 @@
 @endphp
 
 <div class="noprint">
-    <button type="button" onclick="window.print()">Print / PDF</button>
-    <a href="{{ route('restaurant-pos.closing') }}">Back</a>
+    <button type="button" onclick="window.print()">{{ __('Print / PDF') }}</button>
+    <a href="{{ route('restaurant-pos.closing') }}">{{ __('Back') }}</a>
 </div>
 
 <div class="page">
     <h1>{{ $companyName }}</h1>
-    <h2>POS Session Report — {{ $bizDate }}</h2>
+    <h2>{{ __('POS Session Report') }} — {{ $bizDate }}</h2>
 
     <div class="meta">
-        <p>Business date: {{ $bizDate }} &nbsp;|&nbsp; Session: {{ $sessionLabel }}</p>
-        <p>Opened: {{ $openedAt ?? '—' }}@if($session->status === 'closed' && $closedAt) &nbsp;|&nbsp; Closed: {{ $closedAt }}@endif</p>
-        <p>Cashier: {{ $session->user?->name ?? '—' }}@if(!empty($printedBy)) &nbsp;|&nbsp; Printed by: {{ $printedBy }}@endif</p>
-        <p>Printed: {{ $printedAt }} &nbsp;|&nbsp; Status: {{ $session->status === 'closed' ? 'Closed' : 'Open' }}</p>
+        <p>{{ __('Business date') }}: {{ $bizDate }} &nbsp;|&nbsp; {{ __('Session') }}: {{ $sessionLabel }}</p>
+        <p>{{ __('Opened') }}: {{ $openedAt ?? '—' }}@if($session->status === 'closed' && $closedAt) &nbsp;|&nbsp; {{ __('Closed') }}: {{ $closedAt }}@endif</p>
+        <p>{{ __('Cashier') }}: {{ $session->user?->name ?? '—' }}@if(!empty($printedBy)) &nbsp;|&nbsp; {{ __('Printed by') }}: {{ $printedBy }}@endif</p>
+        <p>{{ __('Printed') }}: {{ $printedAt }} &nbsp;|&nbsp; {{ __('Status') }}: {{ $session->status === 'closed' ? __('Closed') : __('Open') }}</p>
     </div>
 
     <table>
         <thead>
             <tr>
-                <th>Description</th>
-                <th class="amt">Amount</th>
+                <th>{{ __('Description') }}</th>
+                <th class="amt">{{ __('Amount') }}</th>
             </tr>
         </thead>
         <tbody>
             <tr>
-                <td>Gross sales ({{ $stats['sales_count'] }} bills)</td>
+                <td>{{ __('Gross sales (:count bills)', ['count' => $stats['sales_count']]) }}</td>
                 <td class="amt">{{ $currency }} {{ fmt_num($stats['sales_total'], 2) }}</td>
             </tr>
             @if((float) $stats['refunds_total'] > 0)
             <tr>
-                <td>Refunds ({{ $stats['refunds_count'] }})</td>
+                <td>{{ __('Refunds (:count)', ['count' => $stats['refunds_count']]) }}</td>
                 <td class="amt">- {{ $currency }} {{ fmt_num($stats['refunds_total'], 2) }}</td>
             </tr>
             @endif
             <tr>
-                <td>Discount</td>
+                <td>{{ __('Discount') }}</td>
                 <td class="amt">- {{ $currency }} {{ fmt_num($stats['discount_total'], 2) }}</td>
             </tr>
             <tr>
-                <td>Service charges</td>
+                <td>{{ __('Service charges') }}</td>
                 <td class="amt">- {{ $currency }} {{ fmt_num($stats['service_charge_total'], 2) }}</td>
             </tr>
             @if((float) $stats['tax_total'] > 0)
             <tr>
-                <td>Tax</td>
+                <td>{{ __('Tax') }}</td>
                 <td class="amt">{{ $currency }} {{ fmt_num($stats['tax_total'], 2) }}</td>
             </tr>
             @endif
             @if($stats['credit_sales_count'] > 0)
             <tr>
-                <td>Credit sales ({{ $stats['credit_sales_count'] }})</td>
+                <td>{{ __('Credit sales (:count)', ['count' => $stats['credit_sales_count']]) }}</td>
                 <td class="amt">{{ $currency }} {{ fmt_num($stats['credit_sales_total'], 2) }}</td>
             </tr>
             @endif
             <tr class="bold">
-                <td>Net sales</td>
+                <td>{{ __('Net sales') }}</td>
                 <td class="amt">{{ $currency }} {{ fmt_num($stats['net_sales_total'], 2) }}</td>
             </tr>
             <tr>
-                <td>Cash</td>
+                <td>{{ __('Cash') }}</td>
                 <td class="amt">{{ $currency }} {{ fmt_num($stats['payments_cash'], 2) }}</td>
             </tr>
             <tr>
-                <td>Bank</td>
+                <td>{{ __('Bank') }}</td>
                 <td class="amt">{{ $currency }} {{ fmt_num($stats['payments_bank'], 2) }}</td>
             </tr>
             <tr>
-                <td>Card</td>
+                <td>{{ __('Card') }}</td>
                 <td class="amt">{{ $currency }} {{ fmt_num($stats['payments_card'], 2) }}</td>
             </tr>
             @if((float) $cash['cash_in'] > 0 || (float) $cash['cash_out'] > 0)
             <tr>
-                <td>Cash in / out</td>
+                <td>{{ __('Cash in / out') }}</td>
                 <td class="amt">+{{ fmt_num($cash['cash_in'], 2) }} / -{{ fmt_num($cash['cash_out'], 2) }}</td>
             </tr>
             @endif
             <tr class="bold">
-                <td>Total payments</td>
+                <td>{{ __('Total payments') }}</td>
                 <td class="amt">{{ $currency }} {{ fmt_num($totalPayments, 2) }}</td>
             </tr>
             <tr class="bold">
-                <td>Cash in drawer (expected)</td>
+                <td>{{ __('Cash in drawer (expected)') }}</td>
                 <td class="amt">{{ $currency }} {{ fmt_num($amountToCollect, 2) }}</td>
             </tr>
             @if($session->status === 'closed' && $session->cash_difference !== null && (float) $session->cash_difference !== 0.0)
             <tr>
-                <td>Cash difference</td>
+                <td>{{ __('Cash difference') }}</td>
                 <td class="amt">{{ $currency }} {{ fmt_num((float) $session->cash_difference, 2) }}</td>
             </tr>
             @endif
@@ -205,7 +205,7 @@
     </table>
 
     @if(!empty(trim((string) ($session->note ?? ''))))
-    <p style="margin-top:14px;font-size:10pt;">Note: {{ $session->note }}</p>
+    <p style="margin-top:14px;font-size:10pt;">{{ __('Note') }}: {{ $session->note }}</p>
     @endif
 
     <div class="footer">{{ $companyName }} — {{ $sessionLabel }}</div>

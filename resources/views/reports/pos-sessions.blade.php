@@ -9,7 +9,7 @@
     </div>
     <div class="d-flex gap-2">
         @if(auth()->user()?->canAccessPosClosing())
-        <a href="{{ route('restaurant-pos.closing') }}" class="btn btn-outline-primary btn-sm">POS Closing</a>
+        <a href="{{ route('restaurant-pos.closing') }}" class="btn btn-outline-primary btn-sm">{{ __('POS Closing') }}</a>
         @endif
         <a href="{{ route('reports.index') }}" class="btn btn-outline-secondary btn-sm">← All Reports</a>
     </div>
@@ -105,7 +105,7 @@
                             <td colspan="11" class="text-center text-secondary py-5">
                                 Is date range mein koi closed session nahi mili.
                                 @if(auth()->user()?->canAccessPosClosing())
-                                <a href="{{ route('restaurant-pos.closing') }}" class="d-block mt-2">POS Closing →</a>
+                                <a href="{{ route('restaurant-pos.closing') }}" class="d-block mt-2">{{ __('POS Closing') }} →</a>
                                 @endif
                             </td>
                         </tr>
