@@ -362,16 +362,22 @@
     function orderTableBanner(order) {
         const guestRaw = String(order.guest_name || '').trim();
         const guestBase = guestRaw.includes(' · Split ') ? guestRaw.split(' · Split ')[0].trim() : guestRaw;
+        const service = String(order.service_type || '').toLowerCase();
+        const isDelivery = service === 'delivery' || order.service_type_label === 'Delivery';
+        const isTakeaway = service === 'takeaway' || order.service_type_label === 'Takeaway';
         let label = '';
         if (order.table_name) {
             label = String(order.table_name).trim();
-        } else if ((order.service_type === 'dine_in' || order.service_type_label === 'Dine-in') && guestBase) {
+        } else if (isDelivery || isTakeaway) {
+            // room_no holds phone/contact for delivery & takeaway — never prefix "Room".
+            label = String(order.room_no || guestBase || '').trim();
+        } else if ((service === 'dine_in' || order.service_type_label === 'Dine-in') && guestBase) {
             label = guestBase;
         } else if (order.room_no) {
             label = 'Room ' + String(order.room_no).trim();
         }
         if (!label) return '';
-        if (!/^(table|room)\b/i.test(label)) {
+        if (!isDelivery && !isTakeaway && !/^(table|room)\b/i.test(label)) {
             label = 'Table ' + label;
         }
         return `<div class="rp-oc-table">${escHtml(label)}</div>`;

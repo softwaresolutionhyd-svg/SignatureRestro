@@ -141,8 +141,15 @@
     if ($departmentName === '') {
         $departmentName = 'KITCHEN';
     }
+    $roomNo = trim((string) ($order->room_no ?? ''));
+    $isPhoneContactService = in_array($order->serviceTypeKey(), [
+        \App\Models\PosOrder::SERVICE_DELIVERY,
+        \App\Models\PosOrder::SERVICE_TAKEAWAY,
+    ], true);
     $tableLabel = $order->table?->name
-        ?? (trim((string) ($order->room_no ?? '')) !== '' ? 'Room ' . trim((string) $order->room_no) : null)
+        ?? ($roomNo !== ''
+            ? ($isPhoneContactService ? $roomNo : 'Room '.$roomNo)
+            : null)
         ?? (trim((string) ($order->guest_name ?? '')) !== '' ? trim((string) $order->guest_name) : null);
     $serviceTag = match ($order->serviceTypeKey()) {
         \App\Models\PosOrder::SERVICE_DINE_IN => 'DINE-IN',

@@ -692,7 +692,12 @@ final class NetworkPrinterService
         }
         $room = trim((string) ($order->room_no ?? ''));
         if ($room !== '') {
-            return 'Room ' . $room;
+            // Delivery/takeaway store phone/contact in room_no — do not label as Room.
+            if (in_array($order->serviceTypeKey(), [PosOrder::SERVICE_DELIVERY, PosOrder::SERVICE_TAKEAWAY], true)) {
+                return $room;
+            }
+
+            return 'Room '.$room;
         }
 
         return trim((string) ($order->guest_name ?? ''));
@@ -993,7 +998,11 @@ final class NetworkPrinterService
         }
         $room = trim((string) ($order->room_no ?? ''));
         if ($room !== '') {
-            return 'Room ' . $room;
+            if (in_array($order->serviceTypeKey(), [PosOrder::SERVICE_DELIVERY, PosOrder::SERVICE_TAKEAWAY], true)) {
+                return $room;
+            }
+
+            return 'Room '.$room;
         }
 
         return trim((string) ($order->guest_name ?? ''));

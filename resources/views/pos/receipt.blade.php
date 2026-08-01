@@ -207,9 +207,27 @@
     if ($tableLabel === null || $tableLabel === '') {
         $roomNo = trim((string) ($order->room_no ?? ''));
         $guestName = trim((string) ($order->guest_name ?? ''));
-        $tableLabel = $roomNo !== '' ? 'Room '.$roomNo : ($guestName !== '' ? $guestName : null);
+        $isPhoneContactService = in_array($order->serviceTypeKey(), [
+            \App\Models\PosOrder::SERVICE_DELIVERY,
+            \App\Models\PosOrder::SERVICE_TAKEAWAY,
+        ], true);
+        if ($roomNo !== '') {
+            $tableLabel = $isPhoneContactService ? $roomNo : 'Room '.$roomNo;
+        } else {
+            $tableLabel = $guestName !== '' ? $guestName : null;
+        }
     }
-    if ($tableLabel !== null && $tableLabel !== '' && ! preg_match('/^(table|room)\b/i', $tableLabel)) {
+    $isPhoneContactService = $isPhoneContactService
+        ?? in_array($order->serviceTypeKey(), [
+            \App\Models\PosOrder::SERVICE_DELIVERY,
+            \App\Models\PosOrder::SERVICE_TAKEAWAY,
+        ], true);
+    if (
+        $tableLabel !== null
+        && $tableLabel !== ''
+        && ! $isPhoneContactService
+        && ! preg_match('/^(table|room)\b/i', $tableLabel)
+    ) {
         $tableLabel = 'Table '.$tableLabel;
     }
 @endphp
@@ -255,8 +273,19 @@
             @if($order->guest_name && ! ($tableLabel && trim((string) $order->guest_name) === $tableLabel))
                 <div class="tot-row"><span class="muted">Guest</span><span>{{ $order->guest_name }}</span></div>
             @endif
-            @if($order->room_no && ! ($tableLabel && str_starts_with($tableLabel, 'Room ')))
-                <div class="tot-row"><span class="muted">Room</span><span>{{ $order->room_no }}</span></div>
+            @php
+                $roomNoRow = trim((string) ($order->room_no ?? ''));
+                $showRoomOrPhoneRow = $roomNoRow !== ''
+                    && ! ($tableLabel && (
+                        $tableLabel === $roomNoRow
+                        || str_starts_with($tableLabel, 'Room ')
+                    ));
+            @endphp
+            @if($showRoomOrPhoneRow)
+                <div class="tot-row">
+                    <span class="muted">{{ !empty($isPhoneContactService) ? 'Phone' : 'Room' }}</span>
+                    <span>{{ $order->room_no }}</span>
+                </div>
             @endif
             @if($order->waiter_name)
                 <div class="tot-row"><span class="muted">Waiter</span><span>{{ $order->waiter_name }}</span></div>
