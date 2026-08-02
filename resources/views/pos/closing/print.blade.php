@@ -6,13 +6,13 @@
     <style>
         * { box-sizing: border-box; }
 
-        @page { size: A4 portrait; margin: 18mm 16mm; }
+        @page { size: A4 portrait; margin: 14mm 12mm; }
 
         body {
             margin: 0;
             padding: 0;
             font-family: Arial, Helvetica, 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', sans-serif;
-            font-size: 11pt;
+            font-size: 13pt;
             color: #000;
             background: #fff;
         }
@@ -20,7 +20,7 @@
         .page {
             width: 210mm;
             margin: 0 auto;
-            padding: 18mm 16mm;
+            padding: 14mm 12mm;
         }
 
         .noprint {
@@ -42,23 +42,23 @@
         }
 
         h1 {
-            margin: 0 0 2px;
-            font-size: 16pt;
+            margin: 0 0 4px;
+            font-size: 20pt;
             font-weight: bold;
             text-align: center;
         }
 
         h2 {
-            margin: 0 0 14px;
-            font-size: 11pt;
+            margin: 0 0 16px;
+            font-size: 13pt;
             font-weight: normal;
             text-align: center;
         }
 
         .meta {
-            margin-bottom: 16px;
-            font-size: 10pt;
-            line-height: 1.6;
+            margin-bottom: 18px;
+            font-size: 12pt;
+            line-height: 1.65;
         }
 
         .meta p { margin: 0; }
@@ -66,12 +66,12 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 10pt;
+            font-size: 12.5pt;
         }
 
         th, td {
             border: 1px solid #000;
-            padding: 6px 8px;
+            padding: 9px 10px;
         }
 
         th {
@@ -81,7 +81,7 @@
 
         td.amt {
             text-align: end;
-            width: 32%;
+            width: 34%;
         }
 
         tr.bold td {
@@ -89,8 +89,8 @@
         }
 
         .footer {
-            margin-top: 20px;
-            font-size: 9pt;
+            margin-top: 22px;
+            font-size: 11pt;
             text-align: center;
         }
 
