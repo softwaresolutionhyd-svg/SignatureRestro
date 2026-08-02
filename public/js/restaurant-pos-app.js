@@ -1326,6 +1326,7 @@
     }
 
     let orderListMode = null;
+    let billsServiceFilter = 'all'; // all | dine_in | takeaway | delivery
     let panelView = 'split';
     let ownerDiscountActive = false;
 
@@ -1394,17 +1395,43 @@
         }
 
         const isPending = orderListMode === 'pending';
-        const orders = isPending ? (boot.pendingBillsDetail || []) : (boot.paidBillsDetail || []);
+        const allOrders = isPending ? (boot.pendingBillsDetail || []) : (boot.paidBillsDetail || []);
+        const filtered = filterOrdersForSearch(allOrders);
+        const counts = countOrdersByService(allOrders);
+        const tabs = [
+            { key: 'all', label: 'All', count: counts.all },
+            { key: 'dine_in', label: 'Dine In', count: counts.dine_in },
+            { key: 'takeaway', label: 'Takeaway', count: counts.takeaway },
+            { key: 'delivery', label: 'Delivery', count: counts.delivery },
+        ];
         billsHead.innerHTML = `
             <div class="rp-bills-head-main">
                 <span class="rp-bills-head-title">${isPending ? 'Pending Bills' : 'Paid Bills'}</span>
-                <span class="rp-bills-head-count">${orders.length} bill${orders.length === 1 ? '' : 's'}</span>
+                <span class="rp-bills-head-count">${filtered.length} bill${filtered.length === 1 ? '' : 's'}</span>
                 <button type="button" class="btn btn-sm rp-punch-new-order" id="rpPunchNewOrder"><i class="bi bi-plus-lg me-1"></i>Punch New Order</button>
+            </div>
+            <div class="rp-bills-service-tabs" role="tablist" aria-label="Filter by service type">
+                ${tabs.map((t) => `
+                    <button type="button" class="rp-bills-service-tab${billsServiceFilter === t.key ? ' is-active' : ''}"
+                            data-service-filter="${t.key}" role="tab" aria-selected="${billsServiceFilter === t.key ? 'true' : 'false'}">
+                        ${t.label}
+                        <span class="rp-bills-service-tab-count">${t.count}</span>
+                    </button>
+                `).join('')}
             </div>
             <span class="rp-bills-head-hint">${isPending ? 'Bill kholne ke liye card par click karein.' : (canReopenPaidBill ? 'Receipt ya Reopen ke liye card par action use karein.' : 'Receipt ke liye card par click karein.')}</span>
         `;
 
         $('#rpPunchNewOrder')?.addEventListener('click', punchNewOrder);
+        billsHead.querySelectorAll('[data-service-filter]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const next = btn.getAttribute('data-service-filter') || 'all';
+                if (billsServiceFilter === next) return;
+                billsServiceFilter = next;
+                updateBillsMenuHead();
+                renderOrderCards();
+            });
+        });
     }
 
     function punchNewOrder() {
@@ -1686,10 +1713,39 @@
         });
     }
 
+    function orderServiceTypeKey(order) {
+        const raw = String(order?.service_type || '').toLowerCase().trim();
+        if (raw === 'dine_in' || raw === 'takeaway' || raw === 'delivery') {
+            return raw;
+        }
+        const label = String(order?.service_type_label || '').toLowerCase();
+        if (label.includes('takeaway') || label.includes('take away')) return 'takeaway';
+        if (label.includes('delivery')) return 'delivery';
+        if (label.includes('dine')) return 'dine_in';
+        return 'dine_in';
+    }
+
+    function filterOrdersByService(orders) {
+        if (!billsServiceFilter || billsServiceFilter === 'all') {
+            return orders;
+        }
+        return orders.filter((o) => orderServiceTypeKey(o) === billsServiceFilter);
+    }
+
+    function countOrdersByService(orders) {
+        const counts = { all: orders.length, dine_in: 0, takeaway: 0, delivery: 0 };
+        orders.forEach((o) => {
+            const key = orderServiceTypeKey(o);
+            if (counts[key] !== undefined) counts[key] += 1;
+        });
+        return counts;
+    }
+
     function filterOrdersForSearch(orders) {
+        const byService = filterOrdersByService(orders);
         const q = ($('#rpProductSearch')?.value || '').trim().toLowerCase();
-        if (!q) return orders;
-        return orders.filter((o) => {
+        if (!q) return byService;
+        return byService.filter((o) => {
             const hay = [
                 o.order_no,
                 o.table_name,
@@ -1733,6 +1789,11 @@
             else if (mode === 'paid') search.placeholder = 'Search paid bill…';
             else if (mode === 'kitchen-voids') search.placeholder = 'Search cancelled item…';
             search.value = '';
+        }
+
+        // Keep service filter when switching Pending ↔ Paid; reset only for kitchen voids.
+        if (mode === 'kitchen-voids') {
+            billsServiceFilter = 'all';
         }
 
         if (mode === 'kitchen-voids') {
@@ -1802,7 +1863,11 @@
             if (!orders.length) {
                 grid.innerHTML = `<div class="rp-empty rp-empty--menu">
                     <span class="rp-empty-icon"><i class="bi bi-hourglass-split"></i></span>
-                    <span>${(boot.pendingBillsDetail || []).length ? 'Is search se koi pending bill nahi mili.' : 'Koi pending order nahi.'}</span>
+                    <span>${(boot.pendingBillsDetail || []).length
+                        ? (billsServiceFilter !== 'all'
+                            ? 'Is type ki koi pending bill nahi.'
+                            : 'Is search se koi pending bill nahi mili.')
+                        : 'Koi pending order nahi.'}</span>
                 </div>`;
                 return;
             }
@@ -1842,7 +1907,11 @@
         if (!paid.length) {
             grid.innerHTML = `<div class="rp-empty rp-empty--menu">
                 <span class="rp-empty-icon"><i class="bi bi-check-circle"></i></span>
-                <span>${(boot.paidBillsDetail || []).length ? 'Is search se koi paid bill nahi mili.' : 'Aaj koi paid order nahi.'}</span>
+                <span>${(boot.paidBillsDetail || []).length
+                    ? (billsServiceFilter !== 'all'
+                        ? 'Is type ki koi paid bill nahi.'
+                        : 'Is search se koi paid bill nahi mili.')
+                    : 'Aaj koi paid order nahi.'}</span>
             </div>`;
             return;
         }
@@ -3358,7 +3427,12 @@
 
     function bindEvents() {
         $('#rpProductSearch')?.addEventListener('input', () => {
-            if (orderListMode) renderOrderCards();
+            if (orderListMode) {
+                if (orderListMode === 'pending' || orderListMode === 'paid') {
+                    updateBillsMenuHead();
+                }
+                renderOrderCards();
+            }
             else renderMenuGrid();
         });
         $('#rpMenuCats')?.addEventListener('click', (e) => {
