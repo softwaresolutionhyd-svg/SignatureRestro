@@ -378,8 +378,9 @@
             label = 'Room ' + String(order.room_no).trim();
         }
         if (!label) return '';
-        if (!isDelivery && !isTakeaway && !/^(table|room)\b/i.test(label)) {
-            label = 'Table ' + label;
+        // Pending/Paid cards: show bare table no (FT27), not "Table FT27".
+        if (!isDelivery && !isTakeaway) {
+            label = label.replace(/^(table|room)\s+/i, '').trim() || label;
         }
         return `<div class="rp-oc-table">${escHtml(label)}</div>`;
     }
