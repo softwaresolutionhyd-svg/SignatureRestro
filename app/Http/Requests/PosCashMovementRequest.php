@@ -19,9 +19,17 @@ class PosCashMovementRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'reason' => ['required', 'string', 'max:255'],
             'type' => ['required', 'in:in,out'],
             'amount' => ['required', 'numeric', 'gt:0'],
-            'reason' => ['nullable', 'string', 'max:255'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'reason.required' => __('Description is required.'),
+            'amount.gt' => __('Amount must be greater than zero.'),
         ];
     }
 }

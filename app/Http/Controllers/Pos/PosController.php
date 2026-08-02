@@ -873,6 +873,7 @@ class PosController extends Controller
                 'session' => null,
                 'stats' => null,
                 'cash' => null,
+                'cashMovements' => collect(),
                 'amountToCollect' => 0,
                 'currency' => $currency,
                 'companyName' => $companyName,
@@ -887,11 +888,16 @@ class PosController extends Controller
             'held_count' => $pendingCount,
             'can_close_session' => $pendingCount === 0,
         ]);
+        $cashMovements = PosCashMovement::query()
+            ->where('session_id', $session->id)
+            ->orderBy('id')
+            ->get(['id', 'type', 'amount', 'reason', 'created_at']);
 
         return view('pos.closing.index', [
             'session' => $session,
             'stats' => $stats,
             'cash' => $summary['cash'],
+            'cashMovements' => $cashMovements,
             'amountToCollect' => $summary['amount_to_collect'],
             'currency' => $currency,
             'companyName' => $companyName,
@@ -921,11 +927,16 @@ class PosController extends Controller
     private function closingPrintView(PosSession $session): \Illuminate\View\View
     {
         $summary = app(PosSessionSummaryService::class)->summaryPayload($session);
+        $cashMovements = PosCashMovement::query()
+            ->where('session_id', $session->id)
+            ->orderBy('id')
+            ->get(['id', 'type', 'amount', 'reason', 'created_at']);
 
         return view('pos.closing.print', [
             'session' => $session->loadMissing('user:id,name'),
             'stats' => $summary['stats'],
             'cash' => $summary['cash'],
+            'cashMovements' => $cashMovements,
             'amountToCollect' => $summary['amount_to_collect'],
             'currency' => Setting::get('currency_symbol', 'Rs.'),
             'companyName' => Setting::get('company_name', config('app.name')),
@@ -1165,7 +1176,9 @@ class PosController extends Controller
             'reason' => $request->reason,
         ]);
 
-        return back()->with('success', 'Cash movement saved.');
+        $label = $request->type === 'in' ? __('Cash In') : __('Cash Out');
+
+        return back()->with('success', __(':type saved.', ['type' => $label]));
     }
 
     public function checkout(PosCheckoutRequest $request): RedirectResponse|JsonResponse

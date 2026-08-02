@@ -40,6 +40,12 @@
     @php
         $bizDate = $session->business_date?->format('d M Y') ?? $session->opened_at?->format('d M Y');
         $openedAt = $session->opened_at?->format('d M Y H:i');
+        $cashMovements = $cashMovements ?? collect();
+        $cashInTotal = (float) ($cash['cash_in'] ?? 0);
+        $cashOutTotal = (float) ($cash['cash_out'] ?? 0);
+        $displayNetSales = round((float) $stats['net_sales_total'] - $cashOutTotal, 2);
+        $cashInRows = $cashMovements->where('type', 'in')->values();
+        $cashOutRows = $cashMovements->where('type', 'out')->values();
     @endphp
 
     <div class="row g-3 mb-4">
@@ -60,11 +66,14 @@
             <div class="card shadow-sm border-0 h-100 border-start border-4 border-primary">
                 <div class="card-body">
                     <div class="text-secondary small">{{ __('Net sales (so far today)') }}</div>
-                    <div class="fw-bold fs-4 text-primary">{{ $currency }} {{ fmt_num($stats['net_sales_total'], 2) }}</div>
+                    <div class="fw-bold fs-4 text-primary">{{ $currency }} {{ fmt_num($displayNetSales, 2) }}</div>
                     <div class="text-secondary small mt-1">
                         {{ __(':count bills', ['count' => $stats['sales_count']]) }}
                         @if($stats['refunds_count'] > 0)
                             · {{ __(':count refunds', ['count' => $stats['refunds_count']]) }}
+                        @endif
+                        @if($cashOutTotal > 0)
+                            · {{ __('after cash out') }}
                         @endif
                     </div>
                 </div>
@@ -78,6 +87,77 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <span class="fw-semibold">{{ __('Cash In / Cash Out') }}</span>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-success" id="pcCashInBtn">
+                    <i class="bi bi-plus-circle me-1"></i> {{ __('Cash In') }}
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger" id="pcCashOutBtn">
+                    <i class="bi bi-dash-circle me-1"></i> {{ __('Cash Out') }}
+                </button>
+            </div>
+        </div>
+        <div class="card-body d-none" id="pcCashMovementFormWrap">
+            <form method="POST" action="{{ route('restaurant-pos.cash-movement') }}" class="row g-3 align-items-end" id="pcCashMovementForm">
+                @csrf
+                <input type="hidden" name="type" id="pcCashMovementType" value="in">
+                <div class="col-12">
+                    <div class="small fw-semibold" id="pcCashMovementTitle">{{ __('Cash In') }}</div>
+                    <div class="text-secondary small" id="pcCashMovementHint">{{ __('Adds to cash in drawer (expected).') }}</div>
+                </div>
+                <div class="col-md-7">
+                    <label class="form-label" for="pcCashReason">{{ __('Description') }}</label>
+                    <input type="text" name="reason" id="pcCashReason" class="form-control @error('reason') is-invalid @enderror"
+                           value="{{ old('reason') }}" maxlength="255" required
+                           placeholder="{{ __('e.g. Petty cash / change float') }}">
+                    @error('reason')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="pcCashAmount">{{ __('Amount') }}</label>
+                    <div class="input-group">
+                        <span class="input-group-text">{{ $currency }}</span>
+                        <input type="number" step="0.01" min="0.01" name="amount" id="pcCashAmount"
+                               class="form-control @error('amount') is-invalid @enderror"
+                               value="{{ old('amount') }}" required>
+                        @error('amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100" id="pcCashSubmitBtn">{{ __('Save') }}</button>
+                </div>
+            </form>
+        </div>
+        @if($cashMovements->isNotEmpty())
+            <div class="card-body p-0 border-top">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">{{ __('Description') }}</th>
+                            <th class="text-end pe-3" style="width:9rem;">{{ __('Amount') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($cashMovements as $mv)
+                            <tr>
+                                <td class="ps-3">
+                                    <span class="badge {{ $mv->type === 'in' ? 'bg-success' : 'bg-danger' }} me-1">
+                                        {{ $mv->type === 'in' ? __('Cash In') : __('Cash Out') }}
+                                    </span>
+                                    {{ $mv->reason ?: '—' }}
+                                </td>
+                                <td class="text-end pe-3 fw-semibold {{ $mv->type === 'in' ? 'text-success' : 'text-danger' }}">
+                                    {{ $mv->type === 'in' ? '+' : '−' }} {{ $currency }} {{ fmt_num($mv->amount, 2) }}
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
     </div>
 
     <div class="card shadow-sm border-0 mb-4">
@@ -128,6 +208,18 @@
                         <td class="ps-3 fw-bold">{{ __('Net sales') }}</td>
                         <td class="text-end pe-3 fw-bold">{{ $currency }} {{ fmt_num($stats['net_sales_total'], 2) }}</td>
                     </tr>
+                    @foreach($cashOutRows as $mv)
+                    <tr>
+                        <td class="ps-3 text-danger">{{ __('Cash Out') }} — {{ $mv->reason ?: '—' }}</td>
+                        <td class="text-end pe-3 text-danger">− {{ $currency }} {{ fmt_num($mv->amount, 2) }}</td>
+                    </tr>
+                    @endforeach
+                    @if($cashOutTotal > 0)
+                    <tr class="table-light">
+                        <td class="ps-3 fw-bold">{{ __('Net sales after cash out') }}</td>
+                        <td class="text-end pe-3 fw-bold">{{ $currency }} {{ fmt_num($displayNetSales, 2) }}</td>
+                    </tr>
+                    @endif
                     <tr><td colspan="2" class="py-1"></td></tr>
                     <tr>
                         <td class="ps-3"><i class="bi bi-cash-coin me-1 text-success"></i> {{ __('Cash') }} <span class="text-secondary small">({{ __('credit sales excluded') }})</span></td>
@@ -141,12 +233,12 @@
                         <td class="ps-3"><i class="bi bi-credit-card me-1 text-info"></i> {{ __('Card') }}</td>
                         <td class="text-end pe-3 fw-semibold">{{ $currency }} {{ fmt_num($stats['payments_card'], 2) }}</td>
                     </tr>
-                    @if((float) $cash['cash_in'] > 0 || (float) $cash['cash_out'] > 0)
+                    @foreach($cashInRows as $mv)
                     <tr>
-                        <td class="ps-3 text-secondary small">{{ __('Cash in / out') }}</td>
-                        <td class="text-end pe-3 small text-secondary">+{{ fmt_num($cash['cash_in'], 2) }} / −{{ fmt_num($cash['cash_out'], 2) }}</td>
+                        <td class="ps-3 text-success">{{ __('Cash In') }} — {{ $mv->reason ?: '—' }}</td>
+                        <td class="text-end pe-3 text-success">+ {{ $currency }} {{ fmt_num($mv->amount, 2) }}</td>
                     </tr>
-                    @endif
+                    @endforeach
                     <tr class="table-light">
                         <td class="ps-3 fw-bold">{{ __('Total payments') }}</td>
                         <td class="text-end pe-3 fw-bold">{{ $currency }} {{ fmt_num($stats['payments_cash'] + $stats['payments_bank'] + $stats['payments_card'], 2) }}</td>
@@ -210,4 +302,40 @@
         </div>
     </div>
 @endif
+@endsection
+
+@section('scripts')
+<script>
+(function () {
+    const wrap = document.getElementById('pcCashMovementFormWrap');
+    const typeInput = document.getElementById('pcCashMovementType');
+    const title = document.getElementById('pcCashMovementTitle');
+    const hint = document.getElementById('pcCashMovementHint');
+    const inBtn = document.getElementById('pcCashInBtn');
+    const outBtn = document.getElementById('pcCashOutBtn');
+    if (!wrap || !typeInput) return;
+
+    const labels = {
+        inTitle: @json(__('Cash In')),
+        outTitle: @json(__('Cash Out')),
+        inHint: @json(__('Adds to cash in drawer (expected).')),
+        outHint: @json(__('Subtracts from net sales and cash in drawer.')),
+    };
+
+    function openForm(type) {
+        typeInput.value = type;
+        title.textContent = type === 'out' ? labels.outTitle : labels.inTitle;
+        hint.textContent = type === 'out' ? labels.outHint : labels.inHint;
+        wrap.classList.remove('d-none');
+        document.getElementById('pcCashReason')?.focus();
+    }
+
+    inBtn?.addEventListener('click', () => openForm('in'));
+    outBtn?.addEventListener('click', () => openForm('out'));
+
+    @if($errors->has('reason') || $errors->has('amount') || $errors->has('type'))
+        openForm(@json(old('type', 'in')));
+    @endif
+})();
+</script>
 @endsection

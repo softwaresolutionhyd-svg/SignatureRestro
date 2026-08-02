@@ -169,6 +169,25 @@
                 <td>{{ __('Net sales') }}</td>
                 <td class="amt">{{ $currency }} {{ fmt_num($stats['net_sales_total'], 2) }}</td>
             </tr>
+            @php
+                $cashMovements = $cashMovements ?? collect();
+                $cashOutRows = $cashMovements->where('type', 'out')->values();
+                $cashInRows = $cashMovements->where('type', 'in')->values();
+                $cashOutTotal = (float) ($cash['cash_out'] ?? 0);
+                $displayNetSales = round((float) $stats['net_sales_total'] - $cashOutTotal, 2);
+            @endphp
+            @foreach($cashOutRows as $mv)
+            <tr>
+                <td>{{ __('Cash Out') }} — {{ $mv->reason ?: '—' }}</td>
+                <td class="amt">− {{ $currency }} {{ fmt_num($mv->amount, 2) }}</td>
+            </tr>
+            @endforeach
+            @if($cashOutTotal > 0)
+            <tr class="bold">
+                <td>{{ __('Net sales after cash out') }}</td>
+                <td class="amt">{{ $currency }} {{ fmt_num($displayNetSales, 2) }}</td>
+            </tr>
+            @endif
             <tr>
                 <td>{{ __('Cash') }}</td>
                 <td class="amt">{{ $currency }} {{ fmt_num($stats['payments_cash'], 2) }}</td>
@@ -181,12 +200,12 @@
                 <td>{{ __('Card') }}</td>
                 <td class="amt">{{ $currency }} {{ fmt_num($stats['payments_card'], 2) }}</td>
             </tr>
-            @if((float) $cash['cash_in'] > 0 || (float) $cash['cash_out'] > 0)
+            @foreach($cashInRows as $mv)
             <tr>
-                <td>{{ __('Cash in / out') }}</td>
-                <td class="amt">+{{ fmt_num($cash['cash_in'], 2) }} / -{{ fmt_num($cash['cash_out'], 2) }}</td>
+                <td>{{ __('Cash In') }} — {{ $mv->reason ?: '—' }}</td>
+                <td class="amt">+ {{ $currency }} {{ fmt_num($mv->amount, 2) }}</td>
             </tr>
-            @endif
+            @endforeach
             <tr class="bold">
                 <td>{{ __('Total payments') }}</td>
                 <td class="amt">{{ $currency }} {{ fmt_num($totalPayments, 2) }}</td>
