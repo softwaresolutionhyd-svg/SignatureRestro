@@ -591,5 +591,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=85"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=86"></script>
 @endsection

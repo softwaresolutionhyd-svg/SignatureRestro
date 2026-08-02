@@ -1374,6 +1374,14 @@
         const cats = $('#rpMenuCats');
         if (!head || !orderListMode) return;
 
+        const activeEl = document.activeElement;
+        const keepTableSearchFocus = activeEl && activeEl.id === 'rpBillsTableSearch';
+        const selStart = keepTableSearchFocus ? activeEl.selectionStart : null;
+        const selEnd = keepTableSearchFocus ? activeEl.selectionEnd : null;
+        if (keepTableSearchFocus) {
+            billsTableSearch = activeEl.value || '';
+        }
+
         cats?.classList.add('d-none');
         let billsHead = $('#rpBillsHead');
         if (!billsHead) {
@@ -1461,7 +1469,8 @@
                 countEl.textContent = `${filteredNow.length} bill${filteredNow.length === 1 ? '' : 's'}`;
             }
             clearBtn?.classList.toggle('d-none', !String(billsTableSearch || '').trim());
-            renderOrderCards();
+            // Do not rebuild bills head — that steals focus after every letter.
+            renderOrderCards({ skipHead: true });
         };
 
         tableSearchInput?.addEventListener('input', () => {
@@ -1481,6 +1490,18 @@
                 syncTableSearchUi();
             }
         });
+
+        if (keepTableSearchFocus) {
+            const again = $('#rpBillsTableSearch');
+            if (again) {
+                again.focus();
+                try {
+                    const start = selStart == null ? again.value.length : selStart;
+                    const end = selEnd == null ? again.value.length : selEnd;
+                    again.setSelectionRange(start, end);
+                } catch (_) { /* ignore */ }
+            }
+        }
     }
 
     function punchNewOrder() {
@@ -1921,7 +1942,7 @@
         </div>`;
     }
 
-    function renderOrderCards() {
+    function renderOrderCards({ skipHead = false } = {}) {
         const grid = $('#rpMenuGrid');
         if (!grid || !orderListMode) return;
 
@@ -1931,7 +1952,9 @@
         }
 
         grid.classList.remove('rp-kitchen-voids-grid');
-        updateBillsMenuHead();
+        if (!skipHead) {
+            updateBillsMenuHead();
+        }
         grid.classList.add('rp-bills-grid');
 
         if (orderListMode === 'pending') {
