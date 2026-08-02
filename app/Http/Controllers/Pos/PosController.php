@@ -1247,7 +1247,18 @@ class PosController extends Controller
             (string) $request->type,
             $request->boolean('staff_include_gas')
         );
-        if ($request->type === 'sale') {
+
+        // Power-cut retry: pay already committed — skip stock re-check (inventory already moved).
+        $resumeAlreadyPaid = null;
+        if ($resumeOrderId) {
+            $resumeAlreadyPaid = PosOrder::query()
+                ->whereKey($resumeOrderId)
+                ->where('status', 'paid')
+                ->where('type', 'sale')
+                ->first();
+        }
+
+        if ($request->type === 'sale' && ! $resumeAlreadyPaid) {
             $this->validatePosProductsForCustomerType($itemsNormalized, $customerType);
             $this->validatePosStockForSale($itemsNormalized);
         }
@@ -1255,7 +1266,7 @@ class PosController extends Controller
         $this->assertKitchenVoidPermission($request);
         $this->assertItemReductionPermission($request);
 
-        if ($resumeOrderId) {
+        if ($resumeOrderId && ! $resumeAlreadyPaid) {
             $resumeDraft = $this->findDraftOrderForSession($session, $resumeOrderId, $checkoutUser);
             if ($resumeDraft) {
                 $this->assertCartQtyNotReducedByNonManager(
@@ -1269,6 +1280,35 @@ class PosController extends Controller
                     $this->normalizedKitchenVoids($request)
                 );
             }
+        }
+
+        if ($resumeAlreadyPaid) {
+            $order = $resumeAlreadyPaid;
+            $order->loadMissing(['table', 'items.product', 'payments']);
+            $openReceipt = Setting::get('pos_open_receipt_after_sale', '1') === '1';
+            $msg = __('Order pehle se paid hai — duplicate bill nahi bani.');
+
+            if ($wantsJson) {
+                return response()->json([
+                    'success' => true,
+                    'message' => $msg,
+                    'already_paid' => true,
+                    'order_id' => $order->id,
+                    'order_no' => $order->order_no,
+                    'order' => $this->paidOrderPayloadForJson($order),
+                    'table_board' => $this->orderTaker->tableBoard(),
+                    'receipt_url' => $openReceipt ? route('restaurant-pos.receipt', $order) : null,
+                    'redirect_url' => $openReceipt
+                        ? route('restaurant-pos.receipt', $order)
+                        : route('restaurant-pos.index'),
+                ]);
+            }
+
+            if ($openReceipt) {
+                return redirect()->route('restaurant-pos.receipt', $order)->with('success', $msg);
+            }
+
+            return redirect()->route('restaurant-pos.index')->with('success', $msg)->with('last_pos_order_id', $order->id)->with('pos_active_tab', 'paid');
         }
 
         if (! $this->isRestaurantPosRequest($request)) {
@@ -1312,7 +1352,7 @@ class PosController extends Controller
         }
 
         try {
-            $order = DB::connection('tenant')->transaction(function () use ($request, $session, $isCredit, $contactId, $itemsNormalized, $guestName, $roomNo, $waiterName, $serveTime, $serveDate, $orderNotes, $resumeOrderId, $customerType, $saleMode, $serviceType, $restaurantTableId, $checkoutUser) {
+            $checkoutResult = DB::connection('tenant')->transaction(function () use ($request, $session, $isCredit, $contactId, $itemsNormalized, $guestName, $roomNo, $waiterName, $serveTime, $serveDate, $orderNotes, $resumeOrderId, $customerType, $saleMode, $serviceType, $restaurantTableId, $checkoutUser) {
             $enableTables = (string) Setting::get('pos_enable_tables', '1') !== '0';
             if ($this->isRestaurantPosRequest($request)) {
                 $tableId = $restaurantTableId;
@@ -1388,14 +1428,32 @@ class PosController extends Controller
             ];
 
             $existingDraft = null;
+            $alreadyPaidResume = null;
             if ($resumeOrderId) {
-                $billSessionIds = $this->resolvePosBillSessionIds($session, $checkoutUser);
-                $existingDraft = PosOrder::query()
-                    ->where('id', $resumeOrderId)
-                    ->where('status', 'draft')
-                    ->whereIn('session_id', $billSessionIds)
+                $lockedResume = PosOrder::query()
+                    ->whereKey($resumeOrderId)
                     ->lockForUpdate()
                     ->first();
+
+                // Power-cut retry: first pay already committed — return same bill, do not create a duplicate.
+                if ($lockedResume && $lockedResume->status === 'paid' && $lockedResume->type === 'sale') {
+                    $alreadyPaidResume = $lockedResume;
+                } elseif ($lockedResume && $lockedResume->status === 'draft') {
+                    $billSessionIds = $this->resolvePosBillSessionIds($session, $checkoutUser);
+                    $hasOrderTakerColumns = Schema::hasColumn('pos_orders', 'order_source')
+                        && Schema::hasColumn('pos_orders', 'ready_for_pos_at');
+                    $sessionOk = in_array((int) $lockedResume->session_id, array_map('intval', $billSessionIds), true);
+                    $otOk = $hasOrderTakerColumns
+                        && $lockedResume->order_source === OrderTakerService::SOURCE_ORDER_TAKER
+                        && $lockedResume->ready_for_pos_at !== null;
+                    if ($sessionOk || $otOk) {
+                        $existingDraft = $lockedResume;
+                    }
+                }
+            }
+
+            if ($alreadyPaidResume !== null) {
+                return ['order' => $alreadyPaidResume, 'idempotent' => true];
             }
 
             $kitchen = app(KitchenService::class);
@@ -1471,7 +1529,7 @@ class PosController extends Controller
 
             $kitchen->dismissFromKitchenWhenPaid($order);
 
-            return $order;
+            return ['order' => $order, 'idempotent' => false];
         });
         } catch (\RuntimeException $e) {
             if ($wantsJson) {
@@ -1481,20 +1539,28 @@ class PosController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        $this->logKitchenVoids($order, $this->normalizedKitchenVoids($request));
-        $this->logItemReductions($order, $this->normalizedItemReductions($request));
-        $this->autoJournal->postPosSale($order);
+        $order = $checkoutResult['order'];
+        $idempotentPay = (bool) ($checkoutResult['idempotent'] ?? false);
+
+        if (! $idempotentPay) {
+            $this->logKitchenVoids($order, $this->normalizedKitchenVoids($request));
+            $this->logItemReductions($order, $this->normalizedItemReductions($request));
+            $this->autoJournal->postPosSale($order);
+        }
 
         $order->refresh();
         $order->loadMissing(['table', 'items.product', 'payments']);
 
         $openReceipt = Setting::get('pos_open_receipt_after_sale', '1') === '1';
-        $msg = $isCredit ? 'Credit sale recorded successfully.' : 'Order paid successfully.';
+        $msg = $idempotentPay
+            ? __('Order pehle se paid hai — duplicate bill nahi bani.')
+            : ($isCredit ? 'Credit sale recorded successfully.' : 'Order paid successfully.');
 
         if ($wantsJson) {
             return response()->json([
                 'success' => true,
                 'message' => $msg,
+                'already_paid' => $idempotentPay,
                 'order_id' => $order->id,
                 'order_no' => $order->order_no,
                 'order' => $this->paidOrderPayloadForJson($order),
@@ -1574,6 +1640,19 @@ class PosController extends Controller
         $this->assertItemReductionPermission($request);
 
         if ($resumeOrderId) {
+            $resumePaid = PosOrder::query()
+                ->whereKey($resumeOrderId)
+                ->where('status', 'paid')
+                ->first();
+            if ($resumePaid) {
+                $message = 'Yeh bill pehle se paid hai ('.$resumePaid->order_no.'). Nayi pending bill nahi banegi.';
+                if ($request->expectsJson()) {
+                    return response()->json(['message' => $message, 'already_paid' => true, 'order_id' => $resumePaid->id], 422);
+                }
+
+                return back()->with('error', $message);
+            }
+
             $resumeDraft = $this->findDraftOrderForSession($session, $resumeOrderId, $holdUser);
             if ($resumeDraft) {
                 $this->assertCartQtyNotReducedByNonManager(
@@ -1714,12 +1793,22 @@ class PosController extends Controller
 
             if ($resumeOrderId) {
                 $billSessionIds = $this->resolvePosBillSessionIds($session, $holdUser);
-                $existing = PosOrder::query()
-                    ->where('id', $resumeOrderId)
-                    ->where('status', 'draft')
-                    ->whereIn('session_id', $billSessionIds)
+                $lockedResume = PosOrder::query()
+                    ->whereKey($resumeOrderId)
                     ->lockForUpdate()
                     ->first();
+
+                // Power-cut: do not create a sibling draft when the resume target is already paid.
+                if ($lockedResume && $lockedResume->status === 'paid') {
+                    throw new \RuntimeException(
+                        'Yeh bill pehle se paid hai ('.$lockedResume->order_no.'). Nayi pending bill nahi banegi.'
+                    );
+                }
+
+                $existing = ($lockedResume && $lockedResume->status === 'draft'
+                    && in_array((int) $lockedResume->session_id, array_map('intval', $billSessionIds), true))
+                    ? $lockedResume
+                    : null;
 
                 if ($existing) {
                     $kitchen = app(KitchenService::class);

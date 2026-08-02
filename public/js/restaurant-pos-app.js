@@ -2159,7 +2159,18 @@
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
                 const validationMsg = data.errors ? Object.values(data.errors).flat()[0] : null;
-                throw new Error(data.message || validationMsg || 'Payment failed.');
+                const errMsg = data.message || validationMsg || 'Payment failed.';
+                if (data.already_paid || isStaleOrderResponse(res, data, errMsg)) {
+                    applyCheckoutSuccess({
+                        order_id: data.order_id || resumeOrderId,
+                        order_no: data.order_no,
+                        order: data.order,
+                        table_board: data.table_board,
+                    });
+                    alert(data.message || 'Order pehle se paid hai.');
+                    return true;
+                }
+                throw new Error(errMsg);
             }
 
             const networkPrinted = !skipPrint && data.order_id && await tryCashierNetworkPrint(data.order_id);
@@ -2853,7 +2864,13 @@
         if (res.status === 404) {
             return true;
         }
+        if (data && data.already_paid) {
+            return true;
+        }
         const text = String(message || data.message || '').toLowerCase();
+        if (text.includes('pehle se paid')) {
+            return true;
+        }
         return text.includes('no query results for model') && text.includes('posorder');
     }
 
