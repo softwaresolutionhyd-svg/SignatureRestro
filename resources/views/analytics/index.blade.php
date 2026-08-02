@@ -19,16 +19,16 @@
 </div>
 
 {{-- ── Current POS session sale (live) ───────────────────────────────── --}}
-<div class="card border-0 shadow-sm mb-4" style="border-left:4px solid #22c55e!important;">
+<div class="card border-0 shadow-sm mb-4 analytics-session-card" style="border-left:4px solid #22c55e!important;">
     <div class="card-body py-3 px-3">
         <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
-            <div>
+            <div class="min-w-0 flex-grow-1">
                 <div class="small text-secondary fw-semibold mb-1">{{ __('Current Session Sale') }}</div>
                 @if($currentSessionOpen)
-                    <div class="fw-bold" style="font-size:1.55rem;color:#16a34a;">
+                    <div class="fw-bold analytics-session-amount" style="font-size:1.55rem;color:#16a34a;">
                         {{ $currency }} {{ fmt_num($currentSessionSale, 2) }}
                     </div>
-                    <div class="text-secondary" style="font-size:12px;">
+                    <div class="text-secondary analytics-session-meta" style="font-size:12px;">
                         {{ __(':count paid bills', ['count' => $currentSessionBills]) }}
                         @if($currentSessionPending > 0)
                             · {{ __(':count pending', ['count' => $currentSessionPending]) }}
@@ -41,12 +41,16 @@
                         @endif
                     </div>
                 @else
-                    <div class="fw-bold text-secondary" style="font-size:1.25rem;">{{ $currency }} 0.00</div>
-                    <div class="text-secondary" style="font-size:12px;">{{ __('No open POS session right now') }}</div>
+                    <div class="fw-bold text-secondary analytics-session-amount" style="font-size:1.25rem;">{{ $currency }} 0.00</div>
+                    <div class="text-secondary analytics-session-meta" style="font-size:12px;">{{ __('No open POS session right now') }}</div>
                 @endif
+                <div class="text-secondary mt-1" style="font-size:11px;">
+                    {{ __("Today's sales") }}: {{ $currency }} {{ fmt_num($todaySalesTotal ?? 0, 2) }}
+                    · {{ __(':count paid bills', ['count' => $todaySalesCount ?? 0]) }}
+                </div>
             </div>
             @if($currentSessionOpen)
-                <div class="d-flex flex-wrap gap-3 small">
+                <div class="d-flex flex-wrap gap-3 small analytics-session-payments">
                     <div>
                         <div class="text-secondary">{{ __('Cash') }}</div>
                         <div class="fw-semibold">{{ $currency }} {{ fmt_num($currentSessionCash, 2) }}</div>

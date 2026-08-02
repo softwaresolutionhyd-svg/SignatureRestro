@@ -23,11 +23,16 @@ class AnalyticsController extends Controller
         $company  = Setting::get('company_name', config('app.name'));
 
         /* ── Current open POS session sale(s) ───────────── */
-        $openSessions = PosSession::query()
-            ->with('user:id,name')
-            ->where('status', 'open')
-            ->orderByDesc('id')
-            ->get();
+        $openSessions = collect();
+        try {
+            $openSessions = PosSession::query()
+                ->with('user:id,name')
+                ->where('status', 'open')
+                ->orderByDesc('id')
+                ->get();
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         $currentSessionSale = 0.0;
         $currentSessionBills = 0;
@@ -39,7 +44,12 @@ class AnalyticsController extends Controller
         $currentSessionLabels = [];
 
         foreach ($openSessions as $session) {
-            $stats = $sessionSummary->stats($session);
+            try {
+                $stats = $sessionSummary->stats($session);
+            } catch (\Throwable $e) {
+                report($e);
+                continue;
+            }
             $currentSessionSale += (float) ($stats['net_sales_total'] ?? 0);
             $currentSessionBills += (int) ($stats['sales_count'] ?? 0);
             $currentSessionCash += (float) ($stats['payments_cash'] ?? 0);
@@ -63,6 +73,13 @@ class AnalyticsController extends Controller
         $currentSessionNoLabel = $currentSessionLabels !== []
             ? implode(', ', $currentSessionLabels)
             : null;
+
+        $todayPaidOrders = PosOrder::query()
+            ->where('status', 'paid')
+            ->whereDate('created_at', now()->toDateString())
+            ->get(['id', 'type', 'grand_total', 'status']);
+        $todaySalesCount = $todayPaidOrders->where('type', 'sale')->count();
+        $todaySalesTotal = round($todayPaidOrders->sum(fn (PosOrder $o) => PosOrderMetrics::signedGrandTotal($o)), 2);
 
         /* ── KPI cards ────────────────────────────────── */
         $today            = now()->toDateString();
@@ -229,6 +246,7 @@ class AnalyticsController extends Controller
             'currentSessionOpen','currentSessionSale','currentSessionBills',
             'currentSessionCash','currentSessionCard','currentSessionBank',
             'currentSessionPending','currentSessionCashierLabel','currentSessionNoLabel',
+            'todaySalesTotal','todaySalesCount',
             // KPIs
             'incomeThisMonth','incomeGrowth',
             'cafeProfitMonth',

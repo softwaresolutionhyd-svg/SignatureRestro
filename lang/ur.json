@@ -337,6 +337,7 @@
     "Session cannot be closed: :count pending bill(s) still exist. Pay or discard them on Restaurant POS first.": "سیشن بند نہیں ہو سکتی: :count پینڈنگ بل ابھی موجود ہیں۔ پہلے ریسٹورنٹ POS پر ادا یا ڈسکارڈ کریں۔",
     "POS session closed and saved.": "POS سیشن بند ہو گئی اور محفوظ ہو گئی۔",
     "Current Session Sale": "موجودہ سیشن سیل",
+    "Today's sales": "آج کی سیل",
     ":count paid bills": ":count ادا شدہ بلز",
     ":count pending": ":count پینڈنگ",
     "No open POS session right now": "ابھی کوئی کھلا POS سیشن نہیں"

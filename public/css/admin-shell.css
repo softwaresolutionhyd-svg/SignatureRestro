@@ -4,7 +4,7 @@
  */
 html {
   max-width: 100%;
-  overflow-x: clip;
+  overflow-x: hidden;
 }
 
 body.admin-app-body {
@@ -14,20 +14,22 @@ body.admin-app-body {
     linear-gradient(180deg, #eef2ff 0%, #f8fafc 42%, #f1f5f9 100%) !important;
   min-height: 100vh;
   max-width: 100%;
-  overflow-x: clip;
+  overflow-x: hidden;
 }
 
 .app-shell {
   min-height: 100vh;
   width: 100%;
   max-width: 100%;
-  overflow-x: clip;
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 .admin-topbar .container-fluid {
   min-width: 0;
   width: 100%;
   max-width: 100%;
+  overflow: visible;
 }
 
 .admin-topbar-actions {
@@ -47,6 +49,18 @@ body.admin-app-body {
 .admin-user-dropdown .dropdown-menu {
   z-index: 1080;
   min-width: 12rem;
+}
+
+/* Locale on dark topbar */
+.admin-topbar .locale-switcher-btn.btn-outline-secondary {
+  color: rgba(255, 255, 255, 0.85) !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+.admin-topbar .locale-switcher-btn.btn-outline-secondary:hover {
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.45) !important;
+  background: rgba(255, 255, 255, 0.12) !important;
 }
 
 .locale-label-short {
@@ -95,6 +109,9 @@ body.admin-app-body--dashboard {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
   overflow: visible;
   z-index: 1030;
+  padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
+  padding-left: max(0.5rem, env(safe-area-inset-left, 0px));
+  padding-right: max(0.5rem, env(safe-area-inset-right, 0px));
 }
 
 .admin-topbar .navbar-nav .nav-link {
@@ -337,7 +354,7 @@ body.admin-app-body--dashboard {
   .odoo-launcher {
     align-items: stretch;
     justify-content: flex-start;
-    padding: 1rem 0.85rem 2rem;
+    padding: 1rem max(0.75rem, env(safe-area-inset-right, 0px)) calc(2rem + env(safe-area-inset-bottom, 0px)) max(0.75rem, env(safe-area-inset-left, 0px));
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
@@ -362,21 +379,25 @@ body.admin-app-body--dashboard {
   }
 
   .odoo-app-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     max-width: none;
     width: 100%;
-    gap: 1.15rem 0.55rem;
-    justify-content: space-evenly;
-    padding: 0 0.15rem;
+    gap: 1.1rem 0.5rem;
+    justify-content: stretch;
+    padding: 0;
+    box-sizing: border-box;
   }
 
   .odoo-app {
-    flex: 0 0 30%;
-    max-width: 7.25rem;
+    flex: none;
+    width: 100%;
+    max-width: none;
   }
 
   .odoo-icon {
-    width: 70px;
-    height: 70px;
+    width: min(72px, 22vw);
+    height: min(72px, 22vw);
     border-radius: 16px;
   }
 
@@ -387,12 +408,24 @@ body.admin-app-body--dashboard {
 
   .odoo-label {
     font-size: 0.78rem;
-    max-width: 6.5rem;
+    max-width: 100%;
   }
 
   .admin-topbar.navbar {
-    padding-left: 0.35rem;
-    padding-right: 0.35rem;
+    padding-left: max(0.35rem, env(safe-area-inset-left, 0px));
+    padding-right: max(0.35rem, env(safe-area-inset-right, 0px));
+  }
+
+  /* Analytics current-session card on phones */
+  .analytics-session-card .analytics-session-amount {
+    font-size: 1.35rem !important;
+  }
+  .analytics-session-card .analytics-session-meta {
+    line-height: 1.45;
+  }
+  .analytics-session-payments {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 
