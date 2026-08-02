@@ -8,17 +8,61 @@ use App\Models\Expense;
 use App\Models\InventoryProduct;
 use App\Models\PosOrder;
 use App\Models\PosOrderItem;
+use App\Models\PosSession;
 use App\Models\PurchaseOrder;
 use App\Models\Setting;
+use App\Services\PosSessionSummaryService;
 use App\Support\PosOrderMetrics;
 use Illuminate\Support\Facades\DB;
 
 class AnalyticsController extends Controller
 {
-    public function index()
+    public function index(PosSessionSummaryService $sessionSummary)
     {
         $currency = Setting::get('currency_symbol', 'Rs.');
         $company  = Setting::get('company_name', config('app.name'));
+
+        /* ── Current open POS session sale(s) ───────────── */
+        $openSessions = PosSession::query()
+            ->with('user:id,name')
+            ->where('status', 'open')
+            ->orderByDesc('id')
+            ->get();
+
+        $currentSessionSale = 0.0;
+        $currentSessionBills = 0;
+        $currentSessionCash = 0.0;
+        $currentSessionCard = 0.0;
+        $currentSessionBank = 0.0;
+        $currentSessionPending = 0;
+        $currentSessionCashiers = [];
+        $currentSessionLabels = [];
+
+        foreach ($openSessions as $session) {
+            $stats = $sessionSummary->stats($session);
+            $currentSessionSale += (float) ($stats['net_sales_total'] ?? 0);
+            $currentSessionBills += (int) ($stats['sales_count'] ?? 0);
+            $currentSessionCash += (float) ($stats['payments_cash'] ?? 0);
+            $currentSessionCard += (float) ($stats['payments_card'] ?? 0);
+            $currentSessionBank += (float) ($stats['payments_bank'] ?? 0);
+            $currentSessionPending += (int) ($stats['held_count'] ?? 0);
+            if ($session->user?->name) {
+                $currentSessionCashiers[] = $session->user->name;
+            }
+            $currentSessionLabels[] = $session->session_no ?: ('#'.$session->id);
+        }
+
+        $currentSessionSale = round($currentSessionSale, 2);
+        $currentSessionCash = round($currentSessionCash, 2);
+        $currentSessionCard = round($currentSessionCard, 2);
+        $currentSessionBank = round($currentSessionBank, 2);
+        $currentSessionOpen = $openSessions->isNotEmpty();
+        $currentSessionCashierLabel = $currentSessionCashiers !== []
+            ? implode(', ', array_values(array_unique($currentSessionCashiers)))
+            : null;
+        $currentSessionNoLabel = $currentSessionLabels !== []
+            ? implode(', ', $currentSessionLabels)
+            : null;
 
         /* ── KPI cards ────────────────────────────────── */
         $today            = now()->toDateString();
@@ -181,6 +225,10 @@ class AnalyticsController extends Controller
 
         return view('analytics.index', compact(
             'currency','company',
+            // Current session
+            'currentSessionOpen','currentSessionSale','currentSessionBills',
+            'currentSessionCash','currentSessionCard','currentSessionBank',
+            'currentSessionPending','currentSessionCashierLabel','currentSessionNoLabel',
             // KPIs
             'incomeThisMonth','incomeGrowth',
             'cafeProfitMonth',
