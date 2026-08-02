@@ -31,8 +31,13 @@ $hostName = $config['FTP_SERVER']
 $user = $config['FTP_USERNAME']
 $pass = $config['FTP_PASSWORD']
 if (-not $pass -and $config['FTP_PASS']) { $pass = $config['FTP_PASS'] }
-$dir = if ($config['FTP_SERVER_DIR']) { $config['FTP_SERVER_DIR'] } else { 'public_html/signature/' }
-$dir = $dir.Trim().TrimEnd('/')
+$dir = if ($config['FTP_SERVER_DIR']) { $config['FTP_SERVER_DIR'] } else { '/' }
+$dir = $dir.Trim().Trim('/')
+# Chrooted FTP accounts already land in the Laravel root — do not prefix public_html/signature
+if ($dir -eq 'public_html/signature' -or $dir -eq 'public_html\signature') {
+    Write-Host 'NOTE: FTP_SERVER_DIR=public_html/signature looks nested; using project root /' -ForegroundColor Yellow
+    $dir = ''
+}
 
 if ([string]::IsNullOrWhiteSpace($pass)) {
     Write-Host 'FTP_PASSWORD empty in .env.deploy — password set karein, phir dubara run karein.' -ForegroundColor Red
@@ -42,6 +47,7 @@ if ([string]::IsNullOrWhiteSpace($pass)) {
 
 $files = @(
     'public/css/admin-shell.css',
+    'public/css/admin-shell-v14.css',
     'resources/views/layouts/admin.blade.php',
     'resources/views/partials/admin/topbar.blade.php',
     'resources/views/partials/locale-switcher.blade.php',
@@ -50,14 +56,15 @@ $files = @(
     'lang/ur.json'
 )
 
-Write-Host "Uploading hotfixes to ftp://$hostName/$dir ..." -ForegroundColor Cyan
+$prefix = if ($dir) { "$dir/" } else { '' }
+Write-Host "Uploading hotfixes to ftp://$hostName/$prefix ..." -ForegroundColor Cyan
 
 function Upload-Ftp([string]$localRel) {
     $localPath = Join-Path $root ($localRel -replace '/', '\')
     if (-not (Test-Path $localPath)) {
         throw "Missing: $localRel"
     }
-    $remote = "ftp://$hostName/$dir/$localRel"
+    $remote = "ftp://$hostName/$prefix$localRel"
     & curl.exe -sS --ftp-create-dirs -T $localPath --user "${user}:${pass}" $remote
     if ($LASTEXITCODE -ne 0) {
         throw "Upload failed: $localRel (exit $LASTEXITCODE)"
@@ -71,11 +78,12 @@ foreach ($f in $files) {
 
 Write-Host ''
 Write-Host 'Verifying live CSS...' -ForegroundColor Cyan
-$css = & curl.exe -s "https://signature.softwaresolutions.pk/css/admin-shell.css?v=14"
+$css = & curl.exe -s "https://signature.softwaresolutions.pk/css/admin-shell-v14.css?v=14"
 if ($css -match 'admin-user-dropdown') {
     Write-Host '[OK] Live CSS has mobile/logout dropdown fixes' -ForegroundColor Green
 } else {
     Write-Host '[WARN] Live CSS still looks stale (CDN may need a minute)' -ForegroundColor Yellow
+    Write-Host ("Got length={0}" -f $css.Length)
 }
 
 Write-Host 'Done. Hard-refresh online app (Ctrl+F5).' -ForegroundColor Green

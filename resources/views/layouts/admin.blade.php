@@ -14,7 +14,7 @@
 
     @vite(['resources/sass/app.scss', 'resources/js/app.js'])
     {{-- Ensures header/theme without requiring `npm run build` (Vite CSS may be stale). --}}
-    <link rel="stylesheet" href="{{ asset('css/admin-shell.css') }}?v=14">
+    <link rel="stylesheet" href="{{ asset('css/admin-shell-v14.css') }}?v=14">
     <link rel="stylesheet" href="{{ asset('css/display-quality.css') }}?v=4">
     <link rel="stylesheet" href="{{ asset('css/admin-module-theme.css') }}?v=12">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
