@@ -1168,17 +1168,24 @@ class PosController extends Controller
         $this->ensurePosSessionDailyClosingSchema();
         $session = $this->requireOpenSessionForUser(Auth::user());
 
-        PosCashMovement::create([
-            'session_id' => $session->id,
-            'user_id' => Auth::id(),
-            'type' => $request->type,
-            'amount' => (float) $request->amount,
-            'reason' => $request->reason,
-        ]);
+        $created = 0;
+        foreach ($request->input('lines', []) as $line) {
+            PosCashMovement::create([
+                'session_id' => $session->id,
+                'user_id' => Auth::id(),
+                'type' => $request->type,
+                'amount' => (float) $line['amount'],
+                'reason' => $line['reason'],
+            ]);
+            $created++;
+        }
 
         $label = $request->type === 'in' ? __('Cash In') : __('Cash Out');
 
-        return back()->with('success', __(':type saved.', ['type' => $label]));
+        return back()->with('success', __(':type saved (:count lines).', [
+            'type' => $label,
+            'count' => $created,
+        ]));
     }
 
     public function checkout(PosCheckoutRequest $request): RedirectResponse|JsonResponse

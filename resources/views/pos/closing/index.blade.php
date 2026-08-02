@@ -101,32 +101,26 @@
             </div>
         </div>
         <div class="card-body d-none" id="pcCashMovementFormWrap">
-            <form method="POST" action="{{ route('restaurant-pos.cash-movement') }}" class="row g-3 align-items-end" id="pcCashMovementForm">
+            <form method="POST" action="{{ route('restaurant-pos.cash-movement') }}" id="pcCashMovementForm">
                 @csrf
                 <input type="hidden" name="type" id="pcCashMovementType" value="in">
-                <div class="col-12">
+                <div class="mb-3">
                     <div class="small fw-semibold" id="pcCashMovementTitle">{{ __('Cash In') }}</div>
                     <div class="text-secondary small" id="pcCashMovementHint">{{ __('Adds to cash in drawer (expected).') }}</div>
+                    <div class="text-secondary small mt-1">{{ __('Tab on Amount adds another line.') }}</div>
                 </div>
-                <div class="col-md-7">
-                    <label class="form-label" for="pcCashReason">{{ __('Description') }}</label>
-                    <input type="text" name="reason" id="pcCashReason" class="form-control @error('reason') is-invalid @enderror"
-                           value="{{ old('reason') }}" maxlength="255" required
-                           placeholder="{{ __('e.g. Petty cash / change float') }}">
-                    @error('reason')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label" for="pcCashAmount">{{ __('Amount') }}</label>
-                    <div class="input-group">
-                        <span class="input-group-text">{{ $currency }}</span>
-                        <input type="number" step="0.01" min="0.01" name="amount" id="pcCashAmount"
-                               class="form-control @error('amount') is-invalid @enderror"
-                               value="{{ old('amount') }}" required>
-                        @error('amount')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
-                </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary w-100" id="pcCashSubmitBtn">{{ __('Save') }}</button>
+                <div class="d-flex flex-column gap-2" id="pcCashLines"></div>
+                @error('lines')
+                    <div class="text-danger small mt-2">{{ $message }}</div>
+                @enderror
+                @error('lines.0.reason')
+                    <div class="text-danger small mt-1">{{ $message }}</div>
+                @enderror
+                @error('lines.0.amount')
+                    <div class="text-danger small mt-1">{{ $message }}</div>
+                @enderror
+                <div class="d-flex justify-content-end mt-3">
+                    <button type="submit" class="btn btn-primary px-4" id="pcCashSubmitBtn">{{ __('Save') }}</button>
                 </div>
             </form>
         </div>
@@ -328,30 +322,152 @@
     const typeInput = document.getElementById('pcCashMovementType');
     const title = document.getElementById('pcCashMovementTitle');
     const hint = document.getElementById('pcCashMovementHint');
+    const linesEl = document.getElementById('pcCashLines');
+    const form = document.getElementById('pcCashMovementForm');
     const inBtn = document.getElementById('pcCashInBtn');
     const outBtn = document.getElementById('pcCashOutBtn');
-    if (!wrap || !typeInput) return;
+    if (!wrap || !typeInput || !linesEl || !form) return;
 
     const labels = {
         inTitle: @json(__('Cash In')),
         outTitle: @json(__('Cash Out')),
         inHint: @json(__('Adds to cash in drawer (expected).')),
         outHint: @json(__('Subtracts from net sales and cash in drawer.')),
+        desc: @json(__('Description')),
+        amount: @json(__('Amount')),
+        currency: @json($currency),
+        placeholder: @json(__('e.g. Petty cash / change float')),
+        remove: @json(__('Remove')),
     };
+
+    const oldLines = @json(old('lines', [['reason' => '', 'amount' => '']]));
+
+    function reindexLines() {
+        Array.from(linesEl.querySelectorAll('.pc-cash-line')).forEach((row, i) => {
+            const reason = row.querySelector('.pc-cash-reason');
+            const amount = row.querySelector('.pc-cash-amount');
+            if (reason) {
+                reason.name = `lines[${i}][reason]`;
+                reason.id = `pcCashReason${i}`;
+            }
+            if (amount) {
+                amount.name = `lines[${i}][amount]`;
+                amount.id = `pcCashAmount${i}`;
+            }
+            const removeBtn = row.querySelector('.pc-cash-remove');
+            if (removeBtn) {
+                removeBtn.classList.toggle('d-none', linesEl.querySelectorAll('.pc-cash-line').length <= 1);
+            }
+        });
+    }
+
+    function addLine(prefill = { reason: '', amount: '' }, focus = false) {
+        const i = linesEl.querySelectorAll('.pc-cash-line').length;
+        const row = document.createElement('div');
+        row.className = 'row g-2 align-items-end pc-cash-line';
+        row.innerHTML = `
+            <div class="col-md-7">
+                ${i === 0 ? `<label class="form-label" for="pcCashReason${i}">${labels.desc}</label>` : `<label class="form-label d-md-none" for="pcCashReason${i}">${labels.desc}</label>`}
+                <input type="text" class="form-control pc-cash-reason" name="lines[${i}][reason]" id="pcCashReason${i}"
+                       maxlength="255" placeholder="${labels.placeholder}" autocomplete="off">
+            </div>
+            <div class="col-md-3">
+                ${i === 0 ? `<label class="form-label" for="pcCashAmount${i}">${labels.amount}</label>` : `<label class="form-label d-md-none" for="pcCashAmount${i}">${labels.amount}</label>`}
+                <div class="input-group">
+                    <span class="input-group-text">${labels.currency}</span>
+                    <input type="number" step="0.01" min="0.01" class="form-control pc-cash-amount" name="lines[${i}][amount]" id="pcCashAmount${i}"
+                           inputmode="decimal" autocomplete="off">
+                </div>
+            </div>
+            <div class="col-md-2">
+                ${i === 0 ? `<label class="form-label d-none d-md-block">&nbsp;</label>` : ''}
+                <button type="button" class="btn btn-outline-secondary w-100 pc-cash-remove" tabindex="-1" title="${labels.remove}" aria-label="${labels.remove}">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        `;
+        linesEl.appendChild(row);
+        const reasonInput = row.querySelector('.pc-cash-reason');
+        const amountInput = row.querySelector('.pc-cash-amount');
+        if (reasonInput) reasonInput.value = prefill.reason ?? '';
+        if (amountInput) amountInput.value = prefill.amount ?? '';
+        reindexLines();
+        if (focus) {
+            reasonInput?.focus();
+        }
+        return row;
+    }
+
+    function resetLines(seed) {
+        linesEl.innerHTML = '';
+        const rows = Array.isArray(seed) && seed.length ? seed : [{ reason: '', amount: '' }];
+        rows.forEach((line, idx) => addLine(line, false));
+        reindexLines();
+        linesEl.querySelector('.pc-cash-reason')?.focus();
+    }
 
     function openForm(type) {
         typeInput.value = type;
         title.textContent = type === 'out' ? labels.outTitle : labels.inTitle;
         hint.textContent = type === 'out' ? labels.outHint : labels.inHint;
         wrap.classList.remove('d-none');
-        document.getElementById('pcCashReason')?.focus();
+        resetLines([{ reason: '', amount: '' }]);
     }
+
+    linesEl.addEventListener('keydown', (e) => {
+        if (e.key !== 'Tab' || e.shiftKey) return;
+        const amount = e.target.closest?.('.pc-cash-amount');
+        if (!amount || !linesEl.contains(amount)) return;
+
+        const rows = Array.from(linesEl.querySelectorAll('.pc-cash-line'));
+        const row = amount.closest('.pc-cash-line');
+        const isLast = row === rows[rows.length - 1];
+        if (!isLast) return;
+
+        const reason = row.querySelector('.pc-cash-reason')?.value?.trim() || '';
+        const amt = String(amount.value || '').trim();
+        if (!reason && !amt) return;
+
+        e.preventDefault();
+        addLine({ reason: '', amount: '' }, true);
+    });
+
+    linesEl.addEventListener('click', (e) => {
+        const btn = e.target.closest?.('.pc-cash-remove');
+        if (!btn) return;
+        const row = btn.closest('.pc-cash-line');
+        if (!row) return;
+        if (linesEl.querySelectorAll('.pc-cash-line').length <= 1) {
+            row.querySelector('.pc-cash-reason').value = '';
+            row.querySelector('.pc-cash-amount').value = '';
+            row.querySelector('.pc-cash-reason')?.focus();
+            return;
+        }
+        row.remove();
+        reindexLines();
+    });
+
+    form.addEventListener('submit', () => {
+        // Drop trailing blank lines before submit.
+        Array.from(linesEl.querySelectorAll('.pc-cash-line')).forEach((row) => {
+            const reason = row.querySelector('.pc-cash-reason')?.value?.trim() || '';
+            const amt = String(row.querySelector('.pc-cash-amount')?.value || '').trim();
+            if (!reason && !amt && linesEl.querySelectorAll('.pc-cash-line').length > 1) {
+                row.remove();
+            }
+        });
+        reindexLines();
+    });
 
     inBtn?.addEventListener('click', () => openForm('in'));
     outBtn?.addEventListener('click', () => openForm('out'));
 
-    @if($errors->has('reason') || $errors->has('amount') || $errors->has('type'))
-        openForm(@json(old('type', 'in')));
+    @if($errors->has('lines') || $errors->has('type') || collect($errors->keys())->contains(fn ($k) => str_starts_with($k, 'lines.')))
+        typeInput.value = @json(old('type', 'in'));
+        title.textContent = typeInput.value === 'out' ? labels.outTitle : labels.inTitle;
+        hint.textContent = typeInput.value === 'out' ? labels.outHint : labels.inHint;
+        wrap.classList.remove('d-none');
+        resetLines(oldLines);
     @endif
 })();
 </script>

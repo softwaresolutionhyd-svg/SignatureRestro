@@ -11,25 +11,60 @@ class PosCashMovementRequest extends FormRequest
         return (bool) $this->user();
     }
 
+    protected function prepareForValidation(): void
+    {
+        $lines = $this->input('lines');
+        if (! is_array($lines) || $lines === []) {
+            if ($this->filled('reason') || $this->filled('amount')) {
+                $this->merge([
+                    'lines' => [[
+                        'reason' => $this->input('reason'),
+                        'amount' => $this->input('amount'),
+                    ]],
+                ]);
+            }
+
+            return;
+        }
+
+        $normalized = [];
+        foreach ($lines as $line) {
+            if (! is_array($line)) {
+                continue;
+            }
+            $reason = trim((string) ($line['reason'] ?? ''));
+            $amount = $line['amount'] ?? null;
+            if ($reason === '' && ($amount === null || $amount === '')) {
+                continue;
+            }
+            $normalized[] = [
+                'reason' => $reason,
+                'amount' => $amount,
+            ];
+        }
+        $this->merge(['lines' => $normalized]);
+    }
+
     /**
-     * Get the validation rules that apply to the request.
-     *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
-            'reason' => ['required', 'string', 'max:255'],
             'type' => ['required', 'in:in,out'],
-            'amount' => ['required', 'numeric', 'gt:0'],
+            'lines' => ['required', 'array', 'min:1'],
+            'lines.*.reason' => ['required', 'string', 'max:255'],
+            'lines.*.amount' => ['required', 'numeric', 'gt:0'],
         ];
     }
 
     public function messages(): array
     {
         return [
-            'reason.required' => __('Description is required.'),
-            'amount.gt' => __('Amount must be greater than zero.'),
+            'lines.required' => __('Add at least one line.'),
+            'lines.min' => __('Add at least one line.'),
+            'lines.*.reason.required' => __('Description is required.'),
+            'lines.*.amount.gt' => __('Amount must be greater than zero.'),
         ];
     }
 }
