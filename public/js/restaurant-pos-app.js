@@ -1809,8 +1809,15 @@
             grid.innerHTML = orders.map((o) => {
                 const resumeUrl = (routes.resume || '').replace('__ID__', String(o.id));
                 const showMoveBtn = posTablesEnabled && o.table_id && o.service_type === 'dine_in';
+                const showPrintBtn = settings.allow_bill_print !== false;
                 const moveBtn = showMoveBtn
                     ? `<button type="button" class="btn btn-sm rp-oc-move-table" data-action="move-table" data-order-id="${escHtml(String(o.id))}" data-order-no="${escHtml(o.order_no)}"><i class="bi bi-arrow-left-right"></i> Move Table</button>`
+                    : '';
+                const printBtn = showPrintBtn
+                    ? `<button type="button" class="btn btn-sm rp-oc-print-unpaid" data-action="print-unpaid" data-order-id="${escHtml(String(o.id))}" data-order-no="${escHtml(o.order_no)}"><i class="bi bi-printer"></i> Print Unpaid Bill</button>`
+                    : '';
+                const actions = (printBtn || moveBtn)
+                    ? `<div class="rp-oc-move-wrap">${printBtn}${moveBtn}</div>`
                     : '';
                 return `<div class="rp-order-card rp-order-card--grid rp-order-card--pending-wrap">
                     <a class="rp-order-card-link" href="${escHtml(resumeUrl)}">
@@ -1821,7 +1828,7 @@
                         <div class="rp-oc-meta">${escHtml(fmtMoney(o.grand_total))} · ${o.items_count || 0} items</div>
                         <div class="rp-oc-open">Open bill <i class="bi bi-arrow-right-short"></i></div>
                     </a>
-                    ${moveBtn ? `<div class="rp-oc-move-wrap">${moveBtn}</div>` : ''}
+                    ${actions}
                 </div>`;
             }).join('');
             return;
@@ -3107,19 +3114,30 @@
         if (btn) btn.disabled = true;
         try {
             const orderId = await ensureHeldOrderForPrint();
-            if (await tryCashierNetworkPrint(orderId)) {
-                return;
-            }
-            const base = (routes.receiptUnpaid || '').replace('__ID__', String(orderId));
-            if (!base) {
-                throw new Error('Print route missing.');
-            }
-            window.open(`${base}?autoprint=1`, '_blank', 'noopener,noreferrer');
+            await printUnpaidBillForOrder(orderId);
         } catch (e) {
             alert(e.message || 'Unpaid bill print nahi ho saki.');
         } finally {
             if (btn) btn.disabled = false;
         }
+    }
+
+    async function printUnpaidBillForOrder(orderId) {
+        if (settings.allow_bill_print === false) {
+            return;
+        }
+        const id = Number(orderId);
+        if (!Number.isFinite(id) || id <= 0) {
+            throw new Error('Order id missing.');
+        }
+        if (await tryCashierNetworkPrint(id)) {
+            return;
+        }
+        const base = (routes.receiptUnpaid || '').replace('__ID__', String(id));
+        if (!base) {
+            throw new Error('Print route missing.');
+        }
+        window.open(`${base}?autoprint=1`, '_blank', 'noopener,noreferrer');
     }
 
     async function submitHoldOrder() {
@@ -3258,6 +3276,18 @@
                 e.preventDefault();
                 e.stopPropagation();
                 openMoveTableModal(moveBtn.dataset.orderId, moveBtn.dataset.orderNo || '');
+                return;
+            }
+
+            const printBtn = e.target.closest('[data-action="print-unpaid"]');
+            if (printBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const btn = printBtn;
+                btn.disabled = true;
+                printUnpaidBillForOrder(btn.dataset.orderId)
+                    .catch((err) => alert(err.message || 'Unpaid bill print nahi ho saki.'))
+                    .finally(() => { btn.disabled = false; });
                 return;
             }
 

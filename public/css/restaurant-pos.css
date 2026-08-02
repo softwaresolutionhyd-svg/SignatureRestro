@@ -895,7 +895,10 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
 .restaurant-pos-app .rp-oc-move-wrap {
     padding: 0 0.7rem 0.65rem;
     display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
     justify-content: flex-end;
+    align-items: center;
 }
 .restaurant-pos-app .rp-oc-move-table {
     font-size: 0.68rem;
@@ -909,6 +912,23 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
 .restaurant-pos-app .rp-oc-move-table:hover {
     background: rgba(165,243,252,0.18);
     color: #fff;
+}
+.restaurant-pos-app .rp-oc-print-unpaid {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #e5e7eb;
+    border: 1px solid rgba(229,231,235,0.28);
+    border-radius: 5px;
+    background: rgba(255,255,255,0.08);
+    padding: 0.18rem 0.55rem;
+}
+.restaurant-pos-app .rp-oc-print-unpaid:hover {
+    background: rgba(255,255,255,0.16);
+    color: #fff;
+}
+.restaurant-pos-app .rp-oc-print-unpaid:disabled {
+    opacity: 0.55;
+    cursor: wait;
 }
 
 /* ─── Move Table Modal — table board icons ─── */
