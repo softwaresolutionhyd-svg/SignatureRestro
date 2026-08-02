@@ -8,7 +8,7 @@
 
 <form method="POST"
       action="{{ route('locale.switch') }}"
-      class="d-inline-flex align-items-center gap-1 flex-shrink-0"
+      class="locale-switcher d-inline-flex align-items-center gap-1 flex-shrink-0"
       aria-label="{{ __('Language') }}">
     @csrf
     <input type="hidden" name="redirect_to" value="{{ request()->fullUrl() }}">
@@ -18,8 +18,9 @@
         <button type="submit"
                 name="locale"
                 value="{{ $localeCode }}"
-                class="btn btn-sm {{ $activeLocale === $localeCode ? 'btn-primary' : 'btn-outline-secondary' }}">
-            {{ $labels[$localeCode] }}
+                class="btn btn-sm locale-switcher-btn {{ $activeLocale === $localeCode ? 'btn-primary' : 'btn-outline-secondary' }}">
+            <span class="locale-label-full">{{ $labels[$localeCode] }}</span>
+            <span class="locale-label-short">{{ strtoupper($localeCode) }}</span>
         </button>
     @endforeach
 </form>

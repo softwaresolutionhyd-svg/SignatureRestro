@@ -27,7 +27,7 @@
             </ol>
         </nav>
 
-        <div class="d-flex align-items-center gap-2 flex-shrink-0">
+        <div class="d-flex align-items-center gap-2 admin-topbar-actions">
             @include('partials.locale-switcher')
             @if(config('sync.enabled') && config('sync.role') === 'local')
             <button type="button"
@@ -39,7 +39,7 @@
                 <span id="sync-status-label" class="small">{{ __('Sync') }}</span>
             </button>
             @endif
-            <span class="badge admin-topbar-badge d-none d-sm-inline">
+            <span class="badge admin-topbar-badge d-none d-md-inline">
                 @if(auth()->user()?->loginUsername())
                     {{ __('User:') }} <span class="fw-semibold">{{ auth()->user()->loginUsername() }}</span>
                 @else
@@ -63,20 +63,20 @@
             @endphp
             @if(auth()->user() && in_array(auth()->user()->role, ['company_admin', 'super_admin', 'admin'], true))
             <a href="{{ route('activity-logs.index') }}"
-               class="btn btn-sm border-0 bg-white bg-opacity-10 text-white"
+               class="btn btn-sm border-0 bg-white bg-opacity-10 text-white d-none d-sm-inline-flex"
                title="{{ __('Activity logs') }}"
                style="opacity:0.75; transition:opacity .15s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.75">
                 <i class="bi bi-journal-text"></i>
             </a>
             <a href="{{ route('admin.users.index') }}"
-               class="btn btn-sm border-0 bg-white bg-opacity-10 text-white"
+               class="btn btn-sm border-0 bg-white bg-opacity-10 text-white d-none d-sm-inline-flex"
                title="{{ __('Users & roles') }}"
                style="opacity:0.75; transition:opacity .15s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.75">
                 <i class="bi bi-person-gear"></i>
             </a>
             @if(auth()->user() && in_array(auth()->user()->role, ['company_admin', 'super_admin'], true) && \App\Models\PasswordResetRequest::tableExists())
             <a href="{{ route('admin.password-reset-requests.index') }}"
-               class="btn btn-sm border-0 bg-white bg-opacity-10 text-white position-relative"
+               class="btn btn-sm border-0 bg-white bg-opacity-10 text-white position-relative d-none d-sm-inline-flex"
                title="{{ __('Password reset requests') }}"
                style="opacity:0.75; transition:opacity .15s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.75">
                 <i class="bi bi-key"></i>
@@ -95,7 +95,7 @@
 
             @if(auth()->user()?->isPlatformSuperAdmin())
                 <a href="{{ route('platform.manual-update.index') }}"
-                   class="btn btn-sm border-0 bg-white bg-opacity-10 text-white"
+                   class="btn btn-sm border-0 bg-white bg-opacity-10 text-white d-none d-sm-inline-flex"
                    title="{{ __('Manual ZIP update') }}"
                    style="opacity:0.75; transition:opacity .15s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.75">
                     <i class="bi bi-cloud-upload"></i>

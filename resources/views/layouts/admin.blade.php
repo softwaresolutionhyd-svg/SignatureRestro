@@ -2,7 +2,7 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="{{ app()->getLocale() === 'ur' ? 'rtl' : 'ltr' }}">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="color-scheme" content="light">
 
@@ -14,7 +14,7 @@
 
     @vite(['resources/sass/app.scss', 'resources/js/app.js'])
     {{-- Ensures header/theme without requiring `npm run build` (Vite CSS may be stale). --}}
-    <link rel="stylesheet" href="{{ asset('css/admin-shell.css') }}?v=11">
+    <link rel="stylesheet" href="{{ asset('css/admin-shell.css') }}?v=12">
     <link rel="stylesheet" href="{{ asset('css/display-quality.css') }}?v=4">
     <link rel="stylesheet" href="{{ asset('css/admin-module-theme.css') }}?v=12">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
