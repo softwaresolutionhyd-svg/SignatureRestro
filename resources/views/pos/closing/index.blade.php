@@ -195,7 +195,31 @@
                         <td class="text-end pe-3">{{ $currency }} {{ fmt_num($stats['tax_total'], 2) }}</td>
                     </tr>
                     @endif
-                    @if($stats['credit_sales_count'] > 0)
+                    @php
+                        $creditOtherCount = (int) ($stats['credit_sales_other_count'] ?? $stats['credit_sales_count']);
+                        $creditOtherTotal = (float) ($stats['credit_sales_other_total'] ?? $stats['credit_sales_total']);
+                        $creditVisitorCount = (int) ($stats['credit_sales_visitor_expense_count'] ?? 0);
+                        $creditVisitorTotal = (float) ($stats['credit_sales_visitor_expense_total'] ?? 0);
+                    @endphp
+                    @if($creditOtherCount > 0)
+                    <tr>
+                        <td class="ps-3">
+                            {{ __('Credit sales (:count)', ['count' => $creditOtherCount]) }}
+                            <span class="text-secondary small">— {{ __('Credit Book, not in cash drawer') }}</span>
+                        </td>
+                        <td class="text-end pe-3">{{ $currency }} {{ fmt_num($creditOtherTotal, 2) }}</td>
+                    </tr>
+                    @endif
+                    @if($creditVisitorCount > 0)
+                    <tr>
+                        <td class="ps-3">
+                            {{ __('Credit sales (:count)', ['count' => $creditVisitorCount]) }}
+                            <span class="fw-semibold">({{ __('Visitor Expense') }})</span>
+                            <span class="text-secondary small">— {{ __('Credit Book, not in cash drawer') }}</span>
+                        </td>
+                        <td class="text-end pe-3">{{ $currency }} {{ fmt_num($creditVisitorTotal, 2) }}</td>
+                    </tr>
+                    @elseif($stats['credit_sales_count'] > 0 && $creditOtherCount === 0 && $creditVisitorCount === 0)
                     <tr>
                         <td class="ps-3">
                             {{ __('Credit sales (:count)', ['count' => $stats['credit_sales_count']]) }}

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Contact;
 use App\Models\PosCashMovement;
 use App\Models\PosOrder;
 use App\Models\PosPayment;
@@ -27,6 +28,10 @@ final class PosSessionSummaryService
      *   refunds_total:float,
      *   credit_sales_count:int,
      *   credit_sales_total:float,
+     *   credit_sales_other_count:int,
+     *   credit_sales_other_total:float,
+     *   credit_sales_visitor_expense_count:int,
+     *   credit_sales_visitor_expense_total:float,
      *   discount_total:float,
      *   service_charge_total:float,
      *   tax_total:float,
@@ -52,6 +57,7 @@ final class PosSessionSummaryService
 
         $creditCount = (int) (clone $paid)->where('type', 'sale')->where('is_credit', true)->count();
         $creditTotal = (float) (clone $paid)->where('type', 'sale')->where('is_credit', true)->sum('grand_total');
+        $creditSplit = $this->creditSalesSplitByVisitorExpense($sessionId);
 
         $saleOrders = PosOrder::query()
             ->where('session_id', $sessionId)
@@ -79,6 +85,10 @@ final class PosSessionSummaryService
             'refunds_total' => $refundsTotal,
             'credit_sales_count' => $creditCount,
             'credit_sales_total' => $creditTotal,
+            'credit_sales_other_count' => $creditSplit['other_count'],
+            'credit_sales_other_total' => $creditSplit['other_total'],
+            'credit_sales_visitor_expense_count' => $creditSplit['visitor_count'],
+            'credit_sales_visitor_expense_total' => $creditSplit['visitor_total'],
             'discount_total' => round($discountTotal, 2),
             'service_charge_total' => round($serviceChargeTotal, 2),
             'tax_total' => round($taxTotal, 2),
@@ -88,6 +98,76 @@ final class PosSessionSummaryService
             'payments_card' => $net('card'),
             'payments_bank' => $net('bank'),
         ];
+    }
+
+    /**
+     * Split credit sales so closing can label only the Visitor Expense contact.
+     *
+     * @return array{other_count:int, other_total:float, visitor_count:int, visitor_total:float}
+     */
+    private function creditSalesSplitByVisitorExpense(int $sessionId): array
+    {
+        $empty = [
+            'other_count' => 0,
+            'other_total' => 0.0,
+            'visitor_count' => 0,
+            'visitor_total' => 0.0,
+        ];
+
+        if (! PosRuntimeSchema::ordersHasColumn('is_credit') || ! PosRuntimeSchema::ordersHasColumn('contact_id')) {
+            return $empty;
+        }
+
+        $orders = PosOrder::query()
+            ->where('session_id', $sessionId)
+            ->where('status', 'paid')
+            ->where('type', 'sale')
+            ->where('is_credit', true)
+            ->get(['id', 'contact_id', 'grand_total']);
+
+        if ($orders->isEmpty()) {
+            return $empty;
+        }
+
+        $contactNames = Contact::query()
+            ->whereIn('id', $orders->pluck('contact_id')->filter()->unique()->all())
+            ->pluck('name', 'id');
+
+        $otherCount = 0;
+        $otherTotal = 0.0;
+        $visitorCount = 0;
+        $visitorTotal = 0.0;
+
+        foreach ($orders as $order) {
+            $amount = round((float) $order->grand_total, 2);
+            $name = $contactNames[(int) $order->contact_id] ?? null;
+            if ($this->isVisitorExpenseContactName($name)) {
+                $visitorCount++;
+                $visitorTotal += $amount;
+            } else {
+                $otherCount++;
+                $otherTotal += $amount;
+            }
+        }
+
+        return [
+            'other_count' => $otherCount,
+            'other_total' => round($otherTotal, 2),
+            'visitor_count' => $visitorCount,
+            'visitor_total' => round($visitorTotal, 2),
+        ];
+    }
+
+    private function isVisitorExpenseContactName(?string $name): bool
+    {
+        if ($name === null || trim($name) === '') {
+            return false;
+        }
+
+        $normalized = preg_replace('/\s+/u', ' ', mb_strtolower(trim($name))) ?? '';
+
+        return $normalized === 'visitor expense'
+            || str_contains($normalized, 'visitor expense');
     }
 
     /**
