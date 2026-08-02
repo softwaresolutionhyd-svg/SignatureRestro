@@ -1327,6 +1327,7 @@
 
     let orderListMode = null;
     let billsServiceFilter = 'all'; // all | dine_in | takeaway | delivery
+    let billsTableSearch = '';
     let panelView = 'split';
     let ownerDiscountActive = false;
 
@@ -1398,6 +1399,7 @@
         const allOrders = isPending ? (boot.pendingBillsDetail || []) : (boot.paidBillsDetail || []);
         const filtered = filterOrdersForSearch(allOrders);
         const counts = countOrdersByService(allOrders);
+        const showTableSearch = billsServiceFilter === 'all' || billsServiceFilter === 'dine_in';
         const tabs = [
             { key: 'all', label: 'All', count: counts.all },
             { key: 'dine_in', label: 'Dine In', count: counts.dine_in },
@@ -1419,6 +1421,20 @@
                     </button>
                 `).join('')}
             </div>
+            ${showTableSearch ? `
+            <div class="rp-bills-table-search">
+                <div class="rp-bills-table-search-box">
+                    <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
+                    <input type="search" id="rpBillsTableSearch" class="rp-bills-table-search-input"
+                           value="${escHtml(billsTableSearch)}"
+                           placeholder="Table No. search…"
+                           autocomplete="off" enterkeyhint="search">
+                    <button type="button" class="btn btn-sm rp-bills-table-search-btn" id="rpBillsTableSearchBtn">
+                        <i class="bi bi-search"></i> Search
+                    </button>
+                    ${billsTableSearch ? `<button type="button" class="btn btn-sm rp-bills-table-search-clear" id="rpBillsTableSearchClear" title="Clear">×</button>` : ''}
+                </div>
+            </div>` : ''}
             <span class="rp-bills-head-hint">${isPending ? 'Bill kholne ke liye card par click karein.' : (canReopenPaidBill ? 'Receipt ya Reopen ke liye card par action use karein.' : 'Receipt ke liye card par click karein.')}</span>
         `;
 
@@ -1428,9 +1444,38 @@
                 const next = btn.getAttribute('data-service-filter') || 'all';
                 if (billsServiceFilter === next) return;
                 billsServiceFilter = next;
+                if (next !== 'all' && next !== 'dine_in') {
+                    billsTableSearch = '';
+                }
                 updateBillsMenuHead();
                 renderOrderCards();
             });
+        });
+
+        const tableSearchInput = $('#rpBillsTableSearch');
+        const applyTableSearch = () => {
+            billsTableSearch = (tableSearchInput?.value || '').trim();
+            updateBillsMenuHead();
+            renderOrderCards();
+            const again = $('#rpBillsTableSearch');
+            if (again) {
+                again.focus();
+                const len = again.value.length;
+                again.setSelectionRange(len, len);
+            }
+        };
+        $('#rpBillsTableSearchBtn')?.addEventListener('click', applyTableSearch);
+        $('#rpBillsTableSearchClear')?.addEventListener('click', () => {
+            billsTableSearch = '';
+            updateBillsMenuHead();
+            renderOrderCards();
+            $('#rpBillsTableSearch')?.focus();
+        });
+        tableSearchInput?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                applyTableSearch();
+            }
         });
     }
 
@@ -1741,11 +1786,37 @@
         return counts;
     }
 
+    function filterOrdersByTable(orders) {
+        if (billsServiceFilter !== 'all' && billsServiceFilter !== 'dine_in') {
+            return orders;
+        }
+        const q = String(billsTableSearch || '').trim().toLowerCase();
+        if (!q) return orders;
+
+        const qCompact = q.replace(/\s+/g, '');
+        return orders.filter((o) => {
+            // Table search is for dine-in tables; in All tab skip non-dine bills.
+            if (billsServiceFilter === 'all' && orderServiceTypeKey(o) !== 'dine_in') {
+                return false;
+            }
+            const parts = [
+                o.table_name,
+                o.table_room,
+                o.guest_name,
+                o.room_no,
+            ].filter(Boolean).map((v) => String(v).toLowerCase());
+            const hay = parts.join(' ');
+            const hayCompact = hay.replace(/\s+/g, '');
+            return hay.includes(q) || hayCompact.includes(qCompact);
+        });
+    }
+
     function filterOrdersForSearch(orders) {
-        const byService = filterOrdersByService(orders);
+        let list = filterOrdersByService(orders);
+        list = filterOrdersByTable(list);
         const q = ($('#rpProductSearch')?.value || '').trim().toLowerCase();
-        if (!q) return byService;
-        return byService.filter((o) => {
+        if (!q) return list;
+        return list.filter((o) => {
             const hay = [
                 o.order_no,
                 o.table_name,
@@ -1794,6 +1865,7 @@
         // Keep service filter when switching Pending ↔ Paid; reset only for kitchen voids.
         if (mode === 'kitchen-voids') {
             billsServiceFilter = 'all';
+            billsTableSearch = '';
         }
 
         if (mode === 'kitchen-voids') {
@@ -1864,9 +1936,11 @@
                 grid.innerHTML = `<div class="rp-empty rp-empty--menu">
                     <span class="rp-empty-icon"><i class="bi bi-hourglass-split"></i></span>
                     <span>${(boot.pendingBillsDetail || []).length
-                        ? (billsServiceFilter !== 'all'
-                            ? 'Is type ki koi pending bill nahi.'
-                            : 'Is search se koi pending bill nahi mili.')
+                        ? (billsTableSearch
+                            ? 'Is table No. se koi pending bill nahi mili.'
+                            : (billsServiceFilter !== 'all'
+                                ? 'Is type ki koi pending bill nahi.'
+                                : 'Is search se koi pending bill nahi mili.'))
                         : 'Koi pending order nahi.'}</span>
                 </div>`;
                 return;
@@ -1908,9 +1982,11 @@
             grid.innerHTML = `<div class="rp-empty rp-empty--menu">
                 <span class="rp-empty-icon"><i class="bi bi-check-circle"></i></span>
                 <span>${(boot.paidBillsDetail || []).length
-                    ? (billsServiceFilter !== 'all'
-                        ? 'Is type ki koi paid bill nahi.'
-                        : 'Is search se koi paid bill nahi mili.')
+                    ? (billsTableSearch
+                        ? 'Is table No. se koi paid bill nahi mili.'
+                        : (billsServiceFilter !== 'all'
+                            ? 'Is type ki koi paid bill nahi.'
+                            : 'Is search se koi paid bill nahi mili.'))
                     : 'Aaj koi paid order nahi.'}</span>
             </div>`;
             return;
