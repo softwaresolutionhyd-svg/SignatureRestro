@@ -930,6 +930,23 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     opacity: 0.55;
     cursor: wait;
 }
+.restaurant-pos-app .rp-oc-pay-now {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #1a1a1a;
+    border: 1px solid rgba(212, 175, 55, 0.85);
+    border-radius: 5px;
+    background: linear-gradient(180deg, #f0d78c 0%, #d4af37 100%);
+    padding: 0.18rem 0.55rem;
+}
+.restaurant-pos-app .rp-oc-pay-now:hover {
+    filter: brightness(1.06);
+    color: #111;
+}
+.restaurant-pos-app .rp-oc-pay-now:disabled {
+    opacity: 0.55;
+    cursor: wait;
+}
 
 /* ─── Move Table Modal — table board icons ─── */
 .rp-mt-area-tabs-inner {

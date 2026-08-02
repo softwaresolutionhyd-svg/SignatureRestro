@@ -3546,6 +3546,8 @@ class PosController extends Controller
                     ? 'Credit'
                     : ($payMethods->isNotEmpty() ? $payMethods->implode(', ') : '—')),
             'grand_total' => (float) $order->grand_total,
+            'bill_discount_percent' => (float) ($order->bill_discount_percent ?? 0),
+            'is_owner_discount' => (bool) ($order->is_owner_discount ?? false),
             'items_count' => $order->items->count(),
             'paid_at' => $order->paid_at?->format('H:i'),
             'paid_at_full' => $order->paid_at?->timezone(config('app.timezone'))->format('d M Y, H:i'),

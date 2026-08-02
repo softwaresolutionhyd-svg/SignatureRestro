@@ -1810,14 +1810,18 @@
                 const resumeUrl = (routes.resume || '').replace('__ID__', String(o.id));
                 const showMoveBtn = posTablesEnabled && o.table_id && o.service_type === 'dine_in';
                 const showPrintBtn = settings.allow_bill_print !== false;
+                const showPayBtn = canPosPay;
                 const moveBtn = showMoveBtn
                     ? `<button type="button" class="btn btn-sm rp-oc-move-table" data-action="move-table" data-order-id="${escHtml(String(o.id))}" data-order-no="${escHtml(o.order_no)}"><i class="bi bi-arrow-left-right"></i> Move Table</button>`
                     : '';
                 const printBtn = showPrintBtn
                     ? `<button type="button" class="btn btn-sm rp-oc-print-unpaid" data-action="print-unpaid" data-order-id="${escHtml(String(o.id))}" data-order-no="${escHtml(o.order_no)}"><i class="bi bi-printer"></i> Print Unpaid Bill</button>`
                     : '';
-                const actions = (printBtn || moveBtn)
-                    ? `<div class="rp-oc-move-wrap">${printBtn}${moveBtn}</div>`
+                const payBtn = showPayBtn
+                    ? `<button type="button" class="btn btn-sm rp-oc-pay-now" data-action="pay-now" data-order-id="${escHtml(String(o.id))}" data-order-no="${escHtml(o.order_no)}"><i class="bi bi-credit-card"></i> Pay Now</button>`
+                    : '';
+                const actions = (payBtn || printBtn || moveBtn)
+                    ? `<div class="rp-oc-move-wrap">${payBtn}${printBtn}${moveBtn}</div>`
                     : '';
                 return `<div class="rp-order-card rp-order-card--grid rp-order-card--pending-wrap">
                     <a class="rp-order-card-link" href="${escHtml(resumeUrl)}">
@@ -2549,6 +2553,81 @@
         if ($('#rpBillKitchenNotes') && order.kitchen_notes !== undefined) {
             $('#rpBillKitchenNotes').value = order.kitchen_notes || '';
         }
+    }
+
+    function applyPendingOrderToCheckout(order) {
+        kitchenVoids = [];
+        itemReductions = [];
+        cancelWholeOrderPending = false;
+        ownerDiscountActive = !!order.is_owner_discount;
+
+        const serviceType = order.service_type || 'dine_in';
+        setServiceType(serviceType);
+
+        if (serviceType === 'dine_in') {
+            if (posTablesEnabled && $('#rpTable')) {
+                $('#rpTable').value = order.table_id ? String(order.table_id) : '';
+            } else if ($('#rpTableNo')) {
+                $('#rpTableNo').value = order.guest_name || order.table_name || '';
+            }
+        } else if (serviceType === 'delivery') {
+            if ($('#rpDeliveryName')) $('#rpDeliveryName').value = order.guest_name || '';
+            if ($('#rpDeliveryPhone')) $('#rpDeliveryPhone').value = order.room_no || '';
+            if ($('#rpDeliveryAddress')) $('#rpDeliveryAddress').value = order.order_notes || '';
+        } else if (serviceType === 'takeaway') {
+            if ($('#rpTakeawayContact')) {
+                $('#rpTakeawayContact').value = order.room_no || order.guest_name || '';
+            }
+        }
+
+        if ($('#rpBillKitchenNotes')) {
+            $('#rpBillKitchenNotes').value = order.kitchen_notes || '';
+        }
+
+        const discInput = $('#rpBillDiscount');
+        if (discInput) {
+            if (ownerDiscountActive && canPosDiscountCredit) {
+                setDiscountMode('percent');
+                discInput.value = '100';
+                discInput.readOnly = true;
+            } else {
+                discInput.readOnly = false;
+                setDiscountMode('percent');
+                discInput.value = String(Number(order.bill_discount_percent) || 0);
+            }
+        }
+
+        setCreditMode(false);
+        setResumeStateFromOrder(order);
+        reloadCartFromOrder(order);
+        updateOwnerDiscountButton();
+        updateCheckoutActions();
+        updateCancelOrderButton();
+
+        const grand = calcCartTotals().grand;
+        payments = [{ method: $('#rpPayMethod')?.value || 'cash', amount: grand }];
+        autoPaymentAmount = true;
+    }
+
+    async function payPendingBillNow(orderId) {
+        if (!canPosPay) {
+            throw new Error('Pay sirf cashier ya manager kar sakta hai.');
+        }
+
+        let order = (boot.pendingBillsDetail || []).find((o) => Number(o.id) === Number(orderId));
+        if (!order?.items?.length) {
+            await pollSync();
+            order = (boot.pendingBillsDetail || []).find((o) => Number(o.id) === Number(orderId));
+        }
+        if (!order) {
+            throw new Error('Pending bill nahi mili.');
+        }
+        if (!Array.isArray(order.items) || !order.items.length) {
+            throw new Error('Bill items load nahi ho sake.');
+        }
+
+        applyPendingOrderToCheckout(order);
+        openPayModal();
     }
 
     function printUrlInHiddenFrame(url) {
@@ -3304,6 +3383,18 @@
                 btn.disabled = true;
                 printUnpaidBillForOrder(btn.dataset.orderId)
                     .catch((err) => alert(err.message || 'Unpaid bill print nahi ho saki.'))
+                    .finally(() => { btn.disabled = false; });
+                return;
+            }
+
+            const payNowBtn = e.target.closest('[data-action="pay-now"]');
+            if (payNowBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const btn = payNowBtn;
+                btn.disabled = true;
+                payPendingBillNow(btn.dataset.orderId)
+                    .catch((err) => alert(err.message || 'Pay Now fail ho gaya.'))
                     .finally(() => { btn.disabled = false; });
                 return;
             }
