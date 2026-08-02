@@ -102,11 +102,17 @@
                 </a>
             @endif
 
-            <div class="dropdown">
-                <button class="btn btn-sm btn-outline-light dropdown-toggle border-0 bg-white bg-opacity-10" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <div class="dropdown admin-user-dropdown">
+                <button class="btn btn-sm btn-outline-light dropdown-toggle border-0 bg-white bg-opacity-10"
+                        type="button"
+                        id="adminUserMenu"
+                        data-bs-toggle="dropdown"
+                        data-bs-popper-config='{"strategy":"fixed"}'
+                        aria-expanded="false"
+                        aria-haspopup="true">
                     <i class="bi bi-person-circle me-1"></i> <span class="d-none d-md-inline">{{ auth()->user()?->name }}</span>
                 </button>
-                <ul class="dropdown-menu dropdown-menu-end shadow border-0">
+                <ul class="dropdown-menu dropdown-menu-end shadow border-0" aria-labelledby="adminUserMenu">
                     <li><h6 class="dropdown-header">{{ auth()->user()?->email }}</h6></li>
                     <li><hr class="dropdown-divider"></li>
                     <li>
