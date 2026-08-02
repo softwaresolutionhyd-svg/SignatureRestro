@@ -1429,10 +1429,7 @@
                            value="${escHtml(billsTableSearch)}"
                            placeholder="Table No. search…"
                            autocomplete="off" enterkeyhint="search">
-                    <button type="button" class="btn btn-sm rp-bills-table-search-btn" id="rpBillsTableSearchBtn">
-                        <i class="bi bi-search"></i> Search
-                    </button>
-                    ${billsTableSearch ? `<button type="button" class="btn btn-sm rp-bills-table-search-clear" id="rpBillsTableSearchClear" title="Clear">×</button>` : ''}
+                    <button type="button" class="btn btn-sm rp-bills-table-search-clear${billsTableSearch.trim() ? '' : ' d-none'}" id="rpBillsTableSearchClear" title="Clear">×</button>
                 </div>
             </div>` : ''}
             <span class="rp-bills-head-hint">${isPending ? 'Bill kholne ke liye card par click karein.' : (canReopenPaidBill ? 'Receipt ya Reopen ke liye card par action use karein.' : 'Receipt ke liye card par click karein.')}</span>
@@ -1453,28 +1450,35 @@
         });
 
         const tableSearchInput = $('#rpBillsTableSearch');
-        const applyTableSearch = () => {
-            billsTableSearch = (tableSearchInput?.value || '').trim();
-            updateBillsMenuHead();
-            renderOrderCards();
-            const again = $('#rpBillsTableSearch');
-            if (again) {
-                again.focus();
-                const len = again.value.length;
-                again.setSelectionRange(len, len);
+        const clearBtn = $('#rpBillsTableSearchClear');
+
+        const syncTableSearchUi = () => {
+            const isPendingMode = orderListMode === 'pending';
+            const source = isPendingMode ? (boot.pendingBillsDetail || []) : (boot.paidBillsDetail || []);
+            const filteredNow = filterOrdersForSearch(source);
+            const countEl = billsHead.querySelector('.rp-bills-head-count');
+            if (countEl) {
+                countEl.textContent = `${filteredNow.length} bill${filteredNow.length === 1 ? '' : 's'}`;
             }
-        };
-        $('#rpBillsTableSearchBtn')?.addEventListener('click', applyTableSearch);
-        $('#rpBillsTableSearchClear')?.addEventListener('click', () => {
-            billsTableSearch = '';
-            updateBillsMenuHead();
+            clearBtn?.classList.toggle('d-none', !String(billsTableSearch || '').trim());
             renderOrderCards();
-            $('#rpBillsTableSearch')?.focus();
+        };
+
+        tableSearchInput?.addEventListener('input', () => {
+            billsTableSearch = tableSearchInput.value || '';
+            syncTableSearchUi();
+        });
+        clearBtn?.addEventListener('click', () => {
+            billsTableSearch = '';
+            if (tableSearchInput) tableSearchInput.value = '';
+            syncTableSearchUi();
+            tableSearchInput?.focus();
         });
         tableSearchInput?.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                applyTableSearch();
+            if (e.key === 'Escape') {
+                billsTableSearch = '';
+                tableSearchInput.value = '';
+                syncTableSearchUi();
             }
         });
     }
