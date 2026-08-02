@@ -102,4 +102,21 @@ class CloudSyncController extends Controller
 
         return response()->json($result);
     }
+
+    /**
+     * Cafe → hosting: delete remote rows whose ids are not in keep_ids
+     * so hosting reports match the cafe DB (local is source of truth).
+     */
+    public function mirror(Request $request, CloudSyncService $sync): JsonResponse
+    {
+        $data = $request->validate([
+            'table' => ['required', 'string', 'max:128'],
+            'keep_ids' => ['present', 'array', 'max:20000'],
+            'keep_ids.*' => ['integer', 'min:1'],
+        ]);
+
+        $result = $sync->mirrorTableKeepIds($data['table'], $data['keep_ids']);
+
+        return response()->json($result, ($result['ok'] ?? false) ? 200 : 422);
+    }
 }

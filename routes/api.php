@@ -22,6 +22,7 @@ Route::middleware('sync.token')->prefix('sync')->group(function () {
     Route::get('/pull', [CloudSyncController::class, 'pull']);
     Route::post('/pull-multi', [CloudSyncController::class, 'pullMulti']);
     Route::post('/pull-ids', [CloudSyncController::class, 'pullIds']);
+    Route::post('/mirror', [CloudSyncController::class, 'mirror']);
 });
 
 Route::get('/server-config', [ServerConfigController::class, 'show']);

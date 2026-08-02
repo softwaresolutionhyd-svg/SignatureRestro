@@ -1406,6 +1406,71 @@ class CloudSyncService
     }
 
     /**
+     * Cloud-only: keep listed ids, delete every other row in the table.
+     * Used so hosting totals match the cafe PC after local purges.
+     *
+     * @param  list<int|string>  $keepIds
+     * @return array{ok: bool, deleted: int, kept: int, message: string}
+     */
+    public function mirrorTableKeepIds(string $table, array $keepIds): array
+    {
+        if (! $this->isCloudRole()) {
+            return ['ok' => false, 'deleted' => 0, 'kept' => 0, 'message' => 'Mirror only runs on cloud role.'];
+        }
+
+        $table = trim($table);
+        $allowed = [
+            'pos_orders',
+            'pos_order_items',
+            'pos_payments',
+            'pos_sessions',
+            'pos_cash_movements',
+            'purchase_orders',
+            'purchase_order_items',
+            'credit_ledger',
+            'expenses',
+            'expense_items',
+        ];
+        if ($table === '' || ! in_array($table, $allowed, true) || $this->recorder->isExcluded($table)) {
+            return ['ok' => false, 'deleted' => 0, 'kept' => 0, 'message' => 'Table not allowed for mirror.'];
+        }
+
+        $connection = $this->connectionForTable($table);
+        if ($connection === null) {
+            return ['ok' => false, 'deleted' => 0, 'kept' => 0, 'message' => "Table missing: {$table}"];
+        }
+
+        $keep = array_values(array_unique(array_filter(array_map('intval', $keepIds), fn ($id) => $id > 0)));
+        $keepMap = array_fill_keys($keep, true);
+        $deleted = 0;
+
+        if ($keep === []) {
+            $deleted = (int) $connection->table($table)->delete();
+        } else {
+            $connection->table($table)->orderBy('id')->select('id')->chunkById(500, function ($rows) use ($connection, $table, $keepMap, &$deleted) {
+                $ids = [];
+                foreach ($rows as $row) {
+                    $id = (int) ($row->id ?? 0);
+                    if ($id > 0 && ! isset($keepMap[$id])) {
+                        $ids[] = $id;
+                    }
+                }
+                if ($ids === []) {
+                    return;
+                }
+                $deleted += $connection->table($table)->whereIn('id', $ids)->delete();
+            });
+        }
+
+        return [
+            'ok' => true,
+            'deleted' => $deleted,
+            'kept' => count($keep),
+            'message' => "Mirrored {$table}: kept ".count($keep).", deleted {$deleted}.",
+        ];
+    }
+
+    /**
      * Queue every existing row once (first-time full mirror to hosting).
      */
     public function queueFullSnapshot(): int

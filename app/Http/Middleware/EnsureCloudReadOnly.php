@@ -63,6 +63,7 @@ class EnsureCloudReadOnly
             'api/sync/pull',
             'api/sync/pull-multi',
             'api/sync/pull-ids',
+            'api/sync/mirror',
             'deploy/hooks/migrate',
         ];
 
