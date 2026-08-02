@@ -43,9 +43,11 @@
         $cashMovements = $cashMovements ?? collect();
         $cashInTotal = (float) ($cash['cash_in'] ?? 0);
         $cashOutTotal = (float) ($cash['cash_out'] ?? 0);
-        $displayNetSales = round((float) $stats['net_sales_total'] - $cashOutTotal, 2);
         $cashInRows = $cashMovements->where('type', 'in')->values();
         $cashOutRows = $cashMovements->where('type', 'out')->values();
+        $paymentsCash = (float) $stats['payments_cash'];
+        $cashAfterMovements = round($paymentsCash + $cashInTotal - $cashOutTotal, 2);
+        $totalPayments = round($cashAfterMovements + (float) $stats['payments_bank'] + (float) $stats['payments_card'], 2);
     @endphp
 
     <div class="row g-3 mb-4">
@@ -66,14 +68,11 @@
             <div class="card shadow-sm border-0 h-100 border-start border-4 border-primary">
                 <div class="card-body">
                     <div class="text-secondary small">{{ __('Net sales (so far today)') }}</div>
-                    <div class="fw-bold fs-4 text-primary">{{ $currency }} {{ fmt_num($displayNetSales, 2) }}</div>
+                    <div class="fw-bold fs-4 text-primary">{{ $currency }} {{ fmt_num($stats['net_sales_total'], 2) }}</div>
                     <div class="text-secondary small mt-1">
                         {{ __(':count bills', ['count' => $stats['sales_count']]) }}
                         @if($stats['refunds_count'] > 0)
                             · {{ __(':count refunds', ['count' => $stats['refunds_count']]) }}
-                        @endif
-                        @if($cashOutTotal > 0)
-                            · {{ __('after cash out') }}
                         @endif
                     </div>
                 </div>
@@ -232,22 +231,22 @@
                         <td class="ps-3 fw-bold">{{ __('Net sales') }}</td>
                         <td class="text-end pe-3 fw-bold">{{ $currency }} {{ fmt_num($stats['net_sales_total'], 2) }}</td>
                     </tr>
+                    @foreach($cashInRows as $mv)
+                    <tr>
+                        <td class="ps-3 text-success">{{ __('Cash In') }} — {{ $mv->reason ?: '—' }}</td>
+                        <td class="text-end pe-3 text-success">+ {{ $currency }} {{ fmt_num($mv->amount, 2) }}</td>
+                    </tr>
+                    @endforeach
                     @foreach($cashOutRows as $mv)
                     <tr>
                         <td class="ps-3 text-danger">{{ __('Cash Out') }} — {{ $mv->reason ?: '—' }}</td>
                         <td class="text-end pe-3 text-danger">− {{ $currency }} {{ fmt_num($mv->amount, 2) }}</td>
                     </tr>
                     @endforeach
-                    @if($cashOutTotal > 0)
-                    <tr class="table-light">
-                        <td class="ps-3 fw-bold">{{ __('Net sales after cash out') }}</td>
-                        <td class="text-end pe-3 fw-bold">{{ $currency }} {{ fmt_num($displayNetSales, 2) }}</td>
-                    </tr>
-                    @endif
                     <tr><td colspan="2" class="py-1"></td></tr>
                     <tr>
-                        <td class="ps-3"><i class="bi bi-cash-coin me-1 text-success"></i> {{ __('Cash') }} <span class="text-secondary small">({{ __('credit sales excluded') }})</span></td>
-                        <td class="text-end pe-3 fw-semibold">{{ $currency }} {{ fmt_num($stats['payments_cash'], 2) }}</td>
+                        <td class="ps-3"><i class="bi bi-cash-coin me-1 text-success"></i> {{ __('Cash') }} <span class="text-secondary small">({{ __('credit sales excluded') }}@if($cashInTotal > 0 || $cashOutTotal > 0), {{ __('after cash in/out') }}@endif)</span></td>
+                        <td class="text-end pe-3 fw-semibold">{{ $currency }} {{ fmt_num($cashAfterMovements, 2) }}</td>
                     </tr>
                     <tr>
                         <td class="ps-3"><i class="bi bi-bank me-1 text-primary"></i> {{ __('Bank') }}</td>
@@ -257,15 +256,9 @@
                         <td class="ps-3"><i class="bi bi-credit-card me-1 text-info"></i> {{ __('Card') }}</td>
                         <td class="text-end pe-3 fw-semibold">{{ $currency }} {{ fmt_num($stats['payments_card'], 2) }}</td>
                     </tr>
-                    @foreach($cashInRows as $mv)
-                    <tr>
-                        <td class="ps-3 text-success">{{ __('Cash In') }} — {{ $mv->reason ?: '—' }}</td>
-                        <td class="text-end pe-3 text-success">+ {{ $currency }} {{ fmt_num($mv->amount, 2) }}</td>
-                    </tr>
-                    @endforeach
                     <tr class="table-light">
                         <td class="ps-3 fw-bold">{{ __('Total payments') }}</td>
-                        <td class="text-end pe-3 fw-bold">{{ $currency }} {{ fmt_num($stats['payments_cash'] + $stats['payments_bank'] + $stats['payments_card'], 2) }}</td>
+                        <td class="text-end pe-3 fw-bold">{{ $currency }} {{ fmt_num($totalPayments, 2) }}</td>
                     </tr>
                     <tr>
                         <td class="ps-3 fw-bold">{{ __('Cash in drawer (expected)') }}</td>

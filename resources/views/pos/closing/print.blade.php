@@ -108,7 +108,6 @@
     $closedAt = $session->closed_at?->format('d M Y, h:i A');
     $printedAt = now()->format('d M Y, h:i A');
     $sessionLabel = $session->session_no ?? ('#'.$session->id);
-    $totalPayments = $stats['payments_cash'] + $stats['payments_bank'] + $stats['payments_card'];
 @endphp
 
 <div class="noprint">
@@ -191,23 +190,25 @@
                 $cashOutRows = $cashMovements->where('type', 'out')->values();
                 $cashInRows = $cashMovements->where('type', 'in')->values();
                 $cashOutTotal = (float) ($cash['cash_out'] ?? 0);
-                $displayNetSales = round((float) $stats['net_sales_total'] - $cashOutTotal, 2);
+                $cashInTotal = (float) ($cash['cash_in'] ?? 0);
+                $cashAfterMovements = round((float) $stats['payments_cash'] + $cashInTotal - $cashOutTotal, 2);
+                $totalPayments = round($cashAfterMovements + (float) $stats['payments_bank'] + (float) $stats['payments_card'], 2);
             @endphp
+            @foreach($cashInRows as $mv)
+            <tr>
+                <td>{{ __('Cash In') }} — {{ $mv->reason ?: '—' }}</td>
+                <td class="amt">+ {{ $currency }} {{ fmt_num($mv->amount, 2) }}</td>
+            </tr>
+            @endforeach
             @foreach($cashOutRows as $mv)
             <tr>
                 <td>{{ __('Cash Out') }} — {{ $mv->reason ?: '—' }}</td>
                 <td class="amt">− {{ $currency }} {{ fmt_num($mv->amount, 2) }}</td>
             </tr>
             @endforeach
-            @if($cashOutTotal > 0)
-            <tr class="bold">
-                <td>{{ __('Net sales after cash out') }}</td>
-                <td class="amt">{{ $currency }} {{ fmt_num($displayNetSales, 2) }}</td>
-            </tr>
-            @endif
             <tr>
-                <td>{{ __('Cash') }}</td>
-                <td class="amt">{{ $currency }} {{ fmt_num($stats['payments_cash'], 2) }}</td>
+                <td>{{ __('Cash') }}@if($cashInTotal > 0 || $cashOutTotal > 0) ({{ __('after cash in/out') }})@endif</td>
+                <td class="amt">{{ $currency }} {{ fmt_num($cashAfterMovements, 2) }}</td>
             </tr>
             <tr>
                 <td>{{ __('Bank') }}</td>
@@ -217,12 +218,6 @@
                 <td>{{ __('Card') }}</td>
                 <td class="amt">{{ $currency }} {{ fmt_num($stats['payments_card'], 2) }}</td>
             </tr>
-            @foreach($cashInRows as $mv)
-            <tr>
-                <td>{{ __('Cash In') }} — {{ $mv->reason ?: '—' }}</td>
-                <td class="amt">+ {{ $currency }} {{ fmt_num($mv->amount, 2) }}</td>
-            </tr>
-            @endforeach
             <tr class="bold">
                 <td>{{ __('Total payments') }}</td>
                 <td class="amt">{{ $currency }} {{ fmt_num($totalPayments, 2) }}</td>
