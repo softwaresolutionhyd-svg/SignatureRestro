@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Contact;
+use App\Models\CreditLedger;
 use App\Models\Employee;
 use App\Models\Expense;
 use App\Models\InventoryProduct;
@@ -14,6 +15,7 @@ use App\Models\Setting;
 use App\Services\PosSessionSummaryService;
 use App\Support\PosOrderMetrics;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class AnalyticsController extends Controller
 {
@@ -22,14 +24,26 @@ class AnalyticsController extends Controller
         $currency = Setting::get('currency_symbol', 'Rs.');
         $company  = Setting::get('company_name', config('app.name'));
 
-        /* ── Current open POS session sale(s) ───────────── */
+        /* ── Current open POS session sale(s) — today only (matches POS Closing) ── */
         $openSessions = collect();
+        $businessDate = now()->toDateString();
         try {
-            $openSessions = PosSession::query()
+            $openQuery = PosSession::query()
                 ->with('user:id,name')
                 ->where('status', 'open')
-                ->orderByDesc('id')
-                ->get();
+                ->where(function ($q) use ($businessDate) {
+                    $q->whereDate('business_date', $businessDate)
+                        ->orWhere(function ($q2) use ($businessDate) {
+                            $q2->whereNull('business_date')
+                                ->whereDate('opened_at', $businessDate);
+                        });
+                });
+
+            if (Schema::connection('tenant')->hasColumn('pos_sessions', 'shift_started')) {
+                $openQuery->where('shift_started', true);
+            }
+
+            $openSessions = $openQuery->orderByDesc('id')->get();
         } catch (\Throwable $e) {
             report($e);
         }
@@ -76,7 +90,7 @@ class AnalyticsController extends Controller
 
         $todayPaidOrders = PosOrder::query()
             ->where('status', 'paid')
-            ->whereDate('created_at', now()->toDateString())
+            ->whereDate('created_at', $businessDate)
             ->get(['id', 'type', 'grand_total', 'status']);
         $todaySalesCount = $todayPaidOrders->where('type', 'sale')->count();
         $todaySalesTotal = round($todayPaidOrders->sum(fn (PosOrder $o) => PosOrderMetrics::signedGrandTotal($o)), 2);
@@ -125,14 +139,27 @@ class AnalyticsController extends Controller
         $purchasesMonth    = PurchaseOrder::whereIn('status',['confirmed','received'])->whereBetween('order_date', [$monthStart, $monthEnd])->sum('grand_total');
         $expensesMonth     = Expense::whereIn('status',['approved','paid'])->whereBetween('expense_date', [$monthStart, $monthEnd])->sum('grand_total');
 
-        $activeEmployees   = Employee::where('active', true)->count();
+        $activeEmployees   = Employee::query()->excludeAdminAccounts()->where('active', true)->count();
         $totalProducts     = InventoryProduct::where('active', true)->count();
         $lowStock          = InventoryProduct::where('active', true)->where('for_purchase', true)->where('qty_on_hand', '>', 0)->where('qty_on_hand', '<=', 10)->excludingActiveBomFinishedProducts()->count();
         $outOfStock        = InventoryProduct::where('active', true)->where('for_purchase', true)->where('qty_on_hand', '<=', 0)->count();
 
-        $totalCredit       = DB::connection('tenant')->table('credit_ledger')->where('type','credit')->sum('amount');
-        $totalPaid         = DB::connection('tenant')->table('credit_ledger')->where('type','payment')->sum('amount');
-        $outstandingCredit = round($totalCredit - $totalPaid, 2);
+        // Same outstanding logic as Credit Book (valid contacts only; company-scoped)
+        try {
+            CreditLedger::query()
+                ->whereNotNull('contact_id')
+                ->whereNotIn('contact_id', Contact::query()->select('id'))
+                ->delete();
+        } catch (\Throwable $e) {
+            report($e);
+        }
+        $outstandingCredit = round((float) CreditLedger::query()
+            ->whereIn('contact_id', Contact::query()->select('id'))
+            ->selectRaw('COALESCE(SUM(CASE WHEN type = ? THEN amount WHEN type = ? THEN -amount ELSE 0 END), 0) as bal', ['credit', 'payment'])
+            ->value('bal'), 2);
+        if ($outstandingCredit < 0) {
+            $outstandingCredit = 0.0;
+        }
 
         /* ── 1. Daily sales – last 30 days (area chart) ── */
         $raw30 = PosOrder::where('status','paid')
