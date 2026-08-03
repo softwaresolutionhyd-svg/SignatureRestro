@@ -1858,14 +1858,19 @@
         });
     }
 
-    function setOrderListMode(mode) {
+    function setOrderListMode(mode, { force = false } = {}) {
         const tabPending = $('#rpTabPending');
         const tabPaid = $('#rpTabPaid');
         const tabKitchenVoids = $('#rpTabKitchenVoids');
 
-        if (orderListMode === mode) {
+        if (!force && orderListMode === mode) {
             showMenuPanel();
             return;
+        }
+
+        // Bills list #rpMenuGrid mein dikhti hai — cart-only view mein panel hidden rehta hai.
+        if (panelView !== 'split') {
+            setPanelView('split');
         }
 
         orderListMode = mode;
@@ -1875,10 +1880,7 @@
         tabPaid?.classList.toggle('is-active', mode === 'paid');
         tabKitchenVoids?.classList.toggle('is-active', mode === 'kitchen-voids');
         $('#rpTabMenu')?.classList.remove('is-active');
-
-        if (panelView === 'cart') {
-            setPanelView('split');
-        }
+        $('#rpTabCart')?.classList.remove('is-active');
 
         const search = $('#rpProductSearch');
         if (search) {
@@ -1904,6 +1906,16 @@
 
         updateBillsMenuHead();
         renderOrderCards();
+    }
+
+    function showPaidTabAfterCheckout() {
+        billsServiceFilter = 'all';
+        billsTableSearch = '';
+        if (panelView !== 'split') {
+            setPanelView('split');
+        }
+        // force: pehle se Paid pe hon to bhi toggle-off (menu) mat karo
+        setOrderListMode('paid', { force: true });
     }
 
     function renderKitchenVoidCards() {
@@ -2528,6 +2540,8 @@
                 cash_change: change,
             }, { skipPrint: !printBill });
             getPayModal()?.hide();
+            // Modal close ke baad dubara ensure — layout/focus Paid tab pe rahe
+            requestAnimationFrame(() => showPaidTabAfterCheckout());
         } catch (e) {
             alert(e.message || 'Payment failed.');
             updatePayModalAmounts();
@@ -2595,13 +2609,7 @@
 
         resetForNewBill();
         updateOrderTabCounts();
-
-        if (orderListMode === 'paid') {
-            updateBillsMenuHead();
-            renderOrderCards();
-        } else {
-            setOrderListMode('paid');
-        }
+        showPaidTabAfterCheckout();
     }
 
     function resetForNewBill() {
@@ -3954,6 +3962,11 @@
         updateCheckoutActions();
         renderAll();
         payments = [{ method: 'cash', amount: 0 }];
+        if (boot.activeOrderTab === 'paid') {
+            showPaidTabAfterCheckout();
+        } else if (boot.activeOrderTab === 'pending') {
+            setOrderListMode('pending', { force: true });
+        }
         setInterval(pollSync, 20000);
     }
 

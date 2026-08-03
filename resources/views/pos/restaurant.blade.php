@@ -569,6 +569,7 @@
         'canPosDiscount' => (bool) ($canPosDiscount ?? false),
         'canPosDiscountCredit' => (bool) ($canPosDiscountCredit ?? false),
         'canViewKitchenVoids' => (bool) ($canPosDiscountCredit ?? false),
+        'activeOrderTab' => session('pos_active_tab'),
         'routes' => [
             'checkout' => route('restaurant-pos.checkout'),
             'hold' => route('restaurant-pos.hold'),
@@ -591,5 +592,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=89"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=90"></script>
 @endsection
