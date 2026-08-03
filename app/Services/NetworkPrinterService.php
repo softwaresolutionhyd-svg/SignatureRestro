@@ -46,34 +46,152 @@ final class NetworkPrinterService
      *
      * @throws RuntimeException on connection/write failure.
      */
-    public function send(string $ip, int $port, string $payload, int $timeoutSeconds = 2): void
+    public function send(string $ip, int $port, string $payload, int $timeoutSeconds = 1): void
     {
-        $ip = trim($ip);
-        if ($ip === '') {
-            throw new RuntimeException('Printer IP set nahi hai.');
-        }
-        if ($port <= 0) {
-            $port = 9100;
-        }
+        $results = $this->sendMany([[
+            'ip' => $ip,
+            'port' => $port,
+            'payload' => $payload,
+        ]], $timeoutSeconds);
 
-        $errno = 0;
-        $errstr = '';
-        $fp = @fsockopen($ip, $port, $errno, $errstr, $timeoutSeconds);
-
-        if ($fp === false) {
-            throw new RuntimeException(sprintf('Printer %s:%d se connect nahi ho saka (%s).', $ip, $port, $errstr ?: 'timeout'));
+        $first = $results[0] ?? null;
+        if ($first instanceof \Throwable) {
+            throw $first instanceof RuntimeException
+                ? $first
+                : new RuntimeException($first->getMessage(), 0, $first);
         }
+    }
 
-        try {
-            stream_set_timeout($fp, $timeoutSeconds);
-            $written = @fwrite($fp, $payload);
-            if ($written === false) {
-                throw new RuntimeException(sprintf('Printer %s:%d par data bhejne mein masla.', $ip, $port));
+    /**
+     * Send ESC/POS jobs to many printers in parallel so Bar does not wait for Kitchen.
+     *
+     * @param  list<array{ip:string, port:int|string, payload:string}>  $jobs
+     * @return list<true|\Throwable>
+     */
+    public function sendMany(array $jobs, int $timeoutSeconds = 1): array
+    {
+        $timeoutSeconds = max(1, $timeoutSeconds);
+        $results = [];
+        $handles = [];
+        $deadline = microtime(true) + $timeoutSeconds;
+
+        foreach ($jobs as $i => $job) {
+            $ip = trim((string) ($job['ip'] ?? ''));
+            $port = (int) ($job['port'] ?? 9100);
+            $payload = (string) ($job['payload'] ?? '');
+            if ($ip === '') {
+                $results[$i] = new RuntimeException('Printer IP set nahi hai.');
+                continue;
             }
-            @fflush($fp);
-        } finally {
-            @fclose($fp);
+            if ($port <= 0) {
+                $port = 9100;
+            }
+
+            $errno = 0;
+            $errstr = '';
+            $fp = @stream_socket_client(
+                sprintf('tcp://%s:%d', $ip, $port),
+                $errno,
+                $errstr,
+                $timeoutSeconds,
+                STREAM_CLIENT_CONNECT | STREAM_CLIENT_ASYNC_CONNECT
+            );
+
+            if ($fp === false) {
+                $results[$i] = new RuntimeException(
+                    sprintf('Printer %s:%d se connect nahi ho saka (%s).', $ip, $port, $errstr ?: 'timeout')
+                );
+                continue;
+            }
+
+            stream_set_blocking($fp, false);
+            stream_set_timeout($fp, $timeoutSeconds);
+            $handles[$i] = [
+                'fp' => $fp,
+                'ip' => $ip,
+                'port' => $port,
+                'payload' => $payload,
+                'written' => 0,
+                'len' => strlen($payload),
+            ];
         }
+
+        while ($handles !== [] && microtime(true) < $deadline) {
+            $read = null;
+            $write = [];
+            $except = null;
+            foreach ($handles as $h) {
+                $write[] = $h['fp'];
+            }
+            $ready = $write !== [] ? @stream_select($read, $write, $except, 0, 50000) : 0;
+            if ($ready === false || $ready === 0) {
+                continue;
+            }
+
+            $readyIds = [];
+            foreach ($write as $fp) {
+                foreach ($handles as $i => $h) {
+                    if ($h['fp'] === $fp) {
+                        $readyIds[$i] = true;
+                    }
+                }
+            }
+
+            foreach ($handles as $i => $h) {
+                if (! isset($readyIds[$i])) {
+                    continue;
+                }
+
+                $meta = stream_get_meta_data($h['fp']);
+                if (! empty($meta['timed_out'])) {
+                    @fclose($h['fp']);
+                    $results[$i] = new RuntimeException(sprintf('Printer %s:%d timeout.', $h['ip'], $h['port']));
+                    unset($handles[$i]);
+                    continue;
+                }
+
+                if ($h['len'] === 0) {
+                    @fflush($h['fp']);
+                    @fclose($h['fp']);
+                    $results[$i] = true;
+                    unset($handles[$i]);
+                    continue;
+                }
+
+                $chunk = @fwrite($h['fp'], substr($h['payload'], $h['written']));
+                // 0 = not ready yet (common while async connect finishes) — keep waiting.
+                if ($chunk === false) {
+                    @fclose($h['fp']);
+                    $results[$i] = new RuntimeException(
+                        sprintf('Printer %s:%d par data bhejne mein masla.', $h['ip'], $h['port'])
+                    );
+                    unset($handles[$i]);
+                    continue;
+                }
+                if ($chunk === 0) {
+                    continue;
+                }
+
+                $h['written'] += $chunk;
+                if ($h['written'] >= $h['len']) {
+                    @fflush($h['fp']);
+                    @fclose($h['fp']);
+                    $results[$i] = true;
+                    unset($handles[$i]);
+                    continue;
+                }
+                $handles[$i] = $h;
+            }
+        }
+
+        foreach ($handles as $i => $h) {
+            @fclose($h['fp']);
+            $results[$i] = new RuntimeException(sprintf('Printer %s:%d timeout.', $h['ip'], $h['port']));
+        }
+
+        ksort($results);
+
+        return array_values($results);
     }
 
     /**
@@ -154,9 +272,14 @@ final class NetworkPrinterService
         }
 
         $company = Setting::get('company_name', config('app.name'));
-        $results = [];
         $kitchen = app(KitchenService::class);
         $successFingerprints = [];
+
+        // BAR / drinks first — never wait behind kitchen if we fall back to sequential.
+        uasort($groups, function (array $a, array $b): int {
+            return $this->departmentPrintPriority($a['dept'] ?? null)
+                <=> $this->departmentPrintPriority($b['dept'] ?? null);
+        });
 
         // Mark BEFORE send so a concurrent hold/save cannot recreate lines as "unprinted"
         // and cause the next kitchen print to dump the whole order again.
@@ -168,32 +291,47 @@ final class NetworkPrinterService
         }
         $kitchen->markItemsKitchenPrinted($preMarkIds);
 
+        $jobs = [];
+        $jobMeta = [];
         foreach ($groups as $group) {
             /** @var InventoryDepartment $dept */
             $dept = $group['dept'];
             /** @var list<PosOrderItem> $groupItems */
             $groupItems = $group['items'];
-            $groupIds = array_map(static fn (PosOrderItem $gi) => (int) $gi->id, $groupItems);
-            $payload = $this->buildKitchenSlip(
-                $order,
-                (string) $dept->name,
-                $groupItems,
-                $company,
-                $isAddonPrint
-            );
+            $jobs[] = [
+                'ip' => (string) $dept->printer_ip,
+                'port' => (int) ($dept->printer_port ?: 9100),
+                'payload' => $this->buildKitchenSlip(
+                    $order,
+                    (string) $dept->name,
+                    $groupItems,
+                    $company,
+                    $isAddonPrint
+                ),
+            ];
+            $jobMeta[] = [
+                'dept' => $dept,
+                'items' => $groupItems,
+                'ids' => array_map(static fn (PosOrderItem $gi) => (int) $gi->id, $groupItems),
+            ];
+        }
 
-            try {
-                $this->send((string) $dept->printer_ip, (int) ($dept->printer_port ?: 9100), $payload);
-                $results[] = ['department' => (string) $dept->name, 'ok' => true];
-                foreach ($groupItems as $gi) {
+        $sendResults = $this->sendMany($jobs, 1);
+        $results = [];
+        foreach ($sendResults as $i => $sendResult) {
+            $meta = $jobMeta[$i];
+            $deptName = (string) $meta['dept']->name;
+            if ($sendResult === true) {
+                $results[] = ['department' => $deptName, 'ok' => true];
+                foreach ($meta['items'] as $gi) {
                     $successFingerprints[] = $kitchen->baseItemFingerprint($gi);
                 }
-            } catch (\Throwable $e) {
-                $kitchen->clearItemsKitchenPrinted($groupIds);
+            } else {
+                $kitchen->clearItemsKitchenPrinted($meta['ids']);
                 $results[] = [
-                    'department' => (string) $dept->name,
+                    'department' => $deptName,
                     'ok' => false,
-                    'error' => $e->getMessage(),
+                    'error' => $sendResult instanceof \Throwable ? $sendResult->getMessage() : 'Print fail.',
                 ];
             }
         }
@@ -212,6 +350,23 @@ final class NetworkPrinterService
             'pending_item_ids' => $kitchenItems->pluck('id')->map(fn ($id) => (int) $id)->all(),
             'message' => $anyOk ? null : 'Kitchen print fail hua.',
         ];
+    }
+
+    /** Lower = print sooner (BAR before Kitchen). */
+    private function departmentPrintPriority(?InventoryDepartment $dept): int
+    {
+        $name = strtolower(trim((string) ($dept->name ?? '')));
+        if ($name === '') {
+            return 50;
+        }
+        if (str_contains($name, 'bar') || str_contains($name, 'beverage') || str_contains($name, 'drink')) {
+            return 0;
+        }
+        if (str_contains($name, 'cashier')) {
+            return 90;
+        }
+
+        return 20;
     }
 
     /**
