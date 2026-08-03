@@ -46,7 +46,7 @@ final class NetworkPrinterService
      *
      * @throws RuntimeException on connection/write failure.
      */
-    public function send(string $ip, int $port, string $payload, int $timeoutSeconds = 5): void
+    public function send(string $ip, int $port, string $payload, int $timeoutSeconds = 2): void
     {
         $ip = trim($ip);
         if ($ip === '') {

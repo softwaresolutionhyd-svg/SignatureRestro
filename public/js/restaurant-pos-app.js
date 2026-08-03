@@ -1974,7 +1974,6 @@
                 return;
             }
             grid.innerHTML = orders.map((o) => {
-                const resumeUrl = (routes.resume || '').replace('__ID__', String(o.id));
                 const showMoveBtn = posTablesEnabled && o.table_id && o.service_type === 'dine_in';
                 const showPrintBtn = settings.allow_bill_print !== false;
                 const showPayBtn = canPosPay;
@@ -1991,14 +1990,14 @@
                     ? `<div class="rp-oc-move-wrap">${payBtn}${printBtn}${moveBtn}</div>`
                     : '';
                 return `<div class="rp-order-card rp-order-card--grid rp-order-card--pending-wrap">
-                    <a class="rp-order-card-link" href="${escHtml(resumeUrl)}">
+                    <button type="button" class="rp-order-card-link" data-action="open-pending" data-order-id="${escHtml(String(o.id))}">
                         ${orderTableBanner(o)}
                         <div class="rp-oc-no">${escHtml(o.order_no)}${orderSplitIconHtml(o)}</div>
                         <div class="rp-oc-meta">${escHtml(orderMetaLabel(o))}${orderMetaDetail(o) ? ' · ' + escHtml(orderMetaDetail(o)) : ''}</div>
                         ${orderPunchedByHtml(o)}
                         <div class="rp-oc-meta">${escHtml(fmtMoney(o.grand_total))} · ${o.items_count || 0} items</div>
                         <div class="rp-oc-open">Open bill <i class="bi bi-arrow-right-short"></i></div>
-                    </a>
+                    </button>
                     ${actions}
                 </div>`;
             }).join('');
@@ -2803,6 +2802,31 @@
         openPayModal();
     }
 
+    async function openPendingBillFast(orderId) {
+        let order = (boot.pendingBillsDetail || []).find((o) => Number(o.id) === Number(orderId));
+        if (!order?.items?.length) {
+            await pollSync();
+            order = (boot.pendingBillsDetail || []).find((o) => Number(o.id) === Number(orderId));
+        }
+        if (!order) {
+            throw new Error('Pending bill nahi mili.');
+        }
+        if (!Array.isArray(order.items) || !order.items.length) {
+            // Fallback: full page resume when items missing from sync payload.
+            const resumeUrl = (routes.resume || '').replace('__ID__', String(orderId));
+            if (resumeUrl) {
+                window.location.assign(resumeUrl);
+                return;
+            }
+            throw new Error('Bill items load nahi ho sake.');
+        }
+
+        applyPendingOrderToCheckout(order);
+        showMenuView();
+        setPanelView('split');
+        renderAll();
+    }
+
     function printUrlInHiddenFrame(url) {
         return new Promise((resolve, reject) => {
             document.getElementById('rpPrintFrame')?.remove();
@@ -2817,7 +2841,7 @@
             const finish = (err) => {
                 if (settled) return;
                 settled = true;
-                window.setTimeout(() => iframe.remove(), 1500);
+                window.setTimeout(() => iframe.remove(), 400);
                 if (err) reject(err);
                 else resolve();
             };
@@ -2836,7 +2860,7 @@
                     } catch (e) {
                         finish(e);
                     }
-                }, 350);
+                }, 60);
             };
 
             iframe.onerror = () => finish(new Error('Print load failed.'));
@@ -3573,6 +3597,18 @@
                 btn.disabled = true;
                 payPendingBillNow(btn.dataset.orderId)
                     .catch((err) => alert(err.message || 'Pay Now fail ho gaya.'))
+                    .finally(() => { btn.disabled = false; });
+                return;
+            }
+
+            const openPendingBtn = e.target.closest('[data-action="open-pending"]');
+            if (openPendingBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const btn = openPendingBtn;
+                btn.disabled = true;
+                openPendingBillFast(btn.dataset.orderId)
+                    .catch((err) => alert(err.message || 'Bill open nahi ho saki.'))
                     .finally(() => { btn.disabled = false; });
                 return;
             }

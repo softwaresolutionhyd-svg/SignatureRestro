@@ -60,10 +60,21 @@ final class MenuCategory
      */
     public static function assignPosProducts(): int
     {
+        $companyId = function_exists('current_company_id') ? (current_company_id() ?? 0) : 0;
+        $cacheKey = 'menu:assign_pos_products:c'.$companyId;
+        $cached = \Illuminate\Support\Facades\Cache::get($cacheKey);
+        if ($cached !== null) {
+            return (int) $cached;
+        }
+
         $menu = self::ensure();
         self::adoptLegacySubcategories($menu);
 
-        return self::reclassifyPosProducts($menu, onlyMenuRoot: true, useHistory: true);
+        $updated = self::reclassifyPosProducts($menu, onlyMenuRoot: true, useHistory: true);
+        // Avoid re-running heavy reclassify on every POS page load.
+        \Illuminate\Support\Facades\Cache::put($cacheKey, $updated, now()->addMinutes(30));
+
+        return $updated;
     }
 
     /**

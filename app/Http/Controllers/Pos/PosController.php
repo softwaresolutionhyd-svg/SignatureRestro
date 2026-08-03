@@ -129,11 +129,11 @@ class PosController extends Controller
         $paidOrders = $this->paidOrdersForSession($session, $user);
 
         $paidBillsDetail = $paidOrders
-            ->map(fn (PosOrder $order) => $this->posOrderDetailsPayload($order))
+            ->map(fn (PosOrder $order) => $this->posOrderDetailsPayload($order, true))
             ->values();
 
         $pendingBillsDetail = $heldOrders
-            ->map(fn (PosOrder $order) => $this->posOrderDetailsPayload($order))
+            ->map(fn (PosOrder $order) => $this->posOrderDetailsPayload($order, false))
             ->values();
 
         if ($request->filled('resume_order')) {
@@ -574,11 +574,11 @@ class PosController extends Controller
 
         $heldOrders = $this->heldOrdersForSession($session, $user);
         $pending = $heldOrders
-            ->map(fn (PosOrder $order) => $this->posOrderDetailsPayload($order))
+            ->map(fn (PosOrder $order) => $this->posOrderDetailsPayload($order, false))
             ->values();
 
         $paid = $this->paidOrdersForSession($session, $user)
-            ->map(fn (PosOrder $order) => $this->posOrderDetailsPayload($order))
+            ->map(fn (PosOrder $order) => $this->posOrderDetailsPayload($order, true))
             ->values();
 
         $resumed = null;
@@ -755,13 +755,8 @@ class PosController extends Controller
             $heldOrders->loadCount('items');
         }
 
-        foreach ($heldOrders as $draft) {
-            if ($this->repairDraftOrderIfNeeded($draft)) {
-                $draft->refresh();
-                $draft->loadMissing(['items.product:id,name', 'table:id,name', 'user:id,name']);
-                $draft->loadCount('items');
-            }
-        }
+        // Do NOT run repairDraftOrderIfNeeded here — it recalculates every draft on each
+        // POS page/sync and made pending lists feel multi-second. Repair on hold/checkout instead.
 
         return $heldOrders
             ->filter(fn (PosOrder $order) => $order->isDueForServeDay())
@@ -793,7 +788,7 @@ class PosController extends Controller
                         ->orWhereNull('paid_at');
                 });
             })
-            ->with(['table:id,name', 'payments:id,order_id,method,amount', 'items.product:id,name', 'user:id,name'])
+            ->with(['table:id,name', 'payments:id,order_id,method,amount', 'user:id,name'])
             ->withCount('items')
             ->orderByDesc('paid_at')
             ->orderByDesc('id')
@@ -3493,9 +3488,13 @@ class PosController extends Controller
     }
 
     /** @return array<string, mixed> */
-    private function posOrderDetailsPayload(PosOrder $order): array
+    private function posOrderDetailsPayload(PosOrder $order, bool $listOnly = false): array
     {
-        $order->loadMissing(['table', 'items.product', 'payments', 'user:id,name']);
+        if ($listOnly) {
+            $order->loadMissing(['table:id,name', 'payments:id,order_id,method,amount', 'user:id,name']);
+        } else {
+            $order->loadMissing(['table:id,name', 'items.product:id,name', 'payments:id,order_id,method,amount', 'user:id,name']);
+        }
 
         $tableRoomParts = [];
         if ($order->table) {
@@ -3505,11 +3504,13 @@ class PosController extends Controller
             $tableRoomParts[] = $order->room_no;
         }
 
-        $payMethods = $order->payments
-            ->pluck('method')
-            ->map(fn ($m) => ucfirst((string) $m))
-            ->unique()
-            ->values();
+        $payMethods = $order->relationLoaded('payments')
+            ? $order->payments
+                ->pluck('method')
+                ->map(fn ($m) => ucfirst((string) $m))
+                ->unique()
+                ->values()
+            : collect();
 
         $orderAt = $order->ready_for_pos_at ?? $order->created_at;
         $serveTime = trim((string) ($order->serve_time ?? ''));
@@ -3518,7 +3519,13 @@ class PosController extends Controller
             : trim((string) ($order->serve_date ?? ''));
         $punchedBy = trim((string) ($order->user?->name ?? ''));
 
-        return [
+        // Guest-name split label only — avoid scanning all session drafts per card.
+        $splitLabel = $this->orderSplitLabelFromGuest($order);
+
+        $itemsCount = $order->items_count
+            ?? ($order->relationLoaded('items') ? $order->items->count() : 0);
+
+        $payload = [
             'id' => $order->id,
             'order_no' => $order->order_no,
             'status' => $order->status,
@@ -3527,8 +3534,8 @@ class PosController extends Controller
             'service_type' => $order->serviceTypeKey(),
             'service_type_label' => $order->serviceTypeLabel(),
             'guest_name' => $order->guest_name,
-            'is_split' => $this->orderIsSplitBill($order),
-            'split_label' => $this->orderSplitLabel($order),
+            'is_split' => $splitLabel !== null,
+            'split_label' => $splitLabel,
             'waiter_name' => $order->waiter_name,
             'punched_by' => $punchedBy !== '' ? $punchedBy : null,
             'order_notes' => trim((string) ($order->order_notes ?? '')),
@@ -3548,7 +3555,7 @@ class PosController extends Controller
             'grand_total' => (float) $order->grand_total,
             'bill_discount_percent' => (float) ($order->bill_discount_percent ?? 0),
             'is_owner_discount' => (bool) ($order->is_owner_discount ?? false),
-            'items_count' => $order->items->count(),
+            'items_count' => (int) $itemsCount,
             'paid_at' => $order->paid_at?->format('H:i'),
             'paid_at_full' => $order->paid_at?->timezone(config('app.timezone'))->format('d M Y, H:i'),
             'serve_time' => $serveTime !== '' ? $serveTime : null,
@@ -3558,27 +3565,40 @@ class PosController extends Controller
             'kitchen_status_label' => $order->pendingKitchenStatusLabel(),
             'kitchen_status_badge' => $order->pendingKitchenStatusBadgeClass(),
             'created_at' => $order->created_at?->format('Y-m-d H:i'),
-            'served_count' => $order->items->filter(fn (PosOrderItem $item) => $item->isKitchenServed())->count(),
-            'pending_count' => $order->items->filter(fn (PosOrderItem $item) => ! $item->isKitchenServed() && (bool) $item->kitchen_pending)->count(),
-            'timeline' => $order->orderTimelineSteps(),
-            'items' => $order->items->map(fn (PosOrderItem $item) => [
-                'id' => (int) $item->id,
-                'product_id' => (int) $item->product_id,
-                'name' => $item->displayName(),
-                'item_name' => $item->item_name,
-                'is_custom' => (bool) $item->is_custom,
-                'qty' => fmt_num((float) $item->qty, 3),
-                'uom' => $item->uom,
-                'unit_price' => (float) $item->unit_price,
-                'tax_percent' => (float) $item->tax_percent,
-                'total' => (float) $item->total,
-                'notes' => trim((string) ($item->notes ?? '')),
-                'kitchen_served' => $item->isKitchenServed(),
-                'kitchen_pending' => (bool) $item->kitchen_pending,
-                'kitchen_printed' => $item->kitchen_printed_at !== null,
-                'kitchen_served_at' => $item->kitchen_served_at?->format('H:i'),
-            ])->values()->all(),
         ];
+
+        if ($listOnly) {
+            $payload['served_count'] = 0;
+            $payload['pending_count'] = 0;
+            $payload['timeline'] = [];
+            $payload['items'] = [];
+
+            return $payload;
+        }
+
+        $payload['served_count'] = $order->items->filter(fn (PosOrderItem $item) => $item->isKitchenServed())->count();
+        $payload['pending_count'] = $order->items->filter(fn (PosOrderItem $item) => ! $item->isKitchenServed() && (bool) $item->kitchen_pending)->count();
+        // Timeline is unused on POS cards — skip building it on list/sync hot paths.
+        $payload['timeline'] = [];
+        $payload['items'] = $order->items->map(fn (PosOrderItem $item) => [
+            'id' => (int) $item->id,
+            'product_id' => (int) $item->product_id,
+            'name' => $item->displayName(),
+            'item_name' => $item->item_name,
+            'is_custom' => (bool) $item->is_custom,
+            'qty' => fmt_num((float) $item->qty, 3),
+            'uom' => $item->uom,
+            'unit_price' => (float) $item->unit_price,
+            'tax_percent' => (float) $item->tax_percent,
+            'total' => (float) $item->total,
+            'notes' => trim((string) ($item->notes ?? '')),
+            'kitchen_served' => $item->isKitchenServed(),
+            'kitchen_pending' => (bool) $item->kitchen_pending,
+            'kitchen_printed' => $item->kitchen_printed_at !== null,
+            'kitchen_served_at' => $item->kitchen_served_at?->format('H:i'),
+        ])->values()->all();
+
+        return $payload;
     }
 
     private function orderIsSplitBill(PosOrder $order): bool

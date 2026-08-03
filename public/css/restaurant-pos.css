@@ -997,10 +997,19 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     text-decoration: none;
     color: inherit;
     flex: 1;
+    width: 100%;
+    text-align: left;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
 }
 .restaurant-pos-app .rp-order-card--pending-wrap .rp-order-card-link:hover {
     color: inherit;
     opacity: .92;
+}
+.restaurant-pos-app .rp-order-card--pending-wrap .rp-order-card-link:disabled {
+    opacity: 0.65;
+    cursor: wait;
 }
 .restaurant-pos-app .rp-oc-move-wrap {
     padding: 0 0.7rem 0.65rem;
