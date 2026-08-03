@@ -2822,7 +2822,7 @@
         }
 
         applyPendingOrderToCheckout(order);
-        showMenuView();
+        showMenuPanel();
         setPanelView('split');
         renderAll();
     }
