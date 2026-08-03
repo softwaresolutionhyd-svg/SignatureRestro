@@ -1291,6 +1291,8 @@ class PosController extends Controller
             $msg = __('Order pehle se paid hai — duplicate bill nahi bani.');
 
             if ($wantsJson) {
+                $this->queueCashierBillPrint((int) $order->id);
+
                 return response()->json([
                     'success' => true,
                     'message' => $msg,
@@ -1299,6 +1301,7 @@ class PosController extends Controller
                     'order_no' => $order->order_no,
                     'order' => $this->paidOrderPayloadForJson($order),
                     'table_board' => $this->orderTaker->tableBoard(),
+                    'cashier_print_queued' => true,
                     'receipt_url' => $openReceipt ? route('restaurant-pos.receipt', $order) : null,
                     'redirect_url' => $openReceipt
                         ? route('restaurant-pos.receipt', $order)
@@ -1559,6 +1562,8 @@ class PosController extends Controller
             : ($isCredit ? 'Credit sale recorded successfully.' : 'Order paid successfully.');
 
         if ($wantsJson) {
+            $this->queueCashierBillPrint((int) $order->id);
+
             return response()->json([
                 'success' => true,
                 'message' => $msg,
@@ -1567,6 +1572,7 @@ class PosController extends Controller
                 'order_no' => $order->order_no,
                 'order' => $this->paidOrderPayloadForJson($order),
                 'table_board' => $this->orderTaker->tableBoard(),
+                'cashier_print_queued' => true,
                 'receipt_url' => $openReceipt ? route('restaurant-pos.receipt', $order) : null,
                 'redirect_url' => $openReceipt
                     ? route('restaurant-pos.receipt', $order)
@@ -2427,12 +2433,17 @@ class PosController extends Controller
         }
 
         $order->load(['items.product:id,name,sku', 'user:id,name', 'table:id,name', 'payments', 'contact:id,name,phone']);
-        $settings = $this->receiptSettingsMap();
+        $settings = $this->receiptSettingsMap(forThermal: true);
         $printer = app(NetworkPrinterService::class);
         $payload = $printer->buildBillSlip($order, $settings);
 
         try {
-            $printer->send($ip, (int) (Setting::get('cashier_printer_port', 9100) ?: 9100), $payload);
+            $printer->send(
+                $ip,
+                (int) (Setting::get('cashier_printer_port', 9100) ?: 9100),
+                $payload,
+                2
+            );
         } catch (\Throwable $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 500);
         }
@@ -2472,12 +2483,17 @@ class PosController extends Controller
             ], 422);
         }
 
-        $settings = $this->receiptSettingsMap();
+        $settings = $this->receiptSettingsMap(forThermal: true);
         $printer = app(NetworkPrinterService::class);
         $payload = $printer->buildBillSlip($order, $settings, 'quotation');
 
         try {
-            $printer->send($ip, (int) (Setting::get('cashier_printer_port', 9100) ?: 9100), $payload);
+            $printer->send(
+                $ip,
+                (int) (Setting::get('cashier_printer_port', 9100) ?: 9100),
+                $payload,
+                2
+            );
         } catch (\Throwable $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 500);
         }
@@ -2667,8 +2683,17 @@ class PosController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function receiptSettingsMap(): array
+    private function receiptSettingsMap(bool $forThermal = false): array
     {
+        $companyId = function_exists('current_company_id') ? (current_company_id() ?? 0) : 0;
+        $cacheKey = 'pos:receipt_settings:'.($forThermal ? 'thermal' : 'full').':c'.$companyId;
+
+        /** @var array<string, mixed>|null $cached */
+        $cached = \Illuminate\Support\Facades\Cache::get($cacheKey);
+        if (is_array($cached)) {
+            return $cached;
+        }
+
         $settings = array_merge([
             'company_name' => config('app.name'),
             'company_address' => '',
@@ -2682,17 +2707,57 @@ class PosController extends Controller
 
         $companyName = trim((string) ($settings['company_name'] ?? ''));
         $fixedCompanyName = preg_replace('/\bRESRO\b/iu', 'RESTRO', $companyName) ?? $companyName;
-        if ($fixedCompanyName !== '' && $fixedCompanyName !== $companyName) {
-            Setting::set('company_name', $fixedCompanyName);
+        if ($fixedCompanyName !== '') {
             $settings['company_name'] = $fixedCompanyName;
         }
 
         $logoPath = (string) ($settings['company_logo'] ?? '');
-        $settings['company_logo_url'] = company_logo_url($logoPath) ?? '';
-        $settings['company_logo_data_uri'] = company_logo_data_uri($logoPath) ?? '';
         $settings['company_logo_abs_path'] = company_logo_path($logoPath) ?? '';
+        // Browser receipt needs URL / data-uri; thermal ESC/POS only needs abs path.
+        if (! $forThermal) {
+            $settings['company_logo_url'] = company_logo_url($logoPath) ?? '';
+            $settings['company_logo_data_uri'] = company_logo_data_uri($logoPath) ?? '';
+        } else {
+            $settings['company_logo_url'] = '';
+            $settings['company_logo_data_uri'] = '';
+        }
+
+        \Illuminate\Support\Facades\Cache::put($cacheKey, $settings, now()->addMinutes(10));
 
         return $settings;
+    }
+
+    /** Print paid bill to cashier printer after HTTP response (UI does not wait). */
+    private function queueCashierBillPrint(int $orderId): void
+    {
+        if ($orderId <= 0) {
+            return;
+        }
+
+        $ip = trim((string) Setting::get('cashier_printer_ip', ''));
+        if ($ip === '') {
+            return;
+        }
+
+        $port = (int) (Setting::get('cashier_printer_port', 9100) ?: 9100);
+        $settings = $this->receiptSettingsMap(forThermal: true);
+
+        dispatch(function () use ($orderId, $ip, $port, $settings) {
+            try {
+                $order = PosOrder::query()
+                    ->with(['items.product:id,name,sku', 'user:id,name', 'table:id,name', 'payments', 'contact:id,name,phone'])
+                    ->find($orderId);
+                if ($order === null || $order->status !== 'paid') {
+                    return;
+                }
+
+                $printer = app(NetworkPrinterService::class);
+                $payload = $printer->buildBillSlip($order, $settings);
+                $printer->send($ip, $port, $payload, 2);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        })->afterResponse();
     }
 
     private function openPosSessionForUser(User $user): ?PosSession

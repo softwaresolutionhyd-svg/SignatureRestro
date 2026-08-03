@@ -2361,17 +2361,10 @@
                 throw new Error(errMsg);
             }
 
-            const networkPrinted = !skipPrint && data.order_id && await tryCashierNetworkPrint(data.order_id);
-
+            // UI pehle update — thermal print wait mat karo (server queue / background).
             applyCheckoutSuccess(data);
-
-            if (!skipPrint && data.receipt_url) {
-                const qs = networkPrinted ? 'noprint=1' : 'autoprint=1';
-                window.open(
-                    data.receipt_url + (data.receipt_url.includes('?') ? '&' : '?') + qs,
-                    '_blank',
-                    'noopener,noreferrer'
-                );
+            if (!skipPrint) {
+                queuePaidBillPrint(data);
             }
 
             return true;
@@ -2936,6 +2929,8 @@
         const url = (routes.cashierPrint || '').replace('__ID__', String(orderId));
         if (!url || !csrf) return false;
         try {
+            const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const timer = ctrl ? window.setTimeout(() => ctrl.abort(), 4500) : null;
             const res = await fetch(url, {
                 method: 'POST',
                 headers: {
@@ -2943,7 +2938,9 @@
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-CSRF-TOKEN': csrf,
                 },
+                signal: ctrl?.signal,
             });
+            if (timer) window.clearTimeout(timer);
             const data = await res.json().catch(() => ({}));
             if (res.ok && data.ok) return true;
             if (!data.fallback && data.message) alert(data.message);
@@ -2951,6 +2948,41 @@
         } catch (e) {
             return false;
         }
+    }
+
+    /** Paid bill: server pehle queue kar chuka ho to dubara wait mat karo. */
+    function queuePaidBillPrint(data) {
+        if (!data) return;
+        if (data.cashier_print_queued) {
+            if (data.receipt_url) {
+                window.open(
+                    data.receipt_url + (data.receipt_url.includes('?') ? '&' : '?') + 'noprint=1',
+                    '_blank',
+                    'noopener,noreferrer'
+                );
+            }
+            return;
+        }
+        const orderId = data.order_id;
+        if (!orderId) {
+            if (data.receipt_url) {
+                window.open(
+                    data.receipt_url + (data.receipt_url.includes('?') ? '&' : '?') + 'autoprint=1',
+                    '_blank',
+                    'noopener,noreferrer'
+                );
+            }
+            return;
+        }
+        tryCashierNetworkPrint(orderId).then((ok) => {
+            if (!data.receipt_url) return;
+            const qs = ok ? 'noprint=1' : 'autoprint=1';
+            window.open(
+                data.receipt_url + (data.receipt_url.includes('?') ? '&' : '?') + qs,
+                '_blank',
+                'noopener,noreferrer'
+            );
+        });
     }
 
     function splitBillMode() {
@@ -3354,7 +3386,8 @@
 
     async function ensureHeldOrderForPrint() {
         if (resumeOrderId) {
-            await saveResumedDraftChanges();
+            // Quick save so unpaid slip latest cart dikhaye — kitchen print flags skip nahi.
+            await saveResumedDraftChanges(false);
             return resumeOrderId;
         }
 

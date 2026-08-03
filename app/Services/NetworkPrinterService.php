@@ -928,14 +928,22 @@ final class NetworkPrinterService
 
         $out .= self::ALIGN_LEFT . "\n" . $this->rule();
 
-        // Prominent table (same idea as POS cards) — then bill meta
+        // Prominent table / contact banner — then bill meta
         $tableBanner = '';
         if ($order->table?->name) {
             $tableBanner = 'TABLE '.trim((string) $order->table->name);
         } else {
             $where = $this->orderLocation($order);
             if ($where !== '') {
-                $tableBanner = preg_match('/^(table|room)\b/i', $where) ? strtoupper($where) : 'TABLE '.$where;
+                $isPhone = in_array($order->serviceTypeKey(), [
+                    PosOrder::SERVICE_DELIVERY,
+                    PosOrder::SERVICE_TAKEAWAY,
+                ], true);
+                if ($isPhone) {
+                    $tableBanner = $where;
+                } else {
+                    $tableBanner = preg_match('/^(table|room)\b/i', $where) ? strtoupper($where) : 'TABLE '.$where;
+                }
             }
         }
         if ($tableBanner !== '') {
@@ -1074,13 +1082,31 @@ final class NetworkPrinterService
 
     /**
      * Convert a PNG/JPG logo into ESC/POS raster bytes (GS v 0).
-     * Returns null when GD is unavailable or the file cannot be read.
+     * Cached by path + mtime so paid bills don't re-encode the logo every print.
      */
     private function escposLogoRaster(?string $absolutePath, int $maxWidthDots = 384): ?string
     {
         if ($absolutePath === null || $absolutePath === '' || ! is_file($absolutePath)) {
             return null;
         }
+
+        $mtime = @filemtime($absolutePath) ?: 0;
+        $cacheKey = 'escpos_logo:'.md5($absolutePath.'|'.$mtime.'|'.$maxWidthDots);
+        $cached = \Illuminate\Support\Facades\Cache::get($cacheKey);
+        if (is_string($cached) && $cached !== '') {
+            return $cached;
+        }
+
+        $bytes = $this->buildEscposLogoRaster($absolutePath, $maxWidthDots);
+        if ($bytes !== null) {
+            \Illuminate\Support\Facades\Cache::put($cacheKey, $bytes, now()->addHours(12));
+        }
+
+        return $bytes;
+    }
+
+    private function buildEscposLogoRaster(string $absolutePath, int $maxWidthDots = 384): ?string
+    {
         if (! function_exists('imagecreatefromstring') || ! function_exists('imagecreatetruecolor')) {
             return null;
         }
@@ -1110,6 +1136,15 @@ final class NetworkPrinterService
             $dstW = 8;
         }
         $dstH = (int) max(1, round($srcH * ($dstW / $srcW)));
+        // Cap height so huge logos don't stall TCP write / printer buffer.
+        if ($dstH > 180) {
+            $scale = 180 / $dstH;
+            $dstH = 180;
+            $dstW = (int) (floor(($dstW * $scale) / 8) * 8);
+            if ($dstW < 8) {
+                $dstW = 8;
+            }
+        }
 
         $dst = imagecreatetruecolor($dstW, $dstH);
         if ($dst === false) {
@@ -1152,7 +1187,7 @@ final class NetworkPrinterService
         $yL = $dstH & 0xFF;
         $yH = ($dstH >> 8) & 0xFF;
 
-        return "\x1D\x76\x30\x00" . chr($xL) . chr($xH) . chr($yL) . chr($yH) . $bitmap;
+        return "\x1D\x76\x30\x00".chr($xL).chr($xH).chr($yL).chr($yH).$bitmap;
     }
 
     private function orderLocation(PosOrder $order): string
