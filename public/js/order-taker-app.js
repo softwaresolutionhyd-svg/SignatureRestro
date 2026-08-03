@@ -598,14 +598,362 @@
     }
 
     function startEditOrder(orderId, tableId, tableName) {
-        if (Number(boot.resumeOrderId) === Number(orderId)) {
+        if (Number(boot.resumeOrderId) === Number(orderId) && Array.isArray(boot.resumeItems) && boot.resumeItems.length) {
             selectedTableId = tableId || boot.resumeTableId;
             selectedTableName = tableName || boot.resumeTableName || resolveTableName(selectedTableId);
             loadResumeCart();
             showOrderScreen();
             return;
         }
-        window.location.href = `${routes.index}?order_id=${orderId}`;
+        openOrderFast(orderId, tableId, tableName);
+    }
+
+    async function openOrderFast(orderId, tableId, tableName) {
+        const url = (routes.orderData || '').replace('__ID__', String(orderId));
+        if (!url) {
+            window.location.href = `${routes.index}?order_id=${orderId}`;
+            return;
+        }
+        try {
+            const res = await fetch(url, {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.ok || !data.order) {
+                window.location.href = `${routes.index}?order_id=${orderId}`;
+                return;
+            }
+            const o = data.order;
+            editOrderId = o.id;
+            pendingMode = true;
+            boot.resumeOrderId = o.id;
+            boot.resumeOrderNo = o.order_no;
+            boot.resumeTableId = o.table_id;
+            boot.resumeTableName = o.table_name || tableName || null;
+            boot.resumeServiceType = o.service_type || 'dine_in';
+            boot.resumeGuestName = o.guest_name || '';
+            boot.resumeRoomNo = o.room_no || '';
+            boot.resumeOrderNotes = o.order_notes || '';
+            boot.resumeKitchenNotes = o.kitchen_notes || '';
+            boot.resumeItems = o.items || [];
+            selectedTableId = o.table_id || tableId || null;
+            selectedTableName = o.table_name || tableName || resolveTableName(selectedTableId);
+            loadResumeCart();
+            showOrderScreen();
+            window.history.replaceState({}, '', `${routes.index}?order_id=${o.id}`);
+        } catch (e) {
+            window.location.href = `${routes.index}?order_id=${orderId}`;
+        }
+    }
+
+    function areaKeyForTable(t) {
+        if (t.sitting_area_id != null) return String(t.sitting_area_id);
+        return t.sitting_area_name ? `name:${t.sitting_area_name}` : 'none';
+    }
+
+    function renderTableBoardFromData(board, groups) {
+        const grid = $('#otTableGrid');
+        if (!grid) return;
+        boot.tableBoard = Array.isArray(board) ? board : (boot.tableBoard || []);
+
+        let areas = Array.isArray(groups) && groups.length
+            ? groups
+            : null;
+        if (!areas) {
+            const map = {};
+            (boot.tableBoard || []).forEach((t) => {
+                const key = areaKeyForTable(t);
+                if (!map[key]) {
+                    map[key] = {
+                        id: t.sitting_area_id ?? null,
+                        name: t.sitting_area_name || 'Other',
+                        tables: [],
+                    };
+                }
+                map[key].tables.push(t);
+            });
+            areas = Object.values(map);
+        }
+
+        const activeKey = $('#otAreaFilters .ot-area-filter-btn.is-active')?.dataset.areaKey || 'all';
+        const filters = $('#otAreaFilters');
+        if (filters && areas.length > 1) {
+            filters.innerHTML = [
+                `<button type="button" class="ot-area-filter-btn${activeKey === 'all' ? ' is-active' : ''}" data-area-key="all" role="tab" aria-selected="${activeKey === 'all' ? 'true' : 'false'}">All</button>`,
+                ...areas.map((area) => {
+                    const key = area.id != null ? String(area.id) : `name:${area.name}`;
+                    const selected = activeKey === key;
+                    return `<button type="button" class="ot-area-filter-btn${selected ? ' is-active' : ''}" data-area-key="${escHtml(key)}" role="tab" aria-selected="${selected ? 'true' : 'false'}">${escHtml(area.name)}</button>`;
+                }),
+            ].join('');
+        }
+
+        grid.innerHTML = areas.map((area) => {
+            const key = area.id != null ? String(area.id) : `name:${area.name}`;
+            const hide = activeKey !== 'all' && activeKey !== key;
+            const tables = area.tables || [];
+            return `<section class="ot-sitting-area${hide ? ' d-none' : ''}" data-area-key="${escHtml(key)}">
+                <h3 class="ot-sitting-area-title">${escHtml(area.name)}</h3>
+                <div class="ot-table-grid">
+                    ${tables.map((t) => {
+                        const occupied = t.status === 'occupied';
+                        return `<button type="button"
+                                class="ot-table-box ot-table-box--${escHtml(t.status)}"
+                                data-table-id="${t.id}"
+                                data-table-name="${escHtml(t.name)}"
+                                data-status="${escHtml(t.status)}"
+                                data-order-id="${t.order_id || ''}"
+                                data-amendable="${t.amendable ? '1' : '0'}">
+                            <span class="ot-table-shape" aria-hidden="true">
+                                <span class="ot-chair ot-chair--n"></span>
+                                <span class="ot-chair ot-chair--e"></span>
+                                <span class="ot-chair ot-chair--s"></span>
+                                <span class="ot-chair ot-chair--w"></span>
+                                <span class="ot-table-top">
+                                    <span class="ot-table-box-no">${escHtml(t.name)}</span>
+                                </span>
+                            </span>
+                            ${occupied
+                                ? `<span class="ot-table-box-meta">${escHtml(t.order_no || '')}</span>
+                                   <span class="ot-table-box-meta">${Number(t.items_count || 0)} items</span>
+                                   ${t.occupied_at ? `<span class="ot-table-box-meta ot-table-timer" data-occupied-at="${escHtml(t.occupied_at)}" title="Order punch ke baad ka time">00:00</span>` : ''}`
+                                : `<span class="ot-table-box-meta ot-table-box-meta--free">Available</span>`}
+                        </button>`;
+                    }).join('')}
+                </div>
+            </section>`;
+        }).join('');
+
+        tickOccupiedTimers();
+    }
+
+    function renderPendingOrdersFromData(orders) {
+        const grid = $('#otPendingOrdersGrid');
+        if (!grid) return;
+        boot.allOrders = Array.isArray(orders) ? orders : [];
+        const count = boot.allOrders.length;
+        const countEl = $('#otPendingCount');
+        if (countEl) countEl.textContent = String(count);
+        const headCount = document.querySelector('#otBoardPanelPending .rp-bills-head-count');
+        if (headCount) headCount.textContent = `${count} bill${count === 1 ? '' : 's'}`;
+
+        if (!count) {
+            grid.innerHTML = `<div class="rp-bills-empty"><i class="bi bi-inbox"></i><span>Koi pending order nahi.</span></div>`;
+            return;
+        }
+
+        const currency = boot.currency || 'Rs.';
+        grid.innerHTML = boot.allOrders.map((mo) => {
+            const canOpen = !!mo.amendable;
+            const canMove = mo.service_type === 'dine_in' && mo.table_id;
+            return `<div class="rp-order-card rp-order-card--grid rp-order-card--pending-wrap${canOpen ? '' : ' opacity-75'}"
+                     data-order-id="${mo.id}"
+                     data-order-no="${escHtml(mo.order_no)}"
+                     data-service-type="${escHtml(mo.service_type || '')}"
+                     data-table-id="${mo.table_id || ''}"
+                     data-amendable="${canOpen ? '1' : '0'}">
+                <button type="button"
+                        class="rp-order-card-link text-start bg-transparent border-0 w-100"
+                        data-action="open-order"
+                        data-order-id="${mo.id}"
+                        data-amendable="${canOpen ? '1' : '0'}"
+                        ${canOpen ? '' : 'disabled'}>
+                    ${mo.table_name ? `<div class="rp-oc-table">Table ${escHtml(mo.table_name)}</div>` : ''}
+                    <div class="rp-oc-no">
+                        ${escHtml(mo.order_no)}
+                        ${mo.is_split ? `<span class="rp-oc-split-icon" title="Split bill"><i class="bi bi-scissors" aria-hidden="true"></i></span>` : ''}
+                    </div>
+                    <div class="rp-oc-meta">${escHtml(mo.service_label || 'Order')}</div>
+                    <div class="rp-oc-by">by: ${escHtml(mo.punched_by || '—')}</div>
+                    <div class="rp-oc-meta">${escHtml(currency)}${Math.round(Number(mo.grand_total || 0))} · ${Number(mo.items_count || 0)} items</div>
+                    <div class="rp-oc-meta">${escHtml(mo.punched_at || '')}</div>
+                    <div class="rp-oc-open">Open order <i class="bi bi-arrow-right-short"></i></div>
+                </button>
+                ${canMove ? `<div class="rp-oc-move-wrap">
+                    <button type="button" class="btn btn-sm rp-oc-move-table"
+                        data-action="move-table"
+                        data-order-id="${mo.id}"
+                        data-order-no="${escHtml(mo.order_no)}"
+                        data-table-id="${mo.table_id}">
+                        <i class="bi bi-arrow-left-right"></i> Move Table
+                    </button>
+                </div>` : ''}
+            </div>`;
+        }).join('');
+    }
+
+    function applyBoardPayload(data) {
+        if (!data) return;
+        if (data.table_board) {
+            renderTableBoardFromData(data.table_board, data.table_board_groups);
+        }
+        if (data.all_orders) {
+            renderPendingOrdersFromData(data.all_orders);
+        }
+    }
+
+    async function submitOrder() {
+        if (!cart.length) {
+            alert('Kam az kam aik item add karein.');
+            return;
+        }
+
+        const serviceType = pendingMode ? (boot.resumeServiceType || 'dine_in') : selectedServiceType();
+
+        if (!pendingMode) {
+            if (serviceType === 'dine_in') {
+                if (posTablesEnabled) {
+                    if (!selectedTableId) {
+                        alert('Table select karein.');
+                        showTableBoard();
+                        return;
+                    }
+                } else if (!($('#otTableNo')?.value || '').trim()) {
+                    alert('Table No. enter karein.');
+                    $('#otTableNo')?.focus();
+                    return;
+                }
+            } else if (serviceType === 'delivery') {
+                if (!($('#otDeliveryName')?.value || '').trim()) {
+                    alert('Customer name likhein.');
+                    $('#otDeliveryName')?.focus();
+                    return;
+                }
+                if (!($('#otDeliveryPhone')?.value || '').trim()) {
+                    alert('Phone number likhein.');
+                    $('#otDeliveryPhone')?.focus();
+                    return;
+                }
+            } else if (serviceType === 'takeaway') {
+                if (!($('#otTakeawayContact')?.value || '').trim()) {
+                    alert('Contact No. likhein.');
+                    $('#otTakeawayContact')?.focus();
+                    return;
+                }
+            }
+        }
+
+        syncItemNotesFromDom();
+
+        const itemsPayload = cart.map((r) => ({
+            product_id: r.product_id,
+            uom: r.uom,
+            qty: Number(r.qty),
+            notes: r.notes || '',
+        }));
+
+        let guestName = '';
+        let roomNo = '';
+        let orderNotes = '';
+        let tableId = '';
+
+        if (pendingMode) {
+            guestName = boot.resumeGuestName || '';
+            roomNo = boot.resumeRoomNo || '';
+            orderNotes = boot.resumeOrderNotes || '';
+            tableId = boot.resumeTableId ? String(boot.resumeTableId) : '';
+        } else if (serviceType === 'dine_in') {
+            tableId = selectedTableId ? String(selectedTableId) : '';
+            if (!posTablesEnabled) {
+                guestName = ($('#otTableNo')?.value || '').trim();
+            }
+        } else if (serviceType === 'delivery') {
+            guestName = ($('#otDeliveryName')?.value || '').trim();
+            roomNo = ($('#otDeliveryPhone')?.value || '').trim();
+            orderNotes = ($('#otDeliveryAddress')?.value || '').trim();
+        } else if (serviceType === 'takeaway') {
+            const contact = ($('#otTakeawayContact')?.value || '').trim();
+            guestName = contact;
+            roomNo = contact;
+        }
+
+        const kitchenNotes = ($('#otBillKitchenNotes')?.value || '').trim();
+        const payload = {
+            customer_type: 'mess_use',
+            service_type: serviceType,
+            guest_name: guestName,
+            room_no: roomNo,
+            order_notes: orderNotes,
+            table_id: tableId || null,
+            kitchen_notes: kitchenNotes,
+            items: itemsPayload,
+        };
+
+        let url = routes.store;
+        let method = 'POST';
+        if (pendingMode && editOrderId) {
+            url = (routes.update || '').replace('__ID__', String(editOrderId));
+            method = 'PUT';
+        }
+
+        const sendBtn = $('#otSendBtn');
+        const confirmBtn = $('#otConfirmBillSubmit');
+        if (sendBtn) sendBtn.disabled = true;
+        if (confirmBtn) confirmBtn.disabled = true;
+
+        try {
+            const body = new URLSearchParams();
+            Object.entries(payload).forEach(([k, v]) => {
+                if (k === 'items') {
+                    body.set('items', JSON.stringify(v));
+                } else if (v !== null && v !== undefined) {
+                    body.set(k, String(v));
+                }
+            });
+            if (method === 'PUT') {
+                body.set('_method', 'PUT');
+            }
+            body.set('_token', boot.csrf || '');
+
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': boot.csrf || '',
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                },
+                body: body.toString(),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || data.ok === false) {
+                const msg = data.message
+                    || (data.errors && Object.values(data.errors).flat()[0])
+                    || 'Order save fail ho gayi.';
+                alert(msg);
+                return;
+            }
+
+            applyBoardPayload(data);
+            editOrderId = null;
+            pendingMode = false;
+            cart = [];
+            boot.resumeOrderId = null;
+            boot.resumeItems = [];
+            showTableBoard();
+            if (data.message) {
+                // Soft toast via alert would block — brief flash on board
+                const board = $('#otTableBoard');
+                if (board) {
+                    let flash = board.querySelector('.ot-ajax-flash');
+                    if (!flash) {
+                        flash = document.createElement('div');
+                        flash.className = 'alert alert-success py-2 mx-3 mt-2 mb-0 ot-ajax-flash';
+                        board.insertBefore(flash, board.children[1] || null);
+                    }
+                    flash.textContent = data.message;
+                    setTimeout(() => flash.remove(), 3500);
+                }
+            }
+        } catch (err) {
+            alert('Network error — order save nahi hui. Dubara try karein.');
+        } finally {
+            if (sendBtn) sendBtn.disabled = false;
+            if (confirmBtn) confirmBtn.disabled = false;
+        }
     }
 
     function renderMoveTableModal(currentTableId) {
@@ -704,110 +1052,16 @@
                 msg += '\nFail: ' + printedFail.join(', ');
             }
             alert(msg);
-            window.location.reload();
+            applyBoardPayload(data);
+            const modalEl = $('#otMoveTableModal');
+            if (modalEl && window.bootstrap?.Modal) {
+                window.bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+            }
+            moveTableOrderId = null;
         } catch (err) {
             alert('Table move request fail ho gayi.');
             body?.querySelectorAll('.ot-mt-pick').forEach((b) => { if (!b.dataset.locked) b.disabled = false; });
         }
-    }
-
-    function submitOrder() {
-        if (!cart.length) {
-            alert('Kam az kam aik item add karein.');
-            return;
-        }
-
-        const serviceType = pendingMode ? (boot.resumeServiceType || 'dine_in') : selectedServiceType();
-
-        if (!pendingMode) {
-            if (serviceType === 'dine_in') {
-                if (posTablesEnabled) {
-                    if (!selectedTableId) {
-                        alert('Table select karein.');
-                        showTableBoard();
-                        return;
-                    }
-                } else if (!($('#otTableNo')?.value || '').trim()) {
-                    alert('Table No. enter karein.');
-                    $('#otTableNo')?.focus();
-                    return;
-                }
-            } else if (serviceType === 'delivery') {
-                if (!($('#otDeliveryName')?.value || '').trim()) {
-                    alert('Customer name likhein.');
-                    $('#otDeliveryName')?.focus();
-                    return;
-                }
-                if (!($('#otDeliveryPhone')?.value || '').trim()) {
-                    alert('Phone number likhein.');
-                    $('#otDeliveryPhone')?.focus();
-                    return;
-                }
-            } else if (serviceType === 'takeaway') {
-                if (!($('#otTakeawayContact')?.value || '').trim()) {
-                    alert('Contact No. likhein.');
-                    $('#otTakeawayContact')?.focus();
-                    return;
-                }
-            }
-        }
-
-        const form = $('#otSubmitForm');
-        if (!form) return;
-
-        syncItemNotesFromDom();
-
-        const itemsPayload = cart.map((r) => ({
-            product_id: r.product_id,
-            uom: r.uom,
-            qty: Number(r.qty),
-            notes: r.notes || '',
-        }));
-
-        let guestName = '';
-        let roomNo = '';
-        let orderNotes = '';
-        let tableId = '';
-
-        if (pendingMode) {
-            guestName = boot.resumeGuestName || '';
-            roomNo = boot.resumeRoomNo || '';
-            orderNotes = boot.resumeOrderNotes || '';
-            tableId = boot.resumeTableId ? String(boot.resumeTableId) : '';
-        } else if (serviceType === 'dine_in') {
-            tableId = selectedTableId ? String(selectedTableId) : '';
-            if (!posTablesEnabled) {
-                guestName = ($('#otTableNo')?.value || '').trim();
-            }
-        } else if (serviceType === 'delivery') {
-            guestName = ($('#otDeliveryName')?.value || '').trim();
-            roomNo = ($('#otDeliveryPhone')?.value || '').trim();
-            orderNotes = ($('#otDeliveryAddress')?.value || '').trim();
-        } else if (serviceType === 'takeaway') {
-            const contact = ($('#otTakeawayContact')?.value || '').trim();
-            guestName = contact;
-            roomNo = contact;
-        }
-
-        $('#otFormServiceType').value = serviceType;
-        $('#otFormGuestName').value = guestName;
-        $('#otFormRoomNo').value = roomNo;
-        $('#otFormOrderNotes').value = orderNotes;
-        $('#otFormTableId').value = tableId;
-        $('#otFormItems').value = JSON.stringify(itemsPayload);
-        const kitchenNotes = ($('#otBillKitchenNotes')?.value || '').trim();
-        const kitchenInput = $('#otFormKitchenNotes');
-        if (kitchenInput) kitchenInput.value = kitchenNotes;
-
-        if (pendingMode && editOrderId) {
-            form.action = (routes.update || '').replace('__ID__', String(editOrderId));
-            $('#otFormMethod').value = 'PUT';
-        } else {
-            form.action = routes.store || form.action;
-            $('#otFormMethod').value = 'POST';
-        }
-
-        form.submit();
     }
 
     function buildConfirmBillMeta() {

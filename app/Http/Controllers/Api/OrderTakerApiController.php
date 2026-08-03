@@ -22,15 +22,21 @@ class OrderTakerApiController extends Controller
 
     public function bootstrap(): JsonResponse
     {
-        $products = InventoryProduct::query()
-            ->where('active', true)
-            ->where(function ($q) {
-                $q->where('for_pos', true)->orWhere('for_purchase', true);
-            })
-            ->orderBy('name')
-            ->with(['uomConversions' => fn ($q) => $q->where('active', true)])
-            ->get(['id', 'sku', 'name', 'uom', 'price', 'for_pos', 'for_purchase']);
-
+        $companyId = function_exists('current_company_id') ? (current_company_id() ?? 0) : 0;
+        $products = \Illuminate\Support\Facades\Cache::remember(
+            'order_taker:api_products:c'.$companyId,
+            now()->addMinutes(15),
+            function () {
+                return InventoryProduct::query()
+                    ->where('active', true)
+                    ->where(function ($q) {
+                        $q->where('for_pos', true)->orWhere('for_purchase', true);
+                    })
+                    ->orderBy('name')
+                    ->with(['uomConversions' => fn ($q) => $q->where('active', true)])
+                    ->get(['id', 'sku', 'name', 'uom', 'price', 'for_pos', 'for_purchase']);
+            }
+        );
         $tablesEnabled = (string) Setting::get('pos_enable_tables', '1') !== '0';
         $tables = $tablesEnabled
             ? PosTable::query()->where('active', true)->orderBy('name')->get(['id', 'name'])

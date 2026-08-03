@@ -11,8 +11,8 @@ return [
     |
     */
 
-    'server_ip' => env('LAN_SERVER_IP', '192.168.3.50'),
+    'server_ip' => env('LAN_SERVER_IP', '192.168.1.105'),
 
-    'server_url' => rtrim((string) env('LAN_SERVER_URL', 'http://192.168.3.50'), '/'),
+    'server_url' => rtrim((string) env('LAN_SERVER_URL', 'http://192.168.1.105:8080'), '/'),
 
 ];

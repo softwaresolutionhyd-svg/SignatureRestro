@@ -18,9 +18,10 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _baseUrlCtrl = TextEditingController(text: kDefaultServerUrl);
-  final _emailCtrl = TextEditingController();
+  final _loginCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _busy = false;
+  bool _discovering = false;
   String? _error;
   bool _obscure = true;
 
@@ -31,37 +32,51 @@ class _LoginScreenState extends State<LoginScreen> {
       final session = context.read<Session>();
       if (session.baseUrl.isNotEmpty) {
         _baseUrlCtrl.text = session.baseUrl;
-        return;
       }
-      await _discoverServerUrl();
+      await _discoverServerUrl(preferSaved: session.baseUrl);
     });
   }
 
-  Future<void> _discoverServerUrl() async {
-    for (final tryUrl in [kDefaultServerUrl]) {
-      try {
-        final uri = Uri.parse('$tryUrl/api/server-config');
-        final res = await http
-            .get(uri, headers: {'Accept': 'application/json'})
-            .timeout(const Duration(seconds: 4));
-        if (res.statusCode != 200) continue;
-        final data = jsonDecode(res.body);
-        if (data is! Map<String, dynamic>) continue;
-        final url = (data['server_url'] as String?)?.trim();
-        if (url != null && url.isNotEmpty && mounted) {
-          setState(() => _baseUrlCtrl.text = url);
+  Future<void> _discoverServerUrl({String? preferSaved}) async {
+    if (!mounted) return;
+    setState(() => _discovering = true);
+    final client = createLanHttpClient();
+    try {
+      for (final tryUrl in kServerUrlCandidates(saved: preferSaved)) {
+        try {
+          final uri = Uri.parse('$tryUrl/api/server-config');
+          final res = await client
+              .get(uri, headers: {'Accept': 'application/json'})
+              .timeout(const Duration(seconds: 3));
+          if (res.statusCode != 200) continue;
+          final data = jsonDecode(res.body);
+          if (data is! Map<String, dynamic>) continue;
+          // Confirm it's Signature (not Softwaresolution HTML/JSON)
+          final hasOt = data.containsKey('order_taker_app') || data.containsKey('server_url');
+          if (!hasOt) continue;
+          final url = (data['server_url'] as String?)?.trim();
+          if (url != null && url.isNotEmpty && mounted) {
+            setState(() => _baseUrlCtrl.text = url.replaceAll(RegExp(r'/+$'), ''));
+            return;
+          }
+          if (mounted) {
+            setState(() => _baseUrlCtrl.text = tryUrl);
+          }
+          return;
+        } catch (_) {
+          // try next
         }
-        return;
-      } catch (_) {
-        // try next / keep default
       }
+    } finally {
+      client.close();
+      if (mounted) setState(() => _discovering = false);
     }
   }
 
   @override
   void dispose() {
     _baseUrlCtrl.dispose();
-    _emailCtrl.dispose();
+    _loginCtrl.dispose();
     _passwordCtrl.dispose();
     super.dispose();
   }
@@ -76,13 +91,19 @@ class _LoginScreenState extends State<LoginScreen> {
       final session = context.read<Session>();
       final baseUrl = _baseUrlCtrl.text.trim().replaceAll(RegExp(r'/+$'), '');
       if (baseUrl.isEmpty) {
-        throw ApiException('Server URL likhein');
+        throw ApiException('Server URL likhein (e.g. http://192.168.1.105:8080)');
       }
       await session.saveBaseUrl(baseUrl);
 
+      final login = _loginCtrl.text.trim();
+      if (login.isEmpty) {
+        throw ApiException('Username likhein');
+      }
+
       final client = ApiClient(baseUrl: baseUrl, token: '');
       final res = await client.post('/api/login', {
-        'email': _emailCtrl.text.trim(),
+        'login': login,
+        'email': login, // backward compatible
         'password': _passwordCtrl.text,
       });
 
@@ -90,7 +111,7 @@ class _LoginScreenState extends State<LoginScreen> {
       await session.login(
         token: res['token']?.toString() ?? '',
         name: user['name']?.toString() ?? '',
-        email: user['email']?.toString() ?? '',
+        email: user['email']?.toString() ?? login,
       );
 
       if (!mounted) return;
@@ -125,30 +146,46 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Server se login karein — same WiFi par hon.',
+                    'Same WiFi — Server URL mein Signature IP:port likhein.',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade700),
                   ),
                   const SizedBox(height: 28),
                   TextField(
                     controller: _baseUrlCtrl,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Server URL',
                       hintText: kDefaultServerUrl,
-                      prefixIcon: Icon(Icons.dns_outlined),
+                      prefixIcon: const Icon(Icons.dns_outlined),
+                      suffixIcon: _discovering
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            )
+                          : IconButton(
+                              tooltip: 'Auto-find server',
+                              icon: const Icon(Icons.refresh),
+                              onPressed: _busy ? null : () => _discoverServerUrl(preferSaved: _baseUrlCtrl.text),
+                            ),
                     ),
                     keyboardType: TextInputType.url,
                     textInputAction: TextInputAction.next,
                   ),
                   const SizedBox(height: 12),
                   TextField(
-                    controller: _emailCtrl,
+                    controller: _loginCtrl,
                     decoration: const InputDecoration(
-                      labelText: 'Email',
-                      prefixIcon: Icon(Icons.email_outlined),
+                      labelText: 'Username',
+                      hintText: 'ordertaker / admin',
+                      prefixIcon: Icon(Icons.person_outline),
                     ),
-                    keyboardType: TextInputType.emailAddress,
+                    keyboardType: TextInputType.text,
                     textInputAction: TextInputAction.next,
+                    autocorrect: false,
                   ),
                   const SizedBox(height: 12),
                   TextField(

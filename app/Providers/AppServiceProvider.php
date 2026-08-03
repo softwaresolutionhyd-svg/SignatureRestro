@@ -122,10 +122,37 @@ class AppServiceProvider extends ServiceProvider
 
     private function applyProductionSecurity(): void
     {
-        if ($this->app->environment('production')) {
-            URL::forceScheme('https');
-            $this->removeInstallerWhenLocked();
+        if (! $this->app->environment('production')) {
+            return;
         }
+
+        $this->removeInstallerWhenLocked();
+
+        // LAN / tablet HTTP pe force HTTPS mat karo — Order Taker IP app toot jati hai.
+        $this->app->booted(function () {
+            if ($this->app->runningInConsole()) {
+                return;
+            }
+
+            $request = $this->app->make('request');
+            if (! $request instanceof Request || ! $request->getHttpHost()) {
+                URL::forceScheme('https');
+
+                return;
+            }
+
+            if ($request->isSecure()) {
+                URL::forceScheme('https');
+
+                return;
+            }
+
+            if ($this->isLocalNetworkHost($request->getHost())) {
+                return;
+            }
+
+            URL::forceScheme('https');
+        });
     }
 
     private function removeInstallerWhenLocked(): void

@@ -4,11 +4,8 @@
 
 @push('head')
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=57">
-<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=24">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=64">
+<link rel="stylesheet" href="{{ asset('css/order-taker-pos.css') }}?v=25">
 @endpush
 
 @section('content')
@@ -478,6 +475,8 @@
             'store' => route('order-taker.store'),
             'update' => $updateStub,
             'index' => route('order-taker.index'),
+            'board' => route('order-taker.board'),
+            'orderData' => str_replace('999999999', '__ID__', route('order-taker.order-data', ['order' => 999999999])),
             'moveTable' => $moveTableStub,
         ],
     ];
@@ -485,5 +484,5 @@
 <script>
 window.ORDER_TAKER_BOOTSTRAP = @json($otBootstrap);
 </script>
-<script src="{{ asset('js/order-taker-app.js') }}?v=23"></script>
+<script src="{{ asset('js/order-taker-app.js') }}?v=24"></script>
 @endsection

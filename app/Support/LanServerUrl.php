@@ -68,6 +68,9 @@ class LanServerUrl
     {
         $ip = trim((string) self::setting('lan_server_ip', '', $companyId));
         if ($ip === '') {
+            $ip = trim((string) config('lan.server_ip', ''));
+        }
+        if ($ip === '') {
             return null;
         }
 
@@ -88,6 +91,13 @@ class LanServerUrl
             return self::parseInput($ipRaw)['port'];
         }
 
+        $cfgUrl = trim((string) config('lan.server_url', ''));
+        if ($cfgUrl !== '') {
+            $parsed = self::parseInput($cfgUrl);
+
+            return $parsed['port'];
+        }
+
         return null;
     }
 
@@ -96,13 +106,24 @@ class LanServerUrl
         $ip = self::ip($companyId);
         if ($ip) {
             $port = self::port($companyId);
-            $scheme = (string) self::setting('lan_server_https', '0', $companyId) === '1' ? 'https' : 'http';
+            $httpsSetting = (string) self::setting('lan_server_https', '', $companyId);
+            if ($httpsSetting === '') {
+                $cfgUrl = strtolower((string) config('lan.server_url', ''));
+                $scheme = str_starts_with($cfgUrl, 'https://') ? 'https' : 'http';
+            } else {
+                $scheme = $httpsSetting === '1' ? 'https' : 'http';
+            }
 
             if ($port === null || ($scheme === 'http' && $port === 80) || ($scheme === 'https' && $port === 443)) {
                 return $scheme.'://'.$ip;
             }
 
             return $scheme.'://'.$ip.':'.$port;
+        }
+
+        $cfg = trim((string) config('lan.server_url', ''));
+        if ($cfg !== '') {
+            return rtrim($cfg, '/');
         }
 
         if (! app()->runningInConsole() && request()) {

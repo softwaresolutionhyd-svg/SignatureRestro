@@ -97,18 +97,27 @@ final class OrderTakerService
      */
     public function dispatchKitchenPrintQuietly(PosOrder $order): array
     {
-        try {
-            return app(NetworkPrinterService::class)->dispatchPendingKitchenPrints($order);
-        } catch (\Throwable $e) {
-            report($e);
+        $orderId = (int) $order->id;
 
-            return [
-                'ok' => false,
-                'message' => $e->getMessage(),
-                'results' => [],
-                'unrouted' => 0,
-            ];
-        }
+        // Don't block Order Taker / tablet response on printer TCP timeouts.
+        dispatch(function () use ($orderId) {
+            try {
+                $fresh = PosOrder::query()->find($orderId);
+                if ($fresh === null) {
+                    return;
+                }
+                app(NetworkPrinterService::class)->dispatchPendingKitchenPrints($fresh);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        })->afterResponse();
+
+        return [
+            'ok' => true,
+            'queued' => true,
+            'results' => [],
+            'unrouted' => 0,
+        ];
     }
 
     public function openPosSession(): ?PosSession

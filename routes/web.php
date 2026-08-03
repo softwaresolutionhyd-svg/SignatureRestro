@@ -277,9 +277,11 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
 
     Route::prefix('order-taker')->name('order-taker.')->middleware('moduleAccess')->group(function () {
         Route::get('/', [\App\Http\Controllers\OrderTaker\OrderTakerController::class, 'index'])->name('index');
+        Route::get('/board', [\App\Http\Controllers\OrderTaker\OrderTakerController::class, 'board'])->name('board');
         Route::get('/create', [\App\Http\Controllers\OrderTaker\OrderTakerController::class, 'create'])->name('create');
         Route::post('/', [\App\Http\Controllers\OrderTaker\OrderTakerController::class, 'store'])->name('store');
         Route::get('/{order}/edit', [\App\Http\Controllers\OrderTaker\OrderTakerController::class, 'edit'])->name('edit');
+        Route::get('/{order}/data', [\App\Http\Controllers\OrderTaker\OrderTakerController::class, 'orderData'])->name('order-data');
         Route::put('/{order}', [\App\Http\Controllers\OrderTaker\OrderTakerController::class, 'update'])->name('update');
         Route::post('/{order}/move-table', [\App\Http\Controllers\OrderTaker\OrderTakerController::class, 'moveTable'])->name('move-table');
     });
