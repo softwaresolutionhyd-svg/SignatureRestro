@@ -3993,6 +3993,12 @@ class PosController extends Controller
             $guestName = $this->nullableText($request->input('guest_name'));
             $roomNo = $this->nullableText($request->input('room_no'));
             $orderNotes = $this->nullableText($request->input('order_notes'));
+        } elseif ($serviceType === PosOrder::SERVICE_TAKEAWAY) {
+            // Contact No. is stored in both guest_name + room_no (same as POS JS).
+            $contact = $this->nullableText($request->input('room_no'))
+                ?: $this->nullableText($request->input('guest_name'));
+            $guestName = $contact;
+            $roomNo = $contact;
         }
 
         return [

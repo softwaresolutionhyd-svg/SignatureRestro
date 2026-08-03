@@ -826,11 +826,17 @@ final class OrderTakerService
             ];
         }
 
+        // Takeaway — Contact No. (guest_name / room_no)
+        $contact = $roomNo !== '' ? $roomNo : $guestName;
+        if ($contact === '') {
+            throw new RuntimeException('Takeaway ke liye Contact No. likhein.');
+        }
+
         return [
             'customer_type' => $customerType,
             'service_type' => PosOrder::SERVICE_TAKEAWAY,
-            'guest_name' => null,
-            'room_no' => null,
+            'guest_name' => $contact,
+            'room_no' => $contact,
             'waiter_name' => null,
             'order_notes' => null,
             'table_id' => null,
