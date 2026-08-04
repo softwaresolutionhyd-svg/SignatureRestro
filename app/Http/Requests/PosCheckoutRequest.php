@@ -116,6 +116,7 @@ class PosCheckoutRequest extends FormRequest
                 'serve_time' => ['nullable', 'date_format:H:i'],
                 'refund_of_order_id' => ['nullable', 'integer', 'exists:tenant.pos_orders,id'],
                 'resume_order_id' => ['nullable', 'integer', 'exists:tenant.pos_orders,id'],
+                'client_request_id' => ['nullable', 'string', 'max:80'],
                 'table_id' => [
                     Rule::requiredIf(fn () => $this->input('service_type') === 'dine_in' && $tablesEnabled),
                     'nullable',
@@ -186,6 +187,7 @@ class PosCheckoutRequest extends FormRequest
             'serve_time' => ['nullable', 'date_format:H:i'],
             'refund_of_order_id' => ['nullable', 'integer', 'exists:tenant.pos_orders,id'],
             'resume_order_id' => ['nullable', 'integer', 'exists:tenant.pos_orders,id'],
+            'client_request_id' => ['nullable', 'string', 'max:80'],
             'table_id' => ['nullable', 'integer', 'exists:tenant.pos_tables,id'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'integer', 'exists:tenant.inventory_products,id'],

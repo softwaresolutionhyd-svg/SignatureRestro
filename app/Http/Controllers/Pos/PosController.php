@@ -50,6 +50,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
@@ -1724,6 +1725,7 @@ class PosController extends Controller
         }
 
         $updatedExisting = false;
+        $reusedDuplicateCreate = false;
         $clientTotals = $this->clientHoldTotalsFromRequest($request);
         $sendToKitchen = $this->isRestaurantPosRequest($request)
             ? $request->boolean('send_to_kitchen')
@@ -1731,7 +1733,7 @@ class PosController extends Controller
         $kitchenVoids = $this->normalizedKitchenVoids($request);
 
         try {
-            $order = DB::connection('tenant')->transaction(function () use ($request, $session, $itemsNormalized, $guestName, $roomNo, $waiterName, $serveTime, $serveDate, $orderNotes, $customerType, $saleMode, $serviceType, $restaurantTableId, $resumeOrderId, $clientTotals, $sendToKitchen, &$updatedExisting, $holdUser, $kitchenVoids) {
+            $order = DB::connection('tenant')->transaction(function () use ($request, $session, $itemsNormalized, $guestName, $roomNo, $waiterName, $serveTime, $serveDate, $orderNotes, $customerType, $saleMode, $serviceType, $restaurantTableId, $resumeOrderId, $clientTotals, $sendToKitchen, &$updatedExisting, &$reusedDuplicateCreate, $holdUser, $kitchenVoids) {
             $enableTables = (string) Setting::get('pos_enable_tables', '1') !== '0';
             if ($this->isRestaurantPosRequest($request)) {
                 $tableId = $restaurantTableId;
@@ -1883,18 +1885,55 @@ class PosController extends Controller
             $kitchen = app(KitchenService::class);
             $itemsWithKitchenFlags = $kitchen->applyKitchenPendingFlags([], $itemsData, $sendToKitchen);
 
-            $order = PosOrder::create([
-                'order_no' => DailyOrderNumber::next($session),
-                'session_id' => $session->id,
-                'user_id' => Auth::id(),
-                'status' => 'draft',
-            ] + $orderPayload);
+            $fingerprint = $this->posNewHoldFingerprint(
+                (int) $session->id,
+                $request,
+                $customerType,
+                $serviceType,
+                $guestName,
+                $roomNo,
+                $tableId ? (int) $tableId : null,
+                $this->nullableText($request->input('kitchen_notes')),
+                $itemsNormalized
+            );
+            $cacheKey = 'pos:hold:create:'.$fingerprint;
+            $lock = Cache::lock('pos:hold:lock:'.$fingerprint, 25);
 
-            foreach ($itemsWithKitchenFlags as $item) {
-                PosOrderItem::create(['order_id' => $order->id] + $item);
+            if (! $lock->block(8)) {
+                $existingDup = $this->findCachedHoldCreate($cacheKey);
+                if ($existingDup !== null) {
+                    $reusedDuplicateCreate = true;
+
+                    return $existingDup;
+                }
+                throw new \RuntimeException('Order already submitting — thora wait karke Pending check karein.');
             }
 
-            return $order->fresh(['table', 'items']);
+            try {
+                $existingDup = $this->findCachedHoldCreate($cacheKey);
+                if ($existingDup !== null) {
+                    $reusedDuplicateCreate = true;
+
+                    return $existingDup;
+                }
+
+                $order = PosOrder::create([
+                    'order_no' => DailyOrderNumber::next($session),
+                    'session_id' => $session->id,
+                    'user_id' => Auth::id(),
+                    'status' => 'draft',
+                ] + $orderPayload);
+
+                foreach ($itemsWithKitchenFlags as $item) {
+                    PosOrderItem::create(['order_id' => $order->id] + $item);
+                }
+
+                Cache::put($cacheKey, (int) $order->id, now()->addSeconds(60));
+
+                return $order->fresh(['table', 'items']);
+            } finally {
+                optional($lock)->release();
+            }
         });
         } catch (\RuntimeException $e) {
             if ($request->expectsJson()) {
@@ -1913,8 +1952,12 @@ class PosController extends Controller
         $this->logItemReductions($order, $this->normalizedItemReductions($request));
 
         $message = $updatedExisting ? 'Held order updated.' : 'Order held successfully.';
+        if ($reusedDuplicateCreate) {
+            $message = 'Order pehle se save ho chuki hai ('.$order->order_no.').';
+            $updatedExisting = true;
+        }
 
-        if ($sendToKitchen || ! $updatedExisting) {
+        if (! $reusedDuplicateCreate && ($sendToKitchen || ! $updatedExisting)) {
             \App\Services\PosActivityNotifier::orderPlaced($order->loadMissing(['table']), $updatedExisting);
         }
 
@@ -1923,6 +1966,7 @@ class PosController extends Controller
                 'success' => true,
                 'message' => $message,
                 'updated' => $updatedExisting,
+                'duplicate_blocked' => $reusedDuplicateCreate,
                 'order' => $this->posOrderDetailsPayload($order->loadMissing(['items.product', 'table', 'user', 'payments', 'contact'])),
                 'held_count' => $this->heldOrdersForSession($session)->count(),
                 'removed_print' => $removedPrint,
@@ -3958,6 +4002,68 @@ class PosController extends Controller
         }
 
         return false;
+    }
+
+    /**
+     * Double Hold / Kitchen Print: same new bill within ~60s returns the first draft.
+     *
+     * @param  list<array<string, mixed>>  $itemsNormalized
+     */
+    private function posNewHoldFingerprint(
+        int $sessionId,
+        PosCheckoutRequest $request,
+        string $customerType,
+        ?string $serviceType,
+        ?string $guestName,
+        ?string $roomNo,
+        ?int $tableId,
+        ?string $kitchenNotes,
+        array $itemsNormalized
+    ): string {
+        $clientKey = trim((string) $request->input('client_request_id', ''));
+        if ($clientKey !== '') {
+            return hash('sha256', 'cid:'.(Auth::id() ?? 0).':'.$sessionId.':'.$clientKey);
+        }
+
+        $normItems = [];
+        foreach ($itemsNormalized as $row) {
+            $normItems[] = [
+                (int) ($row['product_id'] ?? 0),
+                (bool) ($row['is_custom'] ?? false),
+                strtolower(trim((string) ($row['item_name'] ?? ''))),
+                strtolower(trim((string) ($row['uom'] ?? ''))),
+                round((float) ($row['qty'] ?? 0), 3),
+                round((float) ($row['unit_price'] ?? 0), 2),
+                trim((string) ($row['notes'] ?? '')),
+            ];
+        }
+        usort($normItems, static fn ($a, $b) => $a <=> $b);
+
+        return hash('sha256', json_encode([
+            'u' => Auth::id() ?? 0,
+            's' => $sessionId,
+            'ct' => $customerType,
+            'st' => (string) ($serviceType ?? ''),
+            'g' => (string) ($guestName ?? ''),
+            'r' => (string) ($roomNo ?? ''),
+            't' => (int) ($tableId ?? 0),
+            'k' => (string) ($kitchenNotes ?? ''),
+            'i' => $normItems,
+        ], JSON_UNESCAPED_UNICODE));
+    }
+
+    private function findCachedHoldCreate(string $cacheKey): ?PosOrder
+    {
+        $id = Cache::get($cacheKey);
+        if (! $id) {
+            return null;
+        }
+
+        $order = PosOrder::query()
+            ->with(['table', 'items'])
+            ->find((int) $id);
+
+        return ($order && $order->status === 'draft') ? $order : null;
     }
 
     private function findGuestPendingDraftOrder(

@@ -45,6 +45,7 @@
     let cancelWholeOrderPending = false;
     let resumeSaveLock = Promise.resolve();
     let kitchenPrintBusy = false;
+    let holdSubmitLock = false;
     let checkoutInFlight = false;
     let payments = [{ method: 'cash', amount: 0 }];
     let orderType = 'sale';
@@ -2645,7 +2646,7 @@
         $('#rpProductSearch')?.focus();
     }
 
-    function buildHoldFormData(sendToKitchen = false) {
+    function buildHoldFormData(sendToKitchen = false, clientRequestId = null) {
         if (!cart.length) {
             return null;
         }
@@ -2668,7 +2669,15 @@
         formData.set('client_discount_total', String(totals.discount));
         formData.set('client_tax_total', String(totals.tax));
         formData.set('client_service_charge_total', String(totals.serviceCharge || 0));
+        if (clientRequestId) {
+            formData.set('client_request_id', String(clientRequestId));
+        }
         return formData;
+    }
+
+    function newClientRequestId() {
+        if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+        return 'pos-' + Date.now() + '-' + Math.random().toString(16).slice(2);
     }
 
     function parseOrderQty(qty) {
@@ -3475,18 +3484,22 @@
     }
 
     async function submitHoldOrder() {
+        if (holdSubmitLock || kitchenPrintBusy) return;
         if (!prepareSubmit('hold')) return;
 
         const holdBtn = $('#rpHoldBtn');
+        holdSubmitLock = true;
         if (holdBtn) holdBtn.disabled = true;
+        let savedOk = false;
         try {
             if (resumeOrderId) {
                 await saveResumedDraftChanges(false);
                 resetForNewBill();
+                savedOk = true;
                 return;
             }
 
-            const formData = buildHoldFormData(false);
+            const formData = buildHoldFormData(false, newClientRequestId());
             if (!formData) return;
 
             const res = await fetch(routes.hold, {
@@ -3512,15 +3525,21 @@
                 updateOrderTabCounts();
             }
 
+            savedOk = true;
             resetForNewBill();
         } catch (e) {
             alert(e.message || 'Hold failed.');
         } finally {
-            if (holdBtn) holdBtn.disabled = false;
+            const unlockMs = savedOk ? 2500 : 0;
+            window.setTimeout(() => {
+                holdSubmitLock = false;
+                if (holdBtn) holdBtn.disabled = false;
+            }, unlockMs);
         }
     }
 
     async function submitKitchenPrint() {
+        if (holdSubmitLock || kitchenPrintBusy) return;
         if (!cart.length) {
             alert('Pehle item add karein.');
             return;
@@ -3529,13 +3548,15 @@
 
         const kitchenBtn = $('#rpKitchenPrintBtn');
         if (kitchenBtn) kitchenBtn.disabled = true;
+        holdSubmitLock = true;
         kitchenPrintBusy = true;
+        let savedOk = false;
         try {
             let order = null;
             if (resumeOrderId) {
                 order = await saveResumedDraftChanges(true);
             } else {
-                const formData = buildHoldFormData(true);
+                const formData = buildHoldFormData(true, newClientRequestId());
                 if (!formData) return;
 
                 const res = await fetch(routes.hold, {
@@ -3567,12 +3588,17 @@
             if (!orderId) {
                 throw new Error('Order save nahi ho saki.');
             }
+            savedOk = true;
             await printKitchenSlip(orderId);
         } catch (e) {
             alert(e.message || 'Kitchen print failed.');
         } finally {
             kitchenPrintBusy = false;
-            if (kitchenBtn) kitchenBtn.disabled = false;
+            const unlockMs = savedOk ? 2500 : 0;
+            window.setTimeout(() => {
+                holdSubmitLock = false;
+                if (kitchenBtn) kitchenBtn.disabled = false;
+            }, unlockMs);
         }
     }
 
