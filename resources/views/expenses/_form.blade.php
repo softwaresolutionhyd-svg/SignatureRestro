@@ -66,7 +66,11 @@
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Total (incl. tax)</label>
-                        <input type="text" id="fTotal" class="form-control bg-light" readonly>
+                        <input type="number" id="fTotal" name="grand_total_display" class="form-control @error('unit_amount') is-invalid @enderror"
+                            value="{{ old('grand_total_display', $expense?->grand_total ?? 0) }}"
+                            step="0.01" min="0"
+                            title="Total edit karne se Unit Cost auto adjust hoga">
+                        <div class="form-text">Edit allowed — Unit Cost sync ho jata hai</div>
                     </div>
                 </div>
 
@@ -124,9 +128,11 @@
 @section('scripts')
 <script>
 (function () {
-    const qty  = document.getElementById('fQty');
-    const unit = document.getElementById('fUnit');
-    const tax  = document.getElementById('fTax');
+    const qty   = document.getElementById('fQty');
+    const unit  = document.getElementById('fUnit');
+    const tax   = document.getElementById('fTax');
+    const total = document.getElementById('fTotal');
+    let editingTotal = false;
 
     function fmtMoney(n) {
         if (!Number.isFinite(n)) return '0';
@@ -135,22 +141,47 @@
         return s === '-0' ? '0' : s;
     }
 
-    function recalc() {
-        const q  = parseFloat(qty.value)  || 0;
-        const u  = parseFloat(unit.value) || 0;
-        const t  = parseFloat(tax.value)  || 0;
+    function paintSummary(sub, txAmt, tot) {
+        document.getElementById('sumSubtotal').textContent = fmtMoney(sub);
+        document.getElementById('sumTax').textContent = fmtMoney(txAmt);
+        document.getElementById('sumTotal').textContent = fmtMoney(tot);
+    }
+
+    function recalcFromUnit() {
+        if (editingTotal) return;
+        const q = parseFloat(qty.value) || 0;
+        const u = parseFloat(unit.value) || 0;
+        const t = parseFloat(tax.value) || 0;
         const sub = q * u;
         const txAmt = sub * t / 100;
         const tot = sub + txAmt;
-
-        document.getElementById('fTotal').value      = fmtMoney(tot);
-        document.getElementById('sumSubtotal').textContent = fmtMoney(sub);
-        document.getElementById('sumTax').textContent      = fmtMoney(txAmt);
-        document.getElementById('sumTotal').textContent    = fmtMoney(tot);
+        total.value = fmtMoney(tot);
+        paintSummary(sub, txAmt, tot);
     }
 
-    [qty, unit, tax].forEach(el => el.addEventListener('input', recalc));
-    recalc();
+    /** User typed Total → back-calculate Unit Cost so save still uses qty×unit+tax. */
+    function recalcFromTotal() {
+        editingTotal = true;
+        const q = parseFloat(qty.value) || 0;
+        const t = parseFloat(tax.value) || 0;
+        const tot = parseFloat(total.value) || 0;
+        if (q <= 0) {
+            editingTotal = false;
+            return;
+        }
+        const factor = 1 + (t / 100);
+        const sub = factor > 0 ? (tot / factor) : tot;
+        const u = sub / q;
+        unit.value = fmtMoney(Math.max(0, u));
+        const txAmt = sub * t / 100;
+        paintSummary(sub, txAmt, tot);
+        editingTotal = false;
+    }
+
+    [qty, unit, tax].forEach(el => el.addEventListener('input', recalcFromUnit));
+    total.addEventListener('input', recalcFromTotal);
+    total.addEventListener('change', recalcFromTotal);
+    recalcFromUnit();
 
     // Receipt image preview
     document.getElementById('receiptInput')?.addEventListener('change', function () {
