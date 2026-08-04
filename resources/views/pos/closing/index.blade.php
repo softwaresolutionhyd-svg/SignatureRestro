@@ -288,7 +288,7 @@
             </div>
 
             <form method="POST" action="{{ route('restaurant-pos.session.close') }}" class="row g-3 align-items-end"
-                  @if($canClose) onsubmit="return confirm(@json(__('Do you want to close this POS session?')));" @endif>
+                  @if($canClose) onsubmit="return confirm(@json(__('Close POS session? Poora software + MySQL offline backup/ folder mein save hoga — 1–3 minute lag sakte hain. PC tab tak on rakhein.')));" @endif>
                 @csrf
                 <div class="col-md-3">
                     <label class="form-label" for="counted_cash">{{ __('Counted cash (drawer)') }}</label>
@@ -308,6 +308,7 @@
                     <button type="submit" class="btn btn-danger w-100" @disabled(!$canClose)>
                         <i class="bi bi-box-arrow-right me-1"></i> {{ __('End POS Session') }}
                     </button>
+                    <div class="form-text mt-1">{{ __('End pe automatic offline backup (code + MySQL) → backup/ folder') }}</div>
                 </div>
             </form>
         </div>

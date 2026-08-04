@@ -39,6 +39,7 @@ use App\Services\KitchenService;
 use App\Services\ManufacturingStockService;
 use App\Services\AutoJournalService;
 use App\Services\NetworkPrinterService;
+use App\Services\OfflineFullBackupService;
 use App\Services\OrderTakerService;
 use App\Services\PosOrderSplitIndicator;
 use App\Services\PosPendingBillsService;
@@ -1002,7 +1003,13 @@ class PosController extends Controller
             $request->filled('counted_cash') ? round((float) $request->input('counted_cash'), 2) : null
         );
 
-        return redirect()->route('reports.pos-sessions')->with('success', __('POS session closed and saved.'));
+        // Night close: full software + MySQL dump → offline backup/ folder (before PC shutdown).
+        $backup = app(OfflineFullBackupService::class)->createQuiet();
+        $message = __('POS session closed and saved.').' '.$backup['message'];
+
+        return redirect()
+            ->route('reports.pos-sessions')
+            ->with($backup['ok'] ? 'success' : 'warning', $message);
     }
 
     private function finalizeSessionClose(PosSession $session, ?string $note = null, ?float $countedCash = null): void
