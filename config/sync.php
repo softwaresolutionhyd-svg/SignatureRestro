@@ -95,6 +95,8 @@ return [
         'job_batches',
         'sync_queue',
         'sync_meta',
+        // Stair in-app bell alerts — local UI only; flooding outbox (~1 row per user per POS action)
+        'notifications',
         // Demand tables: skip until hosting has EnsuresStockDemandSchema deployed
         'stock_demands',
         'stock_demand_lines',
