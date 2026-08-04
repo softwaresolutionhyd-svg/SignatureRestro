@@ -137,6 +137,7 @@ class OrderTakerApiController extends Controller
             'items.*.uom' => ['required', 'string', 'max:30'],
             'items.*.qty' => ['required', 'numeric', 'min:0.001'],
             'items.*.notes' => ['nullable', 'string', 'max:200'],
+            'client_request_id' => ['nullable', 'string', 'max:80'],
         ];
 
         if (! $pendingMode) {
@@ -172,6 +173,7 @@ class OrderTakerApiController extends Controller
                     'room_no' => $order->room_no ?? '',
                     'waiter_name' => $order->waiter_name ?? '',
                     'table_id' => $order->table_id,
+                    'client_request_id' => $validated['client_request_id'] ?? null,
                 ],
                 'items' => $items,
             ];
@@ -187,6 +189,7 @@ class OrderTakerApiController extends Controller
                 'serve_date' => $validated['serve_date'] ?? '',
                 'serve_meal' => $validated['serve_meal'] ?? '',
                 'table_id' => $validated['table_id'] ?? null,
+                'client_request_id' => $validated['client_request_id'] ?? null,
             ],
             'items' => $items,
         ];

@@ -117,6 +117,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
   }
 
   Future<void> _submit() async {
+    if (_submitting) return;
     if (_cart.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Kam az kam aik product add karein')),

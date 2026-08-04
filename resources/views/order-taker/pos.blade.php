@@ -484,5 +484,5 @@
 <script>
 window.ORDER_TAKER_BOOTSTRAP = @json($otBootstrap);
 </script>
-<script src="{{ asset('js/order-taker-app.js') }}?v=24"></script>
+<script src="{{ asset('js/order-taker-app.js') }}?v=25"></script>
 @endsection

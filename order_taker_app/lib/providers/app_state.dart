@@ -67,6 +67,8 @@ class AppState extends ChangeNotifier {
       'serve_date': serveDate,
       'serve_meal': serveMeal.isEmpty ? null : serveMeal,
       'table_id': tableId,
+      'client_request_id':
+          'ot-${DateTime.now().microsecondsSinceEpoch}-${cart.length}-${cart.fold<int>(0, (s, c) => s + c.productId)}',
       'items': cart.map((c) => c.toPayload()).toList(),
     };
 

@@ -27,6 +27,7 @@
     let pendingMode = !!editOrderId;
     let moveTableOrderId = null;
     let boardTab = 'tables';
+    let orderSubmitLock = false;
 
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -796,6 +797,7 @@
     }
 
     async function submitOrder() {
+        if (orderSubmitLock) return;
         if (!cart.length) {
             alert('Kam az kam aik item add karein.');
             return;
@@ -871,6 +873,9 @@
         }
 
         const kitchenNotes = ($('#otBillKitchenNotes')?.value || '').trim();
+        const clientRequestId = (window.crypto && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : ('ot-' + Date.now() + '-' + Math.random().toString(16).slice(2));
         const payload = {
             customer_type: 'mess_use',
             service_type: serviceType,
@@ -879,6 +884,7 @@
             order_notes: orderNotes,
             table_id: tableId || null,
             kitchen_notes: kitchenNotes,
+            client_request_id: clientRequestId,
             items: itemsPayload,
         };
 
@@ -891,9 +897,11 @@
 
         const sendBtn = $('#otSendBtn');
         const confirmBtn = $('#otConfirmBillSubmit');
+        orderSubmitLock = true;
         if (sendBtn) sendBtn.disabled = true;
         if (confirmBtn) confirmBtn.disabled = true;
 
+        let savedOk = false;
         try {
             const body = new URLSearchParams();
             Object.entries(payload).forEach(([k, v]) => {
@@ -927,6 +935,7 @@
                 return;
             }
 
+            savedOk = true;
             applyBoardPayload(data);
             editOrderId = null;
             pendingMode = false;
@@ -951,8 +960,13 @@
         } catch (err) {
             alert('Network error — order save nahi hui. Dubara try karein.');
         } finally {
-            if (sendBtn) sendBtn.disabled = false;
-            if (confirmBtn) confirmBtn.disabled = false;
+            // Success pe thori der lock rakho taake double-tap dusra order na banaye
+            const unlockMs = savedOk ? 2500 : 0;
+            window.setTimeout(() => {
+                orderSubmitLock = false;
+                if (sendBtn) sendBtn.disabled = false;
+                if (confirmBtn) confirmBtn.disabled = false;
+            }, unlockMs);
         }
     }
 

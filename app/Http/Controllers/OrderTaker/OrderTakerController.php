@@ -345,6 +345,7 @@ class OrderTakerController extends Controller
             'items.*.qty' => ['required', 'numeric', 'min:0.001'],
             'items.*.notes' => ['nullable', 'string', 'max:200'],
             'kitchen_notes' => ['nullable', 'string', 'max:1000'],
+            'client_request_id' => ['nullable', 'string', 'max:80'],
         ];
 
         if (! $pendingMode) {
@@ -379,6 +380,7 @@ class OrderTakerController extends Controller
                     'waiter_name' => $order->waiter_name ?? '',
                     'table_id' => $order->table_id,
                     'kitchen_notes' => $validated['kitchen_notes'] ?? '',
+                    'client_request_id' => $validated['client_request_id'] ?? null,
                 ],
                 'items' => $items,
             ];
@@ -393,6 +395,7 @@ class OrderTakerController extends Controller
                 'order_notes' => $validated['order_notes'] ?? '',
                 'table_id' => $validated['table_id'] ?? null,
                 'kitchen_notes' => $validated['kitchen_notes'] ?? '',
+                'client_request_id' => $validated['client_request_id'] ?? null,
             ],
             'items' => $items,
         ];

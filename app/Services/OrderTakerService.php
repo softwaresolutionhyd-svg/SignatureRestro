@@ -14,6 +14,7 @@ use App\Support\ServeMealSchedule;
 use App\Support\DailyOrderNumber;
 use App\Services\KitchenService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
@@ -42,52 +43,125 @@ final class OrderTakerService
         if (($guest['service_type'] ?? PosOrder::SERVICE_DINE_IN) === PosOrder::SERVICE_DINE_IN) {
             $this->assertTableAvailable($guest['table_id'], null, true);
         }
-        $session = $this->openPosSession();
 
-        $orderPayload = [
-            'order_no' => DailyOrderNumber::next($session),
-            'session_id' => $session?->id,
-            'user_id' => Auth::id(),
-            'status' => 'draft',
-            'order_source' => self::SOURCE_ORDER_TAKER,
-            'type' => 'sale',
-            'sale_mode' => $guest['customer_type'] === 'ast_offr' ? 'staff' : 'customer',
-            'customer_type' => $guest['customer_type'],
-            'service_type' => $guest['service_type'] ?? PosOrder::SERVICE_DINE_IN,
-            'table_id' => $guest['table_id'],
-            'guest_name' => $guest['guest_name'],
-            'room_no' => $guest['room_no'],
-            'waiter_name' => $guest['waiter_name'],
-            'order_notes' => $guest['order_notes'] ?? null,
-            'serve_time' => $guest['serve_time'] ?? null,
-            'serve_date' => $guest['serve_date'] ?? null,
-            'serve_meal' => $guest['serve_meal'] ?? null,
-            'subtotal' => $subtotal,
-            'discount_total' => $discountTotal,
-            'tax_total' => $taxTotal,
-            'service_charge_percent' => $serviceTotal > 0 ? PosServiceCharge::percent() : null,
-            'service_charge_total' => $serviceTotal,
-            'grand_total' => $grandTotal,
-            'ready_for_pos_at' => now(),
-        ];
-        if (Schema::hasColumn('pos_orders', 'kitchen_notes')) {
-            $orderPayload['kitchen_notes'] = $this->kitchenNotesFromMeta($meta);
+        // Double-tap / double-fetch: same punch within ~60s returns the first order (no 2nd bill / notif).
+        $fingerprint = $this->createRequestFingerprint($meta, $items, $guest);
+        $cacheKey = 'ot:create:'.$fingerprint;
+        $lock = Cache::lock('ot:lock:'.$fingerprint, 25);
+
+        if (! $lock->block(8)) {
+            $existing = $this->findCachedCreate($cacheKey);
+            if ($existing !== null) {
+                return $existing;
+            }
+            throw new RuntimeException('Order already submitting — thora wait karke check karein.');
         }
 
-        $order = PosOrder::create($orderPayload);
+        try {
+            $existing = $this->findCachedCreate($cacheKey);
+            if ($existing !== null) {
+                return $existing;
+            }
 
-        $kitchen = app(KitchenService::class);
-        $itemsWithKitchenFlags = $kitchen->applyKitchenPendingFlags([], $lines);
+            $session = $this->openPosSession();
 
-        foreach ($itemsWithKitchenFlags as $line) {
-            PosOrderItem::create(['order_id' => $order->id] + $line);
+            $orderPayload = [
+                'order_no' => DailyOrderNumber::next($session),
+                'session_id' => $session?->id,
+                'user_id' => Auth::id(),
+                'status' => 'draft',
+                'order_source' => self::SOURCE_ORDER_TAKER,
+                'type' => 'sale',
+                'sale_mode' => $guest['customer_type'] === 'ast_offr' ? 'staff' : 'customer',
+                'customer_type' => $guest['customer_type'],
+                'service_type' => $guest['service_type'] ?? PosOrder::SERVICE_DINE_IN,
+                'table_id' => $guest['table_id'],
+                'guest_name' => $guest['guest_name'],
+                'room_no' => $guest['room_no'],
+                'waiter_name' => $guest['waiter_name'],
+                'order_notes' => $guest['order_notes'] ?? null,
+                'serve_time' => $guest['serve_time'] ?? null,
+                'serve_date' => $guest['serve_date'] ?? null,
+                'serve_meal' => $guest['serve_meal'] ?? null,
+                'subtotal' => $subtotal,
+                'discount_total' => $discountTotal,
+                'tax_total' => $taxTotal,
+                'service_charge_percent' => $serviceTotal > 0 ? PosServiceCharge::percent() : null,
+                'service_charge_total' => $serviceTotal,
+                'grand_total' => $grandTotal,
+                'ready_for_pos_at' => now(),
+            ];
+            if (Schema::hasColumn('pos_orders', 'kitchen_notes')) {
+                $orderPayload['kitchen_notes'] = $this->kitchenNotesFromMeta($meta);
+            }
+
+            $order = PosOrder::create($orderPayload);
+
+            $kitchen = app(KitchenService::class);
+            $itemsWithKitchenFlags = $kitchen->applyKitchenPendingFlags([], $lines);
+
+            foreach ($itemsWithKitchenFlags as $line) {
+                PosOrderItem::create(['order_id' => $order->id] + $line);
+            }
+
+            $order = $order->fresh(['items.product', 'table', 'user']);
+            Cache::put($cacheKey, (int) $order->id, now()->addSeconds(60));
+
+            $this->dispatchKitchenPrintQuietly($order);
+            \App\Services\PosActivityNotifier::orderPlaced($order, false);
+
+            return $order;
+        } finally {
+            optional($lock)->release();
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $meta
+     * @param  list<array{product_id:int,uom:string,qty:float,notes?:?string}>  $items
+     * @param  array<string, mixed>  $guest
+     */
+    private function createRequestFingerprint(array $meta, array $items, array $guest): string
+    {
+        $clientKey = trim((string) ($meta['client_request_id'] ?? ''));
+        if ($clientKey !== '') {
+            return hash('sha256', 'cid:'.(Auth::id() ?? 0).':'.$clientKey);
         }
 
-        $order = $order->fresh(['items.product', 'table', 'user']);
-        $this->dispatchKitchenPrintQuietly($order);
-        \App\Services\PosActivityNotifier::orderPlaced($order, false);
+        $normItems = [];
+        foreach ($items as $row) {
+            $normItems[] = [
+                (int) ($row['product_id'] ?? 0),
+                strtolower(trim((string) ($row['uom'] ?? ''))),
+                round((float) ($row['qty'] ?? 0), 3),
+                trim((string) ($row['notes'] ?? '')),
+            ];
+        }
+        usort($normItems, static fn ($a, $b) => $a <=> $b);
 
-        return $order;
+        return hash('sha256', json_encode([
+            'u' => Auth::id() ?? 0,
+            'st' => (string) ($guest['service_type'] ?? ''),
+            'ct' => (string) ($guest['customer_type'] ?? ''),
+            'g' => (string) ($guest['guest_name'] ?? ''),
+            'r' => (string) ($guest['room_no'] ?? ''),
+            't' => (int) ($guest['table_id'] ?? 0),
+            'n' => (string) ($guest['order_notes'] ?? ''),
+            'k' => (string) ($this->kitchenNotesFromMeta($meta) ?? ''),
+            'i' => $normItems,
+        ], JSON_UNESCAPED_UNICODE));
+    }
+
+    private function findCachedCreate(string $cacheKey): ?PosOrder
+    {
+        $id = Cache::get($cacheKey);
+        if (! $id) {
+            return null;
+        }
+
+        return PosOrder::query()
+            ->with(['items.product', 'table', 'user'])
+            ->find((int) $id);
     }
 
     /**
