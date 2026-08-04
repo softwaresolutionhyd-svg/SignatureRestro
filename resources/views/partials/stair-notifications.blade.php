@@ -10,7 +10,7 @@ window.STAIR_NOTIFICATIONS = {
     }
 };
 </script>
-<script src="{{ asset('js/stair-notifications.js') }}?v=2" defer></script>
+<script src="{{ asset('js/stair-notifications.js') }}?v=3" defer></script>
 <style>
 .stair-notif-btn { min-width: 2.1rem; }
 .stair-notif-badge {
@@ -162,7 +162,7 @@ window.STAIR_NOTIFICATIONS = {
     width: 100%;
     background: rgba(255,255,255,.35);
     transform-origin: left center;
-    animation: stairToastProgress 3s linear forwards;
+    animation: stairToastProgress 15s linear forwards;
 }
 @keyframes stairToastProgress {
     from { transform: scaleX(1); }

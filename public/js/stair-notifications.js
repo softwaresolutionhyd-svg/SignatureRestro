@@ -130,7 +130,7 @@
         toastHost.appendChild(el);
         requestAnimationFrame(() => el.classList.add('is-in'));
         playTune();
-        window.setTimeout(close, 3000);
+        window.setTimeout(close, 15000);
     }
 
     function canBrowserNotify() {
