@@ -6,8 +6,8 @@ use App\Models\InventoryCostLayer;
 use App\Models\InventoryMove;
 use App\Models\InventoryProduct;
 use App\Models\PurchaseOrder;
-use App\Models\User;
 use App\Notifications\StockUpdated;
+use App\Support\StaffNotifier;
 use Illuminate\Support\Facades\DB;
 
 final class PurchaseOrderReceiveService
@@ -71,16 +71,14 @@ final class PurchaseOrderReceiveService
                 ]);
 
                 $body = "{$product->sku} — {$product->name}: received {$line->qty} {$line->uom} (PO {$order->number})";
-                User::query()->select(['id'])->each(function ($u) use ($body, $product, $order) {
-                    $u->notify(new StockUpdated([
-                        'title' => 'Purchase received',
-                        'body' => $body,
-                        'product_id' => $product->id,
-                        'type' => 'purchase_receive',
-                        'reference' => $order->number,
-                        'ts' => now()->toIso8601String(),
-                    ]));
-                });
+                StaffNotifier::notifyManagement(new StockUpdated([
+                    'title' => 'Purchase received',
+                    'body' => $body,
+                    'product_id' => $product->id,
+                    'type' => 'purchase_receive',
+                    'reference' => $order->number,
+                    'ts' => now()->toIso8601String(),
+                ]), function_exists('current_company_id') ? current_company_id() : null);
             }
 
             $this->refreshProductCostsFromLayers($order->lines->pluck('product_id')->unique()->all());

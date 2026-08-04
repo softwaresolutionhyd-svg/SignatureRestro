@@ -44,6 +44,7 @@ use App\Services\PosOrderSplitIndicator;
 use App\Services\PosPendingBillsService;
 use App\Services\PosSessionSummaryService;
 use App\Services\Sync\SyncAwareDelete;
+use App\Support\StaffNotifier;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
@@ -4571,10 +4572,9 @@ class PosController extends Controller
             'reference' => $reference,
         ];
 
-        User::query()->chunkById(200, function ($users) use ($payload) {
-            foreach ($users as $user) {
-                $user->notify(new StockUpdated($payload));
-            }
-        });
+        StaffNotifier::notifyManagement(
+            new StockUpdated($payload),
+            function_exists('current_company_id') ? current_company_id() : null
+        );
     }
 }

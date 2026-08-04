@@ -7,8 +7,8 @@ use App\Models\InventoryMove;
 use App\Models\InventoryProduct;
 use App\Models\StockCheck;
 use App\Models\StockCheckLine;
-use App\Models\User;
 use App\Notifications\StockUpdated;
+use App\Support\StaffNotifier;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -116,16 +116,14 @@ final class StockCheckApprovalService
         }
 
         $body = "{$product->sku} — {$product->name}: stock check {$check->number} → on-hand ".fmt_num($target, 4).' '.$baseUom;
-        User::query()->select(['id'])->each(function ($u) use ($body, $product, $ref) {
-            $u->notify(new StockUpdated([
-                'title' => 'Stock check applied',
-                'body' => $body,
-                'product_id' => $product->id,
-                'type' => 'stock_check',
-                'reference' => $ref,
-                'ts' => now()->toIso8601String(),
-            ]));
-        });
+        StaffNotifier::notifyManagement(new StockUpdated([
+            'title' => 'Stock check applied',
+            'body' => $body,
+            'product_id' => $product->id,
+            'type' => 'stock_check',
+            'reference' => $ref,
+            'ts' => now()->toIso8601String(),
+        ]), function_exists('current_company_id') ? current_company_id() : null);
     }
 
     private function consumeFifo(int $productId, float $qtyBase): array

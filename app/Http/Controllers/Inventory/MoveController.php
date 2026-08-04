@@ -3,17 +3,18 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\InventoryMoveStoreRequest;
 use App\Models\InventoryCostLayer;
 use App\Models\InventoryMove;
 use App\Models\InventoryProduct;
+use App\Models\InventoryUnit;
 use App\Models\Setting;
-use App\Models\User;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use App\Http\Requests\InventoryMoveStoreRequest;
 use App\Notifications\StockUpdated;
 use App\Services\InventoryStockService;
 use App\Services\Sync\SyncAwareDelete;
+use App\Support\StaffNotifier;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class MoveController extends Controller
 {
@@ -153,15 +154,13 @@ class MoveController extends Controller
 
             $body = "{$product->sku} — {$product->name}: {$before} → {$after} ({$qtyUom} {$uom})";
 
-            User::query()->select(['id'])->each(function ($u) use ($title, $body, $product, $data) {
-                $u->notify(new StockUpdated([
-                    'title' => $title,
-                    'body' => $body,
-                    'product_id' => $product->id,
-                    'type' => $data['type'],
-                    'ts' => now()->toIso8601String(),
-                ]));
-            });
+            StaffNotifier::notifyManagement(new StockUpdated([
+                'title' => $title,
+                'body' => $body,
+                'product_id' => $product->id,
+                'type' => $data['type'],
+                'ts' => now()->toIso8601String(),
+            ]), function_exists('current_company_id') ? current_company_id() : null);
         });
 
         return redirect()->route('inventory.moves.index')->with('status', 'Stock updated.');

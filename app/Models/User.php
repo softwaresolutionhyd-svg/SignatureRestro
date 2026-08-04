@@ -102,6 +102,19 @@ class User extends Authenticatable
         return ($this->role ?? null) === 'company_admin';
     }
 
+    /**
+     * Full Stair alerts (stock, purchase, etc.): Admin / Manager only.
+     * Cashier, Order Taker, and other staff get POS activity alerts only.
+     */
+    public function receivesManagementNotifications(): bool
+    {
+        if ($this->bypassesModulePermissions() || ($this->role ?? null) === 'admin') {
+            return true;
+        }
+
+        return $this->hasManagerDesignationOnly();
+    }
+
     /** @deprecated Use isCompanyAdmin() or bypassesModulePermissions() */
     public function isSuperAdmin(): bool
     {
