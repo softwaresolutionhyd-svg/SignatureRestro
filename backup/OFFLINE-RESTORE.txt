@@ -12,8 +12,7 @@ Extract to: C:\laragon\www\Signature
 STEP 2 — MySQL database (ZAROORI)
 -----------------------
 1. Laragon > MySQL START
-2. Double-click: import-database.bat
-   (ya HeidiSQL se backup/database-full-*.sql import karo)
+2. HeidiSQL / import-database.bat se backup/database-full-20260805-004744.sql import karo
 
 Database name: signature_local
 
@@ -22,21 +21,7 @@ STEP 3 — Laragon Apache
 -----------------------
 1. Laragon > Apache START
 2. Browser: http://signature.test/login
-   Ya LAN: http://PC-IP:8080/
-
-3. CMD:
-   cd C:\laragon\www\Signature
-   fix-storage.bat
-   php artisan config:clear
-   php artisan storage:link
+3. php artisan config:clear && php artisan storage:link
 
 
-STEP 4 — Login
---------------
-  admin@example.com / admin12345
-  superadmin@example.com / admin12345
-
-
-Mobile (same WiFi): http://PC-IP:8080/  (Signature only; Softwaresolution is :80)
-
-vendor ZIP mein hai — composer offline ki zaroorat nahi.
+Nightly: End POS Session pe yeh backup auto banti hai (backup/ folder).
