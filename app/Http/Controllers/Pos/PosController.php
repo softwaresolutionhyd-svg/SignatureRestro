@@ -1893,6 +1893,43 @@ class PosController extends Controller
             $kitchen = app(KitchenService::class);
             $itemsWithKitchenFlags = $kitchen->applyKitchenPendingFlags([], $itemsData, $sendToKitchen);
 
+            // Kitchen pehle (bina contact), phir unpaid contact ke sath — same cart = update, naya order nahi.
+            $reuseDraft = $this->findRecentSameCartDraft(
+                (int) $session->id,
+                $serviceType,
+                $itemsNormalized,
+                $guestName,
+                $roomNo,
+                $tableId ? (int) $tableId : null,
+                Auth::id() ? (int) Auth::id() : null
+            );
+            if ($reuseDraft !== null) {
+                $existing = PosOrder::query()
+                    ->whereKey($reuseDraft->id)
+                    ->lockForUpdate()
+                    ->first();
+                if ($existing && $existing->status === 'draft') {
+                    $oldItems = $existing->items()->get()->all();
+                    $itemsWithKitchenFlags = $kitchen->applyKitchenPendingFlags($oldItems, $itemsData, $sendToKitchen);
+                    $existing->update($orderPayload + [
+                        'session_id' => $session->id,
+                        'user_id' => Auth::id(),
+                    ]);
+                    SyncAwareDelete::relation($existing->items());
+                    foreach ($itemsWithKitchenFlags as $item) {
+                        PosOrderItem::create(['order_id' => $existing->id] + $item);
+                    }
+                    $updatedExisting = true;
+                    Cache::put(
+                        'pos:hold:create:'.$this->posItemsOnlyFingerprint((int) $session->id, $serviceType, $itemsNormalized),
+                        (int) $existing->id,
+                        now()->addSeconds(120)
+                    );
+
+                    return $existing->fresh(['table', 'items']);
+                }
+            }
+
             $fingerprint = $this->posNewHoldFingerprint(
                 (int) $session->id,
                 $request,
@@ -1904,11 +1941,14 @@ class PosController extends Controller
                 $this->nullableText($request->input('kitchen_notes')),
                 $itemsNormalized
             );
+            $itemsFp = $this->posItemsOnlyFingerprint((int) $session->id, $serviceType, $itemsNormalized);
             $cacheKey = 'pos:hold:create:'.$fingerprint;
-            $lock = Cache::lock('pos:hold:lock:'.$fingerprint, 25);
+            $itemsCacheKey = 'pos:hold:create:'.$itemsFp;
+            $lock = Cache::lock('pos:hold:lock:'.$itemsFp, 25);
 
             if (! $lock->block(8)) {
-                $existingDup = $this->findCachedHoldCreate($cacheKey);
+                $existingDup = $this->findCachedHoldCreate($itemsCacheKey)
+                    ?: $this->findCachedHoldCreate($cacheKey);
                 if ($existingDup !== null) {
                     $reusedDuplicateCreate = true;
 
@@ -1918,7 +1958,8 @@ class PosController extends Controller
             }
 
             try {
-                $existingDup = $this->findCachedHoldCreate($cacheKey);
+                $existingDup = $this->findCachedHoldCreate($itemsCacheKey)
+                    ?: $this->findCachedHoldCreate($cacheKey);
                 if ($existingDup !== null) {
                     $reusedDuplicateCreate = true;
 
@@ -1936,7 +1977,8 @@ class PosController extends Controller
                     PosOrderItem::create(['order_id' => $order->id] + $item);
                 }
 
-                Cache::put($cacheKey, (int) $order->id, now()->addSeconds(60));
+                Cache::put($cacheKey, (int) $order->id, now()->addSeconds(120));
+                Cache::put($itemsCacheKey, (int) $order->id, now()->addSeconds(120));
 
                 return $order->fresh(['table', 'items']);
             } finally {
@@ -4072,6 +4114,111 @@ class PosController extends Controller
             ->find((int) $id);
 
         return ($order && $order->status === 'draft') ? $order : null;
+    }
+
+    /**
+     * Same cart (items + service) recent draft — e.g. kitchen without contact, then unpaid with phone.
+     *
+     * @param  list<array<string, mixed>>  $itemsNormalized
+     */
+    private function findRecentSameCartDraft(
+        int $sessionId,
+        ?string $serviceType,
+        array $itemsNormalized,
+        ?string $guestName,
+        ?string $roomNo,
+        ?int $tableId,
+        ?int $userId
+    ): ?PosOrder {
+        $want = $this->itemsFingerprintPayload($itemsNormalized);
+        $newContact = trim((string) (($roomNo !== null && $roomNo !== '') ? $roomNo : ($guestName ?? '')));
+
+        $query = PosOrder::query()
+            ->where('session_id', $sessionId)
+            ->where('status', 'draft')
+            ->where('created_at', '>=', now()->subMinutes(45))
+            ->orderByDesc('id')
+            ->limit(20);
+
+        if ($serviceType) {
+            $query->where('service_type', $serviceType);
+        }
+        if ($tableId) {
+            $query->where('table_id', $tableId);
+        } else {
+            $query->whereNull('table_id');
+        }
+        if ($userId) {
+            $query->where('user_id', $userId);
+        }
+
+        foreach ($query->with('items')->get() as $draft) {
+            if (! $draft instanceof PosOrder) {
+                continue;
+            }
+            $have = $this->itemsFingerprintPayload(
+                $draft->items->map(static fn ($it) => [
+                    'product_id' => (int) $it->product_id,
+                    'is_custom' => (bool) ($it->is_custom ?? false),
+                    'item_name' => (string) ($it->item_name ?? ''),
+                    'uom' => (string) ($it->uom ?? ''),
+                    'qty' => (float) $it->qty,
+                    'unit_price' => (float) $it->unit_price,
+                    'notes' => (string) ($it->notes ?? ''),
+                ])->all()
+            );
+            if ($have !== $want) {
+                continue;
+            }
+
+            $draftContact = trim((string) (($draft->room_no !== null && $draft->room_no !== '')
+                ? $draft->room_no
+                : ($draft->guest_name ?? '')));
+
+            // Different takeaway/delivery customer → not the same bill.
+            if ($draftContact !== '' && $newContact !== '' && $draftContact !== $newContact) {
+                continue;
+            }
+
+            return $draft;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $itemsNormalized
+     */
+    private function posItemsOnlyFingerprint(int $sessionId, ?string $serviceType, array $itemsNormalized): string
+    {
+        return hash('sha256', json_encode([
+            'u' => Auth::id() ?? 0,
+            's' => $sessionId,
+            'st' => (string) ($serviceType ?? ''),
+            'i' => $this->itemsFingerprintPayload($itemsNormalized),
+        ], JSON_UNESCAPED_UNICODE));
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $items
+     * @return list<array<int, mixed>>
+     */
+    private function itemsFingerprintPayload(array $items): array
+    {
+        $normItems = [];
+        foreach ($items as $row) {
+            $normItems[] = [
+                (int) ($row['product_id'] ?? 0),
+                (bool) ($row['is_custom'] ?? false),
+                strtolower(trim((string) ($row['item_name'] ?? ''))),
+                strtolower(trim((string) ($row['uom'] ?? ''))),
+                round((float) ($row['qty'] ?? 0), 3),
+                round((float) ($row['unit_price'] ?? 0), 2),
+            ];
+        }
+        usort($normItems, static fn ($a, $b) => $a <=> $b);
+
+        return $normItems;
     }
 
     private function findGuestPendingDraftOrder(

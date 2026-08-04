@@ -47,6 +47,11 @@
     let kitchenPrintBusy = false;
     let holdSubmitLock = false;
     let checkoutInFlight = false;
+    let lastHeldOrderId = null;
+    try {
+        const stored = Number(sessionStorage.getItem('rp_last_held_order_id') || 0);
+        if (Number.isFinite(stored) && stored > 0) lastHeldOrderId = stored;
+    } catch (_) { /* ignore */ }
     let payments = [{ method: 'cash', amount: 0 }];
     let orderType = 'sale';
     let isCreditMode = false;
@@ -2173,11 +2178,14 @@
         });
     }
 
-    function prepareSubmit(mode) {
+    function prepareSubmit(mode, opts = {}) {
         if (!cart.length) {
             alert('Pehle item add karein.');
             return false;
         }
+
+        // Kitchen print: contact optional. Unpaid / Hold / Pay: takeaway+delivery meta zaroori.
+        const requireGuestMeta = opts.requireGuestMeta !== false;
 
         const serviceType = selectedServiceType();
         if (serviceType === 'dine_in') {
@@ -2191,20 +2199,22 @@
                 return false;
             }
         } else if (serviceType === 'delivery') {
-            if (!($('#rpDeliveryName')?.value || '').trim()) {
-                alert('Customer Name enter karein.');
-                return false;
-            }
-            if (!($('#rpDeliveryPhone')?.value || '').trim()) {
-                alert('Phone No. enter karein.');
-                return false;
-            }
-            if (!($('#rpDeliveryAddress')?.value || '').trim()) {
-                alert('Address enter karein.');
-                return false;
+            if (requireGuestMeta) {
+                if (!($('#rpDeliveryName')?.value || '').trim()) {
+                    alert('Customer Name enter karein.');
+                    return false;
+                }
+                if (!($('#rpDeliveryPhone')?.value || '').trim()) {
+                    alert('Phone No. enter karein.');
+                    return false;
+                }
+                if (!($('#rpDeliveryAddress')?.value || '').trim()) {
+                    alert('Address enter karein.');
+                    return false;
+                }
             }
         } else if (serviceType === 'takeaway') {
-            if (!($('#rpTakeawayContact')?.value || '').trim()) {
+            if (requireGuestMeta && !($('#rpTakeawayContact')?.value || '').trim()) {
                 alert('Contact No. enter karein.');
                 $('#rpTakeawayContact')?.focus();
                 return false;
@@ -2612,6 +2622,8 @@
         itemReductions = [];
         pendingRemoveIndex = null;
         resumeOrderId = null;
+        lastHeldOrderId = null;
+        try { sessionStorage.removeItem('rp_last_held_order_id'); } catch (_) { /* ignore */ }
         payments = [{ method: $('#rpPayMethod')?.value || 'cash', amount: 0 }];
         autoPaymentAmount = true;
 
@@ -2646,16 +2658,23 @@
         $('#rpProductSearch')?.focus();
     }
 
-    function buildHoldFormData(sendToKitchen = false, clientRequestId = null) {
+    function buildHoldFormData(sendToKitchen = false, clientRequestId = null, opts = {}) {
         if (!cart.length) {
             return null;
         }
-        if (!prepareSubmit('hold')) {
+        if (!prepareSubmit('hold', opts)) {
             return null;
         }
         const form = $('#rpSubmitForm');
         if (!form) {
             return null;
+        }
+
+        // Kitchen ke baad unpaid: resume id kabhi lose na ho — last held order reuse.
+        const rid = Number(resumeOrderId || lastHeldOrderId || 0);
+        if (Number.isFinite(rid) && rid > 0) {
+            resumeOrderId = rid;
+            form.querySelector('[name="resume_order_id"]').value = String(rid);
         }
 
         const totals = calcCartTotals();
@@ -2672,12 +2691,22 @@
         if (clientRequestId) {
             formData.set('client_request_id', String(clientRequestId));
         }
+        if (Number.isFinite(rid) && rid > 0) {
+            formData.set('resume_order_id', String(rid));
+        }
         return formData;
     }
 
     function newClientRequestId() {
         if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
         return 'pos-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+    }
+
+    function rememberHeldOrder(order) {
+        if (!order?.id) return;
+        lastHeldOrderId = Number(order.id);
+        try { sessionStorage.setItem('rp_last_held_order_id', String(order.id)); } catch (_) { /* ignore */ }
+        setResumeStateFromOrder(order);
     }
 
     function parseOrderQty(qty) {
@@ -2721,6 +2750,8 @@
             return;
         }
         resumeOrderId = order.id;
+        lastHeldOrderId = Number(order.id);
+        try { sessionStorage.setItem('rp_last_held_order_id', String(order.id)); } catch (_) { /* ignore */ }
         const form = $('#rpSubmitForm');
         if (form) {
             form.querySelector('[name="resume_order_id"]').value = String(order.id);
@@ -3329,9 +3360,14 @@
                     return null;
                 }
 
-                const formData = buildHoldFormData(sendToKitchen);
+                const formData = buildHoldFormData(sendToKitchen, null, {
+                    // Kitchen update: contact optional. Unpaid/hold update: contact zaroori.
+                    requireGuestMeta: !sendToKitchen,
+                });
                 if (!formData) {
-                    throw new Error('Order save tayyar nahi ho saki.');
+                    throw new Error(sendToKitchen
+                        ? 'Order save tayyar nahi ho saki.'
+                        : 'Contact / guest details likhein, phir unpaid slip print karein.');
                 }
 
                 const voidsSnapshot = kitchenVoids.slice();
@@ -3394,15 +3430,21 @@
     }
 
     async function ensureHeldOrderForPrint() {
-        if (resumeOrderId) {
-            // Quick save so unpaid slip latest cart dikhaye — kitchen print flags skip nahi.
+        const existingId = Number(resumeOrderId || lastHeldOrderId || 0);
+        if (Number.isFinite(existingId) && existingId > 0) {
+            resumeOrderId = existingId;
+            const form = $('#rpSubmitForm');
+            if (form) {
+                form.querySelector('[name="resume_order_id"]').value = String(existingId);
+            }
+            // Quick save so unpaid slip latest cart + contact dikhaye — same bill update, naya order nahi.
             await saveResumedDraftChanges(false);
-            return resumeOrderId;
+            return resumeOrderId || existingId;
         }
 
-        const formData = buildHoldFormData();
+        const formData = buildHoldFormData(false, newClientRequestId(), { requireGuestMeta: true });
         if (!formData) {
-            throw new Error('Bill print ke liye pehle item add karein.');
+            throw new Error('Bill print ke liye pehle item add karein / contact likhein.');
         }
 
         const res = await fetch(routes.hold, {
@@ -3424,22 +3466,13 @@
             throw new Error('Order save ho gaya lekin print ke liye ID nahi mili.');
         }
 
-        resumeOrderId = orderId;
-        const form = $('#rpSubmitForm');
-        if (form) {
-            form.querySelector('[name="resume_order_id"]').value = String(orderId);
-        }
         if (data.order) {
+            rememberHeldOrder(data.order);
             upsertPendingBill(data.order, !!data.updated);
+        } else {
+            resumeOrderId = orderId;
+            lastHeldOrderId = Number(orderId);
         }
-
-        let badge = document.querySelector('.rp-badge-order');
-        if (!badge) {
-            badge = document.createElement('span');
-            badge.className = 'badge rp-badge-order';
-            $('#rpTabMenu')?.parentElement?.prepend(badge);
-        }
-        badge.textContent = data.order.order_no || String(orderId);
 
         return orderId;
     }
@@ -3544,7 +3577,8 @@
             alert('Pehle item add karein.');
             return;
         }
-        if (!prepareSubmit('hold')) return;
+        // Contact optional on kitchen — unpaid bill pe number maanga jayega.
+        if (!prepareSubmit('hold', { requireGuestMeta: false })) return;
 
         const kitchenBtn = $('#rpKitchenPrintBtn');
         if (kitchenBtn) kitchenBtn.disabled = true;
@@ -3553,10 +3587,12 @@
         let savedOk = false;
         try {
             let order = null;
-            if (resumeOrderId) {
+            const existingId = Number(resumeOrderId || lastHeldOrderId || 0);
+            if (Number.isFinite(existingId) && existingId > 0) {
+                resumeOrderId = existingId;
                 order = await saveResumedDraftChanges(true);
             } else {
-                const formData = buildHoldFormData(true, newClientRequestId());
+                const formData = buildHoldFormData(true, newClientRequestId(), { requireGuestMeta: false });
                 if (!formData) return;
 
                 const res = await fetch(routes.hold, {
@@ -3577,16 +3613,22 @@
                 if (order) {
                     upsertPendingBill(order, !!data.updated);
                     reloadCartFromOrder(order);
-                    setResumeStateFromOrder(order);
+                    rememberHeldOrder(order);
                     if (order.table_id) {
                         setTableBoardStatus(order.table_id, 'occupied');
                     }
                 }
             }
 
-            const orderId = order?.id || resumeOrderId;
+            const orderId = order?.id || resumeOrderId || lastHeldOrderId;
             if (!orderId) {
                 throw new Error('Order save nahi ho saki.');
+            }
+            if (order) {
+                rememberHeldOrder(order);
+            } else {
+                resumeOrderId = Number(orderId);
+                lastHeldOrderId = Number(orderId);
             }
             savedOk = true;
             await printKitchenSlip(orderId);
