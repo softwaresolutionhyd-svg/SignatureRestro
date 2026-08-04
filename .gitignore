@@ -33,4 +33,5 @@ Signature-full-backup-*.zip
 .cursor/hooks/auto-push.log
 
 /storage/app/lan/
+/storage/app/vapid.json
 

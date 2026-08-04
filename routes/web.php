@@ -18,6 +18,7 @@ use App\Http\Controllers\Purchase\PurchaseController;
 use App\Http\Controllers\Purchase\VendorController as PurchaseVendorController;
 use App\Http\Controllers\Purchase\OrderController as PurchaseOrderController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\Pos\PosController;
@@ -370,6 +371,10 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.readAll');
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+
+    Route::get('/push-subscriptions/vapid-key', [PushSubscriptionController::class, 'vapidPublicKey'])->name('push-subscriptions.vapid');
+    Route::post('/push-subscriptions', [PushSubscriptionController::class, 'store'])->name('push-subscriptions.store');
+    Route::delete('/push-subscriptions', [PushSubscriptionController::class, 'destroy'])->name('push-subscriptions.destroy');
 
     // Reports (Report Builder disabled for Signature)
     Route::prefix('reports')->name('reports.')->middleware('moduleAccess')->group(function () {

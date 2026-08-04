@@ -64,10 +64,18 @@ class EnsureCloudReadOnly
             'api/sync/pull-multi',
             'api/sync/pull-ids',
             'api/sync/mirror',
+            'api/sync/push-notify',
+            'notifications/read-all',
+            'push-subscriptions',
+            'push-subscriptions/vapid-key',
             'deploy/hooks/migrate',
         ];
 
         if (in_array($path, $exact, true)) {
+            return true;
+        }
+
+        if (preg_match('#^notifications/[^/]+/read$#', $path) === 1) {
             return true;
         }
 
@@ -82,6 +90,12 @@ class EnsureCloudReadOnly
             'password-reset-request.create',
             'password-reset-request.store',
             'deploy.hooks.migrate',
+            'notifications.index',
+            'notifications.readAll',
+            'notifications.read',
+            'push-subscriptions.vapid',
+            'push-subscriptions.store',
+            'push-subscriptions.destroy',
         ];
 
         return $route !== null && in_array($route, $allowedRoutes, true);

@@ -6,13 +6,14 @@
     "license": "MIT",
     "require": {
         "php": "^8.1",
+        "bacon/bacon-qr-code": "^3.0",
         "guzzlehttp/guzzle": "^7.2",
         "laravel/framework": "^10.10",
         "laravel/sanctum": "^3.3",
         "laravel/tinker": "^2.8",
         "laravel/ui": "^4.6",
-        "pragmarx/google2fa": "^9.0",
-        "bacon/bacon-qr-code": "^3.0"
+        "minishlink/web-push": "^9.0",
+        "pragmarx/google2fa": "^9.0"
     },
     "require-dev": {
         "fakerphp/faker": "^1.9.1",

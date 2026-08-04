@@ -137,18 +137,81 @@
         return typeof Notification !== 'undefined';
     }
 
+    function canWebPush() {
+        return typeof window !== 'undefined'
+            && 'serviceWorker' in navigator
+            && 'PushManager' in window
+            && window.isSecureContext === true;
+    }
+
     function browserNotifyAllowed() {
         return canBrowserNotify() && Notification.permission === 'granted';
     }
 
+    function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const raw = window.atob(base64);
+        const out = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+        return out;
+    }
+
+    async function resolveVapidKey() {
+        if (boot.vapidPublicKey) return boot.vapidPublicKey;
+        if (!routes.vapidKey) return '';
+        try {
+            const res = await fetch(routes.vapidKey, {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+            });
+            if (!res.ok) return '';
+            const data = await res.json();
+            return data.publicKey || '';
+        } catch (_) {
+            return '';
+        }
+    }
+
+    async function subscribeWebPush() {
+        if (!canWebPush() || !routes.pushSubscribe) return false;
+        try {
+            const reg = await navigator.serviceWorker.ready;
+            let sub = await reg.pushManager.getSubscription();
+            if (!sub) {
+                const key = await resolveVapidKey();
+                if (!key) return false;
+                sub = await reg.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(key),
+                });
+            }
+            const body = sub.toJSON();
+            const res = await fetch(routes.pushSubscribe, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': csrf,
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify(body),
+            });
+            return res.ok;
+        } catch (_) {
+            return false;
+        }
+    }
+
     function updateEnableBtn() {
         if (!enableBtn) return;
-        if (!canBrowserNotify()) {
+        if (!canBrowserNotify() && !canWebPush()) {
             enableBtn.classList.add('d-none');
             return;
         }
         if (Notification.permission === 'granted') {
-            enableBtn.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Alerts on (phone / PC)';
+            enableBtn.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Phone alerts on';
             enableBtn.disabled = true;
             enableBtn.classList.remove('btn-outline-secondary');
             enableBtn.classList.add('btn-outline-success');
@@ -157,6 +220,7 @@
             enableBtn.disabled = true;
         } else {
             enableBtn.disabled = false;
+            enableBtn.innerHTML = '<i class="bi bi-phone-vibrate me-1"></i> Enable phone / desktop alerts';
         }
     }
 
@@ -165,16 +229,23 @@
             alert('Is browser mein desktop/phone alerts support nahi.');
             return;
         }
+        if (!window.isSecureContext) {
+            alert('Phone alerts ke liye HTTPS chahiye (online site ya LAN HTTPS).');
+            return;
+        }
         try {
             ensureAudio();
             const perm = await Notification.requestPermission();
             updateEnableBtn();
             if (perm === 'granted') {
+                const ok = await subscribeWebPush();
                 playTune();
                 showToastPopup({
                     data: {
-                        title: 'Alerts on',
-                        message: 'Ab changes right side pe popup + sound ke sath aayenge.',
+                        title: ok ? 'Phone alerts on' : 'Alerts on',
+                        message: ok
+                            ? 'Ab app band hone par bhi phone notifications me Stair alerts aayenge.'
+                            : 'Popup alerts on. Background push ke liye Install App + Allow try karein.',
                         icon: 'bi-bell',
                         level: 'success',
                     },
@@ -345,6 +416,10 @@
     });
 
     updateEnableBtn();
+    // Re-register push if user already allowed notifications (e.g. reinstall / new device row).
+    if (browserNotifyAllowed() && canWebPush()) {
+        subscribeWebPush();
+    }
     refresh();
     pollTimer = window.setInterval(refresh, 5000);
 

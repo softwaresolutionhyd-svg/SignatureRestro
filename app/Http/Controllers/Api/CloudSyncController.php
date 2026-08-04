@@ -119,4 +119,30 @@ class CloudSyncController extends Controller
 
         return response()->json($result, ($result['ok'] ?? false) ? 200 : 422);
     }
+
+    /**
+     * Cafe → hosting: fan-out Stair activity as Web Push to online-installed PWAs.
+     */
+    public function pushNotify(Request $request, \App\Services\WebPushService $webPush): JsonResponse
+    {
+        $data = $request->validate([
+            'company_id' => ['nullable', 'integer', 'min:1'],
+            'payload' => ['required', 'array'],
+            'payload.title' => ['required', 'string', 'max:120'],
+            'payload.message' => ['nullable', 'string', 'max:500'],
+            'payload.url' => ['nullable', 'string', 'max:500'],
+            'payload.action' => ['nullable', 'string', 'max:80'],
+            'payload.level' => ['nullable', 'string', 'max:20'],
+            'payload.icon' => ['nullable', 'string', 'max:80'],
+            'payload.order_id' => ['nullable', 'integer'],
+            'payload.order_no' => ['nullable', 'string', 'max:80'],
+        ]);
+
+        $sent = $webPush->sendToCompany(
+            isset($data['company_id']) ? (int) $data['company_id'] : null,
+            $data['payload']
+        );
+
+        return response()->json(['ok' => true, 'sent' => $sent]);
+    }
 }

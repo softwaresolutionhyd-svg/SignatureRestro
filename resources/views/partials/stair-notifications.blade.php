@@ -1,16 +1,28 @@
 {{-- Stair activity notifications bootstrap --}}
 @auth
+@php
+    $stairVapidPublic = '';
+    try {
+        $stairVapidPublic = app(\App\Services\WebPushService::class)->publicKey();
+    } catch (\Throwable $e) {
+        $stairVapidPublic = '';
+    }
+@endphp
 <script>
 window.STAIR_NOTIFICATIONS = {
     csrf: @json(csrf_token()),
+    vapidPublicKey: @json($stairVapidPublic),
     routes: {
         index: @json(route('notifications.index')),
         readAll: @json(route('notifications.readAll')),
         readOne: @json(url('/notifications/__ID__/read')),
+        pushSubscribe: @json(route('push-subscriptions.store')),
+        pushUnsubscribe: @json(route('push-subscriptions.destroy')),
+        vapidKey: @json(route('push-subscriptions.vapid')),
     }
 };
 </script>
-<script src="{{ asset('js/stair-notifications.js') }}?v=3" defer></script>
+<script src="{{ asset('js/stair-notifications.js') }}?v=4" defer></script>
 <style>
 .stair-notif-btn { min-width: 2.1rem; }
 .stair-notif-badge {

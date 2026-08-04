@@ -68,7 +68,19 @@ final class PosActivityNotifier
 
             $query->chunkById(100, function ($users) use ($payload) {
                 Notification::send($users, new PosActivity($payload));
+                try {
+                    app(WebPushService::class)->sendToUsers($users, $payload);
+                } catch (Throwable $e) {
+                    report($e);
+                }
             });
+
+            // Online-installed PWA: cafe relays so phone gets system tray alert without app open.
+            try {
+                app(WebPushService::class)->relayToRemote($payload, $companyId);
+            } catch (Throwable $e) {
+                report($e);
+            }
         } catch (Throwable $e) {
             report($e);
         }

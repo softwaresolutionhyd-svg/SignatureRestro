@@ -97,6 +97,8 @@ return [
         'sync_meta',
         // Stair in-app bell alerts — local UI only; flooding outbox (~1 row per user per POS action)
         'notifications',
+        // Device push endpoints — per-server (local vs online PWA)
+        'push_subscriptions',
         // Demand tables: skip until hosting has EnsuresStockDemandSchema deployed
         'stock_demands',
         'stock_demand_lines',
