@@ -13,6 +13,15 @@
     const seenKey = 'stair_notif_seen_ids';
     const baseTitle = document.title.replace(/^\(\d+\+?\)\s*/, '');
     let pollTimer = null;
+    let primed = false; // first fetch: seed seen, no toast flood
+    let lastSoundAt = 0;
+    let audioCtx = null;
+
+    const toastHost = document.createElement('div');
+    toastHost.id = 'stairToastHost';
+    toastHost.className = 'stair-toast-host';
+    toastHost.setAttribute('aria-live', 'polite');
+    document.body.appendChild(toastHost);
 
     function esc(s) {
         return String(s ?? '')
@@ -31,7 +40,7 @@
     }
 
     function saveSeen(set) {
-        const arr = Array.from(set).slice(-80);
+        const arr = Array.from(set).slice(-120);
         try {
             localStorage.setItem(seenKey, JSON.stringify(arr));
         } catch (_) { /* ignore */ }
@@ -42,6 +51,86 @@
         if (level === 'warning') return 'stair-notif-item--warning';
         if (level === 'success') return 'stair-notif-item--success';
         return '';
+    }
+
+    function toastLevelClass(level) {
+        if (level === 'danger') return 'stair-toast--danger';
+        if (level === 'warning') return 'stair-toast--warning';
+        if (level === 'success') return 'stair-toast--success';
+        return 'stair-toast--info';
+    }
+
+    function ensureAudio() {
+        if (audioCtx) return audioCtx;
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return null;
+        audioCtx = new Ctx();
+        return audioCtx;
+    }
+
+    /** Soft two-tone ding — no external file needed. */
+    function playTune() {
+        const now = Date.now();
+        if (now - lastSoundAt < 400) return;
+        lastSoundAt = now;
+        try {
+            const ctx = ensureAudio();
+            if (!ctx) return;
+            if (ctx.state === 'suspended') ctx.resume();
+
+            const beep = (freq, start, dur, gain) => {
+                const osc = ctx.createOscillator();
+                const g = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                g.gain.setValueAtTime(0.0001, start);
+                g.gain.exponentialRampToValueAtTime(gain, start + 0.02);
+                g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+                osc.connect(g);
+                g.connect(ctx.destination);
+                osc.start(start);
+                osc.stop(start + dur + 0.02);
+            };
+
+            const t = ctx.currentTime;
+            beep(880, t, 0.12, 0.18);
+            beep(1174.7, t + 0.11, 0.18, 0.14);
+        } catch (_) { /* ignore */ }
+    }
+
+    function showToastPopup(item) {
+        const data = item.data || {};
+        const el = document.createElement('div');
+        el.className = `stair-toast ${toastLevelClass(data.level)}`;
+        el.innerHTML = `
+            <span class="stair-toast-icon"><i class="bi ${esc(data.icon || 'bi-bell')}"></i></span>
+            <span class="stair-toast-body">
+                <span class="stair-toast-title">${esc(data.title || 'Notification')}</span>
+                <span class="stair-toast-msg">${esc(data.message || '')}</span>
+            </span>
+            <button type="button" class="stair-toast-close" aria-label="Close">&times;</button>
+            <span class="stair-toast-progress" aria-hidden="true"></span>
+        `;
+
+        const close = () => {
+            el.classList.add('is-out');
+            window.setTimeout(() => el.remove(), 280);
+        };
+
+        el.querySelector('.stair-toast-close')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            close();
+        });
+
+        el.addEventListener('click', () => {
+            if (data.url) window.location.href = data.url;
+        });
+
+        toastHost.appendChild(el);
+        requestAnimationFrame(() => el.classList.add('is-in'));
+        playTune();
+        window.setTimeout(close, 3000);
     }
 
     function canBrowserNotify() {
@@ -77,13 +166,18 @@
             return;
         }
         try {
+            ensureAudio();
             const perm = await Notification.requestPermission();
             updateEnableBtn();
             if (perm === 'granted') {
-                new Notification('Stair alerts on', {
-                    body: 'Ab order / cancel activity isi device pe dikhegi.',
-                    icon: '/favicon.svg',
-                    tag: 'stair-enabled',
+                playTune();
+                showToastPopup({
+                    data: {
+                        title: 'Alerts on',
+                        message: 'Ab changes right side pe popup + sound ke sath aayenge.',
+                        icon: 'bi-bell',
+                        level: 'success',
+                    },
                 });
             }
         } catch (_) {
@@ -92,7 +186,7 @@
     }
 
     function showBrowserAlert(item) {
-        if (!browserNotifyAllowed()) return;
+        if (!browserNotifyAllowed() || document.visibilityState === 'visible') return;
         const data = item.data || {};
         try {
             const n = new Notification(data.title || 'Stair', {
@@ -159,9 +253,26 @@
 
             const seen = loadSeen();
             let changed = false;
-            items.forEach((item) => {
-                if (item.read_at || seen.has(item.id)) return;
+
+            // First load: mark current items seen so old 99+ don't all toast.
+            if (!primed) {
+                items.forEach((item) => {
+                    if (item.id) seen.add(item.id);
+                });
+                saveSeen(seen);
+                primed = true;
+                return;
+            }
+
+            // Newest first — toast newest few so stack stays readable.
+            const fresh = items.filter((item) => item.id && !item.read_at && !seen.has(item.id));
+            fresh.slice(0, 4).reverse().forEach((item) => {
+                showToastPopup(item);
                 showBrowserAlert(item);
+                seen.add(item.id);
+                changed = true;
+            });
+            fresh.slice(4).forEach((item) => {
                 seen.add(item.id);
                 changed = true;
             });
@@ -200,6 +311,20 @@
         } catch (_) { /* ignore */ }
     }
 
+    // Unlock audio on first user gesture (browser autoplay policy).
+    const unlock = () => {
+        try {
+            const ctx = ensureAudio();
+            if (ctx && ctx.state === 'suspended') ctx.resume();
+        } catch (_) { /* ignore */ }
+        document.removeEventListener('click', unlock);
+        document.removeEventListener('keydown', unlock);
+        document.removeEventListener('touchstart', unlock);
+    };
+    document.addEventListener('click', unlock, { once: true });
+    document.addEventListener('keydown', unlock, { once: true });
+    document.addEventListener('touchstart', unlock, { once: true });
+
     listEl.addEventListener('click', (e) => {
         const item = e.target.closest('.stair-notif-item');
         if (!item) return;
@@ -221,7 +346,7 @@
 
     updateEnableBtn();
     refresh();
-    pollTimer = window.setInterval(refresh, 8000);
+    pollTimer = window.setInterval(refresh, 5000);
 
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) refresh();

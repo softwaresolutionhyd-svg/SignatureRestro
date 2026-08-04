@@ -10,7 +10,7 @@ window.STAIR_NOTIFICATIONS = {
     }
 };
 </script>
-<script src="{{ asset('js/stair-notifications.js') }}?v=1" defer></script>
+<script src="{{ asset('js/stair-notifications.js') }}?v=2" defer></script>
 <style>
 .stair-notif-btn { min-width: 2.1rem; }
 .stair-notif-badge {
@@ -81,5 +81,101 @@ window.STAIR_NOTIFICATIONS = {
 .stair-notif-actor { margin-left: 0.25rem; }
 .stair-notif-foot { padding: 0.65rem 0.75rem; border-top: 1px solid rgba(0,0,0,.06); }
 .admin-topbar .stair-notif-menu { z-index: 1080; }
+
+/* Right-side toast popups */
+.stair-toast-host {
+    position: fixed;
+    top: 4.5rem;
+    right: 1rem;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    width: min(360px, calc(100vw - 1.5rem));
+    pointer-events: none;
+}
+.stair-toast {
+    pointer-events: auto;
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.85rem 2rem 0.85rem 0.85rem;
+    border-radius: 14px;
+    background: #111827;
+    color: #f9fafb;
+    box-shadow: 0 12px 40px rgba(0,0,0,.35);
+    overflow: hidden;
+    opacity: 0;
+    transform: translateX(120%);
+    transition: transform .28s ease, opacity .28s ease;
+    cursor: pointer;
+}
+.stair-toast.is-in {
+    opacity: 1;
+    transform: translateX(0);
+}
+.stair-toast.is-out {
+    opacity: 0;
+    transform: translateX(110%);
+}
+.stair-toast--success { border-left: 4px solid #22c55e; }
+.stair-toast--warning { border-left: 4px solid #f59e0b; }
+.stair-toast--danger { border-left: 4px solid #ef4444; }
+.stair-toast--info { border-left: 4px solid #6366f1; }
+.stair-toast-icon {
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,.1);
+    flex-shrink: 0;
+    font-size: 1rem;
+}
+.stair-toast--success .stair-toast-icon { color: #86efac; }
+.stair-toast--warning .stair-toast-icon { color: #fcd34d; }
+.stair-toast--danger .stair-toast-icon { color: #fca5a5; }
+.stair-toast--info .stair-toast-icon { color: #a5b4fc; }
+.stair-toast-body { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.stair-toast-title { font-size: 0.88rem; font-weight: 700; line-height: 1.25; }
+.stair-toast-msg { font-size: 0.78rem; color: #d1d5db; line-height: 1.35; word-break: break-word; }
+.stair-toast-close {
+    position: absolute;
+    top: 0.35rem;
+    right: 0.45rem;
+    border: 0;
+    background: transparent;
+    color: #9ca3af;
+    font-size: 1.2rem;
+    line-height: 1;
+    padding: 0.15rem 0.35rem;
+    cursor: pointer;
+}
+.stair-toast-close:hover { color: #fff; }
+.stair-toast-progress {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 3px;
+    width: 100%;
+    background: rgba(255,255,255,.35);
+    transform-origin: left center;
+    animation: stairToastProgress 3s linear forwards;
+}
+@keyframes stairToastProgress {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+}
+@media (max-width: 576px) {
+    .stair-toast-host {
+        top: auto;
+        bottom: 1rem;
+        right: 0.75rem;
+        left: 0.75rem;
+        width: auto;
+    }
+}
 </style>
 @endauth
