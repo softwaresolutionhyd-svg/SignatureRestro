@@ -1551,6 +1551,7 @@ class PosController extends Controller
             $this->logKitchenVoids($order, $this->normalizedKitchenVoids($request));
             $this->logItemReductions($order, $this->normalizedItemReductions($request));
             $this->autoJournal->postPosSale($order);
+            \App\Services\PosActivityNotifier::orderPaid($order);
         }
 
         $order->refresh();
@@ -1913,6 +1914,10 @@ class PosController extends Controller
 
         $message = $updatedExisting ? 'Held order updated.' : 'Order held successfully.';
 
+        if ($sendToKitchen || ! $updatedExisting) {
+            \App\Services\PosActivityNotifier::orderPlaced($order->loadMissing(['table']), $updatedExisting);
+        }
+
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
@@ -1993,6 +1998,7 @@ class PosController extends Controller
                     $locked->fresh(),
                     ['order_no' => $locked->order_no]
                 );
+                \App\Services\PosActivityNotifier::billReopened($locked->fresh(['table']));
             });
         } catch (\Throwable $e) {
             return back()->with('error', $e->getMessage() ?: 'Bill reopen nahi ho saki.');
@@ -2197,6 +2203,7 @@ class PosController extends Controller
                     'voids' => $kitchenVoids,
                 ]
             );
+            \App\Services\PosActivityNotifier::orderCancelled($order, $reason);
         }
 
         $order->delete();
@@ -4404,6 +4411,8 @@ class PosController extends Controller
             );
         }
         unset($void);
+
+        \App\Services\PosActivityNotifier::itemsCancelled($order, $kitchenVoids);
 
         try {
             return app(NetworkPrinterService::class)->dispatchRemovedItemsPrints($order, $kitchenVoids);

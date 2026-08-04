@@ -39,6 +39,39 @@
                 <span id="sync-status-label" class="small">{{ __('Sync') }}</span>
             </button>
             @endif
+
+            {{-- Stair activity notifications (desktop + mobile) --}}
+            <div class="dropdown stair-notif-dropdown" id="stairNotifDropdown">
+                <button class="btn btn-sm border-0 bg-white bg-opacity-10 text-white position-relative stair-notif-btn"
+                        type="button"
+                        id="stairNotifBtn"
+                        data-bs-toggle="dropdown"
+                        data-bs-auto-close="outside"
+                        data-bs-popper-config='{"strategy":"fixed"}'
+                        aria-expanded="false"
+                        title="{{ __('Notifications') }}"
+                        aria-label="{{ __('Notifications') }}">
+                    <i class="bi bi-bell"></i>
+                    <span class="stair-notif-badge d-none" id="stairNotifBadge">0</span>
+                </button>
+                <div class="dropdown-menu dropdown-menu-end shadow border-0 stair-notif-menu" aria-labelledby="stairNotifBtn">
+                    <div class="stair-notif-head">
+                        <strong>{{ __('Notifications') }}</strong>
+                        <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" id="stairNotifMarkAll">
+                            {{ __('Mark all read') }}
+                        </button>
+                    </div>
+                    <div class="stair-notif-list" id="stairNotifList">
+                        <div class="stair-notif-empty text-secondary small px-3 py-4 text-center">{{ __('No new notifications') }}</div>
+                    </div>
+                    <div class="stair-notif-foot">
+                        <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="stairNotifEnable">
+                            <i class="bi bi-phone-vibrate me-1"></i> {{ __('Enable phone / desktop alerts') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <span class="badge admin-topbar-badge d-none d-md-inline">
                 @if(auth()->user()?->loginUsername())
                     {{ __('User:') }} <span class="fw-semibold">{{ auth()->user()->loginUsername() }}</span>

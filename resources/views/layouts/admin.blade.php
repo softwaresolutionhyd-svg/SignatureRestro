@@ -50,6 +50,7 @@
     @stack('scripts')
     @yield('scripts')
     @include('partials.sync-heartbeat')
+    @include('partials.stair-notifications')
     @include('partials.pwa-register')
 </body>
 </html>

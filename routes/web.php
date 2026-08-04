@@ -369,6 +369,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
 
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.readAll');
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
 
     // Reports (Report Builder disabled for Signature)
     Route::prefix('reports')->name('reports.')->middleware('moduleAccess')->group(function () {

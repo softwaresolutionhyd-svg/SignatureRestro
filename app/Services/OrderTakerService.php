@@ -85,6 +85,7 @@ final class OrderTakerService
 
         $order = $order->fresh(['items.product', 'table', 'user']);
         $this->dispatchKitchenPrintQuietly($order);
+        \App\Services\PosActivityNotifier::orderPlaced($order, false);
 
         return $order;
     }
@@ -707,6 +708,7 @@ final class OrderTakerService
 
         $order = $order->fresh(['items.product', 'table', 'user']);
         $this->dispatchKitchenPrintQuietly($order);
+        \App\Services\PosActivityNotifier::orderPlaced($order, true);
 
         return $order;
     }
