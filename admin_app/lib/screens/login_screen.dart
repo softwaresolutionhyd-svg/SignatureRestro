@@ -52,12 +52,26 @@ class _LoginScreenState extends State<LoginScreen> {
           if (data is! Map<String, dynamic>) continue;
           final hasSig = data.containsKey('order_taker_app') || data.containsKey('server_url');
           if (!hasSig) continue;
-          final url = (data['server_url'] as String?)?.trim();
-          if (url != null && url.isNotEmpty && mounted) {
-            setState(() => _baseUrlCtrl.text = url.replaceAll(RegExp(r'/+$'), ''));
-            return;
+
+          // Advertised URL galat port pe ho sakti hai — pehle verify, warna jo tryUrl chal raha hai wahi use.
+          final advertised = (data['server_url'] as String?)?.trim().replaceAll(RegExp(r'/+$'), '');
+          var chosen = tryUrl;
+          if (advertised != null && advertised.isNotEmpty && advertised != tryUrl) {
+            try {
+              final check = await client
+                  .get(Uri.parse('$advertised/api/server-config'), headers: {'Accept': 'application/json'})
+                  .timeout(const Duration(seconds: 2));
+              if (check.statusCode == 200) {
+                chosen = advertised;
+              }
+            } catch (_) {
+              chosen = tryUrl;
+            }
           }
-          if (mounted) setState(() => _baseUrlCtrl.text = tryUrl);
+
+          if (mounted) {
+            setState(() => _baseUrlCtrl.text = chosen);
+          }
           return;
         } catch (_) {}
       }
@@ -143,7 +157,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Manager / Admin login — same WiFi, Signature server URL.',
+                    'Same WiFi. Server URL: http://192.168.1.105 (bina :8080).',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade700),
                   ),

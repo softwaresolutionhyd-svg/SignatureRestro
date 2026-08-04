@@ -1,5 +1,5 @@
-/// Cafe PC ke possible LAN addresses — Softwaresolution aksar :80, Signature :8080.
-const String kDefaultServerUrl = 'http://192.168.1.105:8080';
+/// Cafe PC LAN — pehle :80 try (current Laragon), phir :8080.
+const String kDefaultServerUrl = 'http://192.168.1.105';
 
 const String kDefaultServerHost = '192.168.1.105';
 
@@ -13,12 +13,12 @@ List<String> kServerUrlCandidates({String? saved}) {
 
   add(saved);
   add(kDefaultServerUrl);
-  add('http://$kDefaultServerHost:8080');
   add('http://$kDefaultServerHost');
+  add('http://$kDefaultServerHost:8080');
   add('https://$kDefaultServerHost');
   add('https://$kDefaultServerHost:8080');
-  add('http://192.168.3.50:8080');
   add('http://192.168.3.50');
+  add('http://192.168.3.50:8080');
   add('https://192.168.3.50');
 
   return out;
