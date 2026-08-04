@@ -815,6 +815,7 @@
     }
 
     function buildReductionEntry(row, qty, reason) {
+        const orderItemId = Number(row.order_item_id) || 0;
         return {
             product_id: row.product_id,
             uom: row.uom,
@@ -824,6 +825,7 @@
             name: row.name,
             item_name: row.is_custom ? String(row.item_name || row.name || '').trim() : '',
             is_custom: !!row.is_custom,
+            order_item_id: orderItemId > 0 ? orderItemId : null,
         };
     }
 
@@ -832,6 +834,7 @@
     }
 
     async function removeCartLine(index, reason) {
+        syncItemNotesFromDom();
         const row = cart[index];
         if (!row) return;
 
@@ -3395,7 +3398,11 @@
                 const hadKitchenVoids = voidsSnapshot.length > 0;
                 if (data.order) {
                     upsertPendingBill(data.order, true);
-                    reloadCartFromOrder(data.order);
+                    // After kitchen void, keep local cart — server reload used to re-append
+                    // locked lines when void fingerprints mismatched (item stuck until 2nd delete).
+                    if (!hadKitchenVoids) {
+                        reloadCartFromOrder(data.order);
+                    }
                     setResumeStateFromOrder(data.order);
                     if (data.order.table_id) {
                         setTableBoardStatus(data.order.table_id, 'occupied');

@@ -4557,6 +4557,7 @@ class PosController extends Controller
                 'name' => trim((string) ($void['name'] ?? '')),
                 'item_name' => trim((string) ($void['item_name'] ?? '')),
                 'is_custom' => filter_var($void['is_custom'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'order_item_id' => (int) ($void['order_item_id'] ?? 0) ?: null,
             ];
         }
 

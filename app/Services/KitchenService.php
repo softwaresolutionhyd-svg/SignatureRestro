@@ -153,6 +153,29 @@ final class KitchenService
     }
 
     /**
+     * Kitchen void matching ignores notes — instructions often change after print,
+     * and a notes mismatch would re-append the locked line (item “stuck” in cart).
+     *
+     * @param  array<string, mixed>|PosOrderItem  $item
+     */
+    public function voidMatchFingerprint(array|PosOrderItem $item): string
+    {
+        if ($item instanceof PosOrderItem) {
+            $productId = (int) $item->product_id;
+            $uom = mb_strtolower(trim((string) $item->uom));
+            $itemName = mb_strtolower(trim((string) ($item->item_name ?? '')));
+            $isCustom = (bool) $item->is_custom;
+        } else {
+            $productId = (int) ($item['product_id'] ?? 0);
+            $uom = mb_strtolower(trim((string) ($item['uom'] ?? '')));
+            $itemName = mb_strtolower(trim((string) ($item['item_name'] ?? '')));
+            $isCustom = filter_var($item['is_custom'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        return implode('|', [$productId, $uom, $isCustom ? '1' : '0', $itemName]);
+    }
+
+    /**
      * @param  array<string, mixed>|PosOrderItem  $item
      */
     public function itemFingerprint(array|PosOrderItem $item): string
@@ -283,14 +306,23 @@ final class KitchenService
     {
         $newQty = [];
         foreach ($newNormalized as $item) {
-            $fp = $this->baseItemFingerprint($item);
+            $fp = $this->voidMatchFingerprint($item);
             $newQty[$fp] = ($newQty[$fp] ?? 0.0) + (float) ($item['qty'] ?? 0);
         }
 
         $voidQty = [];
         foreach ($voids as $void) {
-            $fp = $this->baseItemFingerprint($void);
+            $fp = $this->voidMatchFingerprint($void);
             $voidQty[$fp] = ($voidQty[$fp] ?? 0.0) + (float) ($void['qty'] ?? 0);
+        }
+
+        // Prefer exact order_item_id voids when the client still knows the line id.
+        $voidedItemIds = [];
+        foreach ($voids as $void) {
+            $id = (int) ($void['order_item_id'] ?? 0);
+            if ($id > 0) {
+                $voidedItemIds[$id] = ($voidedItemIds[$id] ?? 0.0) + (float) ($void['qty'] ?? 0);
+            }
         }
 
         $lockedQty = [];
@@ -303,7 +335,21 @@ final class KitchenService
             if (! $this->isKitchenLockedLine($old)) {
                 continue;
             }
-            $fp = $this->baseItemFingerprint($old);
+            $id = (int) $old->id;
+            if ($id > 0 && isset($voidedItemIds[$id]) && $voidedItemIds[$id] > 0.0005) {
+                $take = min((float) $old->qty, (float) $voidedItemIds[$id]);
+                $voidedItemIds[$id] = max(0.0, (float) $voidedItemIds[$id] - $take);
+                // Covered by explicit line void — do not count toward missing locked qty.
+                $remainingLocked = round((float) $old->qty - $take, 3);
+                if ($remainingLocked <= 0.0005) {
+                    continue;
+                }
+                $fp = $this->voidMatchFingerprint($old);
+                $lockedQty[$fp] = ($lockedQty[$fp] ?? 0.0) + $remainingLocked;
+                $samples[$fp] = $old;
+                continue;
+            }
+            $fp = $this->voidMatchFingerprint($old);
             $lockedQty[$fp] = ($lockedQty[$fp] ?? 0.0) + (float) $old->qty;
             $samples[$fp] = $old;
         }
@@ -350,6 +396,14 @@ final class KitchenService
      */
     public function assertLockedQuantitiesPreserved(array $existingItems, array $incomingItems, array $kitchenVoids = []): void
     {
+        $voidedItemIds = [];
+        foreach ($kitchenVoids as $void) {
+            $id = (int) ($void['order_item_id'] ?? 0);
+            if ($id > 0) {
+                $voidedItemIds[$id] = ($voidedItemIds[$id] ?? 0.0) + (float) ($void['qty'] ?? 0);
+            }
+        }
+
         $lockedByFingerprint = [];
         foreach ($existingItems as $existing) {
             if (! $existing instanceof PosOrderItem) {
@@ -359,7 +413,16 @@ final class KitchenService
             if ($qty <= 0 || ! $this->isKitchenLockedLine($existing)) {
                 continue;
             }
-            $fp = $this->baseItemFingerprint($existing);
+            $id = (int) $existing->id;
+            if ($id > 0 && isset($voidedItemIds[$id]) && $voidedItemIds[$id] > 0.0005) {
+                $take = min($qty, (float) $voidedItemIds[$id]);
+                $voidedItemIds[$id] = max(0.0, (float) $voidedItemIds[$id] - $take);
+                $qty = round($qty - $take, 3);
+                if ($qty <= 0.0005) {
+                    continue;
+                }
+            }
+            $fp = $this->voidMatchFingerprint($existing);
             $lockedByFingerprint[$fp] = ($lockedByFingerprint[$fp] ?? 0) + $qty;
         }
 
@@ -369,13 +432,13 @@ final class KitchenService
 
         $voidByFingerprint = [];
         foreach ($kitchenVoids as $void) {
-            $fp = $this->baseItemFingerprint($void);
+            $fp = $this->voidMatchFingerprint($void);
             $voidByFingerprint[$fp] = ($voidByFingerprint[$fp] ?? 0) + (float) ($void['qty'] ?? 0);
         }
 
         $incomingByFingerprint = [];
         foreach ($incomingItems as $incoming) {
-            $fp = $this->baseItemFingerprint($incoming);
+            $fp = $this->voidMatchFingerprint($incoming);
             $incomingByFingerprint[$fp] = ($incomingByFingerprint[$fp] ?? 0) + (float) ($incoming['qty'] ?? 0);
         }
 

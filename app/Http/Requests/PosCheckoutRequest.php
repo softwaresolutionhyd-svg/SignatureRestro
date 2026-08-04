@@ -156,6 +156,7 @@ class PosCheckoutRequest extends FormRequest
                 'kitchen_voids.*.reason' => ['required', 'string', 'min:3', 'max:500'],
                 'kitchen_voids.*.item_name' => ['nullable', 'string', 'max:255'],
                 'kitchen_voids.*.is_custom' => ['nullable', 'boolean'],
+                'kitchen_voids.*.order_item_id' => ['nullable', 'integer', 'min:1'],
                 'item_reductions' => ['nullable', 'array'],
                 'item_reductions.*.product_id' => ['required', 'integer', 'exists:tenant.inventory_products,id'],
                 'item_reductions.*.uom' => ['required', 'string', 'max:30'],
