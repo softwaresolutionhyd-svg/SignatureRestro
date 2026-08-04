@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AdminApiController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CloudSyncController;
 use App\Http\Controllers\Api\OrderTakerApiController;
@@ -12,7 +13,7 @@ use Illuminate\Support\Facades\Route;
 | API Routes
 |--------------------------------------------------------------------------
 |
-| Order Taker mobile app (Flutter) uses these JSON endpoints.
+| Order Taker + Admin mobile apps (Flutter) use these JSON endpoints.
 |
 */
 
@@ -42,6 +43,17 @@ Route::middleware(['auth:sanctum', 'tenant', 'apiCompany', 'companyTenantReady']
             Route::get('/orders/{order}', [OrderTakerApiController::class, 'show']);
             Route::post('/orders', [OrderTakerApiController::class, 'store']);
             Route::put('/orders/{order}', [OrderTakerApiController::class, 'update']);
+        });
+
+    Route::prefix('admin')
+        ->middleware('apiAdmin')
+        ->group(function () {
+            Route::get('/dashboard', [AdminApiController::class, 'dashboard']);
+            Route::get('/orders/pending', [AdminApiController::class, 'pendingOrders']);
+            Route::get('/orders/paid', [AdminApiController::class, 'paidOrders']);
+            Route::get('/kitchen-voids', [AdminApiController::class, 'kitchenVoids']);
+            Route::get('/expenses', [AdminApiController::class, 'expenses']);
+            Route::get('/low-stock', [AdminApiController::class, 'lowStock']);
         });
 });
 

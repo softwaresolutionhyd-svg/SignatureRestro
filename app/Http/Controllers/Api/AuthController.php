@@ -68,14 +68,32 @@ class AuthController extends Controller
             }
         }
 
-        if (! $user->bypassesModulePermissions() && ! $user->touchesModule('order-taker')) {
-            return response()->json(['message' => 'Order Taker module access nahi hai.'], 403);
+        $app = strtolower(trim((string) $request->input('app', 'order-taker')));
+        if (! in_array($app, ['order-taker', 'admin'], true)) {
+            $app = 'order-taker';
         }
 
-        $token = $user->createToken('order-taker-mobile')->plainTextToken;
+        if ($app === 'admin') {
+            $canAdmin = $user->bypassesModulePermissions()
+                || $user->receivesManagementNotifications()
+                || in_array($user->role ?? null, ['super_admin', 'company_admin', 'admin'], true);
+
+            if (! $canAdmin) {
+                return response()->json(['message' => 'Admin panel access nahi hai.'], 403);
+            }
+
+            $token = $user->createToken('admin-mobile')->plainTextToken;
+        } else {
+            if (! $user->bypassesModulePermissions() && ! $user->touchesModule('order-taker')) {
+                return response()->json(['message' => 'Order Taker module access nahi hai.'], 403);
+            }
+
+            $token = $user->createToken('order-taker-mobile')->plainTextToken;
+        }
 
         return response()->json([
             'token' => $token,
+            'app' => $app,
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,

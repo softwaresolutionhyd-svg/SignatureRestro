@@ -77,6 +77,7 @@ class Kernel extends HttpKernel
         'companyFeature' => \App\Http\Middleware\EnsureCompanyFeatureInstalled::class,
         'apiCompany' => \App\Http\Middleware\EnsureApiCompanyContext::class,
         'apiOrderTaker' => \App\Http\Middleware\EnsureApiOrderTakerAccess::class,
+        'apiAdmin' => \App\Http\Middleware\EnsureApiAdminAccess::class,
         'sync.token' => \App\Http\Middleware\VerifySyncToken::class,
         'cloudReadOnly' => \App\Http\Middleware\EnsureCloudReadOnly::class,
         'signed' => \App\Http\Middleware\ValidateSignature::class,
