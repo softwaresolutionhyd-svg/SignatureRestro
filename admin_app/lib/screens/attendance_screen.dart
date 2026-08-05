@@ -12,14 +12,22 @@ class AttendanceScreen extends StatefulWidget {
   State<AttendanceScreen> createState() => _AttendanceScreenState();
 }
 
-class _AttendanceScreenState extends State<AttendanceScreen> {
+class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerProviderStateMixin {
   final _nameCtrl = TextEditingController();
   final _empIdCtrl = TextEditingController();
   String _nameQuery = '';
   String _empIdQuery = '';
+  late final TabController _tabs;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabs = TabController(length: 2, vsync: this);
+  }
 
   @override
   void dispose() {
+    _tabs.dispose();
     _nameCtrl.dispose();
     _empIdCtrl.dispose();
     super.dispose();
@@ -55,65 +63,147 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     final state = context.watch<AppState>();
     final filtered = _filtered(state.attendance);
     final monthLabel = state.attendanceMonthLabel.isEmpty ? 'Current Month' : state.attendanceMonthLabel;
+    final todayLabel = state.attendanceDate.isEmpty ? 'Today' : state.attendanceDate;
 
     return AdminDarkScaffold(
       title: 'Attendance',
-      body: RefreshIndicator(
-        onRefresh: () => state.refreshAttendance(),
-        child: state.loading && state.attendance.isEmpty
-            ? ListView(children: const [SizedBox(height: 120), Center(child: CircularProgressIndicator())])
-            : ListView(
-                padding: const EdgeInsets.all(12),
-                children: [
-                  if (state.error != null && state.attendance.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Text(state.error!, style: const TextStyle(color: Colors.redAccent)),
+      body: Column(
+        children: [
+          TabBar(
+            controller: _tabs,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white54,
+            indicatorColor: const Color(0xFF7C3AED),
+            tabs: const [
+              Tab(text: "Today's Attendance"),
+              Tab(text: 'Monthly Summary'),
+            ],
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () => state.refreshAttendance(),
+              child: state.loading && state.attendance.isEmpty
+                  ? ListView(children: const [SizedBox(height: 120), Center(child: CircularProgressIndicator())])
+                  : TabBarView(
+                      controller: _tabs,
+                      children: [
+                        _TodayTab(
+                          state: state,
+                          filtered: filtered,
+                          todayLabel: todayLabel,
+                          nameCtrl: _nameCtrl,
+                          empIdCtrl: _empIdCtrl,
+                          onSearch: _applySearch,
+                          onClear: _clearSearch,
+                        ),
+                        _MonthTab(
+                          monthLabel: monthLabel,
+                          filtered: filtered,
+                          nameCtrl: _nameCtrl,
+                          empIdCtrl: _empIdCtrl,
+                          onSearch: _applySearch,
+                          onClear: _clearSearch,
+                        ),
+                      ],
                     ),
-                  _SearchPanel(
-                    nameCtrl: _nameCtrl,
-                    empIdCtrl: _empIdCtrl,
-                    onSearch: _applySearch,
-                    onClear: _clearSearch,
-                  ),
-                  const SizedBox(height: 12),
-                  _SectionHeader(title: monthLabel, subtitle: 'Monthly summary'),
-                  const SizedBox(height: 8),
-                  if (filtered.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Center(child: Text('No employees found.', style: TextStyle(color: Colors.white54))),
-                    )
-                  else
-                    ...filtered.map((e) => _MonthEmployeeCard(employee: e)),
-                  const SizedBox(height: 20),
-                  _SectionHeader(
-                    title: "Today's Attendance",
-                    subtitle: state.attendanceDate.isEmpty ? 'Today' : state.attendanceDate,
-                  ),
-                  const SizedBox(height: 8),
-                  Card(
-                    color: const Color(0xFF151C2C),
-                    child: ListTile(
-                      title: const Text('Summary', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                      subtitle: Text(
-                        'Present ${state.attendancePresent} · Absent ${state.attendanceAbsent}',
-                        style: const TextStyle(color: Colors.white70),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (filtered.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Center(child: Text('No attendance for today.', style: TextStyle(color: Colors.white54))),
-                    )
-                  else
-                    ...filtered.map((e) => _TodayEmployeeCard(employee: e)),
-                  const SizedBox(height: 12),
-                ],
-              ),
+            ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _TodayTab extends StatelessWidget {
+  const _TodayTab({
+    required this.state,
+    required this.filtered,
+    required this.todayLabel,
+    required this.nameCtrl,
+    required this.empIdCtrl,
+    required this.onSearch,
+    required this.onClear,
+  });
+
+  final AppState state;
+  final List<AttendanceRow> filtered;
+  final String todayLabel;
+  final TextEditingController nameCtrl;
+  final TextEditingController empIdCtrl;
+  final VoidCallback onSearch;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      children: [
+        if (state.error != null && state.attendance.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(state.error!, style: const TextStyle(color: Colors.redAccent)),
+          ),
+        _SearchPanel(nameCtrl: nameCtrl, empIdCtrl: empIdCtrl, onSearch: onSearch, onClear: onClear),
+        const SizedBox(height: 12),
+        _SectionHeader(title: "Today's Attendance", subtitle: todayLabel),
+        const SizedBox(height: 8),
+        Card(
+          color: const Color(0xFF151C2C),
+          child: ListTile(
+            title: const Text('Summary', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+            subtitle: Text(
+              'Present ${state.attendancePresent} · Absent ${state.attendanceAbsent}',
+              style: const TextStyle(color: Colors.white70),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (filtered.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: Text('No attendance for today.', style: TextStyle(color: Colors.white54))),
+          )
+        else
+          ...filtered.map((e) => _TodayEmployeeCard(employee: e)),
+      ],
+    );
+  }
+}
+
+class _MonthTab extends StatelessWidget {
+  const _MonthTab({
+    required this.monthLabel,
+    required this.filtered,
+    required this.nameCtrl,
+    required this.empIdCtrl,
+    required this.onSearch,
+    required this.onClear,
+  });
+
+  final String monthLabel;
+  final List<AttendanceRow> filtered;
+  final TextEditingController nameCtrl;
+  final TextEditingController empIdCtrl;
+  final VoidCallback onSearch;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(12),
+      children: [
+        _SearchPanel(nameCtrl: nameCtrl, empIdCtrl: empIdCtrl, onSearch: onSearch, onClear: onClear),
+        const SizedBox(height: 12),
+        _SectionHeader(title: monthLabel, subtitle: 'Monthly summary'),
+        const SizedBox(height: 8),
+        if (filtered.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: Text('No employees found.', style: TextStyle(color: Colors.white54))),
+          )
+        else
+          ...filtered.map((e) => _MonthEmployeeCard(employee: e)),
+      ],
     );
   }
 }

@@ -453,21 +453,38 @@ class AdminApiController extends Controller
         $openSessions = collect();
         try {
             $openQuery = PosSession::query()
-                ->with('user:id,name')
-                ->where('status', 'open')
-                ->where(function ($q) use ($businessDate) {
-                    $q->whereDate('business_date', $businessDate)
-                        ->orWhere(function ($q2) use ($businessDate) {
-                            $q2->whereNull('business_date')
-                                ->whereDate('opened_at', $businessDate);
-                        });
-                });
+                ->with('user:id,name');
+
+            if (Schema::connection('tenant')->hasColumn('pos_sessions', 'status')) {
+                $openQuery->where('status', 'open');
+            } elseif (Schema::connection('tenant')->hasColumn('pos_sessions', 'closed_at')) {
+                $openQuery->whereNull('closed_at');
+            }
 
             if (Schema::connection('tenant')->hasColumn('pos_sessions', 'shift_started')) {
                 $openQuery->where('shift_started', true);
             }
 
             $openSessions = $openQuery->orderByDesc('id')->get();
+
+            // Fallback: open session exists but shift_started / status flags differ on some installs.
+            if ($openSessions->isEmpty()) {
+                $fallback = PosSession::query()
+                    ->with('user:id,name')
+                    ->where(function ($q) {
+                        if (Schema::connection('tenant')->hasColumn('pos_sessions', 'status')) {
+                            $q->where('status', 'open');
+                        }
+                        if (Schema::connection('tenant')->hasColumn('pos_sessions', 'closed_at')) {
+                            $q->orWhereNull('closed_at');
+                        }
+                    })
+                    ->orderByDesc('id')
+                    ->limit(10)
+                    ->get();
+
+                $openSessions = $fallback;
+            }
         } catch (\Throwable $e) {
             report($e);
         }
