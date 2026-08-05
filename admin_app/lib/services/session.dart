@@ -79,6 +79,7 @@ class Session extends ChangeNotifier {
     await prefs.remove(_keyUserName);
     await prefs.remove(_keyUserEmail);
     await prefs.remove(_keyUserRole);
+    await prefs.setBool('admin_bg_seeded', false);
     notifyListeners();
   }
 }
