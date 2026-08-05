@@ -86,9 +86,8 @@
                 @forelse($employees as $e)
                     <tr>
                         <td>
-                            @php $photo = $e->photoUrl(); @endphp
-                            @if($photo)
-                                <img src="{{ $photo }}" alt="" class="rounded border"
+                            @if($e->photoUrl())
+                                <img src="{{ $e->photoUrl() }}" alt="" class="rounded border"
                                      style="width:40px;height:52px;object-fit:cover;">
                             @else
                                 <span class="d-inline-flex align-items-center justify-content-center rounded border bg-light text-secondary"
