@@ -181,6 +181,9 @@ class AttendanceRow {
     this.employeeNo,
     this.clockIn,
     this.clockOut,
+    this.monthPresent = 0,
+    this.monthAbsent = 0,
+    this.monthHoliday = 0,
   });
 
   final int id;
@@ -189,8 +192,14 @@ class AttendanceRow {
   final String? employeeNo;
   final String? clockIn;
   final String? clockOut;
+  final int monthPresent;
+  final int monthAbsent;
+  final int monthHoliday;
 
   factory AttendanceRow.fromJson(Map<String, dynamic> json) {
+    final month = json['month'];
+    final monthMap = month is Map ? Map<String, dynamic>.from(month) : <String, dynamic>{};
+
     return AttendanceRow(
       id: _i(json['id']),
       name: json['name']?.toString() ?? '',
@@ -198,12 +207,28 @@ class AttendanceRow {
       employeeNo: json['employee_no']?.toString(),
       clockIn: json['clock_in']?.toString(),
       clockOut: json['clock_out']?.toString(),
+      monthPresent: _i(monthMap['present']),
+      monthAbsent: _i(monthMap['absent']),
+      monthHoliday: _i(monthMap['holiday']),
     );
   }
 
   bool get isPresent {
     final s = status.toLowerCase();
-    return s == 'present' || s == 'p' || s == 'holiday' || s == 'h' || s == 'half';
+    return s == 'present' || s == 'p';
+  }
+
+  bool get isHoliday {
+    final s = status.toLowerCase();
+    return s == 'holiday' || s == 'h' || s == 'leave' || s == 'half_day' || s == 'half';
+  }
+
+  bool get isAbsent => !isPresent && !isHoliday;
+
+  String get todayStatusLabel {
+    if (isPresent) return 'Present';
+    if (isHoliday) return 'Holiday';
+    return 'Absent';
   }
 }
 

@@ -13,6 +13,7 @@ use App\Models\PosOrder;
 use App\Models\PosSession;
 use App\Models\PurchaseOrder;
 use App\Models\Setting;
+use App\Services\AttendancePayrollService;
 use App\Services\PosSessionSummaryService;
 use App\Support\LanServerUrl;
 use App\Support\PosOrderMetrics;
@@ -301,12 +302,15 @@ class AdminApiController extends Controller
         ]);
     }
 
-    public function attendanceToday(Request $request): JsonResponse
+    public function attendanceToday(Request $request, AttendancePayrollService $attendancePayroll): JsonResponse
     {
         $date = $request->input('date');
         if (! is_string($date) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
             $date = now()->toDateString();
         }
+
+        $month = now()->format('Y-m');
+        $monthLabel = now()->timezone(config('app.timezone'))->format('F Y');
 
         $employees = Employee::query()
             ->where('active', true)
@@ -322,7 +326,7 @@ class AdminApiController extends Controller
 
         $present = 0;
         $absent = 0;
-        $rows = $employees->map(function ($e) use ($byEmp, &$present, &$absent) {
+        $rows = $employees->map(function ($e) use ($byEmp, $attendancePayroll, $month, &$present, &$absent) {
             $rec = $byEmp->get($e->id);
             $status = $rec ? (string) ($rec->status ?? 'absent') : 'absent';
             $code = strtolower($status);
@@ -331,6 +335,8 @@ class AdminApiController extends Controller
             } else {
                 $absent++;
             }
+
+            $monthCounts = $attendancePayroll->monthCountsForEmployee((int) $e->id, $month);
 
             return [
                 'id' => (int) $e->id,
@@ -343,11 +349,18 @@ class AdminApiController extends Controller
                 'clock_out' => $rec?->clock_out
                     ? Carbon::parse($rec->clock_out)->timezone(config('app.timezone'))->format('H:i')
                     : null,
+                'month' => [
+                    'present' => (int) ($monthCounts['present'] ?? 0),
+                    'absent' => (int) ($monthCounts['absent'] ?? 0),
+                    'holiday' => (int) ($monthCounts['holiday'] ?? 0),
+                ],
             ];
         })->values();
 
         return response()->json([
             'date' => $date,
+            'month' => $month,
+            'month_label' => $monthLabel,
             'present' => $present,
             'absent' => $absent,
             'employees' => $rows,

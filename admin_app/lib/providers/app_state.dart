@@ -16,6 +16,7 @@ class AppState extends ChangeNotifier {
   int attendancePresent = 0;
   int attendanceAbsent = 0;
   String attendanceDate = '';
+  String attendanceMonthLabel = '';
   bool loading = false;
   String? error;
   double paidTotal = 0;
@@ -257,6 +258,7 @@ class AppState extends ChangeNotifier {
     try {
       final res = await session.client.get('/api/admin/attendance');
       attendanceDate = res['date']?.toString() ?? '';
+      attendanceMonthLabel = res['month_label']?.toString() ?? '';
       attendancePresent = (res['present'] is num) ? (res['present'] as num).toInt() : 0;
       attendanceAbsent = (res['absent'] is num) ? (res['absent'] as num).toInt() : 0;
       final raw = res['employees'];
