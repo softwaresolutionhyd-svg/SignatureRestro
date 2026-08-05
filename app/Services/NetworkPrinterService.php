@@ -46,7 +46,7 @@ final class NetworkPrinterService
      *
      * @throws RuntimeException on connection/write failure.
      */
-    public function send(string $ip, int $port, string $payload, int $timeoutSeconds = 1): void
+    public function send(string $ip, int $port, string $payload, int $timeoutSeconds = 4): void
     {
         $results = $this->sendMany([[
             'ip' => $ip,
@@ -68,9 +68,9 @@ final class NetworkPrinterService
      * @param  list<array{ip:string, port:int|string, payload:string}>  $jobs
      * @return list<true|\Throwable>
      */
-    public function sendMany(array $jobs, int $timeoutSeconds = 1): array
+    public function sendMany(array $jobs, int $timeoutSeconds = 4): array
     {
-        $timeoutSeconds = max(1, $timeoutSeconds);
+        $timeoutSeconds = max(2, $timeoutSeconds);
         $results = [];
         $handles = [];
         $deadline = microtime(true) + $timeoutSeconds;
@@ -316,7 +316,7 @@ final class NetworkPrinterService
             ];
         }
 
-        $sendResults = $this->sendMany($jobs, 1);
+        $sendResults = $this->sendMany($jobs, 4);
         $results = [];
         foreach ($sendResults as $i => $sendResult) {
             $meta = $jobMeta[$i];
