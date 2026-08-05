@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'providers/app_state.dart';
-import 'screens/home_shell.dart';
-import 'screens/login_screen.dart';
 import 'services/session.dart';
+import 'widgets/root_gate.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -41,29 +40,8 @@ class StairApp extends StatelessWidget {
             isDense: true,
           ),
         ),
-        home: const _RootGate(),
+        home: const RootGate(),
       ),
     );
-  }
-}
-
-class _RootGate extends StatelessWidget {
-  const _RootGate();
-
-  @override
-  Widget build(BuildContext context) {
-    final session = context.watch<Session>();
-
-    if (!session.loaded) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (session.isLoggedIn) {
-      return const HomeShell();
-    }
-
-    return const LoginScreen();
   }
 }

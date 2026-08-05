@@ -13,6 +13,7 @@ use App\Models\PosOrder;
 use App\Models\PosSession;
 use App\Models\PurchaseOrder;
 use App\Models\Setting;
+use App\Notifications\PosActivity;
 use App\Services\AttendancePayrollService;
 use App\Services\PosSessionSummaryService;
 use App\Support\LanServerUrl;
@@ -403,6 +404,40 @@ class AdminApiController extends Controller
             'total_expenses' => round((float) $totalExpenses, 2),
             'active_products' => (int) $totalProducts,
             'active_employees' => (int) $totalEmployees,
+        ]);
+    }
+
+    /** POS activity feed for Stair admin app (order punch / paid / cancel alerts). */
+    public function notifications(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $management = $user->receivesManagementNotifications();
+
+        $query = $user->notifications()->latest();
+        if (! $management) {
+            $query->where('type', PosActivity::class);
+        }
+
+        $notifications = $query
+            ->limit(30)
+            ->get()
+            ->map(function ($n) {
+                return [
+                    'id' => $n->id,
+                    'read_at' => $n->read_at,
+                    'created_at' => optional($n->created_at)?->toIso8601String(),
+                    'data' => $n->data,
+                ];
+            });
+
+        $unreadQuery = $user->unreadNotifications();
+        if (! $management) {
+            $unreadQuery->where('type', PosActivity::class);
+        }
+
+        return response()->json([
+            'unread_count' => $unreadQuery->count(),
+            'notifications' => $notifications,
         ]);
     }
 

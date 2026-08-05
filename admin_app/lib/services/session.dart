@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_client.dart';
+import 'order_notifications.dart';
 
 class Session extends ChangeNotifier {
   static const _keyBaseUrl = 'admin_base_url';
@@ -63,6 +64,7 @@ class Session extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    OrderNotificationService.instance.stop();
     try {
       if (_token.isNotEmpty) {
         await client.post('/api/logout');
