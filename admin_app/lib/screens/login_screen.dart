@@ -29,10 +29,16 @@ class _LoginScreenState extends State<LoginScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final session = context.read<Session>();
-      if (session.baseUrl.isNotEmpty) {
-        _baseUrlCtrl.text = session.baseUrl;
+      var url = session.baseUrl;
+      // Purani LAN save clear — ye app online hosting use karti hai.
+      if (url.isEmpty || isPrivateLanUrl(url)) {
+        url = kDefaultServerUrl;
+        await session.saveBaseUrl(url);
       }
-      await _discoverServerUrl(preferSaved: session.baseUrl);
+      if (mounted) {
+        _baseUrlCtrl.text = url;
+      }
+      await _discoverServerUrl(preferSaved: url);
     });
   }
 
@@ -46,34 +52,22 @@ class _LoginScreenState extends State<LoginScreen> {
           final uri = Uri.parse('$tryUrl/api/server-config');
           final res = await client
               .get(uri, headers: {'Accept': 'application/json'})
-              .timeout(const Duration(seconds: 3));
+              .timeout(const Duration(seconds: 8));
           if (res.statusCode != 200) continue;
           final data = jsonDecode(res.body);
           if (data is! Map<String, dynamic>) continue;
           final hasSig = data.containsKey('order_taker_app') || data.containsKey('server_url');
           if (!hasSig) continue;
 
-          // Advertised URL galat port pe ho sakti hai — pehle verify, warna jo tryUrl chal raha hai wahi use.
-          final advertised = (data['server_url'] as String?)?.trim().replaceAll(RegExp(r'/+$'), '');
-          var chosen = tryUrl;
-          if (advertised != null && advertised.isNotEmpty && advertised != tryUrl) {
-            try {
-              final check = await client
-                  .get(Uri.parse('$advertised/api/server-config'), headers: {'Accept': 'application/json'})
-                  .timeout(const Duration(seconds: 2));
-              if (check.statusCode == 200) {
-                chosen = advertised;
-              }
-            } catch (_) {
-              chosen = tryUrl;
-            }
-          }
-
+          // Cloud pe raho — server_config ka LAN server_url ignore.
           if (mounted) {
-            setState(() => _baseUrlCtrl.text = chosen);
+            setState(() => _baseUrlCtrl.text = tryUrl);
           }
           return;
         } catch (_) {}
+      }
+      if (mounted && _baseUrlCtrl.text.trim().isEmpty) {
+        setState(() => _baseUrlCtrl.text = kDefaultServerUrl);
       }
     } finally {
       client.close();
@@ -157,7 +151,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Same WiFi. Server URL: http://192.168.1.105 (bina :8080).',
+                    'Online: signature.softwaresolutions.pk — hosting wale Admin account se login.',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade700),
                   ),

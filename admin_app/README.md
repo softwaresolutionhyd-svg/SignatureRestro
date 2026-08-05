@@ -1,32 +1,23 @@
 # Signature Admin App
 
-Flutter admin panel for Signature POS (managers / company admin).
+Flutter admin panel linked to **online hosting**:
+`https://signature.softwaresolutions.pk`
 
 ## Setup
 
-1. Install [Flutter SDK](https://docs.flutter.dev/get-started/install/windows) and add to PATH.
-2. From this folder:
-
 ```powershell
 flutter pub get
-flutter run
+flutter build apk --release
 ```
+
+APK: `releases/Signature-Admin.apk`
 
 ## Login
 
-- Server URL: same as Order Taker (e.g. `http://192.168.1.105:8080`)
-- Username/password: admin / company_admin account
+- Server URL (default): `https://signature.softwaresolutions.pk`
+- Use hosting Admin / Company Admin account
 - App sends `app: admin` on `/api/login`
 
-## Features (v1)
+## Note
 
-- Dashboard (today / month sales, pending, low stock)
-- Pending bills
-- Today's paid bills
-- Kitchen cancelled items
-- Expenses
-- Low stock list
-
-## API
-
-Requires Laravel routes under `/api/admin/*` (Sanctum).
+Hosting pe Laravel Admin API deploy hona chahiye (`/api/admin/*` + login `app=admin`).
