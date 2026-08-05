@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'providers/app_state.dart';
+import 'services/order_notifications.dart';
 import 'services/session.dart';
 import 'widgets/root_gate.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await OrderNotificationService.instance.init();
   runApp(const StairApp());
 }
 

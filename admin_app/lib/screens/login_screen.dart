@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../config/server_config.dart';
 import '../providers/app_state.dart';
 import '../services/api_client.dart';
+import '../services/order_notifications.dart';
 import '../services/session.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -117,6 +118,8 @@ class _LoginScreenState extends State<LoginScreen> {
         email: user['email']?.toString() ?? login,
         role: user['role']?.toString() ?? '',
       );
+
+      await OrderNotificationService.instance.start(session.client);
 
       if (!mounted) return;
       await context.read<AppState>().refreshDashboard();
