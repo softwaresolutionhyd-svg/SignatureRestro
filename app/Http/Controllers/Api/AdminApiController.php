@@ -150,11 +150,59 @@ class AdminApiController extends Controller
     public function kitchenVoids(Request $request): JsonResponse
     {
         $limit = min(200, max(10, (int) $request->input('limit', 80)));
-        $since = now()->subDays(2)->startOfDay();
+
+        // Current open POS session(s) only — same window as restaurant POS kitchen voids.
+        $openQuery = PosSession::query()->whereNull('closed_at');
+        if (Schema::connection('tenant')->hasColumn('pos_sessions', 'status')) {
+            $openQuery->where('status', 'open');
+        }
+
+        $openSessions = $openQuery->orderByDesc('id')->get(['id', 'opened_at', 'session_no']);
+        if ($openSessions->isEmpty()) {
+            return response()->json([
+                'items' => [],
+                'count' => 0,
+                'session' => null,
+            ]);
+        }
+
+        $billSessionIds = $openSessions->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
+        $sessionOpenedAt = $openSessions->min('opened_at') ?? now()->startOfDay();
+
+        $orderIds = PosOrder::query()
+            ->whereIn('session_id', $billSessionIds)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
 
         $logs = ActivityLog::query()
             ->where('action', 'pos.kitchen_void')
-            ->where('created_at', '>=', $since)
+            ->where(function ($q) use ($orderIds, $billSessionIds, $sessionOpenedAt) {
+                if ($orderIds !== []) {
+                    $q->where(function ($inner) use ($orderIds) {
+                        $inner->where('subject_type', PosOrder::class)
+                            ->whereIn('subject_id', $orderIds);
+                    });
+                }
+
+                foreach ($billSessionIds as $sid) {
+                    $sid = (int) $sid;
+                    $q->orWhere('properties->session_id', $sid)
+                        ->orWhere('properties->session_id', (string) $sid);
+                }
+
+                // Legacy logs without session_id: same open-session window.
+                $q->orWhere(function ($inner) use ($sessionOpenedAt) {
+                    $inner->where('subject_type', PosOrder::class)
+                        ->where('created_at', '>=', $sessionOpenedAt)
+                        ->where(function ($p) {
+                            $p->whereNull('properties->session_id')
+                                ->orWhere('properties->session_id', '')
+                                ->orWhere('properties->session_id', 0)
+                                ->orWhere('properties->session_id', '0');
+                        });
+                });
+            })
             ->with(['user:id,name'])
             ->orderByDesc('created_at')
             ->limit($limit)
@@ -170,17 +218,33 @@ class AdminApiController extends Controller
             return [
                 'id' => (int) $log->id,
                 'order_no' => (string) ($props['order_no'] ?? ''),
-                'item' => $name,
+                'item' => $name !== '' ? $name : 'Item',
                 'qty' => $qty,
                 'reason' => $reason,
                 'by' => $log->user?->name ?? '—',
                 'at' => optional($log->created_at)?->timezone(config('app.timezone'))->format('d M, H:i'),
             ];
-        })->values();
+        })->unique('id')->values();
+
+        $labels = $openSessions
+            ->map(fn (PosSession $s) => $s->session_no ?: ('#'.$s->id))
+            ->filter()
+            ->values()
+            ->all();
+
+        $openedAt = $openSessions->min('opened_at');
+        $openedLabel = $openedAt != null
+            ? Carbon::parse($openedAt)->timezone(config('app.timezone'))->format('d M Y, H:i')
+            : null;
 
         return response()->json([
             'items' => $items,
             'count' => $items->count(),
+            'session' => [
+                'ids' => $billSessionIds,
+                'labels' => $labels !== [] ? implode(', ', $labels) : null,
+                'opened_at' => $openedLabel,
+            ],
         ]);
     }
 

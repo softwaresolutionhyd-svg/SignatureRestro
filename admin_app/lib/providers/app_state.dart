@@ -176,21 +176,41 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> refreshVoids() async {
-    loading = true;
-    error = null;
-    notifyListeners();
+  String _voidsFingerprint(List<KitchenVoidItem> items) {
+    final buf = StringBuffer();
+    for (final v in items) {
+      buf.write('${v.id}:${v.qty}:${v.item}:${v.orderNo ?? ''};');
+    }
+    return buf.toString();
+  }
+
+  Future<void> refreshVoids({bool silent = false}) async {
+    if (!silent) {
+      loading = true;
+      error = null;
+      notifyListeners();
+    }
     try {
       final res = await session.client.get('/api/admin/kitchen-voids');
       final raw = res['items'];
-      voids = raw is List
+      final next = raw is List
           ? raw.whereType<Map>().map((e) => KitchenVoidItem.fromJson(Map<String, dynamic>.from(e))).toList()
-          : [];
+          : <KitchenVoidItem>[];
+      final changed = _voidsFingerprint(voids) != _voidsFingerprint(next);
+      voids = next;
+      if (!silent) {
+        error = null;
+        loading = false;
+        notifyListeners();
+      } else if (changed) {
+        notifyListeners();
+      }
     } catch (e) {
-      error = e.toString();
-    } finally {
-      loading = false;
-      notifyListeners();
+      if (!silent) {
+        error = e.toString();
+        loading = false;
+        notifyListeners();
+      }
     }
   }
 

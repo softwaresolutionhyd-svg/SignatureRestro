@@ -1,10 +1,35 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_state.dart';
 
-class KitchenVoidsScreen extends StatelessWidget {
+class KitchenVoidsScreen extends StatefulWidget {
   const KitchenVoidsScreen({super.key});
+
+  @override
+  State<KitchenVoidsScreen> createState() => _KitchenVoidsScreenState();
+}
+
+class _KitchenVoidsScreenState extends State<KitchenVoidsScreen> {
+  Timer? _liveSync;
+  static const _pollEvery = Duration(seconds: 5);
+
+  @override
+  void initState() {
+    super.initState();
+    _liveSync = Timer.periodic(_pollEvery, (_) {
+      if (!mounted) return;
+      context.read<AppState>().refreshVoids(silent: true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _liveSync?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +51,12 @@ class KitchenVoidsScreen extends StatelessWidget {
           ? ListView(
               children: const [
                 SizedBox(height: 120),
-                Center(child: Text('Koi kitchen cancel nahi.', style: TextStyle(color: Colors.white54))),
+                Center(
+                  child: Text(
+                    'Current session mein koi cancel bill nahi.',
+                    style: TextStyle(color: Colors.white54),
+                  ),
+                ),
               ],
             )
           : ListView.separated(
