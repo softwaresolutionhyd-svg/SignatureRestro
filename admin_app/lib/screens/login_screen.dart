@@ -142,16 +142,16 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(Icons.admin_panel_settings_rounded, size: 56, color: cs.primary),
+                  Image.asset('assets/stair_icon.png', width: 88, height: 88),
                   const SizedBox(height: 12),
                   Text(
-                    'Signature Admin',
+                    'Stair',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Online: signature.softwaresolutions.pk — hosting wale Admin account se login.',
+                    'Online admin — signature.softwaresolutions.pk',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade700),
                   ),

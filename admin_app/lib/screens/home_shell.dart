@@ -123,10 +123,10 @@ class _HomeShellState extends State<HomeShell> {
                         width: 36,
                         height: 36,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF7C3AED).withOpacity(0.2),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.auto_graph, color: Color(0xFFA78BFA)),
+                        clipBehavior: Clip.antiAlias,
+                        child: Image.asset('assets/stair_icon.png', fit: BoxFit.cover),
                       ),
                       const Spacer(),
                       IconButton(

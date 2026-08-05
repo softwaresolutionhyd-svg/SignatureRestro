@@ -1,23 +1,12 @@
-# Signature Admin App
+# Stair
 
-Flutter admin panel linked to **online hosting**:
-`https://signature.softwaresolutions.pk`
+Signature admin mobile app (Flutter).
 
-## Setup
+- Online host: `https://signature.softwaresolutions.pk`
+- APK: `releases/Stair.apk`
 
 ```powershell
 flutter pub get
+dart run flutter_launcher_icons
 flutter build apk --release
 ```
-
-APK: `releases/Signature-Admin.apk`
-
-## Login
-
-- Server URL (default): `https://signature.softwaresolutions.pk`
-- Use hosting Admin / Company Admin account
-- App sends `app: admin` on `/api/login`
-
-## Note
-
-Hosting pe Laravel Admin API deploy hona chahiye (`/api/admin/*` + login `app=admin`).

@@ -1,5 +1,5 @@
 name: admin_app
-description: Signature Admin mobile app for managers.
+description: Stair — Signature admin mobile app for managers.
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -18,6 +18,21 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.3
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/stair_icon.png
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  web:
+    generate: true
+  windows:
+    generate: true
+  image_path: assets/stair_icon.png
+  adaptive_icon_background: "#6B327A"
+  adaptive_icon_foreground: assets/stair_icon.png
+  min_sdk_android: 21

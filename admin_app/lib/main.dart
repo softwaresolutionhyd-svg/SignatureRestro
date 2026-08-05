@@ -8,11 +8,11 @@ import 'services/session.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const SignatureAdminApp());
+  runApp(const StairApp());
 }
 
-class SignatureAdminApp extends StatelessWidget {
-  const SignatureAdminApp({super.key});
+class StairApp extends StatelessWidget {
+  const StairApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +25,7 @@ class SignatureAdminApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'Signature Admin',
+        title: 'Stair',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           brightness: Brightness.dark,
