@@ -15,6 +15,7 @@ use App\Models\PurchaseOrder;
 use App\Models\Setting;
 use App\Notifications\PosActivity;
 use App\Services\AttendancePayrollService;
+use App\Services\PosPendingBillsService;
 use App\Services\PosSessionSummaryService;
 use App\Support\LanServerUrl;
 use App\Support\PosOrderMetrics;
@@ -112,13 +113,22 @@ class AdminApiController extends Controller
     public function pendingOrders(Request $request): JsonResponse
     {
         $limit = min(100, max(10, (int) $request->input('limit', 50)));
+        $sessionIds = $this->currentOpenSessionIds();
 
-        $orders = PosOrder::query()
-            ->where('status', 'draft')
-            ->with(['table:id,name', 'items:id,order_id,qty'])
-            ->orderByDesc('updated_at')
-            ->limit($limit)
-            ->get();
+        if ($sessionIds === []) {
+            return response()->json(['orders' => []]);
+        }
+
+        $orders = app(PosPendingBillsService::class)
+            ->queryHeldDrafts($sessionIds, false)
+            ->filter(fn (PosOrder $o) => $o->isDueForServeDay())
+            ->sortByDesc('id')
+            ->take($limit)
+            ->values();
+
+        if ($orders->isNotEmpty()) {
+            $orders->load(['table:id,name', 'items:id,order_id,qty']);
+        }
 
         return response()->json([
             'orders' => $orders->map(fn (PosOrder $o) => $this->orderCard($o))->values(),
@@ -128,20 +138,33 @@ class AdminApiController extends Controller
     public function paidOrders(Request $request): JsonResponse
     {
         $limit = min(100, max(10, (int) $request->input('limit', 40)));
-        $date = $request->input('date'); // Y-m-d optional
+        $sessionIds = $this->currentOpenSessionIds();
 
-        $q = PosOrder::query()
-            ->where('status', 'paid')
-            ->with(['table:id,name'])
-            ->orderByDesc('paid_at');
-
-        if (is_string($date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-            $q->whereDate('paid_at', $date);
-        } else {
-            $q->where('paid_at', '>=', now()->startOfDay());
+        if ($sessionIds === []) {
+            return response()->json([
+                'orders' => [],
+                'total' => 0,
+            ]);
         }
 
-        $orders = $q->limit($limit)->get();
+        $oldestOpenedAt = PosSession::query()
+            ->whereIn('id', $sessionIds)
+            ->min('opened_at');
+
+        $orders = PosOrder::query()
+            ->whereIn('session_id', $sessionIds)
+            ->where('status', 'paid')
+            ->when($oldestOpenedAt, function ($q) use ($oldestOpenedAt) {
+                $q->where(function ($sub) use ($oldestOpenedAt) {
+                    $sub->where('paid_at', '>=', $oldestOpenedAt)
+                        ->orWhereNull('paid_at');
+                });
+            })
+            ->with(['table:id,name'])
+            ->orderByDesc('paid_at')
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get();
 
         return response()->json([
             'orders' => $orders->map(fn (PosOrder $o) => $this->orderCard($o, true))->values(),
@@ -626,6 +649,49 @@ class AdminApiController extends Controller
                 'low_stock' => $lowStock,
             ],
         ]);
+    }
+
+    /**
+     * Open POS session IDs for admin mobile (current session bills only).
+     *
+     * @return list<int>
+     */
+    private function currentOpenSessionIds(): array
+    {
+        $openQuery = PosSession::query();
+        if (Schema::connection('tenant')->hasColumn('pos_sessions', 'status')) {
+            $openQuery->where('status', 'open');
+        } elseif (Schema::connection('tenant')->hasColumn('pos_sessions', 'closed_at')) {
+            $openQuery->whereNull('closed_at');
+        }
+
+        if (Schema::connection('tenant')->hasColumn('pos_sessions', 'shift_started')) {
+            $openQuery->where('shift_started', true);
+        }
+
+        $ids = $openQuery
+            ->orderByDesc('id')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if ($ids !== []) {
+            return $ids;
+        }
+
+        // Fallback when shift_started blocks matches but floor session is open.
+        $fallback = PosSession::query();
+        if (Schema::connection('tenant')->hasColumn('pos_sessions', 'status')) {
+            $fallback->where('status', 'open');
+        } elseif (Schema::connection('tenant')->hasColumn('pos_sessions', 'closed_at')) {
+            $fallback->whereNull('closed_at');
+        }
+
+        return $fallback
+            ->orderByDesc('id')
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
     }
 
     /**
