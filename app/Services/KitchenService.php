@@ -377,16 +377,16 @@ final class KitchenService
         return $out;
     }
 
+    /**
+     * Kitchen-locked = already ticketed/served. Unprinted pending lines stay editable.
+     */
     public function isKitchenLockedLine(PosOrderItem $item): bool
     {
         if ($item->isKitchenServed()) {
             return true;
         }
-        if ($item->kitchen_printed_at !== null) {
-            return true;
-        }
 
-        return (bool) $item->kitchen_pending;
+        return $item->kitchen_printed_at !== null;
     }
 
     /**

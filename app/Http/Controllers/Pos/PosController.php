@@ -4472,8 +4472,9 @@ class PosController extends Controller
     }
 
     /**
-     * Kitchen-sent qty (served or pending) cannot be reduced or removed on hold/checkout
+     * Kitchen-printed/served qty cannot be reduced or removed on hold/checkout
      * unless a matching kitchen void reason is supplied by an admin.
+     * Unprinted pending lines remain freely editable.
      *
      * @param  array<int, PosOrderItem>  $existingItems
      * @param  array<int, array<string, mixed>>  $incomingItems

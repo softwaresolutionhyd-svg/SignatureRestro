@@ -60,7 +60,7 @@
         'kitchen_served' => $i->isKitchenServed(),
         'kitchen_pending' => (bool) $i->kitchen_pending,
         'kitchen_printed' => $i->kitchen_printed_at !== null,
-        'kitchen_locked_qty' => ($i->isKitchenServed() || $i->kitchen_pending || $i->kitchen_printed_at !== null) ? (float) $i->qty : 0,
+        'kitchen_locked_qty' => ($i->isKitchenServed() || $i->kitchen_printed_at !== null) ? (float) $i->qty : 0,
     ])->values();
 
     $updateStub = str_replace('999999999', '__ID__', route('order-taker.update', ['order' => 999999999]));
@@ -484,5 +484,5 @@
 <script>
 window.ORDER_TAKER_BOOTSTRAP = @json($otBootstrap);
 </script>
-<script src="{{ asset('js/order-taker-app.js') }}?v=25"></script>
+<script src="{{ asset('js/order-taker-app.js') }}?v=26"></script>
 @endsection

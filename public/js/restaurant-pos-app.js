@@ -661,7 +661,8 @@
 
     function kitchenLockedFromResume(ri) {
         const qty = Number(ri.qty) || 0;
-        return (ri.kitchen_served || ri.kitchen_pending || ri.kitchen_printed) ? qty : 0;
+        // Only printed/served qty is locked. Pending (pre-kitchen-print) can be removed freely.
+        return (ri.kitchen_served || ri.kitchen_printed) ? qty : 0;
     }
 
     function addOrIncrementProduct(id) {
