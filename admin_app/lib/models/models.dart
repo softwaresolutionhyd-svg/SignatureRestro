@@ -207,6 +207,90 @@ class AttendanceRow {
   }
 }
 
+class AnalyticsOverview {
+  AnalyticsOverview({
+    required this.currency,
+    required this.snapshotDate,
+    required this.sessionOpen,
+    required this.sessionSale,
+    required this.sessionPaidBills,
+    required this.sessionPending,
+    required this.sessionCash,
+    required this.sessionCard,
+    required this.sessionBank,
+    required this.todaySales,
+    required this.todayPaidBills,
+    required this.monthIncome,
+    required this.monthIncomeGrowthPct,
+    required this.restaurantProfit,
+    required this.purchases,
+    required this.expenses,
+    required this.outstandingCredit,
+    required this.activeEmployees,
+    required this.productsTotal,
+    required this.outOfStock,
+    required this.lowStock,
+    this.sessionNos,
+    this.cashiers,
+  });
+
+  final String currency;
+  final String snapshotDate;
+  final bool sessionOpen;
+  final double sessionSale;
+  final int sessionPaidBills;
+  final int sessionPending;
+  final double sessionCash;
+  final double sessionCard;
+  final double sessionBank;
+  final String? sessionNos;
+  final String? cashiers;
+  final double todaySales;
+  final int todayPaidBills;
+  final double monthIncome;
+  final double monthIncomeGrowthPct;
+  final double restaurantProfit;
+  final double purchases;
+  final double expenses;
+  final double outstandingCredit;
+  final int activeEmployees;
+  final int productsTotal;
+  final int outOfStock;
+  final int lowStock;
+
+  factory AnalyticsOverview.fromJson(Map<String, dynamic> json) {
+    final session = Map<String, dynamic>.from(json['session'] as Map? ?? {});
+    final today = Map<String, dynamic>.from(json['today'] as Map? ?? {});
+    final month = Map<String, dynamic>.from(json['month'] as Map? ?? {});
+    final products = Map<String, dynamic>.from(json['products'] as Map? ?? {});
+    return AnalyticsOverview(
+      currency: json['currency']?.toString() ?? 'Rs.',
+      snapshotDate: json['snapshot_date']?.toString() ?? '',
+      sessionOpen: session['open'] == true,
+      sessionSale: _d(session['sale']),
+      sessionPaidBills: _i(session['paid_bills']),
+      sessionPending: _i(session['pending']),
+      sessionCash: _d(session['cash']),
+      sessionCard: _d(session['card']),
+      sessionBank: _d(session['bank']),
+      sessionNos: session['session_nos']?.toString(),
+      cashiers: session['cashiers']?.toString(),
+      todaySales: _d(today['sales']),
+      todayPaidBills: _i(today['paid_bills']),
+      monthIncome: _d(month['income']),
+      monthIncomeGrowthPct: _d(month['income_growth_pct']),
+      restaurantProfit: _d(month['restaurant_profit']),
+      purchases: _d(month['purchases']),
+      expenses: _d(month['expenses']),
+      outstandingCredit: _d(json['outstanding_credit']),
+      activeEmployees: _i(json['active_employees']),
+      productsTotal: _i(products['total']),
+      outOfStock: _i(products['out_of_stock']),
+      lowStock: _i(products['low_stock']),
+    );
+  }
+}
+
 double _d(dynamic v) {
   if (v is num) return v.toDouble();
   return double.tryParse(v?.toString() ?? '') ?? 0;

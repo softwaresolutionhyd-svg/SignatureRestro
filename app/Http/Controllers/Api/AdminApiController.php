@@ -4,12 +4,18 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\Contact;
+use App\Models\CreditLedger;
+use App\Models\Employee;
 use App\Models\Expense;
 use App\Models\InventoryProduct;
 use App\Models\PosOrder;
 use App\Models\PosSession;
+use App\Models\PurchaseOrder;
 use App\Models\Setting;
+use App\Services\PosSessionSummaryService;
 use App\Support\LanServerUrl;
+use App\Support\PosOrderMetrics;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -238,7 +244,7 @@ class AdminApiController extends Controller
             $date = now()->toDateString();
         }
 
-        $employees = \App\Models\Employee::query()
+        $employees = Employee::query()
             ->where('active', true)
             ->orderBy('name')
             ->limit(200)
@@ -281,6 +287,176 @@ class AdminApiController extends Controller
             'present' => $present,
             'absent' => $absent,
             'employees' => $rows,
+        ]);
+    }
+
+    /**
+     * Same live KPIs as web Analytics Overview (no sample/demo numbers).
+     */
+    public function analytics(PosSessionSummaryService $sessionSummary): JsonResponse
+    {
+        $currency = Setting::get('currency_symbol', 'Rs.');
+        $businessDate = now()->toDateString();
+        $snapshotDate = now()->timezone(config('app.timezone'))->format('l, d M Y');
+
+        $openSessions = collect();
+        try {
+            $openQuery = PosSession::query()
+                ->with('user:id,name')
+                ->where('status', 'open')
+                ->where(function ($q) use ($businessDate) {
+                    $q->whereDate('business_date', $businessDate)
+                        ->orWhere(function ($q2) use ($businessDate) {
+                            $q2->whereNull('business_date')
+                                ->whereDate('opened_at', $businessDate);
+                        });
+                });
+
+            if (Schema::connection('tenant')->hasColumn('pos_sessions', 'shift_started')) {
+                $openQuery->where('shift_started', true);
+            }
+
+            $openSessions = $openQuery->orderByDesc('id')->get();
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        $sessionSale = 0.0;
+        $sessionBills = 0;
+        $sessionCash = 0.0;
+        $sessionCard = 0.0;
+        $sessionBank = 0.0;
+        $sessionPending = 0;
+        $cashiers = [];
+        $labels = [];
+
+        foreach ($openSessions as $session) {
+            try {
+                $stats = $sessionSummary->stats($session);
+            } catch (\Throwable $e) {
+                report($e);
+                continue;
+            }
+            $sessionSale += (float) ($stats['net_sales_total'] ?? 0);
+            $sessionBills += (int) ($stats['sales_count'] ?? 0);
+            $sessionCash += (float) ($stats['payments_cash'] ?? 0);
+            $sessionCard += (float) ($stats['payments_card'] ?? 0);
+            $sessionBank += (float) ($stats['payments_bank'] ?? 0);
+            $sessionPending += (int) ($stats['held_count'] ?? 0);
+            if ($session->user?->name) {
+                $cashiers[] = $session->user->name;
+            }
+            $labels[] = $session->session_no ?: ('#'.$session->id);
+        }
+
+        $todayPaidOrders = PosOrder::query()
+            ->where('status', 'paid')
+            ->whereDate('created_at', $businessDate)
+            ->get(['id', 'type', 'grand_total', 'status']);
+        $todaySalesCount = $todayPaidOrders->where('type', 'sale')->count();
+        $todaySalesTotal = round($todayPaidOrders->sum(fn (PosOrder $o) => PosOrderMetrics::signedGrandTotal($o)), 2);
+
+        $monthStart = now()->startOfMonth()->toDateString();
+        $monthEnd = now()->endOfMonth()->toDateString();
+        $lastMonthStart = now()->subMonth()->startOfMonth()->toDateString();
+        $lastMonthEnd = now()->subMonth()->endOfMonth()->toDateString();
+        $monthStartTs = "{$monthStart} 00:00:00";
+        $monthEndTs = "{$monthEnd} 23:59:59";
+        $lastMonthStartTs = "{$lastMonthStart} 00:00:00";
+        $lastMonthEndTs = "{$lastMonthEnd} 23:59:59";
+
+        $posOrdersThisMonth = PosOrder::where('status', 'paid')
+            ->whereBetween('created_at', [$monthStartTs, $monthEndTs])
+            ->with([
+                'items.product' => fn ($q) => $q->with(['uomConversions' => fn ($c) => $c->where('active', true)]),
+            ])
+            ->get();
+
+        $cafeSalesMonth = 0.0;
+        $cafeProfitMonth = 0.0;
+        foreach ($posOrdersThisMonth as $o) {
+            $cafeSalesMonth += PosOrderMetrics::signedGrandTotal($o);
+            $cafeProfitMonth += PosOrderMetrics::grossProfitFromLoaded($o);
+        }
+        $cafeSalesMonth = round($cafeSalesMonth, 2);
+        $cafeProfitMonth = round($cafeProfitMonth, 2);
+
+        $cafeSalesLastMonth = round((float) PosOrder::where('status', 'paid')
+            ->whereBetween('created_at', [$lastMonthStartTs, $lastMonthEndTs])
+            ->get()
+            ->sum(fn (PosOrder $o) => PosOrderMetrics::signedGrandTotal($o)), 2);
+        $incomeGrowth = $cafeSalesLastMonth > 0
+            ? round((($cafeSalesMonth - $cafeSalesLastMonth) / $cafeSalesLastMonth) * 100, 1)
+            : 0.0;
+
+        $purchasesMonth = (float) PurchaseOrder::whereIn('status', ['confirmed', 'received'])
+            ->whereBetween('order_date', [$monthStart, $monthEnd])
+            ->sum('grand_total');
+        $expensesMonth = (float) Expense::whereIn('status', ['approved', 'paid'])
+            ->whereBetween('expense_date', [$monthStart, $monthEnd])
+            ->sum('grand_total');
+
+        $activeEmployees = Employee::query()->excludeAdminAccounts()->where('active', true)->count();
+
+        $totalProducts = InventoryProduct::query()->where('active', true)->count();
+        $outOfStock = InventoryProduct::query()
+            ->where('active', true)
+            ->where('for_purchase', true)
+            ->where('qty_on_hand', '<=', 0)
+            ->count();
+        $lowStock = InventoryProduct::query()
+            ->where('active', true)
+            ->where('for_purchase', true)
+            ->where('qty_on_hand', '>', 0)
+            ->where('qty_on_hand', '<=', 10)
+            ->excludingActiveBomFinishedProducts()
+            ->count();
+
+        $outstandingCredit = 0.0;
+        try {
+            $outstandingCredit = round((float) CreditLedger::query()
+                ->whereIn('contact_id', Contact::query()->select('id'))
+                ->selectRaw('COALESCE(SUM(CASE WHEN type = ? THEN amount WHEN type = ? THEN -amount ELSE 0 END), 0) as bal', ['credit', 'payment'])
+                ->value('bal'), 2);
+            if ($outstandingCredit < 0) {
+                $outstandingCredit = 0.0;
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        return response()->json([
+            'currency' => $currency,
+            'snapshot_date' => $snapshotDate,
+            'session' => [
+                'open' => $openSessions->isNotEmpty(),
+                'sale' => round($sessionSale, 2),
+                'paid_bills' => $sessionBills,
+                'pending' => $sessionPending,
+                'cash' => round($sessionCash, 2),
+                'card' => round($sessionCard, 2),
+                'bank' => round($sessionBank, 2),
+                'session_nos' => $labels !== [] ? implode(', ', $labels) : null,
+                'cashiers' => $cashiers !== [] ? implode(', ', array_values(array_unique($cashiers))) : null,
+            ],
+            'today' => [
+                'sales' => $todaySalesTotal,
+                'paid_bills' => $todaySalesCount,
+            ],
+            'month' => [
+                'income' => $cafeSalesMonth,
+                'income_growth_pct' => $incomeGrowth,
+                'restaurant_profit' => $cafeProfitMonth,
+                'purchases' => round($purchasesMonth, 2),
+                'expenses' => round($expensesMonth, 2),
+            ],
+            'outstanding_credit' => $outstandingCredit,
+            'active_employees' => $activeEmployees,
+            'products' => [
+                'total' => $totalProducts,
+                'out_of_stock' => $outOfStock,
+                'low_stock' => $lowStock,
+            ],
         ]);
     }
 

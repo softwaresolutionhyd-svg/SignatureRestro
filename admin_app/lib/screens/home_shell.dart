@@ -67,7 +67,7 @@ class _HomeShellState extends State<HomeShell> {
         label: 'Analytics',
         color: const Color(0xFF7C3AED),
         icon: Icons.bar_chart_rounded,
-        onTap: () => _open(const AnalyticsScreen(), preload: () => context.read<AppState>().refreshDashboard()),
+        onTap: () => _open(const AnalyticsScreen(), preload: () => context.read<AppState>().refreshAnalytics()),
       ),
       _ModuleTile(
         label: 'Pending / Paid Bills',

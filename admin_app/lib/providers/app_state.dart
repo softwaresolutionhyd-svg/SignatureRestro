@@ -6,6 +6,7 @@ import '../services/session.dart';
 class AppState extends ChangeNotifier {
   Session? _session;
   DashboardData? dashboard;
+  AnalyticsOverview? analytics;
   List<AdminOrder> pending = [];
   List<AdminOrder> paid = [];
   List<KitchenVoidItem> voids = [];
@@ -33,6 +34,21 @@ class AppState extends ChangeNotifier {
     try {
       final res = await session.client.get('/api/admin/dashboard');
       dashboard = DashboardData.fromJson(res);
+    } catch (e) {
+      error = e.toString();
+    } finally {
+      loading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> refreshAnalytics() async {
+    loading = true;
+    error = null;
+    notifyListeners();
+    try {
+      final res = await session.client.get('/api/admin/analytics');
+      analytics = AnalyticsOverview.fromJson(res);
     } catch (e) {
       error = e.toString();
     } finally {
