@@ -23,7 +23,9 @@ class OrdersScreen extends StatelessWidget {
     }
 
     if (state.error != null && orders.isEmpty) {
-      return Center(child: Text(state.error!, textAlign: TextAlign.center));
+      return Center(
+        child: Text(state.error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.redAccent)),
+      );
     }
 
     return RefreshIndicator(
@@ -32,7 +34,7 @@ class OrdersScreen extends StatelessWidget {
           ? ListView(
               children: const [
                 SizedBox(height: 120),
-                Center(child: Text('Koi bill nahi mili.')),
+                Center(child: Text('Koi bill nahi mili.', style: TextStyle(color: Colors.white54))),
               ],
             )
           : ListView.separated(
@@ -42,24 +44,25 @@ class OrdersScreen extends StatelessWidget {
               itemBuilder: (context, i) {
                 if (mode == OrdersMode.paid && i == 0) {
                   return Card(
-                    color: const Color(0xFFECFDF5),
+                    color: const Color(0xFF0F3D36),
                     child: ListTile(
-                      title: const Text('Aaj ka total'),
+                      title: const Text('Aaj ka total', style: TextStyle(color: Colors.white70)),
                       trailing: Text(
                         '$cur ${money.format(state.paidTotal)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                     ),
                   );
                 }
                 final o = orders[mode == OrdersMode.paid ? i - 1 : i];
                 return Card(
+                  color: const Color(0xFF151C2C),
                   child: ListTile(
-                    title: Text(o.orderNo, style: const TextStyle(fontWeight: FontWeight.w700)),
-                    subtitle: Text(o.subtitle),
+                    title: Text(o.orderNo, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                    subtitle: Text(o.subtitle, style: const TextStyle(color: Colors.white60)),
                     trailing: Text(
                       '$cur ${money.format(o.grandTotal)}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                     ),
                   ),
                 );

@@ -28,11 +28,14 @@ class SignatureAdminApp extends StatelessWidget {
         title: 'Signature Admin',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
+          brightness: Brightness.dark,
+          scaffoldBackgroundColor: const Color(0xFF0B1220),
           colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF0F766E),
-            brightness: Brightness.light,
+            seedColor: const Color(0xFF7C3AED),
+            brightness: Brightness.dark,
           ),
           useMaterial3: true,
+          cardColor: const Color(0xFF151C2C),
           inputDecorationTheme: const InputDecorationTheme(
             border: OutlineInputBorder(),
             isDense: true,

@@ -1,14 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/app_state.dart';
 import '../services/session.dart';
+import 'analytics_screen.dart';
+import 'attendance_screen.dart';
+import 'bills_screen.dart';
 import 'expenses_screen.dart';
 import 'kitchen_voids_screen.dart';
-import 'low_stock_screen.dart';
-import 'orders_screen.dart';
+import 'reports_screen.dart';
 
+/// Dark module launcher — same vibe as web dashboard, only admin modules.
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
 
@@ -17,179 +22,247 @@ class HomeShell extends StatefulWidget {
 }
 
 class _HomeShellState extends State<HomeShell> {
-  int _index = 0;
+  late DateTime _now;
+  Timer? _clock;
 
   @override
   void initState() {
     super.initState();
+    _now = DateTime.now();
+    _clock = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() => _now = DateTime.now());
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AppState>().refreshDashboard();
     });
   }
 
-  Future<void> _onTab(int i) async {
-    setState(() => _index = i);
-    final state = context.read<AppState>();
-    switch (i) {
-      case 0:
-        await state.refreshDashboard();
-        break;
-      case 1:
-        await state.refreshPending();
-        break;
-      case 2:
-        await state.refreshPaid();
-        break;
-      case 3:
-        await state.refreshVoids();
-        break;
-      case 4:
-        await state.refreshExpenses();
-        break;
-    }
+  @override
+  void dispose() {
+    _clock?.cancel();
+    super.dispose();
+  }
+
+  String _greet() {
+    final h = _now.hour;
+    if (h < 12) return 'Good morning';
+    if (h < 18) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  Future<void> _open(Widget page, {Future<void> Function()? preload}) async {
+    if (preload != null) await preload();
+    if (!mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
   }
 
   @override
   Widget build(BuildContext context) {
     final session = context.watch<Session>();
-    final pages = [
-      const _DashboardPage(),
-      const OrdersScreen(mode: OrdersMode.pending),
-      const OrdersScreen(mode: OrdersMode.paid),
-      const KitchenVoidsScreen(),
-      const ExpensesScreen(),
+    final time = DateFormat('HH:mm').format(_now);
+    final date = DateFormat('EEEE, d MMMM').format(_now);
+
+    final modules = <_ModuleTile>[
+      _ModuleTile(
+        label: 'Analytics',
+        color: const Color(0xFF7C3AED),
+        icon: Icons.bar_chart_rounded,
+        onTap: () => _open(const AnalyticsScreen(), preload: () => context.read<AppState>().refreshDashboard()),
+      ),
+      _ModuleTile(
+        label: 'Pending / Paid Bills',
+        color: const Color(0xFF0D9488),
+        icon: Icons.receipt_long_rounded,
+        onTap: () => _open(const BillsScreen(), preload: () async {
+          final s = context.read<AppState>();
+          await s.refreshPending();
+          await s.refreshPaid();
+        }),
+      ),
+      _ModuleTile(
+        label: 'Cancel Orders',
+        color: const Color(0xFFEA580C),
+        icon: Icons.cancel_outlined,
+        onTap: () => _open(const KitchenVoidsPage(), preload: () => context.read<AppState>().refreshVoids()),
+      ),
+      _ModuleTile(
+        label: 'Expense',
+        color: const Color(0xFF14B8A6),
+        icon: Icons.money_off_csred_rounded,
+        onTap: () => _open(const ExpensesPage(), preload: () => context.read<AppState>().refreshExpenses()),
+      ),
+      _ModuleTile(
+        label: 'Attendance',
+        color: const Color(0xFFEC4899),
+        icon: Icons.groups_rounded,
+        onTap: () => _open(const AttendanceScreen(), preload: () => context.read<AppState>().refreshAttendance()),
+      ),
+      _ModuleTile(
+        label: 'Reports',
+        color: const Color(0xFFB45309),
+        icon: Icons.insights_rounded,
+        onTap: () => _open(const ReportsScreen(), preload: () => context.read<AppState>().refreshDashboard()),
+      ),
     ];
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_index == 0 ? 'Dashboard' : ['', 'Pending', 'Paid', 'Cancelled', 'Expenses'][_index]),
-        actions: [
-          if (_index == 0)
-            IconButton(
-              tooltip: 'Low stock',
-              icon: const Icon(Icons.inventory_2_outlined),
-              onPressed: () async {
-                await context.read<AppState>().refreshLowStock();
-                if (!context.mounted) return;
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LowStockScreen()));
-              },
-            ),
-          PopupMenuButton<String>(
-            onSelected: (v) async {
-              if (v == 'logout') {
-                await session.logout();
-              }
-            },
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                enabled: false,
-                child: Text('${session.userName}\n${session.userRole}', style: const TextStyle(fontSize: 13)),
+      backgroundColor: const Color(0xFF0B1220),
+      body: SafeArea(
+        child: RefreshIndicator(
+          color: const Color(0xFF7C3AED),
+          onRefresh: () => context.read<AppState>().refreshDashboard(),
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 12, 0),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF7C3AED).withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.auto_graph, color: Color(0xFFA78BFA)),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        tooltip: 'Logout',
+                        onPressed: () => session.logout(),
+                        icon: const Icon(Icons.logout_rounded, color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(value: 'logout', child: Text('Logout')),
-            ],
-          ),
-        ],
-      ),
-      body: pages[_index],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: _onTab,
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.hourglass_empty), selectedIcon: Icon(Icons.hourglass_top), label: 'Pending'),
-          NavigationDestination(icon: Icon(Icons.payments_outlined), selectedIcon: Icon(Icons.payments), label: 'Paid'),
-          NavigationDestination(icon: Icon(Icons.cancel_outlined), selectedIcon: Icon(Icons.cancel), label: 'Cancel'),
-          NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: 'Expense'),
-        ],
-      ),
-    );
-  }
-}
-
-class _DashboardPage extends StatelessWidget {
-  const _DashboardPage();
-
-  @override
-  Widget build(BuildContext context) {
-    final state = context.watch<AppState>();
-    final d = state.dashboard;
-    final money = NumberFormat('#,##0');
-
-    if (state.loading && d == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (state.error != null && d == null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(state.error!, textAlign: TextAlign.center),
-              const SizedBox(height: 12),
-              FilledButton(onPressed: () => state.refreshDashboard(), child: const Text('Retry')),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 8),
+                  child: Column(
+                    children: [
+                      Text(
+                        time,
+                        style: const TextStyle(
+                          fontSize: 64,
+                          fontWeight: FontWeight.w300,
+                          color: Colors.white,
+                          height: 1,
+                          letterSpacing: -1,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(date, style: TextStyle(color: Colors.white.withOpacity(0.55), fontSize: 15)),
+                      const SizedBox(height: 18),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          Text(
+                            '${_greet()}, ',
+                            style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 15),
+                          ),
+                          Text(
+                            session.userName.isEmpty ? 'Admin' : session.userName,
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15),
+                          ),
+                          if (session.userRole.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.08),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: Colors.white12),
+                              ),
+                              child: Text(
+                                session.userRole,
+                                style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 28, 20, 32),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    mainAxisSpacing: 18,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 0.82,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, i) => _ModuleCard(tile: modules[i]),
+                    childCount: modules.length,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
+}
 
-    final cur = d?.currency ?? 'Rs.';
+class _ModuleTile {
+  const _ModuleTile({
+    required this.label,
+    required this.color,
+    required this.icon,
+    required this.onTap,
+  });
 
-    return RefreshIndicator(
-      onRefresh: () => state.refreshDashboard(),
-      child: ListView(
-        padding: const EdgeInsets.all(16),
+  final String label;
+  final Color color;
+  final IconData icon;
+  final VoidCallback onTap;
+}
+
+class _ModuleCard extends StatelessWidget {
+  const _ModuleCard({required this.tile});
+
+  final _ModuleTile tile;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: tile.onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Column(
         children: [
-          if (d?.sessionOpenedAt != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text('POS session: ${d!.sessionOpenedAt}', style: TextStyle(color: Colors.grey.shade700)),
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: const Color(0xFF151C2C),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white.withOpacity(0.06)),
+                boxShadow: [
+                  BoxShadow(
+                    color: tile.color.withOpacity(0.18),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Icon(tile.icon, size: 34, color: tile.color),
             ),
-          Text('Aaj', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _KpiCard(label: 'Sales', value: '$cur ${money.format(d?.todaySales ?? 0)}', color: const Color(0xFF0F766E)),
-              _KpiCard(label: 'Bills', value: '${d?.todayBills ?? 0}', color: const Color(0xFF1D4ED8)),
-              _KpiCard(label: 'Expenses', value: '$cur ${money.format(d?.todayExpenses ?? 0)}', color: const Color(0xFFB45309)),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Text('Is mahina', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _KpiCard(label: 'Sales', value: '$cur ${money.format(d?.monthSales ?? 0)}', color: const Color(0xFF065F46)),
-              _KpiCard(label: 'Expenses', value: '$cur ${money.format(d?.monthExpenses ?? 0)}', color: const Color(0xFF9A3412)),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Text('Alerts', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          ListTile(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
-            leading: const Icon(Icons.pending_actions),
-            title: const Text('Pending bills'),
-            trailing: Text('${d?.pendingOrders ?? 0}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
           ),
           const SizedBox(height: 8),
-          ListTile(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade300)),
-            leading: Icon(Icons.warning_amber_rounded, color: (d?.lowStock ?? 0) > 0 ? Colors.orange : null),
-            title: const Text('Low stock items'),
-            trailing: Text('${d?.lowStock ?? 0}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            onTap: () async {
-              await state.refreshLowStock();
-              if (!context.mounted) return;
-              Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LowStockScreen()));
-            },
+          Text(
+            tile.label,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500, height: 1.2),
           ),
         ],
       ),
@@ -197,31 +270,50 @@ class _DashboardPage extends StatelessWidget {
   }
 }
 
-class _KpiCard extends StatelessWidget {
-  const _KpiCard({required this.label, required this.value, required this.color});
+/// Scaffold wrapper so list screens match dark theme.
+class AdminDarkScaffold extends StatelessWidget {
+  const AdminDarkScaffold({super.key, required this.title, required this.body, this.actions});
 
-  final String label;
-  final String value;
-  final Color color;
+  final String title;
+  final Widget body;
+  final List<Widget>? actions;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 160,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(0.25)),
+    return Scaffold(
+      backgroundColor: const Color(0xFF0B1220),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0B1220),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: Text(title),
+        actions: actions,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
-          Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
-        ],
-      ),
+      body: body,
+    );
+  }
+}
+
+class KitchenVoidsPage extends StatelessWidget {
+  const KitchenVoidsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const AdminDarkScaffold(
+      title: 'Cancel Orders',
+      body: KitchenVoidsScreen(),
+    );
+  }
+}
+
+class ExpensesPage extends StatelessWidget {
+  const ExpensesPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const AdminDarkScaffold(
+      title: 'Expense',
+      body: ExpensesScreen(),
     );
   }
 }

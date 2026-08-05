@@ -54,6 +54,7 @@ Route::middleware(['auth:sanctum', 'tenant', 'apiCompany', 'companyTenantReady']
             Route::get('/kitchen-voids', [AdminApiController::class, 'kitchenVoids']);
             Route::get('/expenses', [AdminApiController::class, 'expenses']);
             Route::get('/low-stock', [AdminApiController::class, 'lowStock']);
+            Route::get('/attendance', [AdminApiController::class, 'attendanceToday']);
         });
 });
 

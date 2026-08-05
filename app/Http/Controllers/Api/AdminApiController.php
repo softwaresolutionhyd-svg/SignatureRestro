@@ -231,6 +231,59 @@ class AdminApiController extends Controller
         ]);
     }
 
+    public function attendanceToday(Request $request): JsonResponse
+    {
+        $date = $request->input('date');
+        if (! is_string($date) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            $date = now()->toDateString();
+        }
+
+        $employees = \App\Models\Employee::query()
+            ->where('active', true)
+            ->orderBy('name')
+            ->limit(200)
+            ->get(['id', 'name', 'employee_no']);
+
+        $byEmp = \App\Models\EmployeeAttendance::query()
+            ->whereDate('attendance_date', $date)
+            ->whereIn('employee_id', $employees->pluck('id'))
+            ->get(['employee_id', 'status', 'clock_in', 'clock_out'])
+            ->keyBy('employee_id');
+
+        $present = 0;
+        $absent = 0;
+        $rows = $employees->map(function ($e) use ($byEmp, &$present, &$absent) {
+            $rec = $byEmp->get($e->id);
+            $status = $rec ? (string) ($rec->status ?? 'absent') : 'absent';
+            $code = strtolower($status);
+            if (in_array($code, ['present', 'p', 'holiday', 'h', 'half'], true)) {
+                $present++;
+            } else {
+                $absent++;
+            }
+
+            return [
+                'id' => (int) $e->id,
+                'name' => (string) $e->name,
+                'employee_no' => (string) ($e->employee_no ?? ''),
+                'status' => $status,
+                'clock_in' => $rec?->clock_in
+                    ? Carbon::parse($rec->clock_in)->timezone(config('app.timezone'))->format('H:i')
+                    : null,
+                'clock_out' => $rec?->clock_out
+                    ? Carbon::parse($rec->clock_out)->timezone(config('app.timezone'))->format('H:i')
+                    : null,
+            ];
+        })->values();
+
+        return response()->json([
+            'date' => $date,
+            'present' => $present,
+            'absent' => $absent,
+            'employees' => $rows,
+        ]);
+    }
+
     /**
      * @return array<string, mixed>
      */

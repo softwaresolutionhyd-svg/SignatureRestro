@@ -11,6 +11,10 @@ class AppState extends ChangeNotifier {
   List<KitchenVoidItem> voids = [];
   List<ExpenseItem> expenses = [];
   List<LowStockItem> lowStock = [];
+  List<AttendanceRow> attendance = [];
+  int attendancePresent = 0;
+  int attendanceAbsent = 0;
+  String attendanceDate = '';
   bool loading = false;
   String? error;
   double paidTotal = 0;
@@ -119,6 +123,27 @@ class AppState extends ChangeNotifier {
       final raw = res['products'];
       lowStock = raw is List
           ? raw.whereType<Map>().map((e) => LowStockItem.fromJson(Map<String, dynamic>.from(e))).toList()
+          : [];
+    } catch (e) {
+      error = e.toString();
+    } finally {
+      loading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> refreshAttendance() async {
+    loading = true;
+    error = null;
+    notifyListeners();
+    try {
+      final res = await session.client.get('/api/admin/attendance');
+      attendanceDate = res['date']?.toString() ?? '';
+      attendancePresent = (res['present'] is num) ? (res['present'] as num).toInt() : 0;
+      attendanceAbsent = (res['absent'] is num) ? (res['absent'] as num).toInt() : 0;
+      final raw = res['employees'];
+      attendance = raw is List
+          ? raw.whereType<Map>().map((e) => AttendanceRow.fromJson(Map<String, dynamic>.from(e))).toList()
           : [];
     } catch (e) {
       error = e.toString();

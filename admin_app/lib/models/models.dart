@@ -173,6 +173,40 @@ class LowStockItem {
   }
 }
 
+class AttendanceRow {
+  AttendanceRow({
+    required this.id,
+    required this.name,
+    required this.status,
+    this.employeeNo,
+    this.clockIn,
+    this.clockOut,
+  });
+
+  final int id;
+  final String name;
+  final String status;
+  final String? employeeNo;
+  final String? clockIn;
+  final String? clockOut;
+
+  factory AttendanceRow.fromJson(Map<String, dynamic> json) {
+    return AttendanceRow(
+      id: _i(json['id']),
+      name: json['name']?.toString() ?? '',
+      status: json['status']?.toString() ?? 'absent',
+      employeeNo: json['employee_no']?.toString(),
+      clockIn: json['clock_in']?.toString(),
+      clockOut: json['clock_out']?.toString(),
+    );
+  }
+
+  bool get isPresent {
+    final s = status.toLowerCase();
+    return s == 'present' || s == 'p' || s == 'holiday' || s == 'h' || s == 'half';
+  }
+}
+
 double _d(dynamic v) {
   if (v is num) return v.toDouble();
   return double.tryParse(v?.toString() ?? '') ?? 0;

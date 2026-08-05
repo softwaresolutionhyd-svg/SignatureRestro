@@ -18,7 +18,9 @@ class ExpensesScreen extends StatelessWidget {
     }
 
     if (state.error != null && state.expenses.isEmpty) {
-      return Center(child: Text(state.error!, textAlign: TextAlign.center));
+      return Center(
+        child: Text(state.error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.redAccent)),
+      );
     }
 
     return RefreshIndicator(
@@ -27,7 +29,7 @@ class ExpensesScreen extends StatelessWidget {
           ? ListView(
               children: const [
                 SizedBox(height: 120),
-                Center(child: Text('Koi expense nahi.')),
+                Center(child: Text('Koi expense nahi.', style: TextStyle(color: Colors.white54))),
               ],
             )
           : ListView.separated(
@@ -37,12 +39,16 @@ class ExpensesScreen extends StatelessWidget {
               itemBuilder: (context, i) {
                 final e = state.expenses[i];
                 return Card(
+                  color: const Color(0xFF151C2C),
                   child: ListTile(
-                    title: Text(e.title, style: const TextStyle(fontWeight: FontWeight.w700)),
-                    subtitle: Text([e.date, if ((e.status ?? '').isNotEmpty) e.status].join(' · ')),
+                    title: Text(e.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                    subtitle: Text(
+                      [e.date, if ((e.status ?? '').isNotEmpty) e.status].join(' · '),
+                      style: const TextStyle(color: Colors.white60),
+                    ),
                     trailing: Text(
                       '$cur ${money.format(e.amount)}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                     ),
                   ),
                 );
