@@ -369,6 +369,15 @@ class CloudSyncService
                             throw new \InvalidArgumentException('Empty payload.');
                         }
 
+                        if ($table === 'settings' && $this->isCloudRole()) {
+                            $settingKey = (string) ($payload['key'] ?? '');
+                            if (str_starts_with($settingKey, 'lan_server_')) {
+                                $applied[] = $clientId;
+
+                                continue;
+                            }
+                        }
+
                         $payload = SyncMediaFiles::restoreFromPayload($payload);
 
                         if ($table === 'inventory_units') {

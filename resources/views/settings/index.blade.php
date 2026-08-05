@@ -736,8 +736,8 @@
                         <label class="form-label">Port <span class="text-secondary fw-normal">(optional)</span></label>
                         <input type="number" name="lan_server_port" id="lan_server_port" class="form-control font-monospace"
                                value="{{ old('lan_server_port', $settings['lan_server_port']) }}"
-                               placeholder="8080" min="1" max="65535">
-                        <div class="form-text">Khali = port 80</div>
+                               placeholder="" min="1" max="65535">
+                        <div class="form-text">Khali chhor dein = port 80 (Laragon default)</div>
                     </div>
                     <div class="col-md-4 d-flex align-items-end">
                         <div class="form-check mb-2">

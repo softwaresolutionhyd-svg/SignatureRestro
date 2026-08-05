@@ -101,8 +101,71 @@ class LanServerUrl
         return null;
     }
 
+    public static function isCloudRole(): bool
+    {
+        return config('sync.enabled') && config('sync.role') === 'cloud';
+    }
+
+    public static function isPrivateHost(string $host): bool
+    {
+        $host = strtolower(trim($host));
+        if ($host === '' || $host === 'localhost') {
+            return true;
+        }
+
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            return ! filter_var(
+                $host,
+                FILTER_VALIDATE_IP,
+                FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+            );
+        }
+
+        return str_ends_with($host, '.local')
+            || str_ends_with($host, '.restro')
+            || str_ends_with($host, '.test')
+            || str_ends_with($host, '.localhost');
+    }
+
+    public static function publicBaseUrl(): string
+    {
+        $appUrl = rtrim((string) config('app.url', ''), '/');
+        $appHost = $appUrl !== '' ? (string) parse_url($appUrl, PHP_URL_HOST) : '';
+        if ($appUrl !== '' && $appHost !== '' && ! self::isPrivateHost($appHost)) {
+            return $appUrl;
+        }
+
+        if (! app()->runningInConsole() && request()) {
+            return rtrim((string) request()->getSchemeAndHttpHost(), '/');
+        }
+
+        $remote = rtrim((string) config('sync.remote_url', ''), '/');
+        if ($remote !== '') {
+            return $remote;
+        }
+
+        return $appUrl !== '' ? $appUrl : 'http://localhost';
+    }
+
+    public static function shouldUsePublicUrl(): bool
+    {
+        if (self::isCloudRole()) {
+            return true;
+        }
+
+        if (! app()->runningInConsole() && request()) {
+            return ! self::isPrivateHost(request()->getHost());
+        }
+
+        return false;
+    }
+
     public static function baseUrl(?int $companyId = null): string
     {
+        if (self::shouldUsePublicUrl()) {
+            return self::publicBaseUrl();
+        }
+
         $ip = self::ip($companyId);
         if ($ip) {
             $port = self::port($companyId);
