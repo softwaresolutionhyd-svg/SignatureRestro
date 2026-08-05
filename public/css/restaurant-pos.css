@@ -1942,6 +1942,16 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     border: 1px solid rgba(92, 184, 138, 0.3);
 }
 
+.restaurant-pos-app .rp-kitchen-pill--new {
+    background: rgba(96, 165, 250, 0.2);
+    color: #bfdbfe;
+    border: 1px solid rgba(96, 165, 250, 0.35);
+}
+
+.restaurant-pos-app .rp-cart-line.is-kitchen-new {
+    border-color: rgba(96, 165, 250, 0.35);
+}
+
 .restaurant-pos-app .rp-checkout-foot {
     padding: 0.5rem 0.85rem 0.65rem;
     border-top: 1px solid var(--rp-border-strong);

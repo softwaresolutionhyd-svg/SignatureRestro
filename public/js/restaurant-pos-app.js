@@ -665,26 +665,41 @@
         return (ri.kitchen_served || ri.kitchen_printed) ? qty : 0;
     }
 
+    function findMergeableCartRow(productId, uom) {
+        return cart.find((r) => (
+            !r.is_custom
+            && Number(r.product_id) === Number(productId)
+            && String(r.uom) === String(uom || '')
+            && (Number(r.kitchen_locked_qty) || 0) <= 0.0005
+        )) || null;
+    }
+
+    function pushNewCartProductRow(p, qty) {
+        cart.push({
+            product_id: p.id,
+            name: p.name,
+            uom: p.uom,
+            qty: Math.round(Number(qty) * 1000) / 1000,
+            unit_price: unitPriceForProduct(p, p.uom),
+            tax_percent: 0,
+            notes: '',
+            kitchen_served: false,
+            kitchen_pending: false,
+            kitchen_printed: false,
+            kitchen_locked_qty: 0,
+        });
+    }
+
     function addOrIncrementProduct(id) {
         const p = products.find((x) => Number(x.id) === Number(id));
         if (!p || !isProductVisible(p)) return;
-        const existing = cart.find((r) => Number(r.product_id) === Number(id) && String(r.uom) === String(p.uom));
-        if (existing) {
-            existing.qty = Math.round((Number(existing.qty) + 1) * 1000) / 1000;
-            existing.unit_price = unitPriceForProduct(p, existing.uom);
+        const mergeable = findMergeableCartRow(id, p.uom);
+        if (mergeable) {
+            mergeable.qty = Math.round((Number(mergeable.qty) + 1) * 1000) / 1000;
+            mergeable.unit_price = unitPriceForProduct(p, mergeable.uom);
         } else {
-            cart.push({
-                product_id: p.id,
-                name: p.name,
-                uom: p.uom,
-                qty: 1,
-                unit_price: unitPriceForProduct(p, p.uom),
-                tax_percent: 0,
-                notes: '',
-                kitchen_served: false,
-                kitchen_pending: false,
-                kitchen_locked_qty: 0,
-            });
+            // Kitchen-printed line ke baad same item → naya cart card (merge nahi).
+            pushNewCartProductRow(p, 1);
         }
         renderAll();
     }
@@ -692,23 +707,12 @@
     function increaseProductQtyBy(productId, addQty) {
         const p = products.find((x) => Number(x.id) === Number(productId));
         if (!p || addQty <= 0) return;
-        const existing = cart.find((r) => Number(r.product_id) === Number(productId) && String(r.uom) === String(p.uom));
-        if (existing) {
-            existing.qty = Math.round((Number(existing.qty) + addQty) * 1000) / 1000;
-            existing.unit_price = unitPriceForProduct(p, existing.uom);
+        const mergeable = findMergeableCartRow(productId, p.uom);
+        if (mergeable) {
+            mergeable.qty = Math.round((Number(mergeable.qty) + addQty) * 1000) / 1000;
+            mergeable.unit_price = unitPriceForProduct(p, mergeable.uom);
         } else {
-            cart.push({
-                product_id: p.id,
-                name: p.name,
-                uom: p.uom,
-                qty: Math.round(addQty * 1000) / 1000,
-                unit_price: unitPriceForProduct(p, p.uom),
-                tax_percent: 0,
-                notes: '',
-                kitchen_served: false,
-                kitchen_pending: false,
-                kitchen_locked_qty: 0,
-            });
+            pushNewCartProductRow(p, addQty);
         }
     }
 
@@ -1092,11 +1096,29 @@
     }
 
     function changeCustomCartQty(index, delta, reason) {
+        changeCartLineQty(index, delta, reason);
+    }
+
+    function changeCartLineQty(index, delta, reason) {
         const row = cart[index];
-        if (!row || !row.is_custom) return;
+        if (!row) return;
 
         if (delta > 0) {
-            row.qty = Math.round((Number(row.qty) + delta) * 1000) / 1000;
+            const locked = Number(row.kitchen_locked_qty) || 0;
+            const qty = Number(row.qty) || 0;
+            // Fully kitchen-locked card pe + → alag New card (printed qty merge na ho).
+            if (!row.is_custom && locked > 0.0005 && qty <= locked + 0.0005) {
+                addOrIncrementProduct(row.product_id);
+                if (resumeOrderId) {
+                    saveResumedDraftChanges().catch((e) => alert(e.message || 'Order save nahi ho saki.'));
+                }
+                return;
+            }
+            row.qty = Math.round((qty + delta) * 1000) / 1000;
+            if (!row.is_custom) {
+                const p = products.find((x) => Number(x.id) === Number(row.product_id));
+                if (p) row.unit_price = unitPriceForProduct(p, row.uom);
+            }
             renderAll();
             if (resumeOrderId) {
                 saveResumedDraftChanges().catch((e) => alert(e.message || 'Order save nahi ho saki.'));
@@ -1154,8 +1176,12 @@
     }
 
     function setCustomCartQty(index, targetQty, reason) {
+        setCartLineQty(index, targetQty, reason);
+    }
+
+    function setCartLineQty(index, targetQty, reason) {
         const row = cart[index];
-        if (!row || !row.is_custom) return;
+        if (!row) return;
         const current = Number(row.qty) || 0;
         const next = Math.round(Number(targetQty) * 1000) / 1000;
         if (!Number.isFinite(next)) {
@@ -1164,7 +1190,19 @@
         }
         const delta = Math.round((next - current) * 1000) / 1000;
         if (Math.abs(delta) < 0.0005) return;
-        changeCustomCartQty(index, delta, reason);
+        if (delta > 0) {
+            const locked = Number(row.kitchen_locked_qty) || 0;
+            if (!row.is_custom && locked > 0.0005 && current <= locked + 0.0005) {
+                // Locked card pe qty badhao → unlocked New card par add / create.
+                increaseProductQtyBy(row.product_id, delta);
+                renderAll();
+                if (resumeOrderId) {
+                    saveResumedDraftChanges().catch((e) => alert(e.message || 'Order save nahi ho saki.'));
+                }
+                return;
+            }
+        }
+        changeCartLineQty(index, delta, reason);
     }
 
     function applySaleModePricing() {
@@ -1275,29 +1313,38 @@
             return;
         }
         const totals = calcCartTotals();
+        const orderHasKitchen = cart.some((r) => (
+            (Number(r.kitchen_locked_qty) || 0) > 0.0005
+            || r.kitchen_printed
+            || r.kitchen_served
+        ));
         wrap.innerHTML = cart.map((r, i) => {
             const total = lineRowTotal(r, totals, i);
             const locked = Number(r.kitchen_locked_qty) || 0;
             const showRemove = (locked <= 0 && canReduceCartItems) || (locked > 0 && canVoidKitchenItems);
+            const isNewAddon = orderHasKitchen && locked <= 0.0005;
             const kitchenBadge = locked > 0
                 ? `<span class="rp-kitchen-pill ${r.kitchen_served ? 'rp-kitchen-pill--served' : 'rp-kitchen-pill--pending'}" title="Kitchen me bheja hua">
                     <i class="bi ${r.kitchen_served ? 'bi-check-circle-fill' : 'bi-fire'}"></i>
                     ${r.kitchen_served ? 'Served' : 'Kitchen'}
                    </span>`
-                : '';
+                : (isNewAddon
+                    ? `<span class="rp-kitchen-pill rp-kitchen-pill--new" title="Kitchen print ke baad naya item">
+                        <i class="bi bi-stars"></i> New
+                       </span>`
+                    : '');
             const removeTitle = locked > 0 ? 'Kitchen item — reason required' : 'Remove item';
             const canDec = Number(r.qty) > 0 && (
                 canVoidKitchenItems || (canReduceCartItems && Number(r.qty) > locked)
             );
             const noteVal = escHtml(r.notes || '');
-            const qtyIdAttr = r.is_custom ? `data-index="${i}"` : `data-id="${r.product_id}"`;
-            return `<div class="rp-cart-line${locked > 0 ? ' is-kitchen-locked' : ''}${r.is_custom ? ' is-on-demand' : ''}" data-cart-index="${i}" data-product-id="${r.product_id}">
+            return `<div class="rp-cart-line${locked > 0 ? ' is-kitchen-locked' : ''}${isNewAddon ? ' is-kitchen-new' : ''}${r.is_custom ? ' is-on-demand' : ''}" data-cart-index="${i}" data-product-id="${r.product_id}">
                 <div class="rp-cl-row">
                     <div class="rp-cl-main">
                         <div class="rp-cl-qty-ctrl" role="group" aria-label="Quantity">
-                            <button type="button" class="rp-cl-qty-btn" data-action="cart-dec" ${qtyIdAttr}${canDec ? '' : ' disabled'} aria-label="Decrease">−</button>
-                            <input type="text" inputmode="decimal" class="rp-cl-qty-input" ${qtyIdAttr} value="${fmtQty(r.qty)}" aria-label="Quantity" autocomplete="off" spellcheck="false">
-                            <button type="button" class="rp-cl-qty-btn" data-action="cart-inc" ${qtyIdAttr} aria-label="Increase">+</button>
+                            <button type="button" class="rp-cl-qty-btn" data-action="cart-dec" data-index="${i}"${canDec ? '' : ' disabled'} aria-label="Decrease">−</button>
+                            <input type="text" inputmode="decimal" class="rp-cl-qty-input" data-index="${i}" value="${fmtQty(r.qty)}" aria-label="Quantity" autocomplete="off" spellcheck="false">
+                            <button type="button" class="rp-cl-qty-btn" data-action="cart-inc" data-index="${i}" aria-label="Increase">+</button>
                         </div>
                         <span class="rp-cl-name">${escHtml(r.name)}${r.is_custom ? ' <span class="rp-on-demand-tag">On Demand</span>' : ''}</span>
                         ${kitchenBadge}
@@ -2923,6 +2970,24 @@
         return printUrlInHiddenFrame(`${base}?noprint=1`);
     }
 
+    function markUnlockedCartLinesKitchenPrinted() {
+        let changed = false;
+        cart.forEach((r) => {
+            const qty = Number(r.qty) || 0;
+            if (qty <= 0.0005) return;
+            const locked = Number(r.kitchen_locked_qty) || 0;
+            if (locked >= qty - 0.0005) return;
+            r.kitchen_printed = true;
+            r.kitchen_pending = true;
+            r.kitchen_served = false;
+            r.kitchen_locked_qty = qty;
+            changed = true;
+        });
+        if (changed) {
+            renderAll();
+        }
+    }
+
     async function printKitchenSlip(orderId) {
         // Try direct network printing first: each product routes to its department's printer.
         const netUrl = (routes.kitchenPrint || '').replace('__ID__', String(orderId));
@@ -2944,13 +3009,16 @@
                         alert('Kuch printers par print nahi hua:\n' +
                             failed.map((r) => `• ${r.department}: ${r.error || 'error'}`).join('\n'));
                     }
+                    markUnlockedCartLinesKitchenPrinted();
                     return;
                 }
 
                 // Only browser-fallback when no department printer is configured.
                 // Other failures must NOT open a full kitchen slip (causes whole-order reprints).
                 if (data.fallback) {
-                    return browserPrintKitchenSlip(orderId);
+                    await browserPrintKitchenSlip(orderId);
+                    markUnlockedCartLinesKitchenPrinted();
+                    return;
                 }
 
                 const failed = (data.results || []).filter((r) => !r.ok);
@@ -2966,7 +3034,8 @@
             }
         }
 
-        return browserPrintKitchenSlip(orderId);
+        await browserPrintKitchenSlip(orderId);
+        markUnlockedCartLinesKitchenPrinted();
     }
 
     async function tryCashierNetworkPrint(orderId) {
@@ -3750,13 +3819,13 @@
             }
             const qtyBtn = e.target.closest('[data-action="cart-inc"], [data-action="cart-dec"]');
             if (qtyBtn && !qtyBtn.disabled) {
-                if (qtyBtn.dataset.index !== undefined && qtyBtn.dataset.index !== '') {
+            if (qtyBtn.dataset.index !== undefined && qtyBtn.dataset.index !== '') {
                     const index = Number(qtyBtn.dataset.index);
                     if (!Number.isFinite(index)) return;
                     if (qtyBtn.dataset.action === 'cart-inc') {
-                        changeCustomCartQty(index, 1);
+                        changeCartLineQty(index, 1);
                     } else {
-                        changeCustomCartQty(index, -1);
+                        changeCartLineQty(index, -1);
                     }
                     return;
                 }

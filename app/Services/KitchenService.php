@@ -200,7 +200,8 @@ final class KitchenService
             if ($oldItem->kitchen_served_at === null) {
                 continue;
             }
-            $base = $this->baseItemFingerprint($oldItem);
+            // Ignore notes — instruction edits must not unlock already-served qty.
+            $base = $this->voidMatchFingerprint($oldItem);
             if (! isset($pool[$base])) {
                 $pool[$base] = ['served_qty' => 0.0, 'served_at' => $oldItem->kitchen_served_at];
             }
@@ -230,7 +231,8 @@ final class KitchenService
             if ($oldItem->kitchen_printed_at === null) {
                 continue;
             }
-            $base = $this->baseItemFingerprint($oldItem);
+            // Ignore notes — adding instructions after print must not re-ticket old qty.
+            $base = $this->voidMatchFingerprint($oldItem);
             if (! isset($pool[$base])) {
                 $pool[$base] = ['qty' => 0.0, 'printed_at' => $oldItem->kitchen_printed_at];
             }
@@ -260,7 +262,7 @@ final class KitchenService
             if ($hasPrinted && $oldItem->kitchen_printed_at !== null) {
                 continue;
             }
-            $base = $this->baseItemFingerprint($oldItem);
+            $base = $this->voidMatchFingerprint($oldItem);
             $pool[$base] = ($pool[$base] ?? 0.0) + (float) $oldItem->qty;
         }
 
@@ -481,7 +483,7 @@ final class KitchenService
                 continue;
             }
 
-            $baseFp = $this->baseItemFingerprint($item);
+            $baseFp = $this->voidMatchFingerprint($item);
 
             // 1) Already served portion
             if ($hasServedAt && isset($servedPool[$baseFp]) && $servedPool[$baseFp]['served_qty'] > 0.0005) {
