@@ -8,12 +8,14 @@ use App\Models\EmployeeDesignation;
 use App\Models\EmployeeStaffCategory;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\EmployeeContactSyncService;
+use App\Services\EmployeePhotoService;
 use App\Support\ActivityLogger;
 use App\Support\AppPasswordRules;
+use App\Support\EnsuresEmployeePhotoSchema;
 use App\Support\EnsuresEmployeeStaffCategorySchema;
 use App\Support\LoginUsername;
 use App\Support\ModuleAccess;
-use App\Services\EmployeeContactSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -21,13 +23,17 @@ use Illuminate\Validation\ValidationException;
 
 class EmployeeController extends Controller
 {
+    use EnsuresEmployeePhotoSchema;
     use EnsuresEmployeeStaffCategorySchema;
 
     public function __construct(
         private readonly EmployeeContactSyncService $contactSync,
+        private readonly EmployeePhotoService $photos,
     ) {}
     public function index(Request $request)
     {
+        $this->ensureEmployeePhotoSchema();
+
         $q = trim((string) $request->query('q', ''));
         $employeeNo = trim((string) $request->query('employee_no', ''));
         $sort = strtolower(trim((string) $request->query('sort', '')));
@@ -67,6 +73,7 @@ class EmployeeController extends Controller
 
     public function create()
     {
+        $this->ensureEmployeePhotoSchema();
         $cid = current_company_id();
         abort_if($cid === null, 403);
 
@@ -79,6 +86,7 @@ class EmployeeController extends Controller
 
     public function store(Request $request)
     {
+        $this->ensureEmployeePhotoSchema();
         $cid = current_company_id();
         abort_if($cid === null, 403);
 
@@ -97,6 +105,7 @@ class EmployeeController extends Controller
             'join_date' => ['nullable', 'date'],
             'salary' => ['nullable', 'numeric', 'min:0'],
             'address' => ['nullable', 'string', 'max:255'],
+            'photo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:4096'],
             'active' => ['nullable', 'boolean'],
 
             'account_username' => LoginUsername::rules(),
@@ -111,6 +120,11 @@ class EmployeeController extends Controller
         $data['employee_no'] = trim((string) ($data['employee_no'] ?? '')) !== ''
             ? trim((string) $data['employee_no'])
             : Employee::generateNextEmployeeNo($cid);
+
+        $photoPath = null;
+        if ($request->hasFile('photo')) {
+            $photoPath = $this->photos->storePassport($request->file('photo'));
+        }
 
         $userId = null;
         $createdUser = null;
@@ -130,7 +144,7 @@ class EmployeeController extends Controller
         }
 
         try {
-            DB::connection('tenant')->transaction(function () use ($data, $request, $cid, $userId) {
+            DB::connection('tenant')->transaction(function () use ($data, $cid, $userId, $photoPath) {
                 $emp = Employee::create([
                     'company_id' => $cid,
                     'user_id' => $userId,
@@ -143,12 +157,16 @@ class EmployeeController extends Controller
                     'join_date' => $data['join_date'] ?? null,
                     'salary' => $data['salary'],
                     'address' => $data['address'] ?? null,
+                    'photo_path' => $photoPath,
                     'active' => $data['active'],
                 ]);
                 $this->contactSync->ensureContactForEmployee($emp);
                 ActivityLogger::log('employee.created', 'Employee created', $emp);
             });
         } catch (\Throwable $e) {
+            if ($photoPath) {
+                $this->photos->delete($photoPath);
+            }
             if ($createdUser) {
                 $createdUser->delete();
             }
@@ -159,6 +177,7 @@ class EmployeeController extends Controller
 
     public function edit(Employee $employee)
     {
+        $this->ensureEmployeePhotoSchema();
         $cid = current_company_id();
         abort_if($cid === null, 403);
 
@@ -171,6 +190,7 @@ class EmployeeController extends Controller
 
     public function update(Request $request, Employee $employee)
     {
+        $this->ensureEmployeePhotoSchema();
         $cid = current_company_id();
         abort_if($cid === null || (int) $employee->company_id !== (int) $cid, 403);
 
@@ -191,6 +211,8 @@ class EmployeeController extends Controller
             'join_date' => ['nullable', 'date'],
             'salary' => ['nullable', 'numeric', 'min:0'],
             'address' => ['nullable', 'string', 'max:255'],
+            'photo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:4096'],
+            'remove_photo' => ['nullable', 'boolean'],
             'active' => ['nullable', 'boolean'],
 
             'account_username' => LoginUsername::rules($employee->user_id),
@@ -237,6 +259,17 @@ class EmployeeController extends Controller
             ]);
         }
 
+        $photoPath = $employee->photo_path;
+        if ($request->boolean('remove_photo')) {
+            $this->photos->delete($photoPath);
+            $photoPath = null;
+        }
+
+        if ($request->hasFile('photo')) {
+            $this->photos->delete($employee->photo_path);
+            $photoPath = $this->photos->storePassport($request->file('photo'));
+        }
+
         $employee->update([
             'employee_no' => $data['employee_no'],
             'name' => $data['name'],
@@ -247,6 +280,7 @@ class EmployeeController extends Controller
             'join_date' => $data['join_date'] ?? null,
             'salary' => $data['salary'],
             'address' => $data['address'] ?? null,
+            'photo_path' => $photoPath,
             'active' => $data['active'],
             'user_id' => $employee->user_id,
         ]);
@@ -325,11 +359,13 @@ class EmployeeController extends Controller
 
         $employee->load('user');
         $user = $employee->user;
+        $photoPath = $employee->photo_path;
         ActivityLogger::log('employee.deleted', 'Employee deleted', null, [
             'employee_no' => $employee->employee_no,
             'name' => $employee->name,
         ]);
         $employee->delete();
+        $this->photos->delete($photoPath);
         if ($user && ($user->role ?? null) === 'user') {
             $user->delete();
         }

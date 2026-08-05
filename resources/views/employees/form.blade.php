@@ -1,91 +1,123 @@
 @csrf
 
 <div class="row g-3">
-    <div class="col-12 col-md-4">
-        <label class="form-label">Employee No</label>
-        <input type="text" name="employee_no" value="{{ old('employee_no', $employee->employee_no ?? '') }}"
-               class="form-control @error('employee_no') is-invalid @enderror" maxlength="40"
-               placeholder="Auto-generated if left blank">
-        @error('employee_no')<div class="invalid-feedback">{{ $message }}</div>@enderror
-    </div>
+    <div class="col-12 col-lg-9">
+        <div class="row g-3">
+            <div class="col-12 col-md-4">
+                <label class="form-label">Employee No</label>
+                <input type="text" name="employee_no" value="{{ old('employee_no', $employee->employee_no ?? '') }}"
+                       class="form-control @error('employee_no') is-invalid @enderror" maxlength="40"
+                       placeholder="Auto-generated if left blank">
+                @error('employee_no')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
 
-    <div class="col-12 col-md-8">
-        <label class="form-label">Name</label>
-        <input type="text" name="name" value="{{ old('name', $employee->name ?? '') }}"
-               class="form-control @error('name') is-invalid @enderror" required maxlength="150">
-        @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
-    </div>
+            <div class="col-12 col-md-8">
+                <label class="form-label">Name</label>
+                <input type="text" name="name" value="{{ old('name', $employee->name ?? '') }}"
+                       class="form-control @error('name') is-invalid @enderror" required maxlength="150">
+                @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
 
-    <div class="col-12 col-md-6">
-        <label class="form-label">Contact email <span class="text-secondary fw-normal">(optional)</span></label>
-        <input type="email" name="email" value="{{ old('email', $employee->email ?? '') }}"
-               class="form-control @error('email') is-invalid @enderror" maxlength="200"
-               placeholder="Personal / work email">
-        @error('email')<div class="invalid-feedback">{{ $message }}</div>@enderror
-    </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label">Contact email <span class="text-secondary fw-normal">(optional)</span></label>
+                <input type="email" name="email" value="{{ old('email', $employee->email ?? '') }}"
+                       class="form-control @error('email') is-invalid @enderror" maxlength="200"
+                       placeholder="Personal / work email">
+                @error('email')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
 
-    <div class="col-12 col-md-6">
-        <label class="form-label">Mobile / WhatsApp</label>
-        <input type="text" name="phone" value="{{ old('phone', $employee->phone ?? '') }}"
-               class="form-control @error('phone') is-invalid @enderror" maxlength="60"
-               placeholder="03xx xxxxxxx">
-        @error('phone')<div class="invalid-feedback">{{ $message }}</div>@enderror
-    </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label">Mobile / WhatsApp</label>
+                <input type="text" name="phone" value="{{ old('phone', $employee->phone ?? '') }}"
+                       class="form-control @error('phone') is-invalid @enderror" maxlength="60"
+                       placeholder="03xx xxxxxxx">
+                @error('phone')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
 
-    <div class="col-12 col-md-4">
-        <div class="d-flex justify-content-between align-items-center">
-            <label class="form-label mb-0">Designation</label>
-            <a class="small text-decoration-none" href="{{ route('employees.designations.index') }}" target="_blank">Manage</a>
+            <div class="col-12 col-md-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <label class="form-label mb-0">Designation</label>
+                    <a class="small text-decoration-none" href="{{ route('employees.designations.index') }}" target="_blank">Manage</a>
+                </div>
+                <select name="designation_id" class="form-select @error('designation_id') is-invalid @enderror">
+                    <option value="">—</option>
+                    @foreach($designations as $d)
+                        <option value="{{ $d->id }}" @selected((string)old('designation_id', $employee->designation_id ?? '') === (string)$d->id)>{{ $d->name }}</option>
+                    @endforeach
+                </select>
+                @error('designation_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+
+            <div class="col-12 col-md-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <label class="form-label mb-0">Staff Category</label>
+                    <a class="small text-decoration-none" href="{{ route('employees.staff-categories.index') }}" target="_blank">Manage</a>
+                </div>
+                <select name="staff_category_id" class="form-select @error('staff_category_id') is-invalid @enderror">
+                    <option value="">—</option>
+                    @foreach($staffCategories ?? [] as $cat)
+                        <option value="{{ $cat->id }}" @selected((string)old('staff_category_id', $employee->staff_category_id ?? '') === (string)$cat->id)>{{ $cat->name }}</option>
+                    @endforeach
+                </select>
+                @error('staff_category_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+
+            <div class="col-12 col-md-4">
+                <label class="form-label">Join Date</label>
+                <input type="date" name="join_date" value="{{ old('join_date', optional($employee->join_date ?? null)->format('Y-m-d')) }}"
+                       class="form-control @error('join_date') is-invalid @enderror">
+                @error('join_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+
+            <div class="col-12 col-md-4">
+                <label class="form-label">Salary</label>
+                <input type="number" step="0.01" min="0" name="salary" value="{{ old('salary', $employee->salary ?? 0) }}"
+                       class="form-control @error('salary') is-invalid @enderror">
+                @error('salary')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+
+            <div class="col-12 col-md-8 d-flex align-items-end">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="activeSwitch" name="active" value="1"
+                           @checked(old('active', ($employee->active ?? true)) ? true : false)>
+                    <label class="form-check-label" for="activeSwitch">Active</label>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <label class="form-label">Address</label>
+                <textarea name="address" rows="3" class="form-control @error('address') is-invalid @enderror">{{ old('address', $employee->address ?? '') }}</textarea>
+                @error('address')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
         </div>
-        <select name="designation_id" class="form-select @error('designation_id') is-invalid @enderror">
-            <option value="">—</option>
-            @foreach($designations as $d)
-                <option value="{{ $d->id }}" @selected((string)old('designation_id', $employee->designation_id ?? '') === (string)$d->id)>{{ $d->name }}</option>
-            @endforeach
-        </select>
-        @error('designation_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
 
-    <div class="col-12 col-md-4">
-        <div class="d-flex justify-content-between align-items-center">
-            <label class="form-label mb-0">Staff Category</label>
-            <a class="small text-decoration-none" href="{{ route('employees.staff-categories.index') }}" target="_blank">Manage</a>
+    <div class="col-12 col-lg-3">
+        <label class="form-label">Passport photo</label>
+        <div class="border rounded-3 p-3 bg-light h-100">
+            @php $existingPhoto = isset($employee) && $employee ? $employee->photoUrl() : null; @endphp
+            <div class="employee-photo-preview-wrap border rounded bg-white overflow-hidden mx-auto mb-3"
+                 style="width:140px;height:180px;">
+                <img src="{{ $existingPhoto ?: '' }}" alt="" id="employeePhotoPreview"
+                     class="w-100 h-100 {{ $existingPhoto ? '' : 'd-none' }}" style="object-fit:cover;">
+                <div id="employeePhotoPlaceholder"
+                     class="w-100 h-100 d-flex flex-column align-items-center justify-content-center text-secondary small {{ $existingPhoto ? 'd-none' : '' }}">
+                    <i class="bi bi-person-bounding-box fs-2 mb-1"></i>
+                    <span>35 × 45 mm</span>
+                </div>
+            </div>
+            <input type="file" name="photo" id="employeePhotoInput" accept="image/jpeg,image/png,image/webp"
+                   class="form-control form-control-sm @error('photo') is-invalid @enderror">
+            @error('photo')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            <div class="form-text small mt-2 mb-0">JPG / PNG / WebP — max 4 MB. Center crop passport size mein save hogi.</div>
+            @if($existingPhoto)
+                <div class="form-check mt-2">
+                    <input type="hidden" name="remove_photo" value="0">
+                    <input class="form-check-input" type="checkbox" name="remove_photo" value="1" id="removeEmployeePhoto">
+                    <label class="form-check-label small" for="removeEmployeePhoto">Photo hata dein</label>
+                </div>
+            @endif
         </div>
-        <select name="staff_category_id" class="form-select @error('staff_category_id') is-invalid @enderror">
-            <option value="">—</option>
-            @foreach($staffCategories ?? [] as $cat)
-                <option value="{{ $cat->id }}" @selected((string)old('staff_category_id', $employee->staff_category_id ?? '') === (string)$cat->id)>{{ $cat->name }}</option>
-            @endforeach
-        </select>
-        @error('staff_category_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-    </div>
-
-    <div class="col-12 col-md-4">
-        <label class="form-label">Join Date</label>
-        <input type="date" name="join_date" value="{{ old('join_date', optional($employee->join_date ?? null)->format('Y-m-d')) }}"
-               class="form-control @error('join_date') is-invalid @enderror">
-        @error('join_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
-    </div>
-
-    <div class="col-12 col-md-4">
-        <label class="form-label">Salary</label>
-        <input type="number" step="0.01" min="0" name="salary" value="{{ old('salary', $employee->salary ?? 0) }}"
-               class="form-control @error('salary') is-invalid @enderror">
-        @error('salary')<div class="invalid-feedback">{{ $message }}</div>@enderror
-    </div>
-
-    <div class="col-12 col-md-8 d-flex align-items-end">
-        <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" role="switch" id="activeSwitch" name="active" value="1"
-                   @checked(old('active', ($employee->active ?? true)) ? true : false)>
-            <label class="form-check-label" for="activeSwitch">Active</label>
-        </div>
-    </div>
-
-    <div class="col-12">
-        <label class="form-label">Address</label>
-        <textarea name="address" rows="3" class="form-control @error('address') is-invalid @enderror">{{ old('address', $employee->address ?? '') }}</textarea>
-        @error('address')<div class="invalid-feedback">{{ $message }}</div>@enderror
     </div>
 
     <div class="col-12">
@@ -141,3 +173,26 @@
     <a href="{{ route('employees.index') }}" class="btn btn-outline-secondary">Cancel</a>
 </div>
 
+@once
+@push('scripts')
+<script>
+(() => {
+    const input = document.getElementById('employeePhotoInput');
+    const preview = document.getElementById('employeePhotoPreview');
+    const placeholder = document.getElementById('employeePhotoPlaceholder');
+    const remove = document.getElementById('removeEmployeePhoto');
+    if (!input || !preview || !placeholder) return;
+
+    input.addEventListener('change', () => {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        const url = URL.createObjectURL(file);
+        preview.src = url;
+        preview.classList.remove('d-none');
+        placeholder.classList.add('d-none');
+        if (remove) remove.checked = false;
+    });
+})();
+</script>
+@endpush
+@endonce

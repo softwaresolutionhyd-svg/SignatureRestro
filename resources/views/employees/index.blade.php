@@ -53,6 +53,7 @@
             <table class="table table-hover mb-0 align-middle">
                 <thead class="table-light">
                 <tr>
+                    <th style="width:3.5rem;"></th>
                     <th>Employee #</th>
                     <th>
                         <a href="{{ route('employees.index', array_filter([
@@ -84,6 +85,18 @@
                 <tbody>
                 @forelse($employees as $e)
                     <tr>
+                        <td>
+                            @php $photo = $e->photoUrl(); @endphp
+                            @if($photo)
+                                <img src="{{ $photo }}" alt="" class="rounded border"
+                                     style="width:40px;height:52px;object-fit:cover;">
+                            @else
+                                <span class="d-inline-flex align-items-center justify-content-center rounded border bg-light text-secondary"
+                                      style="width:40px;height:52px;">
+                                    <i class="bi bi-person"></i>
+                                </span>
+                            @endif
+                        </td>
                         <td class="fw-semibold">{{ $e->employee_no }}</td>
                         <td class="fw-semibold">{{ $e->name }}</td>
                         <td class="text-secondary">{{ $e->designation?->name ?? '—' }}</td>
@@ -114,7 +127,7 @@
                         @endif
                     </tr>
                 @empty
-                    <tr><td colspan="{{ ($u->moduleAllows('hr', 'edit') || $u->moduleAllows('hr', 'delete')) ? 9 : 8 }}" class="text-center text-secondary py-4">No employees yet.</td></tr>
+                    <tr><td colspan="{{ ($u->moduleAllows('hr', 'edit') || $u->moduleAllows('hr', 'delete')) ? 10 : 9 }}" class="text-center text-secondary py-4">No employees yet.</td></tr>
                 @endforelse
                 </tbody>
             </table>

@@ -30,6 +30,7 @@ class Employee extends Model
         'join_date',
         'salary',
         'address',
+        'photo_path',
         'active',
     ];
 
@@ -151,6 +152,16 @@ class Employee extends Model
 
             return str_contains($id, $needle) || str_contains($name, $needle);
         }));
+    }
+
+    public function photoUrl(): ?string
+    {
+        $path = trim((string) ($this->photo_path ?? ''));
+        if ($path === '') {
+            return null;
+        }
+
+        return asset('storage/'.$path);
     }
 
     public static function generateNextEmployeeNo(int $companyId): string

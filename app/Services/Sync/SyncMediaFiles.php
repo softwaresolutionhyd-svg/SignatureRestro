@@ -86,6 +86,10 @@ final class SyncMediaFiles
             return self::normalizePath((string) ($payload['image_path'] ?? ''));
         }
 
+        if ($table === 'employees') {
+            return self::normalizePath((string) ($payload['photo_path'] ?? ''));
+        }
+
         if ($table === 'settings') {
             $key = (string) ($payload['key'] ?? '');
             if (! in_array($key, ['company_logo', 'logo', 'logo_path'], true)) {
@@ -93,7 +97,7 @@ final class SyncMediaFiles
             }
             $value = (string) ($payload['value'] ?? '');
             // stored as relative public disk path like logos/xxx.jpg
-            if (str_contains($value, 'logos/') || str_starts_with($value, 'products/')) {
+            if (str_contains($value, 'logos/') || str_starts_with($value, 'products/') || str_starts_with($value, 'employees/')) {
                 return self::normalizePath($value);
             }
         }
@@ -107,7 +111,11 @@ final class SyncMediaFiles
         if ($path === '' || str_contains($path, '..')) {
             return null;
         }
-        if (! str_starts_with($path, 'products/') && ! str_starts_with($path, 'logos/')) {
+        if (
+            ! str_starts_with($path, 'products/')
+            && ! str_starts_with($path, 'logos/')
+            && ! str_starts_with($path, 'employees/')
+        ) {
             return null;
         }
 

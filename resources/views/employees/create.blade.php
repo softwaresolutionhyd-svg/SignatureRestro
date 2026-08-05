@@ -12,7 +12,7 @@
             <a href="{{ route('employees.index') }}" class="btn btn-outline-secondary btn-sm">Back</a>
         </div>
         <div class="card-body">
-            <form method="POST" action="{{ route('employees.store') }}">
+            <form method="POST" action="{{ route('employees.store') }}" enctype="multipart/form-data">
                 @include('employees.form')
             </form>
         </div>
