@@ -46,7 +46,7 @@ final class NetworkPrinterService
      *
      * @throws RuntimeException on connection/write failure.
      */
-    public function send(string $ip, int $port, string $payload, int $timeoutSeconds = 4): void
+    public function send(string $ip, int $port, string $payload, int $timeoutSeconds = 8): void
     {
         $results = $this->sendMany([[
             'ip' => $ip,
@@ -68,13 +68,14 @@ final class NetworkPrinterService
      * @param  list<array{ip:string, port:int|string, payload:string}>  $jobs
      * @return list<true|\Throwable>
      */
-    public function sendMany(array $jobs, int $timeoutSeconds = 4): array
+    public function sendMany(array $jobs, int $timeoutSeconds = 8): array
     {
-        $timeoutSeconds = max(2, $timeoutSeconds);
+        $timeoutSeconds = max(3, $timeoutSeconds);
         $results = [];
-        $handles = [];
-        $deadline = microtime(true) + $timeoutSeconds;
 
+        // Windows PHP + STREAM_CLIENT_ASYNC_CONNECT often falsely times out even when
+        // the printer is reachable. Use blocking connect (with retry) — reliable for
+        // thermal printers on LAN. Jobs still run quickly (1–3 printers typical).
         foreach ($jobs as $i => $job) {
             $ip = trim((string) ($job['ip'] ?? ''));
             $port = (int) ($job['port'] ?? 9100);
@@ -87,111 +88,82 @@ final class NetworkPrinterService
                 $port = 9100;
             }
 
+            $results[$i] = $this->sendBlockingWithRetry($ip, $port, $payload, $timeoutSeconds);
+        }
+
+        ksort($results);
+
+        return array_values($results);
+    }
+
+    /**
+     * @return true|\RuntimeException
+     */
+    private function sendBlockingWithRetry(string $ip, int $port, string $payload, int $timeoutSeconds)
+    {
+        $attempts = 2;
+        $lastError = null;
+
+        for ($attempt = 1; $attempt <= $attempts; $attempt++) {
             $errno = 0;
             $errstr = '';
             $fp = @stream_socket_client(
                 sprintf('tcp://%s:%d', $ip, $port),
                 $errno,
                 $errstr,
-                $timeoutSeconds,
-                STREAM_CLIENT_CONNECT | STREAM_CLIENT_ASYNC_CONNECT
+                $timeoutSeconds
             );
 
             if ($fp === false) {
-                $results[$i] = new RuntimeException(
+                $lastError = new RuntimeException(
                     sprintf('Printer %s:%d se connect nahi ho saka (%s).', $ip, $port, $errstr ?: 'timeout')
                 );
+                usleep(150000);
+
                 continue;
             }
 
-            stream_set_blocking($fp, false);
             stream_set_timeout($fp, $timeoutSeconds);
-            $handles[$i] = [
-                'fp' => $fp,
-                'ip' => $ip,
-                'port' => $port,
-                'payload' => $payload,
-                'written' => 0,
-                'len' => strlen($payload),
-            ];
-        }
+            $written = 0;
+            $len = strlen($payload);
+            $ok = true;
 
-        while ($handles !== [] && microtime(true) < $deadline) {
-            $read = null;
-            $write = [];
-            $except = null;
-            foreach ($handles as $h) {
-                $write[] = $h['fp'];
-            }
-            $ready = $write !== [] ? @stream_select($read, $write, $except, 0, 50000) : 0;
-            if ($ready === false || $ready === 0) {
-                continue;
-            }
-
-            $readyIds = [];
-            foreach ($write as $fp) {
-                foreach ($handles as $i => $h) {
-                    if ($h['fp'] === $fp) {
-                        $readyIds[$i] = true;
-                    }
-                }
-            }
-
-            foreach ($handles as $i => $h) {
-                if (! isset($readyIds[$i])) {
-                    continue;
-                }
-
-                $meta = stream_get_meta_data($h['fp']);
-                if (! empty($meta['timed_out'])) {
-                    @fclose($h['fp']);
-                    $results[$i] = new RuntimeException(sprintf('Printer %s:%d timeout.', $h['ip'], $h['port']));
-                    unset($handles[$i]);
-                    continue;
-                }
-
-                if ($h['len'] === 0) {
-                    @fflush($h['fp']);
-                    @fclose($h['fp']);
-                    $results[$i] = true;
-                    unset($handles[$i]);
-                    continue;
-                }
-
-                $chunk = @fwrite($h['fp'], substr($h['payload'], $h['written']));
-                // 0 = not ready yet (common while async connect finishes) — keep waiting.
-                if ($chunk === false) {
-                    @fclose($h['fp']);
-                    $results[$i] = new RuntimeException(
-                        sprintf('Printer %s:%d par data bhejne mein masla.', $h['ip'], $h['port'])
-                    );
-                    unset($handles[$i]);
-                    continue;
+            while ($written < $len) {
+                $chunk = @fwrite($fp, substr($payload, $written));
+                $meta = stream_get_meta_data($fp);
+                if ($chunk === false || ! empty($meta['timed_out'])) {
+                    $ok = false;
+                    $lastError = new RuntimeException(sprintf('Printer %s:%d timeout.', $ip, $port));
+                    break;
                 }
                 if ($chunk === 0) {
-                    continue;
+                    // Brief pause then retry write once more in this attempt.
+                    usleep(30000);
+                    $chunk = @fwrite($fp, substr($payload, $written));
+                    if ($chunk === false || $chunk === 0) {
+                        $ok = false;
+                        $lastError = new RuntimeException(
+                            sprintf('Printer %s:%d par data bhejne mein masla.', $ip, $port)
+                        );
+                        break;
+                    }
                 }
-
-                $h['written'] += $chunk;
-                if ($h['written'] >= $h['len']) {
-                    @fflush($h['fp']);
-                    @fclose($h['fp']);
-                    $results[$i] = true;
-                    unset($handles[$i]);
-                    continue;
-                }
-                $handles[$i] = $h;
+                $written += $chunk;
             }
+
+            @fflush($fp);
+            @fclose($fp);
+
+            if ($ok && $written >= $len) {
+                return true;
+            }
+
+            usleep(200000);
         }
 
-        foreach ($handles as $i => $h) {
-            @fclose($h['fp']);
-            $results[$i] = new RuntimeException(sprintf('Printer %s:%d timeout.', $h['ip'], $h['port']));
-        }
-
-        ksort($results);
-
-        return array_values($results);
+        return $lastError instanceof RuntimeException
+            ? $lastError
+            : new RuntimeException(sprintf('Printer %s:%d timeout.', $ip, $port));
     }
 
     /**
@@ -316,7 +288,7 @@ final class NetworkPrinterService
             ];
         }
 
-        $sendResults = $this->sendMany($jobs, 4);
+        $sendResults = $this->sendMany($jobs, 8);
         $results = [];
         foreach ($sendResults as $i => $sendResult) {
             $meta = $jobMeta[$i];
