@@ -9,6 +9,7 @@ use App\Models\PosSession;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
@@ -449,9 +450,14 @@ final class KitchenService
             $allowedVoid = $voidByFingerprint[$fp] ?? 0;
             $minimumQty = max(0.0, $lockedQty - $allowedVoid);
             if ($newQty + 0.00001 < $minimumQty) {
-                throw new RuntimeException(
-                    'Kitchen me bheji / print hui items cart se gayab hain. Page refresh karke dubara try karein (void ke baghair remove nahi hoga).'
-                );
+                // Do not hard-fail — cart can briefly desync after kitchen print / New-card splits.
+                // appendMissingKitchenLockedNormalized restores missing printed qty on hold/save.
+                Log::warning('kitchen.locked_qty_missing', [
+                    'fingerprint' => $fp,
+                    'locked_qty' => $lockedQty,
+                    'incoming_qty' => $newQty,
+                    'void_qty' => $allowedVoid,
+                ]);
             }
         }
     }

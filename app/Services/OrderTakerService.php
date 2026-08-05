@@ -698,7 +698,6 @@ final class OrderTakerService
 
         $kitchen = app(KitchenService::class);
         $oldItems = $order->items()->get()->all();
-        $kitchen->assertLockedQuantitiesPreserved($oldItems, $items, []);
 
         // Stale OT cart must not wipe kitchen-printed lines.
         $normalizedInput = [];
@@ -732,6 +731,7 @@ final class OrderTakerService
                 $order->serviceTypeKey()
             );
         }
+        $kitchen->assertLockedQuantitiesPreserved($oldItems, $items, []);
 
         $itemsWithKitchenFlags = $kitchen->applyKitchenPendingFlags($oldItems, $lines);
 

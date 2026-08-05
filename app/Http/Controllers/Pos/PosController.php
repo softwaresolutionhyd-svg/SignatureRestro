@@ -1280,16 +1280,15 @@ class PosController extends Controller
         if ($resumeOrderId && ! $resumeAlreadyPaid) {
             $resumeDraft = $this->findDraftOrderForSession($session, $resumeOrderId, $checkoutUser);
             if ($resumeDraft) {
-                $this->assertCartQtyNotReducedByNonManager(
-                    $resumeDraft->items()->get()->all(),
+                $oldItems = $resumeDraft->items()->get()->all();
+                $kitchenVoids = $this->normalizedKitchenVoids($request);
+                $itemsNormalized = app(KitchenService::class)->appendMissingKitchenLockedNormalized(
+                    $oldItems,
                     $itemsNormalized,
-                    $checkoutUser
+                    $kitchenVoids
                 );
-                $this->assertKitchenLockedQuantitiesPreserved(
-                    $resumeDraft->items()->get()->all(),
-                    $itemsNormalized,
-                    $this->normalizedKitchenVoids($request)
-                );
+                $this->assertCartQtyNotReducedByNonManager($oldItems, $itemsNormalized, $checkoutUser);
+                $this->assertKitchenLockedQuantitiesPreserved($oldItems, $itemsNormalized, $kitchenVoids);
             }
         }
 
@@ -1673,16 +1672,15 @@ class PosController extends Controller
 
             $resumeDraft = $this->findDraftOrderForSession($session, $resumeOrderId, $holdUser);
             if ($resumeDraft) {
-                $this->assertCartQtyNotReducedByNonManager(
-                    $resumeDraft->items()->get()->all(),
+                $oldItems = $resumeDraft->items()->get()->all();
+                $kitchenVoids = $this->normalizedKitchenVoids($request);
+                $itemsNormalized = app(KitchenService::class)->appendMissingKitchenLockedNormalized(
+                    $oldItems,
                     $itemsNormalized,
-                    $holdUser
+                    $kitchenVoids
                 );
-                $this->assertKitchenLockedQuantitiesPreserved(
-                    $resumeDraft->items()->get()->all(),
-                    $itemsNormalized,
-                    $this->normalizedKitchenVoids($request)
-                );
+                $this->assertCartQtyNotReducedByNonManager($oldItems, $itemsNormalized, $holdUser);
+                $this->assertKitchenLockedQuantitiesPreserved($oldItems, $itemsNormalized, $kitchenVoids);
             }
         }
 
