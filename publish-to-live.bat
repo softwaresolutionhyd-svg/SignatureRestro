@@ -24,7 +24,7 @@ echo [1/4] Mirror product images to public/storage...
 "%PHP%" artisan storage:mirror-public
 echo.
 
-echo [2/4] Database sync (local -^> hosting)...
+echo [2/5] Database sync (local -^> hosting)...
 "%PHP%" artisan sync:cloud --status
 "%PHP%" artisan sync:cloud
 if errorlevel 1 (
@@ -32,7 +32,14 @@ if errorlevel 1 (
 )
 echo.
 
-echo [3/4] Git status...
+echo [3/5] Mirror POS tables (delete hosting-only rows)...
+"%PHP%" artisan sync:mirror-remote
+if errorlevel 1 (
+    echo Mirror warning: check internet / SYNC_TOKEN / hosting .env
+)
+echo.
+
+echo [4/5] Git status...
 git status -sb 2>nul
 if errorlevel 1 (
     echo Git not initialized. Run: git init
@@ -51,7 +58,7 @@ if "!MSG!"=="" (
     exit /b 1
 )
 
-echo [4/4] Push code to GitHub...
+echo [5/5] Push code to GitHub...
 git add .
 git commit -m "!MSG!"
 if errorlevel 1 (

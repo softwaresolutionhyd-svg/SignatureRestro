@@ -810,20 +810,126 @@ class CloudSyncService
         if (! $online) {
             $online = $this->remoteReachable();
         }
+
+        $mirror = ['ok' => true, 'deleted' => 0, 'message' => 'Mirror skipped.'];
+        $pendingAfterPush = (int) ($push['pending'] ?? $this->pendingCount());
+        if (
+            $force
+            && config('sync.mirror_after_push', true)
+            && $pendingAfterPush === 0
+            && ($push['ok'] ?? false)
+            && $online
+        ) {
+            $mirror = $this->mirrorRemoteTables();
+        }
+
         // Push debounce skip is not a connectivity failure.
-        $ok = ((($push['ok'] ?? false) || (($push['pending'] ?? 0) === 0)) && ($pull['ok'] ?? false))
+        $ok = ((($push['ok'] ?? false) || ($pendingAfterPush === 0)) && ($pull['ok'] ?? false))
             || $online;
 
         return [
             'ok' => $ok,
             'pushed' => (int) ($push['pushed'] ?? 0),
-            'pending' => (int) ($push['pending'] ?? $this->pendingCount()),
+            'pending' => $pendingAfterPush,
             'pulled' => (int) ($pull['pulled'] ?? 0),
             'failed' => (int) ($pull['failed'] ?? 0),
-            'message' => trim(($push['message'] ?? '').' '.($pull['message'] ?? '')),
+            'message' => trim(($push['message'] ?? '').' '.($pull['message'] ?? '').' '.($mirror['message'] ?? '')),
             'online' => $online,
             'push' => $push,
             'pull' => $pull,
+            'mirror' => $mirror,
+        ];
+    }
+
+    /**
+     * Cafe PC: delete hosting-only rows so online reports match local DB.
+     *
+     * @param  list<string>|null  $tables
+     * @return array{ok: bool, deleted: int, message: string, tables: list<array{table: string, ok: bool, deleted: int, kept: int, message: string}>}
+     */
+    public function mirrorRemoteTables(?array $tables = null): array
+    {
+        if (! $this->isLocalRole()) {
+            return ['ok' => false, 'deleted' => 0, 'message' => 'Mirror only runs on local role.', 'tables' => []];
+        }
+
+        $url = rtrim((string) config('sync.remote_url'), '/');
+        $token = (string) config('sync.token');
+        if ($url === '' || $token === '') {
+            return ['ok' => false, 'deleted' => 0, 'message' => 'SYNC_REMOTE_URL / SYNC_TOKEN missing.', 'tables' => []];
+        }
+
+        $tables = $tables ?? [
+            'pos_order_items',
+            'pos_payments',
+            'pos_cash_movements',
+            'pos_orders',
+            'pos_sessions',
+            'purchase_order_items',
+            'purchase_orders',
+            'credit_ledger',
+            'expense_items',
+            'expenses',
+        ];
+
+        $results = [];
+        $deletedTotal = 0;
+        $okAll = true;
+
+        foreach ($tables as $table) {
+            $table = trim($table);
+            if ($table === '' || ! Schema::hasTable($table)) {
+                continue;
+            }
+
+            $keepIds = DB::table($table)->orderBy('id')->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+            try {
+                $response = Http::timeout(120)
+                    ->connectTimeout(10)
+                    ->withToken($token)
+                    ->acceptJson()
+                    ->post($url.'/api/sync/mirror', [
+                        'table' => $table,
+                        'keep_ids' => $keepIds,
+                    ]);
+            } catch (Throwable $e) {
+                $results[] = [
+                    'table' => $table,
+                    'ok' => false,
+                    'deleted' => 0,
+                    'kept' => count($keepIds),
+                    'message' => $e->getMessage(),
+                ];
+                $okAll = false;
+
+                continue;
+            }
+
+            $body = is_array($response->json()) ? $response->json() : [];
+            $deleted = (int) ($body['deleted'] ?? 0);
+            $deletedTotal += $deleted;
+            $tableOk = $response->successful() && ($body['ok'] ?? false);
+            if (! $tableOk) {
+                $okAll = false;
+            }
+
+            $results[] = [
+                'table' => $table,
+                'ok' => $tableOk,
+                'deleted' => $deleted,
+                'kept' => (int) ($body['kept'] ?? count($keepIds)),
+                'message' => (string) ($body['message'] ?? 'HTTP '.$response->status()),
+            ];
+        }
+
+        return [
+            'ok' => $okAll,
+            'deleted' => $deletedTotal,
+            'message' => $deletedTotal > 0
+                ? "Mirrored hosting: deleted {$deletedTotal} remote-only row(s)."
+                : 'Hosting already matched local.',
+            'tables' => $results,
         ];
     }
 

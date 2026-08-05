@@ -52,6 +52,9 @@ class SyncCloudCommand extends Command
         $result = $sync->syncBoth(true, (bool) $this->option('reset-pull'), $withPull);
         $this->{$result['ok'] ? 'info' : 'error'}($result['message']);
         $this->line("Pushed: {$result['pushed']} | Pending: {$result['pending']} | Pulled: {$result['pulled']} | Failed: {$result['failed']}");
+        if (isset($result['mirror']['deleted']) && (int) $result['mirror']['deleted'] > 0) {
+            $this->line('Mirror deleted: '.$result['mirror']['deleted'].' remote-only row(s).');
+        }
 
         return $result['ok'] ? self::SUCCESS : self::FAILURE;
     }

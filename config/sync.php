@@ -57,6 +57,9 @@ return [
     // Background pull: always these hot tables, plus N cold tables rotated each cycle
     'pull_cold_per_cycle' => (int) env('SYNC_PULL_COLD_PER_CYCLE', 5),
 
+    // After a forced push with no pending rows, delete hosting-only POS/report rows.
+    'mirror_after_push' => (bool) env('SYNC_MIRROR_AFTER_PUSH', true),
+
     'pull_hot_tables' => array_values(array_filter(array_map('trim', explode(',', (string) env(
         'SYNC_PULL_HOT_TABLES',
         'contacts,pos_orders,pos_order_items,pos_payments,credit_ledger,inventory_products,inventory_product_stocks,expenses,settings'
