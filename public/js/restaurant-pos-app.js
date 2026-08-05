@@ -26,9 +26,9 @@
     const posTablesEnabled = boot.tablesEnabled !== undefined ? !!boot.tablesEnabled : !!settings.enable_tables;
     const posShowCustomerSection = settings.show_customer_section !== false;
     const canVoidKitchenItems = boot.canVoidKitchenItems === true;
-    // Delete / qty-kam: cashier pre-kitchen allowed; kitchen-locked voids sirf manager/admin.
-    const canReduceCartItems = boot.canReduceCartItems === true || canVoidKitchenItems;
-    // Legacy flag — reason ab sirf kitchen-locked items par mangte hain.
+    // Pre-kitchen print: har POS user qty kam / remove kar sakta hai.
+    // Post-kitchen (locked): sirf manager/admin void.
+    const canReduceCartItems = true;
     const requireItemChangeReason = false;
     const canReopenPaidBill = boot.canReopenPaidBill === true;
     const posCustomProductId = Number(settings.custom_product_id || 0);
@@ -661,8 +661,41 @@
 
     function kitchenLockedFromResume(ri) {
         const qty = Number(ri.qty) || 0;
-        // Only printed/served qty is locked. Pending (pre-kitchen-print) can be removed freely.
-        return (ri.kitchen_served || ri.kitchen_printed) ? qty : 0;
+        // Sirf actual kitchen print / served lock. Pending (print se pehle) bilkul free.
+        if (ri.kitchen_served || ri.kitchen_printed) {
+            return qty;
+        }
+        return 0;
+    }
+
+    function sanitizeCartKitchenLocks() {
+        cart.forEach((r) => {
+            if (r.kitchen_served || r.kitchen_printed) {
+                const qty = Number(r.qty) || 0;
+                if ((Number(r.kitchen_locked_qty) || 0) < qty) {
+                    r.kitchen_locked_qty = qty;
+                }
+                return;
+            }
+            // Print se pehle — kabhi lock mat rakho.
+            r.kitchen_locked_qty = 0;
+            r.kitchen_printed = false;
+        });
+    }
+
+    function isCartLineKitchenLocked(row) {
+        return (Number(row?.kitchen_locked_qty) || 0) > 0.0005;
+    }
+
+    function canEditUnlockedCartLine() {
+        return true;
+    }
+
+    function canReduceOrRemoveCartLine(row) {
+        if (!isCartLineKitchenLocked(row)) {
+            return canEditUnlockedCartLine();
+        }
+        return canVoidKitchenItems;
     }
 
     function findMergeableCartRow(productId, uom) {
@@ -724,7 +757,7 @@
             return;
         }
         if (next <= 0) {
-            if (!canReduceCartItems) {
+            if (!canEditUnlockedCartLine()) {
                 alert('Quantity kam nahi ho sakti.');
                 renderCart();
                 return;
@@ -762,7 +795,7 @@
                 input.value = fmtQty(current);
                 return;
             }
-            if (next < current && !canReduceCartItems) {
+            if (next < current && !canEditUnlockedCartLine()) {
                 alert('Quantity kam nahi ho sakti.');
                 renderCart();
                 return;
@@ -777,7 +810,7 @@
                 openItemChangeReasonModal({ type: 'setQty-custom', index, targetQty: next, voidKitchen: true });
                 return;
             }
-            setCustomCartQty(index, next);
+            setCartLineQty(index, next);
             return;
         }
 
@@ -799,7 +832,7 @@
         }
 
         if (next < current) {
-            if (!canReduceCartItems) {
+            if (!canEditUnlockedCartLine()) {
                 alert('Quantity kam nahi ho sakti.');
                 renderCart();
                 return;
@@ -843,17 +876,16 @@
         const row = cart[index];
         if (!row) return;
 
-        if (!canReduceCartItems) {
-            alert('Item remove nahi ho sakti.');
+        if (!canReduceOrRemoveCartLine(row)) {
+            if (isCartLineKitchenLocked(row)) {
+                alert('Kitchen print ke baad item sirf manager/admin remove kar sakta hai.');
+            } else {
+                alert('Item remove nahi ho sakti.');
+            }
             return;
         }
 
         const locked = Number(row.kitchen_locked_qty) || 0;
-        if (locked > 0 && !canVoidKitchenItems) {
-            alert('Kitchen print ke baad item sirf manager/admin remove kar sakta hai.');
-            return;
-        }
-
         // Reason sirf tab jab kitchen print ho chuka ho (locked qty).
         const needsReason = locked > 0 && !String(reason || '').trim();
         if (needsReason) {
@@ -1033,7 +1065,7 @@
             return;
         }
 
-        if (!canReduceCartItems) {
+        if (!canEditUnlockedCartLine() && cartLockedQtyForProduct(productId) <= 0) {
             alert('Quantity kam nahi ho sakti.');
             return;
         }
@@ -1126,8 +1158,12 @@
             return;
         }
 
-        if (!canReduceCartItems) {
-            alert('Quantity kam nahi ho sakti.');
+        if (!canReduceOrRemoveCartLine(row) && delta < 0) {
+            if (isCartLineKitchenLocked(row)) {
+                alert('Kitchen print ke baad quantity sirf manager/admin kam kar sakta hai.');
+            } else {
+                alert('Quantity kam nahi ho sakti.');
+            }
             return;
         }
 
@@ -1282,7 +1318,7 @@
             const qty = cartQtyForProduct(p.id);
             const locked = cartLockedQtyForProduct(p.id);
             const canDec = qty > 0 && (
-                canVoidKitchenItems || (canReduceCartItems && qty > locked)
+                canVoidKitchenItems || qty > locked
             );
             const price = unitPriceForProduct(p, p.uom);
             const label = displayProductName(p.name);
@@ -1321,7 +1357,7 @@
         wrap.innerHTML = cart.map((r, i) => {
             const total = lineRowTotal(r, totals, i);
             const locked = Number(r.kitchen_locked_qty) || 0;
-            const showRemove = (locked <= 0 && canReduceCartItems) || (locked > 0 && canVoidKitchenItems);
+            const showRemove = canReduceOrRemoveCartLine(r);
             const isNewAddon = orderHasKitchen && locked <= 0.0005;
             const kitchenBadge = locked > 0
                 ? `<span class="rp-kitchen-pill ${r.kitchen_served ? 'rp-kitchen-pill--served' : 'rp-kitchen-pill--pending'}" title="Kitchen me bheja hua">
@@ -1335,7 +1371,7 @@
                     : '');
             const removeTitle = locked > 0 ? 'Kitchen item — reason required' : 'Remove item';
             const canDec = Number(r.qty) > 0 && (
-                canVoidKitchenItems || (canReduceCartItems && Number(r.qty) > locked)
+                canVoidKitchenItems || Number(r.qty) > locked
             );
             const noteVal = escHtml(r.notes || '');
             return `<div class="rp-cart-line${locked > 0 ? ' is-kitchen-locked' : ''}${isNewAddon ? ' is-kitchen-new' : ''}${r.is_custom ? ' is-on-demand' : ''}" data-cart-index="${i}" data-product-id="${r.product_id}">
@@ -2793,6 +2829,7 @@
                 order_item_id: ri.id ? Number(ri.id) : null,
             });
         });
+        sanitizeCartKitchenLocks();
         renderAll();
     }
 
@@ -4077,6 +4114,7 @@
                 order_item_id: ri.id ? Number(ri.id) : null,
             });
         });
+        sanitizeCartKitchenLocks();
     }
 
     async function pollSync() {
