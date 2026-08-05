@@ -19,6 +19,7 @@ class AppState extends ChangeNotifier {
   bool loading = false;
   String? error;
   double paidTotal = 0;
+  bool _billsSyncInFlight = false;
 
   void bindSession(Session session) {
     if (_session == session) return;
@@ -26,6 +27,14 @@ class AppState extends ChangeNotifier {
   }
 
   Session get session => _session!;
+
+  String _ordersFingerprint(List<AdminOrder> orders) {
+    final buf = StringBuffer();
+    for (final o in orders) {
+      buf.write('${o.id}:${o.grandTotal}:${o.status}:${o.time ?? ''};');
+    }
+    return buf.toString();
+  }
 
   Future<void> refreshDashboard() async {
     loading = true;
@@ -57,40 +66,113 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> refreshPending() async {
-    loading = true;
-    error = null;
-    notifyListeners();
+  Future<void> refreshPending({bool silent = false}) async {
+    if (!silent) {
+      loading = true;
+      error = null;
+      notifyListeners();
+    }
     try {
       final res = await session.client.get('/api/admin/orders/pending');
       final raw = res['orders'];
-      pending = raw is List
+      final next = raw is List
           ? raw.whereType<Map>().map((e) => AdminOrder.fromJson(Map<String, dynamic>.from(e))).toList()
-          : [];
+          : <AdminOrder>[];
+      final changed = _ordersFingerprint(pending) != _ordersFingerprint(next);
+      pending = next;
+      if (!silent) {
+        error = null;
+        loading = false;
+        notifyListeners();
+      } else if (changed) {
+        notifyListeners();
+      }
     } catch (e) {
-      error = e.toString();
-    } finally {
-      loading = false;
-      notifyListeners();
+      if (!silent) {
+        error = e.toString();
+        loading = false;
+        notifyListeners();
+      }
     }
   }
 
-  Future<void> refreshPaid() async {
-    loading = true;
-    error = null;
-    notifyListeners();
+  Future<void> refreshPaid({bool silent = false}) async {
+    if (!silent) {
+      loading = true;
+      error = null;
+      notifyListeners();
+    }
     try {
       final res = await session.client.get('/api/admin/orders/paid');
       final raw = res['orders'];
-      paid = raw is List
+      final next = raw is List
           ? raw.whereType<Map>().map((e) => AdminOrder.fromJson(Map<String, dynamic>.from(e))).toList()
-          : [];
-      paidTotal = (res['total'] is num) ? (res['total'] as num).toDouble() : 0;
+          : <AdminOrder>[];
+      final nextTotal = (res['total'] is num) ? (res['total'] as num).toDouble() : 0.0;
+      final changed =
+          _ordersFingerprint(paid) != _ordersFingerprint(next) || paidTotal != nextTotal;
+      paid = next;
+      paidTotal = nextTotal;
+      if (!silent) {
+        error = null;
+        loading = false;
+        notifyListeners();
+      } else if (changed) {
+        notifyListeners();
+      }
     } catch (e) {
-      error = e.toString();
+      if (!silent) {
+        error = e.toString();
+        loading = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  /// Live sync for Pending/Paid bills. [silent] skips loading spinner and keeps old data on errors.
+  Future<void> refreshBills({bool silent = false}) async {
+    if (_billsSyncInFlight) return;
+    _billsSyncInFlight = true;
+    try {
+      if (!silent) {
+        loading = true;
+        error = null;
+        notifyListeners();
+      }
+      final results = await Future.wait([
+        session.client.get('/api/admin/orders/pending'),
+        session.client.get('/api/admin/orders/paid'),
+      ]);
+      final pendingRaw = results[0]['orders'];
+      final paidRaw = results[1]['orders'];
+      final nextPending = pendingRaw is List
+          ? pendingRaw.whereType<Map>().map((e) => AdminOrder.fromJson(Map<String, dynamic>.from(e))).toList()
+          : <AdminOrder>[];
+      final nextPaid = paidRaw is List
+          ? paidRaw.whereType<Map>().map((e) => AdminOrder.fromJson(Map<String, dynamic>.from(e))).toList()
+          : <AdminOrder>[];
+      final nextPaidTotal = (results[1]['total'] is num) ? (results[1]['total'] as num).toDouble() : 0.0;
+      final changed = _ordersFingerprint(pending) != _ordersFingerprint(nextPending) ||
+          _ordersFingerprint(paid) != _ordersFingerprint(nextPaid) ||
+          paidTotal != nextPaidTotal;
+      pending = nextPending;
+      paid = nextPaid;
+      paidTotal = nextPaidTotal;
+      if (!silent) {
+        error = null;
+        loading = false;
+        notifyListeners();
+      } else if (changed) {
+        notifyListeners();
+      }
+    } catch (e) {
+      if (!silent) {
+        error = e.toString();
+        loading = false;
+        notifyListeners();
+      }
     } finally {
-      loading = false;
-      notifyListeners();
+      _billsSyncInFlight = false;
     }
   }
 

@@ -73,11 +73,7 @@ class _HomeShellState extends State<HomeShell> {
         label: 'Pending / Paid Bills',
         color: const Color(0xFF0D9488),
         icon: Icons.receipt_long_rounded,
-        onTap: () => _open(const BillsScreen(), preload: () async {
-          final s = context.read<AppState>();
-          await s.refreshPending();
-          await s.refreshPaid();
-        }),
+        onTap: () => _open(const BillsScreen(), preload: () => context.read<AppState>().refreshBills()),
       ),
       _ModuleTile(
         label: 'Cancel Orders',

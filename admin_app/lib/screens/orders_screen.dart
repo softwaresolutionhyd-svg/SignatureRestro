@@ -29,7 +29,7 @@ class OrdersScreen extends StatelessWidget {
     }
 
     return RefreshIndicator(
-      onRefresh: () => mode == OrdersMode.pending ? state.refreshPending() : state.refreshPaid(),
+      onRefresh: () => state.refreshBills(),
       child: orders.isEmpty
           ? ListView(
               children: const [

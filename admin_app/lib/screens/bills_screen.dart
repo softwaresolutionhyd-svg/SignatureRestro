@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -6,12 +8,30 @@ import '../providers/app_state.dart';
 import 'home_shell.dart';
 import 'orders_screen.dart';
 
-class BillsScreen extends StatelessWidget {
+class BillsScreen extends StatefulWidget {
   const BillsScreen({super.key});
 
-  Future<void> _refresh(AppState state) async {
-    await state.refreshPending();
-    await state.refreshPaid();
+  @override
+  State<BillsScreen> createState() => _BillsScreenState();
+}
+
+class _BillsScreenState extends State<BillsScreen> {
+  Timer? _liveSync;
+  static const _pollEvery = Duration(seconds: 5);
+
+  @override
+  void initState() {
+    super.initState();
+    _liveSync = Timer.periodic(_pollEvery, (_) {
+      if (!mounted) return;
+      context.read<AppState>().refreshBills(silent: true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _liveSync?.cancel();
+    super.dispose();
   }
 
   void _openOrders(BuildContext context, OrdersMode mode) {
@@ -38,17 +58,8 @@ class BillsScreen extends StatelessWidget {
 
     return AdminDarkScaffold(
       title: 'Pending / Paid Bills',
-      actions: [
-        IconButton(
-          tooltip: 'Refresh',
-          onPressed: state.loading ? null : () => _refresh(state),
-          icon: state.loading
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Icon(Icons.refresh),
-        ),
-      ],
       body: RefreshIndicator(
-        onRefresh: () => _refresh(state),
+        onRefresh: () => state.refreshBills(),
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
           children: [
