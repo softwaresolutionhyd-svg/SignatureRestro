@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api_client.dart';
 import 'order_watch_background.dart';
 
-/// Starts/stops the background order watch (works even when app UI is closed).
+/// Starts/stops the foreground order watch (keeps running when app UI is closed).
 class OrderNotificationService with WidgetsBindingObserver {
   OrderNotificationService._();
 
@@ -12,7 +12,7 @@ class OrderNotificationService with WidgetsBindingObserver {
 
   bool _ready = false;
   bool _lifecycleAttached = false;
-  String? _activeToken;
+  bool _startedOnce = false;
 
   Future<void> init() async {
     if (_ready) return;
@@ -26,15 +26,15 @@ class OrderNotificationService with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _activeToken != null) {
-      startOrderWatchService();
+    // Never stop on pause/detach — that was killing alerts when app closed.
+    if (state == AppLifecycleState.resumed && _startedOnce) {
+      startOrderWatchService(resetSeed: false);
     }
   }
 
-  Future<void> start(ApiClient client) async {
+  Future<void> start(ApiClient client, {bool isNewLogin = false}) async {
     await init();
     final prefs = await SharedPreferences.getInstance();
-    // Ensure credentials are on disk for the background isolate.
     if (client.baseUrl.isNotEmpty) {
       await prefs.setString('admin_base_url', client.baseUrl);
     }
@@ -42,15 +42,14 @@ class OrderNotificationService with WidgetsBindingObserver {
       await prefs.setString('admin_token', client.token);
     }
 
-    final resetSeed = _activeToken != client.token;
-    _activeToken = client.token;
-    await startOrderWatchService(resetSeed: resetSeed);
+    _startedOnce = true;
+    await startOrderWatchService(resetSeed: isNewLogin);
   }
 
-  void stop({bool keepLifecycle = false}) {
-    _activeToken = null;
-    // ignore: discarded_futures
-    stopOrderWatchService();
+  /// Only call on logout — NOT when app UI closes.
+  Future<void> stop({bool keepLifecycle = false}) async {
+    _startedOnce = false;
+    await stopOrderWatchService();
     if (!keepLifecycle && _lifecycleAttached) {
       WidgetsBinding.instance.removeObserver(this);
       _lifecycleAttached = false;

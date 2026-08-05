@@ -1,8 +1,7 @@
-import 'dart:async';
 import 'dart:convert';
-import 'dart:ui';
+import 'dart:io';
 
-import 'package:flutter_background_service/flutter_background_service.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -17,8 +16,6 @@ const _kVoidSnap = 'admin_bg_void_ids';
 const _kSeeded = 'admin_bg_seeded';
 
 const _orderChannelId = 'stair_pos_orders';
-const _serviceChannelId = 'stair_order_watch';
-const _serviceNotifId = 77001;
 
 const _orderActions = {
   'pos.order_placed',
@@ -28,21 +25,182 @@ const _orderActions = {
   'pos.kitchen_void',
 };
 
-/// Foreground Android service — keeps polling even when Stair UI is closed.
+@pragma('vm:entry-point')
+void orderWatchStartCallback() {
+  FlutterForegroundTask.setTaskHandler(OrderWatchTaskHandler());
+}
+
+class OrderWatchTaskHandler extends TaskHandler {
+  final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
+  bool _notifReady = false;
+
+  Future<void> _ensureNotif() async {
+    if (_notifReady) return;
+    await _notifications.initialize(
+      const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')),
+    );
+    final android = _notifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    await android?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _orderChannelId,
+        'POS Orders',
+        description: 'New order, paid bill, and cancel alerts',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+      ),
+    );
+    _notifReady = true;
+  }
+
+  @override
+  Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
+    await _ensureNotif();
+    await _pollOnce();
+  }
+
+  @override
+  void onRepeatEvent(DateTime timestamp) {
+    _pollOnce();
+  }
+
+  @override
+  Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {}
+
+  @override
+  void onReceiveData(Object data) {
+    if (data == 'refresh') {
+      _pollOnce();
+    }
+  }
+
+  Future<void> _pollOnce() async {
+    try {
+      await _ensureNotif();
+      final prefs = await SharedPreferences.getInstance();
+      final baseUrl = (prefs.getString(_kBaseUrl) ?? '').trim();
+      final token = prefs.getString(_kToken) ?? '';
+      if (baseUrl.isEmpty || token.isEmpty) return;
+
+      final client = ApiClient(baseUrl: baseUrl, token: token);
+      final seeded = prefs.getBool(_kSeeded) ?? false;
+
+      final results = await Future.wait([
+        client.get('/api/admin/orders/pending'),
+        client.get('/api/admin/orders/paid'),
+        client.get('/api/admin/kitchen-voids'),
+        client.get('/api/admin/notifications'),
+      ]);
+
+      final pending = _idMap(results[0]['orders']);
+      final paid = _idMap(results[1]['orders']);
+      final voids = _voidMap(results[2]['items']);
+      final feed = results[3]['notifications'];
+
+      if (!seeded) {
+        await prefs.setString(_kPendingSnap, jsonEncode(pending.keys.toList()));
+        await prefs.setString(_kPaidSnap, jsonEncode(paid.keys.toList()));
+        await prefs.setString(_kVoidSnap, jsonEncode(voids.keys.toList()));
+        if (feed is List) {
+          final ids = <String>[];
+          for (final item in feed) {
+            if (item is Map && item['id'] != null) ids.add(item['id'].toString());
+          }
+          await prefs.setString(_kSeenKey, jsonEncode(ids));
+        }
+        await prefs.setBool(_kSeeded, true);
+        return;
+      }
+
+      final prevPending = _loadIntSet(prefs.getString(_kPendingSnap));
+      final prevPaid = _loadIntSet(prefs.getString(_kPaidSnap));
+      final prevVoids = _loadIntSet(prefs.getString(_kVoidSnap));
+      final seenFeed = _loadStringSet(prefs.getString(_kSeenKey));
+
+      for (final entry in pending.entries) {
+        if (prevPending.contains(entry.key)) continue;
+        await _showAlert('pending-${entry.key}', 'New Order', entry.value);
+      }
+
+      for (final entry in paid.entries) {
+        if (prevPaid.contains(entry.key)) continue;
+        await _showAlert('paid-${entry.key}', 'Bill Paid', entry.value);
+      }
+
+      for (final id in prevPending) {
+        if (pending.containsKey(id) || paid.containsKey(id) || prevPaid.contains(id)) continue;
+        await _showAlert('cancelled-$id', 'Order Cancelled', 'Order #$id');
+      }
+
+      for (final entry in voids.entries) {
+        if (prevVoids.contains(entry.key)) continue;
+        await _showAlert('void-${entry.key}', 'Item Cancelled', entry.value);
+      }
+
+      if (feed is List) {
+        for (final item in feed) {
+          if (item is! Map) continue;
+          final id = item['id']?.toString() ?? '';
+          if (id.isEmpty || seenFeed.contains(id)) continue;
+          final data = item['data'];
+          final map = data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+          final action = map['action']?.toString() ?? '';
+          if (!_orderActions.contains(action)) {
+            seenFeed.add(id);
+            continue;
+          }
+          seenFeed.add(id);
+          await _showAlert(
+            'feed-$id',
+            map['title']?.toString() ?? 'Stair',
+            map['message']?.toString() ?? '',
+          );
+        }
+        await prefs.setString(_kSeenKey, jsonEncode(seenFeed.toList()));
+      }
+
+      await prefs.setString(_kPendingSnap, jsonEncode(pending.keys.toList()));
+      await prefs.setString(_kPaidSnap, jsonEncode(paid.keys.toList()));
+      await prefs.setString(_kVoidSnap, jsonEncode(voids.keys.toList()));
+
+      final now = DateTime.now();
+      final hh = now.hour.toString().padLeft(2, '0');
+      final mm = now.minute.toString().padLeft(2, '0');
+      await FlutterForegroundTask.updateService(
+        notificationTitle: 'Stair',
+        notificationText: 'Orders watch · $hh:$mm',
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _showAlert(String key, String title, String body) async {
+    await _notifications.show(
+      key.hashCode & 0x7fffffff,
+      title,
+      body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _orderChannelId,
+          'POS Orders',
+          channelDescription: 'New order, paid bill, and cancel alerts',
+          importance: Importance.max,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+          playSound: true,
+          enableVibration: true,
+          styleInformation: body.isNotEmpty ? BigTextStyleInformation(body) : null,
+        ),
+      ),
+    );
+  }
+}
+
 Future<void> configureOrderWatchService() async {
   final notifications = FlutterLocalNotificationsPlugin();
-  const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-  await notifications.initialize(const InitializationSettings(android: androidInit));
-
-  final android = notifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-  await android?.createNotificationChannel(
-    const AndroidNotificationChannel(
-      _serviceChannelId,
-      'Order Watch',
-      description: 'Keeps Stair watching for new orders in background',
-      importance: Importance.low,
-    ),
+  await notifications.initialize(
+    const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')),
   );
+  final android = notifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
   await android?.createNotificationChannel(
     const AndroidNotificationChannel(
       _orderChannelId,
@@ -55,20 +213,31 @@ Future<void> configureOrderWatchService() async {
   );
   await android?.requestNotificationsPermission();
 
-  final service = FlutterBackgroundService();
-  await service.configure(
-    androidConfiguration: AndroidConfiguration(
-      onStart: orderWatchOnStart,
-      autoStart: false,
-      autoStartOnBoot: true,
-      isForegroundMode: true,
-      notificationChannelId: _serviceChannelId,
-      initialNotificationTitle: 'Stair',
-      initialNotificationContent: 'Orders watch chal rahi hai…',
-      foregroundServiceNotificationId: _serviceNotifId,
-      foregroundServiceTypes: const [AndroidForegroundType.dataSync],
+  if (Platform.isAndroid) {
+    final notifPerm = await FlutterForegroundTask.checkNotificationPermission();
+    if (notifPerm != NotificationPermission.granted) {
+      await FlutterForegroundTask.requestNotificationPermission();
+    }
+    if (!await FlutterForegroundTask.isIgnoringBatteryOptimizations) {
+      await FlutterForegroundTask.requestIgnoreBatteryOptimization();
+    }
+  }
+
+  FlutterForegroundTask.init(
+    androidNotificationOptions: AndroidNotificationOptions(
+      channelId: 'stair_order_watch',
+      channelName: 'Order Watch',
+      channelDescription: 'Keeps Stair watching for new orders when app is closed',
+      onlyAlertOnce: true,
     ),
-    iosConfiguration: IosConfiguration(autoStart: false),
+    iosNotificationOptions: const IOSNotificationOptions(showNotification: false, playSound: false),
+    foregroundTaskOptions: ForegroundTaskOptions(
+      eventAction: ForegroundTaskEventAction.repeat(4000),
+      autoRunOnBoot: true,
+      autoRunOnMyPackageReplaced: true,
+      allowWakeLock: true,
+      allowWifiLock: true,
+    ),
   );
 }
 
@@ -78,151 +247,26 @@ Future<void> startOrderWatchService({bool resetSeed = false}) async {
     await prefs.setBool(_kSeeded, false);
   }
 
-  final service = FlutterBackgroundService();
-  final running = await service.isRunning();
-  if (!running) {
-    await service.startService();
+  if (await FlutterForegroundTask.isRunningService) {
+    FlutterForegroundTask.sendDataToTask('refresh');
+    return;
   }
-  service.invoke('refresh');
+
+  await FlutterForegroundTask.startService(
+    serviceId: 77001,
+    notificationTitle: 'Stair',
+    notificationText: 'Orders watch chal rahi hai…',
+    callback: orderWatchStartCallback,
+    serviceTypes: [ForegroundServiceTypes.dataSync],
+  );
 }
 
 Future<void> stopOrderWatchService() async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setBool(_kSeeded, false);
-
-  final service = FlutterBackgroundService();
-  final running = await service.isRunning();
-  if (running) {
-    service.invoke('stop');
+  if (await FlutterForegroundTask.isRunningService) {
+    await FlutterForegroundTask.stopService();
   }
-}
-
-@pragma('vm:entry-point')
-void orderWatchOnStart(ServiceInstance service) async {
-  DartPluginRegistrant.ensureInitialized();
-
-  final notifications = FlutterLocalNotificationsPlugin();
-  await notifications.initialize(
-    const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')),
-  );
-
-  Timer? timer;
-
-  Future<void> tick() async {
-    try {
-      await _pollOnce(notifications);
-      if (service is AndroidServiceInstance) {
-        if (await service.isForegroundService()) {
-          final now = DateTime.now();
-          final hh = now.hour.toString().padLeft(2, '0');
-          final mm = now.minute.toString().padLeft(2, '0');
-          await service.setForegroundNotificationInfo(
-            title: 'Stair',
-            content: 'Orders watch · $hh:$mm',
-          );
-        }
-      }
-    } catch (_) {}
-  }
-
-  service.on('stop').listen((_) async {
-    timer?.cancel();
-    await service.stopSelf();
-  });
-
-  service.on('refresh').listen((_) => tick());
-
-  await tick();
-  timer = Timer.periodic(const Duration(seconds: 4), (_) => tick());
-}
-
-Future<void> _pollOnce(FlutterLocalNotificationsPlugin notifications) async {
-  final prefs = await SharedPreferences.getInstance();
-  final baseUrl = (prefs.getString(_kBaseUrl) ?? '').trim();
-  final token = prefs.getString(_kToken) ?? '';
-  if (baseUrl.isEmpty || token.isEmpty) return;
-
-  final client = ApiClient(baseUrl: baseUrl, token: token);
-  final seeded = prefs.getBool(_kSeeded) ?? false;
-
-  final results = await Future.wait([
-    client.get('/api/admin/orders/pending'),
-    client.get('/api/admin/orders/paid'),
-    client.get('/api/admin/kitchen-voids'),
-    client.get('/api/admin/notifications'),
-  ]);
-
-  final pending = _idMap(results[0]['orders']);
-  final paid = _idMap(results[1]['orders']);
-  final voids = _voidMap(results[2]['items']);
-  final feed = results[3]['notifications'];
-
-  if (!seeded) {
-    await prefs.setString(_kPendingSnap, jsonEncode(pending.keys.toList()));
-    await prefs.setString(_kPaidSnap, jsonEncode(paid.keys.toList()));
-    await prefs.setString(_kVoidSnap, jsonEncode(voids.keys.toList()));
-    if (feed is List) {
-      final ids = <String>[];
-      for (final item in feed) {
-        if (item is Map && item['id'] != null) ids.add(item['id'].toString());
-      }
-      await prefs.setString(_kSeenKey, jsonEncode(ids));
-    }
-    await prefs.setBool(_kSeeded, true);
-    return;
-  }
-
-  final prevPending = _loadIntSet(prefs.getString(_kPendingSnap));
-  final prevPaid = _loadIntSet(prefs.getString(_kPaidSnap));
-  final prevVoids = _loadIntSet(prefs.getString(_kVoidSnap));
-  final seenFeed = _loadStringSet(prefs.getString(_kSeenKey));
-
-  for (final entry in pending.entries) {
-    if (prevPending.contains(entry.key)) continue;
-    await _showAlert(notifications, 'pending-${entry.key}', 'New Order', entry.value);
-  }
-
-  for (final entry in paid.entries) {
-    if (prevPaid.contains(entry.key)) continue;
-    await _showAlert(notifications, 'paid-${entry.key}', 'Bill Paid', entry.value);
-  }
-
-  for (final id in prevPending) {
-    if (pending.containsKey(id) || paid.containsKey(id) || prevPaid.contains(id)) continue;
-    await _showAlert(notifications, 'cancelled-$id', 'Order Cancelled', 'Order #$id');
-  }
-
-  for (final entry in voids.entries) {
-    if (prevVoids.contains(entry.key)) continue;
-    await _showAlert(notifications, 'void-${entry.key}', 'Item Cancelled', entry.value);
-  }
-
-  if (feed is List) {
-    for (final item in feed) {
-      if (item is! Map) continue;
-      final id = item['id']?.toString() ?? '';
-      if (id.isEmpty || seenFeed.contains(id)) continue;
-      final data = item['data'];
-      final map = data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
-      final action = map['action']?.toString() ?? '';
-      if (!_orderActions.contains(action)) {
-        seenFeed.add(id);
-        continue;
-      }
-      seenFeed.add(id);
-      await _showAlert(
-        notifications,
-        'feed-$id',
-        map['title']?.toString() ?? 'Stair',
-        map['message']?.toString() ?? '',
-      );
-    }
-    await prefs.setString(_kSeenKey, jsonEncode(seenFeed.toList()));
-  }
-
-  await prefs.setString(_kPendingSnap, jsonEncode(pending.keys.toList()));
-  await prefs.setString(_kPaidSnap, jsonEncode(paid.keys.toList()));
-  await prefs.setString(_kVoidSnap, jsonEncode(voids.keys.toList()));
 }
 
 Map<int, String> _idMap(dynamic raw) {
@@ -283,30 +327,4 @@ Set<String> _loadStringSet(String? raw) {
   } catch (_) {
     return {};
   }
-}
-
-Future<void> _showAlert(
-  FlutterLocalNotificationsPlugin notifications,
-  String key,
-  String title,
-  String body,
-) async {
-  await notifications.show(
-    key.hashCode & 0x7fffffff,
-    title,
-    body,
-    NotificationDetails(
-      android: AndroidNotificationDetails(
-        _orderChannelId,
-        'POS Orders',
-        channelDescription: 'New order, paid bill, and cancel alerts',
-        importance: Importance.max,
-        priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
-        playSound: true,
-        enableVibration: true,
-        styleInformation: body.isNotEmpty ? BigTextStyleInformation(body) : null,
-      ),
-    ),
-  );
 }

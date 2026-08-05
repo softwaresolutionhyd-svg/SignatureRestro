@@ -1,5 +1,4 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Release APK ke liye zaroori — bina iske IP/LAN pe network fail hota hai -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
@@ -34,10 +33,11 @@
             </intent-filter>
         </activity>
 
+        <!-- Keep alive when app is swiped away from recent apps -->
         <service
-            android:name="id.flutter.flutter_background_service.BackgroundService"
-            android:exported="true"
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
             android:foregroundServiceType="dataSync"
+            android:exported="false"
             android:stopWithTask="false" />
 
         <meta-data

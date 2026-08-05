@@ -119,7 +119,7 @@ class _LoginScreenState extends State<LoginScreen> {
         role: user['role']?.toString() ?? '',
       );
 
-      await OrderNotificationService.instance.start(session.client);
+      await OrderNotificationService.instance.start(session.client, isNewLogin: true);
 
       if (!mounted) return;
       await context.read<AppState>().refreshDashboard();

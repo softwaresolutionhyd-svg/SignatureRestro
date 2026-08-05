@@ -29,7 +29,7 @@ class _RootGateState extends State<RootGate> {
   @override
   void dispose() {
     _session?.removeListener(_syncNotifications);
-    OrderNotificationService.instance.stop();
+    // Do NOT stop order watch here — app close was killing background alerts.
     super.dispose();
   }
 

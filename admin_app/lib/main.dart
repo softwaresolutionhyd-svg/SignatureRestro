@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:provider/provider.dart';
 
 import 'providers/app_state.dart';
@@ -8,6 +9,7 @@ import 'widgets/root_gate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FlutterForegroundTask.initCommunicationPort();
   await OrderNotificationService.instance.init();
   runApp(const StairApp());
 }

@@ -64,7 +64,7 @@ class Session extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    OrderNotificationService.instance.stop();
+    await OrderNotificationService.instance.stop();
     try {
       if (_token.isNotEmpty) {
         await client.post('/api/logout');
