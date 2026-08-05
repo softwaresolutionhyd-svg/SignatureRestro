@@ -97,7 +97,7 @@ class _HomeShellState extends State<HomeShell> {
         label: 'Reports',
         color: const Color(0xFFB45309),
         icon: Icons.insights_rounded,
-        onTap: () => _open(const ReportsScreen(), preload: () => context.read<AppState>().refreshDashboard()),
+        onTap: () => _open(const ReportsScreen(), preload: () => context.read<AppState>().refreshReports()),
       ),
     ];
 

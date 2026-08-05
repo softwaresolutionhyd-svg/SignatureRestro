@@ -368,6 +368,45 @@ class AdminApiController extends Controller
     }
 
     /**
+     * Reports hub KPIs — same figures as web Reports index.
+     */
+    public function reportsOverview(): JsonResponse
+    {
+        $currency = Setting::get('currency_symbol', 'Rs.');
+
+        $totalSales = PosOrder::query()
+            ->where('status', 'paid')
+            ->sum('grand_total');
+
+        $totalPurchases = PurchaseOrder::query()
+            ->whereIn('status', ['confirmed', 'received'])
+            ->sum('grand_total');
+
+        $expenseQuery = Expense::query();
+        if (Schema::hasColumn((new Expense)->getTable(), 'status')) {
+            $expenseQuery->whereIn('status', [Expense::STATUS_APPROVED, Expense::STATUS_PAID]);
+        }
+        $totalExpenses = $expenseQuery->sum('grand_total');
+
+        $totalProducts = InventoryProduct::query()
+            ->where('active', true)
+            ->count();
+
+        $totalEmployees = Employee::query()
+            ->where('active', true)
+            ->count();
+
+        return response()->json([
+            'currency' => $currency,
+            'total_sales' => round((float) $totalSales, 2),
+            'total_purchases' => round((float) $totalPurchases, 2),
+            'total_expenses' => round((float) $totalExpenses, 2),
+            'active_products' => (int) $totalProducts,
+            'active_employees' => (int) $totalEmployees,
+        ]);
+    }
+
+    /**
      * Same live KPIs as web Analytics Overview (no sample/demo numbers).
      */
     public function analytics(PosSessionSummaryService $sessionSummary): JsonResponse

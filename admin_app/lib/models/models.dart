@@ -1,3 +1,32 @@
+class ReportsOverview {
+  ReportsOverview({
+    required this.currency,
+    required this.totalSales,
+    required this.totalPurchases,
+    required this.totalExpenses,
+    required this.activeProducts,
+    required this.activeEmployees,
+  });
+
+  final String currency;
+  final double totalSales;
+  final double totalPurchases;
+  final double totalExpenses;
+  final int activeProducts;
+  final int activeEmployees;
+
+  factory ReportsOverview.fromJson(Map<String, dynamic> json) {
+    return ReportsOverview(
+      currency: json['currency']?.toString() ?? 'Rs.',
+      totalSales: _d(json['total_sales']),
+      totalPurchases: _d(json['total_purchases']),
+      totalExpenses: _d(json['total_expenses']),
+      activeProducts: _i(json['active_products']),
+      activeEmployees: _i(json['active_employees']),
+    );
+  }
+}
+
 class DashboardData {
   DashboardData({
     required this.currency,

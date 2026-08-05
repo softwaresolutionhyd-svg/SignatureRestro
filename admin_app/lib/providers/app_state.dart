@@ -7,6 +7,7 @@ class AppState extends ChangeNotifier {
   Session? _session;
   DashboardData? dashboard;
   AnalyticsOverview? analytics;
+  ReportsOverview? reports;
   List<AdminOrder> pending = [];
   List<AdminOrder> paid = [];
   List<KitchenVoidItem> voids = [];
@@ -44,6 +45,21 @@ class AppState extends ChangeNotifier {
     try {
       final res = await session.client.get('/api/admin/dashboard');
       dashboard = DashboardData.fromJson(res);
+    } catch (e) {
+      error = e.toString();
+    } finally {
+      loading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> refreshReports() async {
+    loading = true;
+    error = null;
+    notifyListeners();
+    try {
+      final res = await session.client.get('/api/admin/reports/overview');
+      reports = ReportsOverview.fromJson(res);
     } catch (e) {
       error = e.toString();
     } finally {
