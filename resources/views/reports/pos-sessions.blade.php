@@ -41,10 +41,9 @@
 
 <div class="card shadow-sm border-0 mb-3 no-print">
     <div class="card-body py-3">
-        <div class="row g-3 small row-cols-2 row-cols-md-4 row-cols-lg-8">
+        <div class="row g-3 small row-cols-2 row-cols-md-4 row-cols-lg-7">
             <div class="col"><div class="text-secondary">Sessions</div><div class="fw-bold fs-5">{{ $totals['sessions'] }}</div></div>
-            <div class="col"><div class="text-secondary">Gross sale</div><div class="fw-bold fs-5">{{ $currency }} {{ fmt_num($totals['gross_sales'], 2) }}</div></div>
-            <div class="col"><div class="text-secondary">Net sales</div><div class="fw-bold fs-5">{{ $currency }} {{ fmt_num($totals['net_sales'], 2) }}</div></div>
+            <div class="col"><div class="text-secondary">Gross Sale</div><div class="fw-bold fs-5">{{ $currency }} {{ fmt_num($totals['gross_sales'], 2) }}</div></div>
             <div class="col"><div class="text-secondary">Discount</div><div class="fw-bold fs-5 text-danger">{{ $currency }} {{ fmt_num($totals['discount'], 2) }}</div></div>
             <div class="col"><div class="text-secondary">Service ch.</div><div class="fw-bold fs-5">{{ $currency }} {{ fmt_num($totals['service_charge'], 2) }}</div></div>
             <div class="col"><div class="text-secondary">Cash</div><div class="fw-bold fs-5">{{ $currency }} {{ fmt_num($totals['cash'], 2) }}</div></div>
@@ -63,8 +62,7 @@
                         <th class="ps-3">Date</th>
                         <th>Session</th>
                         <th>Cashier</th>
-                        <th class="text-end">Gross</th>
-                        <th class="text-end">Net sales</th>
+                        <th class="text-end">Gross Sale</th>
                         <th class="text-end">Discount</th>
                         <th class="text-end">Svc ch.</th>
                         <th class="text-end">Cash</th>
@@ -88,7 +86,6 @@
                             <td>{{ $s->session_no ?? '#'.$s->id }}</td>
                             <td>{{ $s->user?->name ?? '—' }}</td>
                             <td class="text-end fw-semibold">{{ $currency }} {{ fmt_num($st['gross_sales_total'] ?? ((float) $st['net_sales_total'] + (float) $st['service_charge_total']), 2) }}</td>
-                            <td class="text-end">{{ $currency }} {{ fmt_num($st['net_sales_total'], 2) }}</td>
                             <td class="text-end text-danger">{{ $currency }} {{ fmt_num($st['discount_total'], 2) }}</td>
                             <td class="text-end">{{ $currency }} {{ fmt_num($st['service_charge_total'], 2) }}</td>
                             <td class="text-end">{{ $currency }} {{ fmt_num($st['payments_cash'], 2) }}</td>
@@ -105,7 +102,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="12" class="text-center text-secondary py-5">
+                            <td colspan="11" class="text-center text-secondary py-5">
                                 Is date range mein koi closed session nahi mili.
                                 @if(auth()->user()?->canAccessPosClosing())
                                 <a href="{{ route('restaurant-pos.closing') }}" class="d-block mt-2">{{ __('POS Closing') }} →</a>

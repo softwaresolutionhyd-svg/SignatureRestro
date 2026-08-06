@@ -64,7 +64,9 @@ class AnalyticsController extends Controller
                 report($e);
                 continue;
             }
-            $currentSessionSale += (float) ($stats['net_sales_total'] ?? 0);
+            $currentSessionSale += (float) ($stats['gross_sales_total'] ?? (
+                (float) ($stats['net_sales_total'] ?? 0) + (float) ($stats['service_charge_total'] ?? 0)
+            ));
             $currentSessionBills += (int) ($stats['sales_count'] ?? 0);
             $currentSessionCash += (float) ($stats['payments_cash'] ?? 0);
             $currentSessionCard += (float) ($stats['payments_card'] ?? 0);

@@ -67,8 +67,8 @@
         <div class="col-md-4">
             <div class="card shadow-sm border-0 h-100 border-start border-4 border-primary">
                 <div class="card-body">
-                    <div class="text-secondary small">{{ __('Net sales (so far today)') }}</div>
-                    <div class="fw-bold fs-4 text-primary">{{ $currency }} {{ fmt_num($stats['net_sales_total'], 2) }}</div>
+                    <div class="text-secondary small">{{ __('Gross Sale (so far today)') }}</div>
+                    <div class="fw-bold fs-4 text-primary">{{ $currency }} {{ fmt_num($stats['gross_sales_total'] ?? ((float) $stats['net_sales_total'] + (float) $stats['service_charge_total']), 2) }}</div>
                     <div class="text-secondary small mt-1">
                         {{ __(':count bills', ['count' => $stats['sales_count']]) }}
                         @if($stats['refunds_count'] > 0)
@@ -179,8 +179,10 @@
                         <td class="text-end pe-3 text-danger">− {{ $currency }} {{ fmt_num($stats['discount_total'], 2) }}</td>
                     </tr>
                     <tr>
-                        <td class="ps-3">{{ __('Service charges') }}</td>
-                        <td class="text-end pe-3 text-danger">− {{ $currency }} {{ fmt_num($stats['service_charge_total'], 2) }}</td>
+                        <td class="ps-3">{{ __('Service charges') }}
+                            <span class="text-secondary small">— {{ __('included in Gross Sale') }}</span>
+                        </td>
+                        <td class="text-end pe-3">{{ $currency }} {{ fmt_num($stats['service_charge_total'], 2) }}</td>
                     </tr>
                     @if((float) $stats['tax_total'] > 0)
                     <tr>
@@ -222,8 +224,8 @@
                     </tr>
                     @endif
                     <tr class="table-light">
-                        <td class="ps-3 fw-bold">{{ __('Net sales') }}</td>
-                        <td class="text-end pe-3 fw-bold">{{ $currency }} {{ fmt_num($stats['net_sales_total'], 2) }}</td>
+                        <td class="ps-3 fw-bold">{{ __('Gross Sale') }}</td>
+                        <td class="text-end pe-3 fw-bold">{{ $currency }} {{ fmt_num($stats['gross_sales_total'] ?? ((float) $stats['net_sales_total'] + (float) $stats['service_charge_total']), 2) }}</td>
                     </tr>
                     @foreach($cashInRows as $mv)
                     <tr>

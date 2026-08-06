@@ -23,7 +23,7 @@
     <div class="card-body py-3 px-3">
         <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
             <div class="min-w-0 flex-grow-1">
-                <div class="small text-secondary fw-semibold mb-1">{{ __('Current Session Sale') }}</div>
+                <div class="small text-secondary fw-semibold mb-1">{{ __('Gross Sale') }}</div>
                 @if($currentSessionOpen)
                     <div class="fw-bold analytics-session-amount" style="font-size:1.55rem;color:#16a34a;">
                         {{ $currency }} {{ fmt_num($currentSessionSale, 2) }}

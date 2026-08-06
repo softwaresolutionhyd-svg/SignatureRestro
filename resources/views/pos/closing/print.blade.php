@@ -149,8 +149,8 @@
                 <td class="amt">- {{ $currency }} {{ fmt_num($stats['discount_total'], 2) }}</td>
             </tr>
             <tr>
-                <td>{{ __('Service charges') }}</td>
-                <td class="amt">- {{ $currency }} {{ fmt_num($stats['service_charge_total'], 2) }}</td>
+                <td>{{ __('Service charges') }} ({{ __('included in Gross Sale') }})</td>
+                <td class="amt">{{ $currency }} {{ fmt_num($stats['service_charge_total'], 2) }}</td>
             </tr>
             @if((float) $stats['tax_total'] > 0)
             <tr>
@@ -182,8 +182,8 @@
             </tr>
             @endif
             <tr class="bold">
-                <td>{{ __('Net sales') }}</td>
-                <td class="amt">{{ $currency }} {{ fmt_num($stats['net_sales_total'], 2) }}</td>
+                <td>{{ __('Gross Sale') }}</td>
+                <td class="amt">{{ $currency }} {{ fmt_num($stats['gross_sales_total'] ?? ((float) $stats['net_sales_total'] + (float) $stats['service_charge_total']), 2) }}</td>
             </tr>
             @php
                 $cashMovements = $cashMovements ?? collect();
