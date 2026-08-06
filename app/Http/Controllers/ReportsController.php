@@ -475,6 +475,9 @@ class ReportsController extends Controller
 
         $totals = [
             'sessions' => $rows->count(),
+            'gross_sales' => round($rows->sum(fn ($r) => $r['stats']['gross_sales_total'] ?? (
+                (float) ($r['stats']['net_sales_total'] ?? 0) + (float) ($r['stats']['service_charge_total'] ?? 0)
+            )), 2),
             'net_sales' => round($rows->sum(fn ($r) => $r['stats']['net_sales_total']), 2),
             'discount' => round($rows->sum(fn ($r) => $r['stats']['discount_total']), 2),
             'service_charge' => round($rows->sum(fn ($r) => $r['stats']['service_charge_total']), 2),
