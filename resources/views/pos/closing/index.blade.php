@@ -224,8 +224,8 @@
                     </tr>
                     @endif
                     <tr class="table-light">
-                        <td class="ps-3 fw-bold">{{ __('Gross Sale') }}</td>
-                        <td class="text-end pe-3 fw-bold">{{ $currency }} {{ fmt_num($stats['gross_sales_total'] ?? ((float) $stats['net_sales_total'] + (float) $stats['service_charge_total']), 2) }}</td>
+                        <td class="ps-3 fw-bold">{{ __('Net Sale') }}</td>
+                        <td class="text-end pe-3 fw-bold">{{ $currency }} {{ fmt_num($stats['net_sales_total'], 2) }}</td>
                     </tr>
                     @foreach($cashInRows as $mv)
                     <tr>

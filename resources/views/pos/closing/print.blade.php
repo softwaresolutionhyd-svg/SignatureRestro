@@ -182,8 +182,8 @@
             </tr>
             @endif
             <tr class="bold">
-                <td>{{ __('Gross Sale') }}</td>
-                <td class="amt">{{ $currency }} {{ fmt_num($stats['gross_sales_total'] ?? ((float) $stats['net_sales_total'] + (float) $stats['service_charge_total']), 2) }}</td>
+                <td>{{ __('Net Sale') }}</td>
+                <td class="amt">{{ $currency }} {{ fmt_num($stats['net_sales_total'], 2) }}</td>
             </tr>
             @php
                 $cashMovements = $cashMovements ?? collect();
