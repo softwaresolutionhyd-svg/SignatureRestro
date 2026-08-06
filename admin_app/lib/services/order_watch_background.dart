@@ -86,8 +86,8 @@ class OrderWatchTaskHandler extends TaskHandler {
       final seeded = prefs.getBool(_kSeeded) ?? false;
 
       final results = await Future.wait([
-        client.get('/api/admin/orders/pending'),
-        client.get('/api/admin/orders/paid'),
+        client.get('/api/admin/orders/pending?limit=150'),
+        client.get('/api/admin/orders/paid?limit=150'),
         client.get('/api/admin/kitchen-voids'),
         client.get('/api/admin/notifications'),
       ]);
@@ -252,13 +252,17 @@ Future<void> startOrderWatchService({bool resetSeed = false}) async {
     return;
   }
 
-  await FlutterForegroundTask.startService(
+  final result = await FlutterForegroundTask.startService(
     serviceId: 77001,
     notificationTitle: 'Stair',
     notificationText: 'Orders watch chal rahi hai…',
     callback: orderWatchStartCallback,
     serviceTypes: [ForegroundServiceTypes.dataSync],
   );
+
+  if (result is ServiceRequestFailure && !await FlutterForegroundTask.isRunningService) {
+    await FlutterForegroundTask.restartService();
+  }
 }
 
 Future<void> stopOrderWatchService() async {

@@ -90,7 +90,7 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     }
     try {
-      final res = await session.client.get('/api/admin/orders/pending');
+      final res = await session.client.get('/api/admin/orders/pending?limit=150');
       final raw = res['orders'];
       final next = raw is List
           ? raw.whereType<Map>().map((e) => AdminOrder.fromJson(Map<String, dynamic>.from(e))).toList()
@@ -120,7 +120,7 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     }
     try {
-      final res = await session.client.get('/api/admin/orders/paid');
+      final res = await session.client.get('/api/admin/orders/paid?limit=150');
       final raw = res['orders'];
       final next = raw is List
           ? raw.whereType<Map>().map((e) => AdminOrder.fromJson(Map<String, dynamic>.from(e))).toList()
@@ -157,8 +157,8 @@ class AppState extends ChangeNotifier {
         notifyListeners();
       }
       final results = await Future.wait([
-        session.client.get('/api/admin/orders/pending'),
-        session.client.get('/api/admin/orders/paid'),
+        session.client.get('/api/admin/orders/pending?limit=150'),
+        session.client.get('/api/admin/orders/paid?limit=150'),
       ]);
       final pendingRaw = results[0]['orders'];
       final paidRaw = results[1]['orders'];

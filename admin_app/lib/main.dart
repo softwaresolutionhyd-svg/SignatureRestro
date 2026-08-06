@@ -44,7 +44,7 @@ class StairApp extends StatelessWidget {
             isDense: true,
           ),
         ),
-        home: const RootGate(),
+        home: const WithForegroundTask(child: RootGate()),
       ),
     );
   }

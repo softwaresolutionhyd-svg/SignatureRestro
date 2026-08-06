@@ -112,11 +112,11 @@ class AdminApiController extends Controller
 
     public function pendingOrders(Request $request): JsonResponse
     {
-        $limit = min(100, max(10, (int) $request->input('limit', 50)));
+        $limit = min(300, max(10, (int) $request->input('limit', 150)));
         $sessionIds = $this->currentOpenSessionIds();
 
         if ($sessionIds === []) {
-            return response()->json(['orders' => []]);
+            return response()->json(['orders' => [], 'count' => 0]);
         }
 
         $orders = app(PosPendingBillsService::class)
@@ -132,18 +132,20 @@ class AdminApiController extends Controller
 
         return response()->json([
             'orders' => $orders->map(fn (PosOrder $o) => $this->orderCard($o))->values(),
+            'count' => $orders->count(),
         ]);
     }
 
     public function paidOrders(Request $request): JsonResponse
     {
-        $limit = min(100, max(10, (int) $request->input('limit', 40)));
+        $limit = min(300, max(10, (int) $request->input('limit', 150)));
         $sessionIds = $this->currentOpenSessionIds();
 
         if ($sessionIds === []) {
             return response()->json([
                 'orders' => [],
                 'total' => 0,
+                'count' => 0,
             ]);
         }
 
@@ -169,6 +171,7 @@ class AdminApiController extends Controller
         return response()->json([
             'orders' => $orders->map(fn (PosOrder $o) => $this->orderCard($o, true))->values(),
             'total' => round((float) $orders->sum('grand_total'), 2),
+            'count' => $orders->count(),
         ]);
     }
 
@@ -652,7 +655,7 @@ class AdminApiController extends Controller
     }
 
     /**
-     * Open POS session IDs for admin mobile (current session bills only).
+     * Session IDs for admin bills — same window as POS floor (open + same business date).
      *
      * @return list<int>
      */
@@ -665,33 +668,26 @@ class AdminApiController extends Controller
             $openQuery->whereNull('closed_at');
         }
 
-        if (Schema::connection('tenant')->hasColumn('pos_sessions', 'shift_started')) {
-            $openQuery->where('shift_started', true);
+        $openSessions = $openQuery->orderByDesc('id')->get();
+        if ($openSessions->isEmpty()) {
+            return [];
         }
 
-        $ids = $openQuery
-            ->orderByDesc('id')
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
-
-        if ($ids !== []) {
-            return $ids;
+        $pending = app(PosPendingBillsService::class);
+        $ids = [];
+        foreach ($openSessions as $session) {
+            $ids = array_merge($ids, $pending->billSessionIdsForSession($session));
+            $ids[] = (int) $session->id;
         }
 
-        // Fallback when shift_started blocks matches but floor session is open.
-        $fallback = PosSession::query();
-        if (Schema::connection('tenant')->hasColumn('pos_sessions', 'status')) {
-            $fallback->where('status', 'open');
-        } elseif (Schema::connection('tenant')->hasColumn('pos_sessions', 'closed_at')) {
-            $fallback->whereNull('closed_at');
+        // Always include every currently open session id.
+        foreach ($openSessions as $session) {
+            $ids[] = (int) $session->id;
         }
 
-        return $fallback
-            ->orderByDesc('id')
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
+        $ids = array_values(array_unique(array_filter($ids)));
+
+        return $ids !== [] ? $ids : $openSessions->pluck('id')->map(fn ($id) => (int) $id)->all();
     }
 
     /**

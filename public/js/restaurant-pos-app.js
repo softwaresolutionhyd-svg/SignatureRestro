@@ -667,7 +667,7 @@
 
     function kitchenLockedFromResume(ri) {
         const qty = Number(ri.qty) || 0;
-        // Sirf actual kitchen print / served lock. Pending (print se pehle) bilkul free.
+        // Sirf actual kitchen print / served lock. Hold-only / pending-print bilkul free.
         if (ri.kitchen_served || ri.kitchen_printed) {
             return qty;
         }
@@ -676,16 +676,16 @@
 
     function sanitizeCartKitchenLocks() {
         cart.forEach((r) => {
-            if (r.kitchen_served || r.kitchen_printed) {
-                const qty = Number(r.qty) || 0;
-                if ((Number(r.kitchen_locked_qty) || 0) < qty) {
-                    r.kitchen_locked_qty = qty;
-                }
+            // Hold-only lines kabhi lock na hon — stale locked_qty clear.
+            if (!(r.kitchen_served || r.kitchen_printed)) {
+                r.kitchen_locked_qty = 0;
+                r.kitchen_printed = false;
                 return;
             }
-            // Print se pehle — kabhi lock mat rakho.
-            r.kitchen_locked_qty = 0;
-            r.kitchen_printed = false;
+            const qty = Number(r.qty) || 0;
+            if ((Number(r.kitchen_locked_qty) || 0) < qty) {
+                r.kitchen_locked_qty = qty;
+            }
         });
     }
 
@@ -915,6 +915,12 @@
         const row = cart[index];
         if (!row) return;
 
+        // Kitchen print se pehle — kabhi lock mat mano (sirf printed/served lock).
+        const lockedQty = Number(row.kitchen_locked_qty) || 0;
+        if (lockedQty > 0.0005 && !(row.kitchen_printed || row.kitchen_served)) {
+            row.kitchen_locked_qty = 0;
+        }
+
         if (!canReduceOrRemoveCartLine(row)) {
             if (isCartLineKitchenLocked(row)) {
                 alert('Kitchen print ke baad item sirf manager/admin remove kar sakta hai.');
@@ -954,6 +960,7 @@
             kitchenVoids.length = voidsBefore;
             itemReductions.length = reductionsBefore;
             renderAll();
+            alert(e.message || 'Item remove nahi ho saki.');
             throw e;
         }
     }
@@ -2212,6 +2219,20 @@
 
     function hasKitchenLockedItems() {
         return cart.some((r) => (Number(r.kitchen_locked_qty) || 0) > 0);
+    }
+
+    /** Pending/resume bill pe pehle se kitchen print hui hai ya nahi (cart empty hone ke baad bhi). */
+    function resumedOrderHasKitchenPrint() {
+        if (hasKitchenLockedItems()) {
+            return true;
+        }
+        const oid = Number(resumeOrderId || 0);
+        if (!oid) return false;
+        const order = (boot.pendingBillsDetail || []).find((o) => Number(o.id) === oid);
+        if (!order || !Array.isArray(order.items)) {
+            return false;
+        }
+        return order.items.some((i) => !!(i.kitchen_printed || i.kitchen_served));
     }
 
     function updateCancelOrderButton() {
@@ -3593,9 +3614,14 @@
             setCartSaving(true);
             try {
                 if (!cart.length) {
-                    // Empty cart auto-delete was wiping kitchen-printed bills silently.
-                    // Only discard when user explicitly cancelled (voids / cancel-whole).
+                    // Empty cart:
+                    // - Kitchen-printed bill → sirf manager Cancel Order (voids) se delete.
+                    // - Hold-only (no kitchen print) → pending draft discard OK, items free remove.
                     if (cancelWholeOrderPending && kitchenVoids.length > 0) {
+                        await discardResumedDraft();
+                        return null;
+                    }
+                    if (!resumedOrderHasKitchenPrint()) {
                         await discardResumedDraft();
                         return null;
                     }
