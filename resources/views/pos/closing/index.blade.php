@@ -188,6 +188,10 @@
                         <td class="text-end pe-3">{{ $currency }} {{ fmt_num($stats['tax_total'], 2) }}</td>
                     </tr>
                     @endif
+                    <tr class="table-light">
+                        <td class="ps-3 fw-bold">{{ __('Net Sale') }}</td>
+                        <td class="text-end pe-3 fw-bold">{{ $currency }} {{ fmt_num($stats['net_sales_total'], 2) }}</td>
+                    </tr>
                     @php
                         $creditByContact = $stats['credit_sales_by_contact'] ?? [];
                     @endphp
@@ -211,10 +215,6 @@
                         </tr>
                         @endif
                     @endforelse
-                    <tr class="table-light">
-                        <td class="ps-3 fw-bold">{{ __('Net Sale') }}</td>
-                        <td class="text-end pe-3 fw-bold">{{ $currency }} {{ fmt_num($stats['net_sales_total'], 2) }}</td>
-                    </tr>
                     @foreach($cashInRows as $mv)
                     <tr>
                         <td class="ps-3 text-success">{{ __('Cash In') }} — {{ $mv->reason ?: '—' }}</td>

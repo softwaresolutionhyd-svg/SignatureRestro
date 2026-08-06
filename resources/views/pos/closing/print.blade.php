@@ -158,6 +158,10 @@
                 <td class="amt">{{ $currency }} {{ fmt_num($stats['tax_total'], 2) }}</td>
             </tr>
             @endif
+            <tr class="bold">
+                <td>{{ __('Net Sale') }}</td>
+                <td class="amt">{{ $currency }} {{ fmt_num($stats['net_sales_total'], 2) }}</td>
+            </tr>
             @php
                 $creditByContact = $stats['credit_sales_by_contact'] ?? [];
             @endphp
@@ -174,10 +178,6 @@
                 </tr>
                 @endif
             @endforelse
-            <tr class="bold">
-                <td>{{ __('Net Sale') }}</td>
-                <td class="amt">{{ $currency }} {{ fmt_num($stats['net_sales_total'], 2) }}</td>
-            </tr>
             @php
                 $cashMovements = $cashMovements ?? collect();
                 $cashOutRows = $cashMovements->where('type', 'out')->values();

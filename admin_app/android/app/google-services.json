@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "000000000000",
-    "project_id": "stair-admin-placeholder",
-    "storage_bucket": "stair-admin-placeholder.appspot.com"
+    "project_number": "80736051",
+    "project_id": "stair-66282",
+    "storage_bucket": "stair-66282.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+        "mobilesdk_app_id": "1:80736051:android:64930837fb5758736fd846",
         "android_client_info": {
           "package_name": "com.softwaresolution.admin_app"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyPlaceholderKeyReplaceWithFirebaseKey00"
+          "current_key": "AIzaSyDXzRsggVThwkJ9wyoY-BrtampnkqGuouA"
         }
       ],
       "services": {

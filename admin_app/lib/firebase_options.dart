@@ -1,13 +1,10 @@
-// File generated manually for Stair — replace via `flutterfire configure`.
+// File generated from Firebase project stair-66282 (google-services.json).
 // ignore_for_file: lines_longer_than_80_chars, avoid_classes_with_only_static_members
 
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
-/// Default [FirebaseOptions] for Stair admin.
-///
-/// Replace every `REPLACE_*` value with your Firebase project config
-/// (see `FIREBASE_SETUP.md`). Until then, FCM init is skipped safely.
+/// Default [FirebaseOptions] for Stair admin (project: stair-66282).
 class DefaultFirebaseOptions {
   static bool get isConfigured {
     final o = currentPlatform;
@@ -34,27 +31,28 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'REPLACE_ANDROID_API_KEY',
-    appId: 'REPLACE_ANDROID_APP_ID',
-    messagingSenderId: 'REPLACE_MESSAGING_SENDER_ID',
-    projectId: 'REPLACE_PROJECT_ID',
-    storageBucket: 'REPLACE_PROJECT_ID.appspot.com',
+    apiKey: 'AIzaSyDXzRsggVThwkJ9wyoY-BrtampnkqGuouA',
+    appId: '1:80736051:android:64930837fb5758736fd846',
+    messagingSenderId: '80736051',
+    projectId: 'stair-66282',
+    storageBucket: 'stair-66282.firebasestorage.app',
   );
 
+  // iOS not registered yet — mirrors Android project ids for compile safety.
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'REPLACE_IOS_API_KEY',
-    appId: 'REPLACE_IOS_APP_ID',
-    messagingSenderId: 'REPLACE_MESSAGING_SENDER_ID',
-    projectId: 'REPLACE_PROJECT_ID',
-    storageBucket: 'REPLACE_PROJECT_ID.appspot.com',
+    apiKey: 'AIzaSyDXzRsggVThwkJ9wyoY-BrtampnkqGuouA',
+    appId: '1:80736051:android:64930837fb5758736fd846',
+    messagingSenderId: '80736051',
+    projectId: 'stair-66282',
+    storageBucket: 'stair-66282.firebasestorage.app',
     iosBundleId: 'com.softwaresolution.adminApp',
   );
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'REPLACE_WEB_API_KEY',
-    appId: 'REPLACE_WEB_APP_ID',
-    messagingSenderId: 'REPLACE_MESSAGING_SENDER_ID',
-    projectId: 'REPLACE_PROJECT_ID',
-    storageBucket: 'REPLACE_PROJECT_ID.appspot.com',
+    apiKey: 'AIzaSyDXzRsggVThwkJ9wyoY-BrtampnkqGuouA',
+    appId: '1:80736051:android:64930837fb5758736fd846',
+    messagingSenderId: '80736051',
+    projectId: 'stair-66282',
+    storageBucket: 'stair-66282.firebasestorage.app',
   );
 }
