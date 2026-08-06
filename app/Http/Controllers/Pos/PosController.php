@@ -2767,12 +2767,22 @@ class PosController extends Controller
     private function assertDraftReceiptAccess(PosOrder $order): void
     {
         $user = Auth::user();
+        if ($user === null) {
+            abort(403);
+        }
+
         if ((int) $order->user_id === (int) $user->id) {
             return;
         }
 
-        $session = $this->openPosSessionForUser($user);
-        if ($session !== null && (int) $order->session_id === (int) $session->id) {
+        // Admin / platform bypass: any draft receipt.
+        if ($user->bypassesModulePermissions()) {
+            return;
+        }
+
+        // Same visibility as pending bill cards: shared floor sessions + order-taker drafts.
+        $session = $this->getOpenPosSessionForUser($user);
+        if ($session !== null && $this->findDraftOrderForSession($session, (int) $order->id, $user) !== null) {
             return;
         }
 
@@ -2857,15 +2867,6 @@ class PosController extends Controller
                 report($e);
             }
         })->afterResponse();
-    }
-
-    private function openPosSessionForUser(User $user): ?PosSession
-    {
-        return PosSession::query()
-            ->where('user_id', $user->id)
-            ->where('status', 'open')
-            ->latest('id')
-            ->first();
     }
 
     /**
