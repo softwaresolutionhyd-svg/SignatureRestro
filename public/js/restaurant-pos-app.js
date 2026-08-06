@@ -2960,8 +2960,10 @@
         updateCheckoutActions();
         updateCancelOrderButton();
 
+        // Pending bill open → Payment hamesha Cash default (Bank/Card sticky na rahe).
+        if ($('#rpPayMethod')) $('#rpPayMethod').value = 'cash';
         const grand = calcCartTotals().grand;
-        payments = [{ method: $('#rpPayMethod')?.value || 'cash', amount: grand }];
+        payments = [{ method: 'cash', amount: grand }];
         autoPaymentAmount = true;
     }
 
