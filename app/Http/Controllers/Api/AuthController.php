@@ -105,6 +105,29 @@ class AuthController extends Controller
 
     public function logout(Request $request): JsonResponse
     {
+        $token = trim((string) $request->input('fcm_token', ''));
+        $deviceId = trim((string) $request->input('device_id', ''));
+        $app = strtolower(trim((string) $request->input('app', 'admin')));
+        if (! in_array($app, ['admin', 'order-taker'], true)) {
+            $app = 'admin';
+        }
+
+        if ($request->user()) {
+            $q = \App\Models\DeviceToken::query()
+                ->where('user_id', $request->user()->id)
+                ->where('app', $app);
+            if ($token !== '') {
+                $q->where('token', $token);
+            } elseif ($deviceId !== '') {
+                $q->where('device_id', $deviceId);
+            }
+            try {
+                $q->delete();
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
         $request->user()?->currentAccessToken()?->delete();
 
         return response()->json(['message' => 'Logged out']);

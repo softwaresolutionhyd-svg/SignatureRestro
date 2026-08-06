@@ -34,4 +34,5 @@ Signature-full-backup-*.zip
 
 /storage/app/lan/
 /storage/app/vapid.json
+/storage/app/firebase-credentials.json
 

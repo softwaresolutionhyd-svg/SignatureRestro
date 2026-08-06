@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SendPosFcmNotification;
 use App\Models\PosOrder;
 use App\Models\User;
 use App\Notifications\PosActivity;
@@ -73,6 +74,14 @@ final class PosActivityNotifier
                 } catch (Throwable $e) {
                     report($e);
                 }
+
+                // Admin Flutter app — FCM (foreground / background / terminated).
+                try {
+                    $userIds = $users->pluck('id')->map(fn ($id) => (int) $id)->all();
+                    SendPosFcmNotification::dispatch($userIds, $payload, 'admin');
+                } catch (Throwable $e) {
+                    report($e);
+                }
             });
 
             // Online-installed PWA: cafe relays so phone gets system tray alert without app open.
@@ -111,13 +120,28 @@ final class PosActivityNotifier
     public static function orderPaid(PosOrder $order): void
     {
         $where = self::orderWhereLabel($order);
+        $isRefund = ($order->type ?? 'sale') === 'refund';
         self::push(
-            'pos.order_paid',
-            'Bill Paid',
+            $isRefund ? 'pos.order_refunded' : 'pos.order_paid',
+            $isRefund ? 'Refund' : 'Bill Paid',
             trim(sprintf('%s%s · %s', $order->order_no, $where !== '' ? ' · '.$where : '', number_format((float) $order->grand_total, 0))),
             $order,
+            ['grand_total' => (float) $order->grand_total, 'type' => $order->type ?? 'sale'],
+            $isRefund ? 'warning' : 'success',
+        );
+    }
+
+    public static function billDeleted(PosOrder $order): void
+    {
+        $where = self::orderWhereLabel($order);
+        self::push(
+            'pos.bill_deleted',
+            'Bill Deleted',
+            trim(sprintf('%s%s', $order->order_no, $where !== '' ? ' · '.$where : '')),
+            $order,
             ['grand_total' => (float) $order->grand_total],
-            'success',
+            'danger',
+            log: false,
         );
     }
 
@@ -216,7 +240,8 @@ final class PosActivityNotifier
     private static function iconFor(string $action, string $level): string
     {
         return match (true) {
-            str_contains($action, 'cancel') || str_contains($action, 'void') => 'bi-x-octagon',
+            str_contains($action, 'cancel') || str_contains($action, 'void') || str_contains($action, 'deleted') => 'bi-x-octagon',
+            str_contains($action, 'refund') => 'bi-arrow-counterclockwise',
             str_contains($action, 'paid') => 'bi-check-circle',
             str_contains($action, 'reopen') => 'bi-arrow-counterclockwise',
             str_contains($action, 'placed') => 'bi-bag-plus',

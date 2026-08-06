@@ -29,7 +29,6 @@ class _RootGateState extends State<RootGate> {
   @override
   void dispose() {
     _session?.removeListener(_syncNotifications);
-    // Do NOT stop order watch here — app close was killing background alerts.
     super.dispose();
   }
 
@@ -37,9 +36,8 @@ class _RootGateState extends State<RootGate> {
     final session = _session ?? context.read<Session>();
     if (session.isLoggedIn) {
       OrderNotificationService.instance.start(session.client);
-    } else {
-      OrderNotificationService.instance.stop();
     }
+    // Do not stop FCM listeners on UI rebuild — only logout calls stop().
   }
 
   @override

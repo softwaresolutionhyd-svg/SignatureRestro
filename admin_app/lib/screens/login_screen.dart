@@ -117,6 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
         name: user['name']?.toString() ?? '',
         email: user['email']?.toString() ?? login,
         role: user['role']?.toString() ?? '',
+        userId: int.tryParse(user['id']?.toString() ?? ''),
       );
 
       await OrderNotificationService.instance.start(session.client, isNewLogin: true);

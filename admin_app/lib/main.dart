@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:provider/provider.dart';
 
 import 'providers/app_state.dart';
-import 'services/order_notifications.dart';
+import 'services/fcm_push_service.dart';
+import 'services/notification_router.dart';
 import 'services/session.dart';
 import 'widgets/root_gate.dart';
 
-void main() async {
+final GlobalKey<NavigatorState> stairNavigatorKey = GlobalKey<NavigatorState>();
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  FlutterForegroundTask.initCommunicationPort();
-  await OrderNotificationService.instance.init();
+  NotificationRouter.instance.navigatorKey = stairNavigatorKey;
+  await FcmPushService.instance.init();
   runApp(const StairApp());
 }
 
@@ -30,6 +32,7 @@ class StairApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Stair',
         debugShowCheckedModeBanner: false,
+        navigatorKey: stairNavigatorKey,
         theme: ThemeData(
           brightness: Brightness.dark,
           scaffoldBackgroundColor: const Color(0xFF0B1220),
@@ -44,7 +47,7 @@ class StairApp extends StatelessWidget {
             isDense: true,
           ),
         ),
-        home: const WithForegroundTask(child: RootGate()),
+        home: const RootGate(),
       ),
     );
   }

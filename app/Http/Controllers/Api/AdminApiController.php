@@ -468,6 +468,99 @@ class AdminApiController extends Controller
     }
 
     /**
+     * Register / refresh FCM device token for the Stair admin app.
+     */
+    public function registerDeviceToken(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'token' => ['required', 'string', 'max:512'],
+            'platform' => ['nullable', 'string', 'max:32'],
+            'device_id' => ['nullable', 'string', 'max:191'],
+            'app' => ['nullable', 'string', 'max:32'],
+        ]);
+
+        $token = trim((string) $data['token']);
+        $platform = strtolower(trim((string) ($data['platform'] ?? 'android')));
+        if (! in_array($platform, ['android', 'ios', 'web'], true)) {
+            $platform = 'android';
+        }
+        $app = strtolower(trim((string) ($data['app'] ?? 'admin')));
+        if (! in_array($app, ['admin', 'order-taker'], true)) {
+            $app = 'admin';
+        }
+        $deviceId = isset($data['device_id']) ? trim((string) $data['device_id']) : null;
+        if ($deviceId === '') {
+            $deviceId = null;
+        }
+
+        $user = $request->user();
+
+        // Same physical device re-login: drop prior owner of this FCM token.
+        \App\Models\DeviceToken::query()->where('token', $token)->delete();
+
+        if ($deviceId !== null) {
+            \App\Models\DeviceToken::query()
+                ->where('user_id', $user->id)
+                ->where('app', $app)
+                ->where('device_id', $deviceId)
+                ->delete();
+        }
+
+        $row = \App\Models\DeviceToken::query()->create([
+            'user_id' => $user->id,
+            'token' => $token,
+            'platform' => $platform,
+            'app' => $app,
+            'device_id' => $deviceId,
+            'last_used_at' => now(),
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'id' => $row->id,
+        ]);
+    }
+
+    /**
+     * Unregister FCM token (logout / disable pushes on this device).
+     */
+    public function unregisterDeviceToken(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'token' => ['nullable', 'string', 'max:512'],
+            'device_id' => ['nullable', 'string', 'max:191'],
+            'app' => ['nullable', 'string', 'max:32'],
+        ]);
+
+        $app = strtolower(trim((string) ($data['app'] ?? 'admin')));
+        if (! in_array($app, ['admin', 'order-taker'], true)) {
+            $app = 'admin';
+        }
+
+        $query = \App\Models\DeviceToken::query()
+            ->where('user_id', $request->user()->id)
+            ->where('app', $app);
+
+        $token = trim((string) ($data['token'] ?? ''));
+        $deviceId = trim((string) ($data['device_id'] ?? ''));
+
+        if ($token !== '') {
+            $query->where('token', $token);
+        } elseif ($deviceId !== '') {
+            $query->where('device_id', $deviceId);
+        } else {
+            // No filter — remove all tokens for this user+app on logout.
+        }
+
+        $deleted = $query->delete();
+
+        return response()->json([
+            'ok' => true,
+            'deleted' => $deleted,
+        ]);
+    }
+
+    /**
      * Same live KPIs as web Analytics Overview (no sample/demo numbers).
      */
     public function analytics(PosSessionSummaryService $sessionSummary): JsonResponse

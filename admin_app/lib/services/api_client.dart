@@ -94,6 +94,27 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> delete(String path, {Map<String, dynamic>? body}) async {
+    try {
+      final req = http.Request('DELETE', _uri(path));
+      req.headers.addAll(_headers);
+      if (body != null) {
+        req.body = jsonEncode(body);
+      }
+      final streamed = await _client.send(req).timeout(_timeout);
+      final res = await http.Response.fromStream(streamed);
+      return _decode(res);
+    } on SocketException {
+      throw ApiException('Server se connect nahi hua. WiFi + Server URL check karein.');
+    } on HandshakeException {
+      throw ApiException('HTTPS certificate fail. http://IP:8080 try karein.');
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw ApiException('Network error: $e');
+    }
+  }
+
   Map<String, dynamic> _decode(http.Response res) {
     Map<String, dynamic>? json;
     if (res.body.isNotEmpty) {

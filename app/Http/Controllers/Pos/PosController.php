@@ -2217,8 +2217,10 @@ class PosController extends Controller
         abort_unless($order->status === 'paid', 404);
 
         $orderNo = $order->order_no;
+        $order->loadMissing(['table']);
 
         try {
+            \App\Services\PosActivityNotifier::billDeleted($order);
             $this->deletePaidOrder($order);
         } catch (\Throwable $e) {
             return back()->with('error', $e->getMessage() ?: 'Bill delete nahi ho saki.');

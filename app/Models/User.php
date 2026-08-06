@@ -90,6 +90,11 @@ class User extends Authenticatable
         return $this->hasMany(ActivityLog::class);
     }
 
+    public function deviceTokens(): HasMany
+    {
+        return $this->hasMany(DeviceToken::class);
+    }
+
     /** Platform operator: manages companies and enters any tenant via session. */
     public function isPlatformSuperAdmin(): bool
     {

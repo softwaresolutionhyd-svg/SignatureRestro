@@ -58,6 +58,8 @@ Route::middleware(['auth:sanctum', 'tenant', 'apiCompany', 'companyTenantReady']
             Route::get('/analytics', [AdminApiController::class, 'analytics']);
             Route::get('/reports/overview', [AdminApiController::class, 'reportsOverview']);
             Route::get('/notifications', [AdminApiController::class, 'notifications']);
+            Route::post('/device-tokens', [AdminApiController::class, 'registerDeviceToken']);
+            Route::delete('/device-tokens', [AdminApiController::class, 'unregisterDeviceToken']);
         });
 });
 
