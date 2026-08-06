@@ -723,6 +723,31 @@
         });
     }
 
+    function focusProductSearch({ clear = false } = {}) {
+        const search = $('#rpProductSearch');
+        if (!search) return;
+        if (clear) search.value = '';
+        window.setTimeout(() => {
+            search.focus();
+            try { search.select(); } catch (_) { /* ignore */ }
+        }, 0);
+    }
+
+    function focusBillsTableSearch() {
+        window.setTimeout(() => {
+            const tableSearch = $('#rpBillsTableSearch');
+            if (tableSearch) {
+                tableSearch.focus();
+                try { tableSearch.select(); } catch (_) { /* ignore */ }
+                return;
+            }
+            // Takeaway / Delivery filter: Table search hidden — top bill search.
+            if (orderListMode === 'pending' || orderListMode === 'paid') {
+                $('#rpProductSearch')?.focus();
+            }
+        }, 0);
+    }
+
     function addOrIncrementProduct(id) {
         const p = products.find((x) => Number(x.id) === Number(id));
         if (!p || !isProductVisible(p)) return;
@@ -734,7 +759,15 @@
             // Kitchen-printed line ke baad same item → naya cart card (merge nahi).
             pushNewCartProductRow(p, 1);
         }
+        const search = $('#rpProductSearch');
+        const hadSearch = !orderListMode && !!search?.value.trim();
+        if (hadSearch) {
+            search.value = '';
+        }
         renderAll();
+        if (!orderListMode) {
+            focusProductSearch();
+        }
     }
 
     function increaseProductQtyBy(productId, addQty) {
@@ -1548,6 +1581,9 @@
                 }
                 updateBillsMenuHead();
                 renderOrderCards();
+                if (orderListMode === 'pending' || orderListMode === 'paid') {
+                    focusBillsTableSearch();
+                }
             });
         });
 
@@ -1822,8 +1858,12 @@
         $('#rpTabKitchenVoids')?.classList.remove('is-active');
         clearBillsMenuHead();
         const search = $('#rpProductSearch');
-        if (search) search.placeholder = 'Search menu…';
+        if (search) {
+            search.placeholder = 'Search menu…';
+            search.value = '';
+        }
         renderAll();
+        focusProductSearch();
     }
 
     async function loadSessionKitchenVoids() {
@@ -1993,12 +2033,16 @@
             loadSessionKitchenVoids().then(() => {
                 updateBillsMenuHead();
                 renderOrderCards();
+                focusProductSearch();
             });
             return;
         }
 
         updateBillsMenuHead();
         renderOrderCards();
+        if (mode === 'pending' || mode === 'paid') {
+            focusBillsTableSearch();
+        }
     }
 
     function showPaidTabAfterCheckout() {
@@ -3788,6 +3832,17 @@
             }
             else renderMenuGrid();
         });
+        $('#rpProductSearch')?.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' || orderListMode) return;
+            e.preventDefault();
+            const q = ($('#rpProductSearch')?.value || '').trim().toLowerCase();
+            if (!q) return;
+            const list = products.filter((p) => isProductVisible(p) && productMatchesMenuCategory(p) && (
+                String(p.name).toLowerCase().includes(q) || String(p.sku || '').toLowerCase().includes(q)
+            ));
+            if (!list.length) return;
+            addOrIncrementProduct(list[0].id);
+        });
         $('#rpMenuCats')?.addEventListener('click', (e) => {
             const btn = e.target.closest('.rp-menu-cat');
             if (!btn) return;
@@ -3971,6 +4026,7 @@
         $('#rpTabKitchenVoids')?.addEventListener('click', () => setOrderListMode('kitchen-voids'));
         $('#rpTabMenu')?.addEventListener('click', () => {
             if (orderListMode) showMenuPanel();
+            else focusProductSearch();
             togglePanelView('menu');
         });
         $('#rpTabCart')?.addEventListener('click', () => togglePanelView('cart'));
@@ -4184,6 +4240,8 @@
             showPaidTabAfterCheckout();
         } else if (boot.activeOrderTab === 'pending') {
             setOrderListMode('pending', { force: true });
+        } else {
+            focusProductSearch();
         }
         setInterval(pollSync, 20000);
     }
