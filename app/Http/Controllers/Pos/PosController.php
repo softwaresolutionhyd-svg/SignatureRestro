@@ -1288,7 +1288,7 @@ class PosController extends Controller
                     $kitchenVoids
                 );
                 $this->assertCartQtyNotReducedByNonManager($oldItems, $itemsNormalized, $checkoutUser);
-                $this->assertKitchenLockedQuantitiesPreserved($oldItems, $itemsNormalized, $kitchenVoids);
+                $this->assertKitchenLockedQuantitiesPreserved($oldItems, $itemsNormalized, $kitchenVoids, hardFail: true);
             }
         }
 
@@ -2496,7 +2496,11 @@ class PosController extends Controller
 
         $emptyMsg = (string) ($result['message'] ?? '');
         if (($result['ok'] ?? false) !== true && str_contains($emptyMsg, 'pending nahi')) {
-            return response()->json(['ok' => false, 'message' => $result['message']], 422);
+            return response()->json([
+                'ok' => false,
+                'message' => $result['message'],
+                'order' => $this->posOrderDetailsPayload($order->fresh(['table', 'items.product', 'contact'])),
+            ], 422);
         }
 
         $anyOk = (bool) ($result['ok'] ?? false);
@@ -2506,6 +2510,9 @@ class PosController extends Controller
             'results' => $result['results'] ?? [],
             'unrouted' => $result['unrouted'] ?? 0,
             'is_addon' => $result['is_addon'] ?? false,
+            'printed_item_ids' => $result['printed_item_ids'] ?? [],
+            'pending_item_ids' => $result['pending_item_ids'] ?? [],
+            'order' => $this->posOrderDetailsPayload($order->fresh(['table', 'items.product', 'contact'])),
             'message' => $result['message'] ?? null,
         ], $anyOk ? 200 : 500);
     }
@@ -3132,6 +3139,9 @@ class PosController extends Controller
                 'line_sub' => $lineSub,
                 'tax_pct' => $taxPct,
                 'notes' => $this->nullableText($item['notes'] ?? null),
+                'kitchen_locked_qty' => array_key_exists('kitchen_locked_qty', $item)
+                    ? max(0.0, (float) $item['kitchen_locked_qty'])
+                    : null,
             ];
         }
 
@@ -3176,7 +3186,7 @@ class PosController extends Controller
 
             $taxTotal += $lineTax;
 
-            $lines[] = [
+            $line = [
                 'product_id' => $raw['product_id'],
                 'item_name' => $raw['item_name'],
                 'is_custom' => $raw['is_custom'],
@@ -3191,6 +3201,10 @@ class PosController extends Controller
                 'tax_amount' => $lineTax,
                 'total' => $lineTotal,
             ];
+            if ($raw['kitchen_locked_qty'] !== null) {
+                $line['kitchen_locked_qty'] = (float) $raw['kitchen_locked_qty'];
+            }
+            $lines[] = $line;
         }
 
         if ($taxMode === 'bill') {
@@ -4479,10 +4493,10 @@ class PosController extends Controller
      * @param  array<int, array<string, mixed>>  $incomingItems
      * @param  array<int, array<string, mixed>>  $kitchenVoids
      */
-    private function assertKitchenLockedQuantitiesPreserved(array $existingItems, array $incomingItems, array $kitchenVoids = []): void
+    private function assertKitchenLockedQuantitiesPreserved(array $existingItems, array $incomingItems, array $kitchenVoids = [], bool $hardFail = false): void
     {
         try {
-            app(KitchenService::class)->assertLockedQuantitiesPreserved($existingItems, $incomingItems, $kitchenVoids);
+            app(KitchenService::class)->assertLockedQuantitiesPreserved($existingItems, $incomingItems, $kitchenVoids, $hardFail);
         } catch (\RuntimeException $e) {
             throw ValidationException::withMessages([
                 'items' => $e->getMessage(),

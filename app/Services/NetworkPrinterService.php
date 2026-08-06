@@ -246,6 +246,7 @@ final class NetworkPrinterService
         $company = Setting::get('company_name', config('app.name'));
         $kitchen = app(KitchenService::class);
         $successFingerprints = [];
+        $printedItemIds = [];
 
         // BAR / drinks first — never wait behind kitchen if we fall back to sequential.
         uasort($groups, function (array $a, array $b): int {
@@ -296,7 +297,8 @@ final class NetworkPrinterService
             if ($sendResult === true) {
                 $results[] = ['department' => $deptName, 'ok' => true];
                 foreach ($meta['items'] as $gi) {
-                    $successFingerprints[] = $kitchen->baseItemFingerprint($gi);
+                    $successFingerprints[] = $kitchen->voidMatchFingerprint($gi);
+                    $printedItemIds[] = (int) $gi->id;
                 }
             } else {
                 $kitchen->clearItemsKitchenPrinted($meta['ids']);
@@ -320,6 +322,7 @@ final class NetworkPrinterService
             'unrouted' => $unrouted,
             'is_addon' => $isAddonPrint,
             'pending_item_ids' => $kitchenItems->pluck('id')->map(fn ($id) => (int) $id)->all(),
+            'printed_item_ids' => array_values(array_unique($printedItemIds)),
             'message' => $anyOk ? null : 'Kitchen print fail hua.',
         ];
     }

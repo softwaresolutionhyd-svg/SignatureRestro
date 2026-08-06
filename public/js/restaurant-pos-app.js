@@ -49,8 +49,14 @@
     let checkoutInFlight = false;
     let lastHeldOrderId = null;
     try {
+        // Only keep session hold id when this page load is resuming that same bill.
         const stored = Number(sessionStorage.getItem('rp_last_held_order_id') || 0);
-        if (Number.isFinite(stored) && stored > 0) lastHeldOrderId = stored;
+        const resumeBoot = Number(boot.resumeOrderId || 0);
+        if (resumeBoot > 0 && Number.isFinite(stored) && stored === resumeBoot) {
+            lastHeldOrderId = stored;
+        } else {
+            sessionStorage.removeItem('rp_last_held_order_id');
+        }
     } catch (_) { /* ignore */ }
     let payments = [{ method: 'cash', amount: 0 }];
     let orderType = 'sale';
@@ -2298,6 +2304,9 @@
             tax_percent: 0,
             notes: String(r.notes || '').trim(),
             line_total: lineRowTotal(r, totals, idx),
+            // Server uses this so New cards are never swallowed into printed qty pool.
+            kitchen_locked_qty: Math.round((Number(r.kitchen_locked_qty) || 0) * 1000) / 1000,
+            order_item_id: Number(r.order_item_id) > 0 ? Number(r.order_item_id) : null,
         }));
     }
 
@@ -2803,8 +2812,8 @@
             return null;
         }
 
-        // Kitchen ke baad unpaid: resume id kabhi lose na ho — last held order reuse.
-        const rid = Number(resumeOrderId || lastHeldOrderId || 0);
+        // Only attach resume id when this cart is already that pending bill.
+        const rid = Number(resumeOrderId || 0);
         if (Number.isFinite(rid) && rid > 0) {
             resumeOrderId = rid;
             form.querySelector('[name="resume_order_id"]').value = String(rid);
@@ -3053,13 +3062,20 @@
         return printUrlInHiddenFrame(`${base}?noprint=1`);
     }
 
-    function markUnlockedCartLinesKitchenPrinted() {
+    function markUnlockedCartLinesKitchenPrinted(printedIds = null) {
+        const idSet = Array.isArray(printedIds) && printedIds.length
+            ? new Set(printedIds.map((id) => Number(id)).filter((id) => id > 0))
+            : null;
         let changed = false;
         cart.forEach((r) => {
             const qty = Number(r.qty) || 0;
             if (qty <= 0.0005) return;
             const locked = Number(r.kitchen_locked_qty) || 0;
             if (locked >= qty - 0.0005) return;
+            if (idSet) {
+                const oid = Number(r.order_item_id) || 0;
+                if (!oid || !idSet.has(oid)) return;
+            }
             r.kitchen_printed = true;
             r.kitchen_pending = true;
             r.kitchen_served = false;
@@ -3092,7 +3108,16 @@
                         alert('Kuch printers par print nahi hua:\n' +
                             failed.map((r) => `• ${r.department}: ${r.error || 'error'}`).join('\n'));
                     }
-                    markUnlockedCartLinesKitchenPrinted();
+                    if (data.unrouted > 0) {
+                        alert(data.unrouted + ' item(s) ka department printer nahi mila — woh New pe rahenge.');
+                    }
+                    if (data.order) {
+                        upsertPendingBill(data.order, true);
+                        reloadCartFromOrder(data.order);
+                        setResumeStateFromOrder(data.order);
+                    } else {
+                        markUnlockedCartLinesKitchenPrinted(data.printed_item_ids || null);
+                    }
                     return;
                 }
 
@@ -3100,7 +3125,13 @@
                 // Other failures must NOT open a full kitchen slip (causes whole-order reprints).
                 if (data.fallback) {
                     await browserPrintKitchenSlip(orderId);
-                    markUnlockedCartLinesKitchenPrinted();
+                    if (data.order) {
+                        upsertPendingBill(data.order, true);
+                        reloadCartFromOrder(data.order);
+                        setResumeStateFromOrder(data.order);
+                    } else {
+                        markUnlockedCartLinesKitchenPrinted();
+                    }
                     return;
                 }
 
@@ -3110,6 +3141,12 @@
                         failed.map((r) => `• ${r.department}: ${r.error || 'error'}`).join('\n'));
                 } else if (data.message) {
                     alert(data.message);
+                }
+                // "pending nahi" / fail: sync cart from server so New/Kitchen tags match DB.
+                if (data.order) {
+                    upsertPendingBill(data.order, true);
+                    reloadCartFromOrder(data.order);
+                    setResumeStateFromOrder(data.order);
                 }
                 return;
             } catch (e) {
@@ -3512,8 +3549,15 @@
             setCartSaving(true);
             try {
                 if (!cart.length) {
-                    await discardResumedDraft();
-                    return null;
+                    // Empty cart auto-delete was wiping kitchen-printed bills silently.
+                    // Only discard when user explicitly cancelled (voids / cancel-whole).
+                    if (cancelWholeOrderPending || kitchenVoids.length > 0) {
+                        await discardResumedDraft();
+                        return null;
+                    }
+                    throw new Error(
+                        'Cart khali hai. Kitchen print ke baad order cancel manager se karein — warna items wapas add karein.'
+                    );
                 }
 
                 const formData = buildHoldFormData(sendToKitchen, null, {
@@ -3590,7 +3634,8 @@
     }
 
     async function ensureHeldOrderForPrint() {
-        const existingId = Number(resumeOrderId || lastHeldOrderId || 0);
+        // Never revive a stale sessionStorage bill id onto a fresh cart.
+        const existingId = Number(resumeOrderId || 0);
         if (Number.isFinite(existingId) && existingId > 0) {
             resumeOrderId = existingId;
             const form = $('#rpSubmitForm');
@@ -3599,12 +3644,12 @@
             }
             // Quick save so unpaid slip latest cart + contact dikhaye — same bill update, naya order nahi.
             await saveResumedDraftChanges(false);
-            return resumeOrderId || existingId;
+            return existingId;
         }
 
-        const formData = buildHoldFormData(false, newClientRequestId(), { requireGuestMeta: true });
+        const formData = buildHoldFormData(false, newClientRequestId());
         if (!formData) {
-            throw new Error('Bill print ke liye pehle item add karein / contact likhein.');
+            throw new Error('Contact / guest details likhein, phir unpaid slip print karein.');
         }
 
         const res = await fetch(routes.hold, {
@@ -3618,22 +3663,22 @@
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
             const validationMsg = data.errors ? Object.values(data.errors).flat()[0] : null;
-            throw new Error(data.message || validationMsg || 'Order save nahi ho saki.');
+            throw new Error(data.message || validationMsg || 'Hold failed.');
         }
 
-        const orderId = data.order?.id;
+        const order = data.order || null;
+        const orderId = Number(order?.id || 0);
         if (!orderId) {
-            throw new Error('Order save ho gaya lekin print ke liye ID nahi mili.');
+            throw new Error('Order save nahi ho saki.');
         }
-
-        if (data.order) {
-            rememberHeldOrder(data.order);
-            upsertPendingBill(data.order, !!data.updated);
-        } else {
-            resumeOrderId = orderId;
-            lastHeldOrderId = Number(orderId);
+        if (order) {
+            upsertPendingBill(order, !!data.updated);
+            reloadCartFromOrder(order);
+            rememberHeldOrder(order);
+            if (order.table_id) {
+                setTableBoardStatus(order.table_id, 'occupied');
+            }
         }
-
         return orderId;
     }
 
@@ -3747,7 +3792,7 @@
         let savedOk = false;
         try {
             let order = null;
-            const existingId = Number(resumeOrderId || lastHeldOrderId || 0);
+            const existingId = Number(resumeOrderId || 0);
             if (Number.isFinite(existingId) && existingId > 0) {
                 resumeOrderId = existingId;
                 order = await saveResumedDraftChanges(true);
@@ -3780,7 +3825,7 @@
                 }
             }
 
-            const orderId = order?.id || resumeOrderId || lastHeldOrderId;
+            const orderId = order?.id || resumeOrderId;
             if (!orderId) {
                 throw new Error('Order save nahi ho saki.');
             }

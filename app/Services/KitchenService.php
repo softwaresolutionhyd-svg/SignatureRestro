@@ -374,6 +374,8 @@ final class KitchenService
                 'discount_percent' => (float) ($old->discount_percent ?? 0),
                 'tax_percent' => (float) ($old->tax_percent ?? 0),
                 'notes' => $old->notes,
+                // Hint for applyKitchenPendingFlags: this restored qty is already ticketed.
+                'kitchen_locked_qty' => $missing,
             ];
         }
 
@@ -397,7 +399,7 @@ final class KitchenService
      * @param  list<array<string, mixed>>  $incomingItems
      * @param  list<array<string, mixed>>  $kitchenVoids
      */
-    public function assertLockedQuantitiesPreserved(array $existingItems, array $incomingItems, array $kitchenVoids = []): void
+    public function assertLockedQuantitiesPreserved(array $existingItems, array $incomingItems, array $kitchenVoids = [], bool $hardFail = false): void
     {
         $voidedItemIds = [];
         foreach ($kitchenVoids as $void) {
@@ -450,14 +452,19 @@ final class KitchenService
             $allowedVoid = $voidByFingerprint[$fp] ?? 0;
             $minimumQty = max(0.0, $lockedQty - $allowedVoid);
             if ($newQty + 0.00001 < $minimumQty) {
-                // Do not hard-fail — cart can briefly desync after kitchen print / New-card splits.
-                // appendMissingKitchenLockedNormalized restores missing printed qty on hold/save.
+                // Hold/autosave: soft — appendMissing usually restores. Checkout: hard-fail.
                 Log::warning('kitchen.locked_qty_missing', [
                     'fingerprint' => $fp,
                     'locked_qty' => $lockedQty,
                     'incoming_qty' => $newQty,
                     'void_qty' => $allowedVoid,
+                    'hard_fail' => $hardFail,
                 ]);
+                if ($hardFail) {
+                    throw new \RuntimeException(
+                        'Kitchen me bheji / print hui items cart se gayab hain. Page refresh karke dubara try karein.'
+                    );
+                }
             }
         }
     }
@@ -465,6 +472,10 @@ final class KitchenService
     /**
      * Rebuild line kitchen flags so already-printed qty is never set pending again for re-print.
      * Only brand-new qty / new products become kitchen_pending (and unprinted).
+     *
+     * Client may send kitchen_locked_qty per line (New cards = 0). That hint must win over
+     * fingerprint pools — otherwise a same-SKU addon is absorbed as "already printed" and
+     * never tickets to kitchen.
      *
      * @param  list<PosOrderItem>  $oldItems
      * @param  list<array<string, mixed>>  $newItemsData
@@ -490,37 +501,60 @@ final class KitchenService
             }
 
             $baseFp = $this->voidMatchFingerprint($item);
+            $clientLockedHint = array_key_exists('kitchen_locked_qty', $item)
+                ? max(0.0, (float) $item['kitchen_locked_qty'])
+                : null;
 
             // 1) Already served portion
             if ($hasServedAt && isset($servedPool[$baseFp]) && $servedPool[$baseFp]['served_qty'] > 0.0005) {
-                $servedAt = $servedPool[$baseFp]['served_at'];
-                $servedQty = min((float) $servedPool[$baseFp]['served_qty'], $remaining);
-                $servedPool[$baseFp]['served_qty'] = max(0.0, (float) $servedPool[$baseFp]['served_qty'] - $servedQty);
-                $remaining = round($remaining - $servedQty, 3);
-
-                $servedLine = $this->splitItemLineByQty($item, $servedQty);
-                $servedLine['kitchen_pending'] = false;
-                $servedLine['kitchen_served_at'] = $servedAt;
-                if ($hasPrintedAt) {
-                    $servedLine['kitchen_printed_at'] = $servedAt;
+                $maxServed = min((float) $servedPool[$baseFp]['served_qty'], $remaining);
+                if ($clientLockedHint !== null) {
+                    $maxServed = min($maxServed, $clientLockedHint);
                 }
-                $out[] = $servedLine;
+                if ($maxServed > 0.0005) {
+                    $servedAt = $servedPool[$baseFp]['served_at'];
+                    $servedQty = $maxServed;
+                    $servedPool[$baseFp]['served_qty'] = max(0.0, (float) $servedPool[$baseFp]['served_qty'] - $servedQty);
+                    $remaining = round($remaining - $servedQty, 3);
+                    if ($clientLockedHint !== null) {
+                        $clientLockedHint = max(0.0, $clientLockedHint - $servedQty);
+                    }
+
+                    $servedLine = $this->splitItemLineByQty($item, $servedQty);
+                    $servedLine['kitchen_pending'] = false;
+                    $servedLine['kitchen_served_at'] = $servedAt;
+                    if ($hasPrintedAt) {
+                        $servedLine['kitchen_printed_at'] = $servedAt;
+                    }
+                    unset($servedLine['kitchen_locked_qty']);
+                    $out[] = $servedLine;
+                }
             }
 
             // 2) Already printed portion — keep locked, do not re-print
+            //    New cart cards send kitchen_locked_qty=0 → skip this pool entirely.
             if ($hasPrintedAt && $remaining > 0.0005 && isset($printedPool[$baseFp]) && $printedPool[$baseFp]['qty'] > 0.0005) {
-                $printedAt = $printedPool[$baseFp]['printed_at'];
-                $printedQty = min((float) $printedPool[$baseFp]['qty'], $remaining);
-                $printedPool[$baseFp]['qty'] = max(0.0, (float) $printedPool[$baseFp]['qty'] - $printedQty);
-                $remaining = round($remaining - $printedQty, 3);
+                $maxPrinted = min((float) $printedPool[$baseFp]['qty'], $remaining);
+                if ($clientLockedHint !== null) {
+                    $maxPrinted = min($maxPrinted, $clientLockedHint);
+                }
+                if ($maxPrinted > 0.0005) {
+                    $printedAt = $printedPool[$baseFp]['printed_at'];
+                    $printedQty = $maxPrinted;
+                    $printedPool[$baseFp]['qty'] = max(0.0, (float) $printedPool[$baseFp]['qty'] - $printedQty);
+                    $remaining = round($remaining - $printedQty, 3);
+                    if ($clientLockedHint !== null) {
+                        $clientLockedHint = max(0.0, $clientLockedHint - $printedQty);
+                    }
 
-                $printedLine = $this->splitItemLineByQty($item, $printedQty);
-                $printedLine['kitchen_pending'] = true;
-                $printedLine['kitchen_printed_at'] = $printedAt
-                    ? Carbon::parse($printedAt)->toDateTimeString()
-                    : now()->toDateTimeString();
-                unset($printedLine['kitchen_served_at']);
-                $out[] = $printedLine;
+                    $printedLine = $this->splitItemLineByQty($item, $printedQty);
+                    $printedLine['kitchen_pending'] = true;
+                    $printedLine['kitchen_printed_at'] = $printedAt
+                        ? Carbon::parse($printedAt)->toDateTimeString()
+                        : now()->toDateTimeString();
+                    unset($printedLine['kitchen_served_at'], $printedLine['kitchen_locked_qty']);
+                    $out[] = $printedLine;
+                }
             }
 
             // 3) Still-pending unprinted portion (waiting for first print)
@@ -531,7 +565,7 @@ final class KitchenService
 
                 $pendingLine = $this->splitItemLineByQty($item, $pendingQty);
                 $pendingLine['kitchen_pending'] = true;
-                unset($pendingLine['kitchen_served_at']);
+                unset($pendingLine['kitchen_served_at'], $pendingLine['kitchen_locked_qty']);
                 if ($hasPrintedAt) {
                     $pendingLine['kitchen_printed_at'] = null;
                 }
@@ -542,7 +576,7 @@ final class KitchenService
             if ($remaining > 0.0005) {
                 $newLine = $this->splitItemLineByQty($item, $remaining);
                 $newLine['kitchen_pending'] = $sendToKitchen;
-                unset($newLine['kitchen_served_at']);
+                unset($newLine['kitchen_served_at'], $newLine['kitchen_locked_qty']);
                 if ($hasPrintedAt) {
                     $newLine['kitchen_printed_at'] = null;
                 }
@@ -595,8 +629,9 @@ final class KitchenService
     /**
      * After a successful ticket, mark any live unprinted pending lines whose
      * product fingerprint matches (covers item-row recreate races mid-print).
+     * Never mark unrouted lines (no department printer) — those must stay New.
      *
-     * @param  list<string>  $fingerprints
+     * @param  list<string>  $fingerprints  voidMatchFingerprint values
      */
     public function markUnprintedPendingMatchingFingerprints(PosOrder $order, array $fingerprints): void
     {
@@ -615,14 +650,20 @@ final class KitchenService
             return;
         }
 
+        $printer = app(NetworkPrinterService::class);
         $ids = [];
-        foreach ($order->items()->get() as $item) {
+        foreach ($order->items()->with(['product.departments', 'product.department'])->get() as $item) {
             if (! (bool) $item->kitchen_pending || $item->isKitchenServed() || $item->kitchen_printed_at !== null) {
                 continue;
             }
-            if (isset($wanted[$this->baseItemFingerprint($item)])) {
-                $ids[] = (int) $item->id;
+            if (! isset($wanted[$this->voidMatchFingerprint($item)])) {
+                continue;
             }
+            $dept = $printer->resolveItemDepartment($item->product);
+            if (! $dept || empty($dept->printer_ip)) {
+                continue;
+            }
+            $ids[] = (int) $item->id;
         }
 
         $this->markItemsKitchenPrinted($ids);
