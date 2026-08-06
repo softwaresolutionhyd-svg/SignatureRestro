@@ -2711,7 +2711,9 @@
         resumeOrderId = null;
         lastHeldOrderId = null;
         try { sessionStorage.removeItem('rp_last_held_order_id'); } catch (_) { /* ignore */ }
-        payments = [{ method: $('#rpPayMethod')?.value || 'cash', amount: 0 }];
+        // Har nayi bill Cash se start — Bank/Card previous bill se sticky na rahe.
+        if ($('#rpPayMethod')) $('#rpPayMethod').value = 'cash';
+        payments = [{ method: 'cash', amount: 0 }];
         autoPaymentAmount = true;
 
         const form = $('#rpSubmitForm');
