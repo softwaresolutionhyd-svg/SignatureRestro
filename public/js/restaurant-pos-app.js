@@ -3551,12 +3551,12 @@
                 if (!cart.length) {
                     // Empty cart auto-delete was wiping kitchen-printed bills silently.
                     // Only discard when user explicitly cancelled (voids / cancel-whole).
-                    if (cancelWholeOrderPending || kitchenVoids.length > 0) {
+                    if (cancelWholeOrderPending && kitchenVoids.length > 0) {
                         await discardResumedDraft();
                         return null;
                     }
                     throw new Error(
-                        'Cart khali hai. Kitchen print ke baad order cancel manager se karein — warna items wapas add karein.'
+                        'Cart khali hai. Kitchen print wali pending bill cancel ke bina delete nahi hoti — Cancel Order (manager) use karein ya items wapas add karein.'
                     );
                 }
 
@@ -3595,11 +3595,8 @@
                 const hadKitchenVoids = voidsSnapshot.length > 0;
                 if (data.order) {
                     upsertPendingBill(data.order, true);
-                    // After kitchen void, keep local cart — server reload used to re-append
-                    // locked lines when void fingerprints mismatched (item stuck until 2nd delete).
-                    if (!hadKitchenVoids) {
-                        reloadCartFromOrder(data.order);
-                    }
+                    // Always reload from server so kitchen-locked lines never vanish from cart UI.
+                    reloadCartFromOrder(data.order);
                     setResumeStateFromOrder(data.order);
                     if (data.order.table_id) {
                         setTableBoardStatus(data.order.table_id, 'occupied');

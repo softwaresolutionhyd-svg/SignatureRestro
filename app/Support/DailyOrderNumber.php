@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\PosOrder;
 use App\Models\PosSession;
+use App\Models\Setting;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -15,6 +16,8 @@ final class DailyOrderNumber
      * Sequence follows the earliest open POS session (shared by cashier /
      * manager / admin / order taker) and does NOT reset at midnight while
      * that session stays open.
+     *
+     * High-water mark in settings prevents reuse after a draft is deleted.
      */
     public static function next(?PosSession $session = null): string
     {
@@ -47,7 +50,30 @@ final class DailyOrderNumber
                 ->filter()
                 ->max();
 
-            $next = ((int) ($maxSeq ?? 0)) + 1;
+            $settingKey = 'pos_order_seq_hwm:'.$prefix;
+            $cid = function_exists('current_company_id') ? current_company_id() : null;
+            $hwm = 0;
+
+            if ($cid !== null) {
+                Setting::query()->firstOrCreate(
+                    ['company_id' => $cid, 'key' => $settingKey],
+                    ['value' => '0']
+                );
+
+                $hwmRow = Setting::query()
+                    ->where('company_id', $cid)
+                    ->where('key', $settingKey)
+                    ->lockForUpdate()
+                    ->first();
+
+                $hwm = (int) ($hwmRow?->value ?? 0);
+            }
+
+            $next = max((int) ($maxSeq ?? 0), $hwm) + 1;
+
+            if ($cid !== null) {
+                Setting::set($settingKey, (string) $next);
+            }
 
             return $prefix.($next > 999 ? (string) $next : sprintf('%03d', $next));
         });

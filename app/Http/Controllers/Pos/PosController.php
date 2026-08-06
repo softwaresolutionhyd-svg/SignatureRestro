@@ -1680,7 +1680,7 @@ class PosController extends Controller
                     $kitchenVoids
                 );
                 $this->assertCartQtyNotReducedByNonManager($oldItems, $itemsNormalized, $holdUser);
-                $this->assertKitchenLockedQuantitiesPreserved($oldItems, $itemsNormalized, $kitchenVoids);
+                $this->assertKitchenLockedQuantitiesPreserved($oldItems, $itemsNormalized, $kitchenVoids, hardFail: true);
             }
         }
 
@@ -1845,7 +1845,12 @@ class PosController extends Controller
                         $orderPayload['service_charge_percent'] = $serviceTotal > 0 ? PosServiceCharge::percent() : null;
                         $orderPayload['service_charge_total'] = $serviceTotal;
                         $orderPayload['grand_total'] = $grandTotal;
+                    } else {
+                        $workingNormalized = $preservedNormalized;
                     }
+
+                    // Final guard: kitchen-printed qty cannot shrink on save.
+                    $this->assertKitchenLockedQuantitiesPreserved($oldItems, $workingNormalized, $kitchenVoids, hardFail: true);
 
                     $wasKitchenServed = $existing->kitchen_completed_at !== null;
                     $kitchenPayload = [];
@@ -1862,6 +1867,11 @@ class PosController extends Controller
                     }
 
                     $itemsWithKitchenFlags = $kitchen->applyKitchenPendingFlags($oldItems, $itemsData, $sendToKitchen);
+                    if ($oldItems !== [] && $itemsWithKitchenFlags === []) {
+                        throw ValidationException::withMessages([
+                            'items' => 'Pending bill items wipe block — cart khali save allow nahi.',
+                        ]);
+                    }
                     $hasNewKitchenItems = collect($itemsWithKitchenFlags)->contains(
                         fn (array $item) => (bool) ($item['kitchen_pending'] ?? false)
                             && empty($item['kitchen_printed_at'])
@@ -2255,9 +2265,28 @@ class PosController extends Controller
             abort(403);
         }
 
+        $order->loadMissing('items');
+        $kitchen = app(KitchenService::class);
+        $hasKitchenLocked = $order->items->contains(
+            fn (PosOrderItem $item) => $kitchen->isKitchenLockedLine($item)
+        );
+
         // Empty-cart / whole-order cancel: voids must print before draft delete.
         $kitchenVoids = $this->kitchenVoidsFromInput($request->input('kitchen_voids'));
         $cancelWholeOrder = $request->boolean('cancel_whole_order');
+
+        // Kitchen-printed pending bill: never silent-delete — manager cancel + voids only.
+        if ($hasKitchenLocked) {
+            if (! $cancelWholeOrder || $kitchenVoids === []) {
+                $message = 'Kitchen print wali pending bill cancel ke bina delete nahi ho sakti. Manager se Cancel Order use karein.';
+                if ($request->expectsJson()) {
+                    return response()->json(['message' => $message], 422);
+                }
+
+                return back()->with('error', $message);
+            }
+        }
+
         if ($kitchenVoids !== [] || $cancelWholeOrder) {
             $user = Auth::user();
             if (! $user || ! $this->userCanKitchenVoid($user)) {
@@ -2281,21 +2310,53 @@ class PosController extends Controller
             return back()->with('error', 'Kitchen print ke baad cancel ke liye removed items zaroori hain.');
         }
 
+        if ($hasKitchenLocked) {
+            // Voids must cover every kitchen-printed qty — otherwise items would vanish unpaid.
+            try {
+                $kitchen->assertLockedQuantitiesPreserved(
+                    $order->items->all(),
+                    [],
+                    $kitchenVoids,
+                    true
+                );
+            } catch (\RuntimeException $e) {
+                $message = 'Kitchen items poori tarah void kiye baghair pending bill delete nahi ho sakti.';
+                if ($request->expectsJson()) {
+                    return response()->json(['message' => $message], 422);
+                }
+
+                return back()->with('error', $message);
+            }
+        }
+
         $removedPrint = $this->logKitchenVoids($order, $kitchenVoids);
+        $orderNo = (string) $order->order_no;
+        $itemCount = $order->items->count();
 
         if ($cancelWholeOrder) {
             $reason = trim((string) ($kitchenVoids[0]['reason'] ?? 'Order cancelled'));
             ActivityLogger::log(
                 'pos.order_cancelled',
-                sprintf('Whole order cancelled: %s — %s', $order->order_no, $reason),
+                sprintf('Whole order cancelled: %s — %s', $orderNo, $reason),
                 $order,
                 [
                     'reason' => $reason,
                     'void_count' => count($kitchenVoids),
                     'voids' => $kitchenVoids,
+                    'item_count' => $itemCount,
                 ]
             );
             \App\Services\PosActivityNotifier::orderCancelled($order, $reason);
+        } else {
+            ActivityLogger::log(
+                'pos.order_discarded',
+                sprintf('Pending bill discarded: %s (%d items)', $orderNo, $itemCount),
+                $order,
+                [
+                    'item_count' => $itemCount,
+                    'had_kitchen_lock' => false,
+                ]
+            );
         }
 
         $order->delete();
