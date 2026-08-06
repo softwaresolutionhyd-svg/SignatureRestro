@@ -145,10 +145,6 @@
             </tr>
             @endif
             <tr>
-                <td>{{ __('Discount') }}</td>
-                <td class="amt">- {{ $currency }} {{ fmt_num($stats['discount_total'], 2) }}</td>
-            </tr>
-            <tr>
                 <td>{{ __('Service charges') }}</td>
                 <td class="amt">{{ $currency }} {{ fmt_num($stats['service_charge_total'], 2) }}</td>
             </tr>
