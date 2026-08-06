@@ -2545,37 +2545,50 @@ class PosController extends Controller
         $this->assertDraftReceiptAccess($order);
 
         $result = app(NetworkPrinterService::class)->dispatchPendingKitchenPrints($order);
+        $orderPayload = fn () => $this->posOrderDetailsPayload($order->fresh(['table', 'items.product', 'contact']));
 
         if (($result['fallback'] ?? false) === true) {
             return response()->json([
                 'ok' => false,
+                'complete' => false,
                 'fallback' => true,
+                'needs_browser_fallback' => true,
                 'is_addon' => $result['is_addon'] ?? false,
+                'unrouted' => $result['unrouted'] ?? 0,
+                'pending_item_ids' => $result['pending_item_ids'] ?? [],
+                'remaining_pending_ids' => $result['remaining_pending_ids'] ?? [],
+                'order' => $orderPayload(),
                 'message' => $result['message'] ?? 'Kisi department ka printer set nahi (Inventory → Kitchen Agents).',
             ]);
         }
 
-        $emptyMsg = (string) ($result['message'] ?? '');
-        if (($result['ok'] ?? false) !== true && str_contains($emptyMsg, 'pending nahi')) {
+        if (($result['empty_pending'] ?? false) === true) {
             return response()->json([
                 'ok' => false,
-                'message' => $result['message'],
-                'order' => $this->posOrderDetailsPayload($order->fresh(['table', 'items.product', 'contact'])),
+                'complete' => true,
+                'empty_pending' => true,
+                'message' => $result['message'] ?? 'Koi naya kitchen item pending nahi.',
+                'order' => $orderPayload(),
             ], 422);
         }
 
+        $complete = (bool) ($result['complete'] ?? false);
         $anyOk = (bool) ($result['ok'] ?? false);
 
         return response()->json([
             'ok' => $anyOk,
+            'complete' => $complete,
+            'needs_browser_fallback' => (bool) ($result['needs_browser_fallback'] ?? false),
             'results' => $result['results'] ?? [],
             'unrouted' => $result['unrouted'] ?? 0,
             'is_addon' => $result['is_addon'] ?? false,
             'printed_item_ids' => $result['printed_item_ids'] ?? [],
             'pending_item_ids' => $result['pending_item_ids'] ?? [],
-            'order' => $this->posOrderDetailsPayload($order->fresh(['table', 'items.product', 'contact'])),
+            'remaining_pending_ids' => $result['remaining_pending_ids'] ?? [],
+            'remaining_with_printer' => $result['remaining_with_printer'] ?? 0,
+            'order' => $orderPayload(),
             'message' => $result['message'] ?? null,
-        ], $anyOk ? 200 : 500);
+        ], ($complete || $anyOk) ? 200 : 500);
     }
 
     /**

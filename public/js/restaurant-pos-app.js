@@ -3087,9 +3087,26 @@
         }
     }
 
-    async function printKitchenSlip(orderId) {
-        // Try direct network printing first: each product routes to its department's printer.
+    function cartHasUnprintedKitchenLines() {
+        return cart.some((r) => {
+            const qty = Number(r.qty) || 0;
+            if (qty <= 0.0005) return false;
+            const locked = Number(r.kitchen_locked_qty) || 0;
+            return locked < qty - 0.0005;
+        });
+    }
+
+    async function printKitchenSlip(orderId, attempt = 1) {
+        const maxAttempts = 3;
         const netUrl = (routes.kitchenPrint || '').replace('__ID__', String(orderId));
+
+        const applyOrder = (order) => {
+            if (!order) return;
+            upsertPendingBill(order, true);
+            reloadCartFromOrder(order);
+            setResumeStateFromOrder(order);
+        };
+
         if (netUrl && csrf) {
             try {
                 const res = await fetch(netUrl, {
@@ -3102,60 +3119,85 @@
                 });
                 const data = await res.json().catch(() => ({}));
 
-                if (res.ok && data.ok) {
-                    const failed = (data.results || []).filter((r) => !r.ok);
-                    if (failed.length) {
-                        alert('Kuch printers par print nahi hua:\n' +
-                            failed.map((r) => `• ${r.department}: ${r.error || 'error'}`).join('\n'));
-                    }
-                    if (data.unrouted > 0) {
-                        alert(data.unrouted + ' item(s) ka department printer nahi mila — woh New pe rahenge.');
-                    }
-                    if (data.order) {
-                        upsertPendingBill(data.order, true);
-                        reloadCartFromOrder(data.order);
-                        setResumeStateFromOrder(data.order);
-                    } else {
-                        markUnlockedCartLinesKitchenPrinted(data.printed_item_ids || null);
-                    }
-                    return;
-                }
-
-                // Only browser-fallback when no department printer is configured.
-                // Other failures must NOT open a full kitchen slip (causes whole-order reprints).
+                // No network printers configured → browser slip (marks remaining pending).
                 if (data.fallback) {
                     await browserPrintKitchenSlip(orderId);
-                    if (data.order) {
-                        upsertPendingBill(data.order, true);
-                        reloadCartFromOrder(data.order);
-                        setResumeStateFromOrder(data.order);
-                    } else {
+                    applyOrder(data.order);
+                    if (!data.order) markUnlockedCartLinesKitchenPrinted();
+                    return true;
+                }
+
+                if (data.empty_pending) {
+                    applyOrder(data.order);
+                    // If cart still shows New lines, save/print desync — force browser once.
+                    if (cartHasUnprintedKitchenLines() && attempt < maxAttempts) {
+                        await browserPrintKitchenSlip(orderId);
                         markUnlockedCartLinesKitchenPrinted();
                     }
-                    return;
+                    return true;
                 }
 
                 const failed = (data.results || []).filter((r) => !r.ok);
+                const stillPrinter = Number(data.remaining_with_printer || 0);
+                const gotSomething = res.ok && (data.complete || data.ok || (data.printed_item_ids || []).length > 0);
+
+                if (gotSomething) {
+                    // Unrouted (no dept printer): browser slip so those items are never missed.
+                    if (Number(data.unrouted || 0) > 0) {
+                        try {
+                            await browserPrintKitchenSlip(orderId);
+                        } catch (brErr) {
+                            console.warn('Unrouted kitchen browser slip failed', brErr);
+                        }
+                    }
+                    applyOrder(data.order);
+                    if (!data.order) {
+                        markUnlockedCartLinesKitchenPrinted(data.printed_item_ids || null);
+                    }
+                    if (stillPrinter > 0 && attempt < maxAttempts) {
+                        await new Promise((r) => setTimeout(r, 450));
+                        return printKitchenSlip(orderId, attempt + 1);
+                    }
+                    if (stillPrinter > 0) {
+                        throw new Error(
+                            stillPrinter + ' kitchen item(s) print miss ho gayi. Kitchen Print dubara dabayein.'
+                        );
+                    }
+                    if (failed.length && attempt === 1) {
+                        // Soft notice — retry already ran server-side.
+                        console.warn('Kitchen printer soft-fail', failed);
+                    }
+                    return true;
+                }
+
+                if (attempt < maxAttempts) {
+                    await new Promise((r) => setTimeout(r, 500));
+                    return printKitchenSlip(orderId, attempt + 1);
+                }
+
                 if (failed.length) {
-                    alert('Kitchen print fail hua:\n' +
-                        failed.map((r) => `• ${r.department}: ${r.error || 'error'}`).join('\n'));
-                } else if (data.message) {
-                    alert(data.message);
+                    throw new Error(
+                        'Kitchen print fail:\n' +
+                        failed.map((r) => `• ${r.department}: ${r.error || 'error'}`).join('\n')
+                    );
                 }
-                // "pending nahi" / fail: sync cart from server so New/Kitchen tags match DB.
-                if (data.order) {
-                    upsertPendingBill(data.order, true);
-                    reloadCartFromOrder(data.order);
-                    setResumeStateFromOrder(data.order);
-                }
-                return;
+                throw new Error(data.message || 'Kitchen print complete nahi hui. Dubara try karein.');
             } catch (e) {
-                // Network/HTTP error → browser slip (still only unprinted pending lines).
+                const msg = String(e?.message || '');
+                if (msg.includes('Kitchen print') || msg.includes('print miss') || msg.includes('print fail')) {
+                    throw e;
+                }
+                if (attempt < maxAttempts) {
+                    await new Promise((r) => setTimeout(r, 400));
+                    return printKitchenSlip(orderId, attempt + 1);
+                }
+                // Last resort: browser slip for remaining unprinted pending.
             }
         }
 
         await browserPrintKitchenSlip(orderId);
         markUnlockedCartLinesKitchenPrinted();
+        return true;
     }
 
     async function tryCashierNetworkPrint(orderId) {
@@ -3833,7 +3875,16 @@
                 lastHeldOrderId = Number(orderId);
             }
             savedOk = true;
+            const hadNewBeforePrint = cartHasUnprintedKitchenLines();
             await printKitchenSlip(orderId);
+
+            // Final safety: agar ab bhi New/unprinted lines hain to ek aur forced pass.
+            if (hadNewBeforePrint && cartHasUnprintedKitchenLines()) {
+                await printKitchenSlip(orderId, 1);
+            }
+            if (cartHasUnprintedKitchenLines()) {
+                alert('Warning: kuch items ab bhi Kitchen print pending hain (New tag). Kitchen Print dubara dabayein.');
+            }
         } catch (e) {
             alert(e.message || 'Kitchen print failed.');
         } finally {

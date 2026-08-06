@@ -99,9 +99,9 @@ final class NetworkPrinterService
     /**
      * @return true|\RuntimeException
      */
-    private function sendBlockingWithRetry(string $ip, int $port, string $payload, int $timeoutSeconds)
+    private function sendBlockingWithRetry(string $ip, int $port, string $payload, int $timeoutSeconds, int $attempts = 3)
     {
-        $attempts = 2;
+        $attempts = max(1, $attempts);
         $lastError = null;
 
         for ($attempt = 1; $attempt <= $attempts; $attempt++) {
@@ -118,7 +118,7 @@ final class NetworkPrinterService
                 $lastError = new RuntimeException(
                     sprintf('Printer %s:%d se connect nahi ho saka (%s).', $ip, $port, $errstr ?: 'timeout')
                 );
-                usleep(150000);
+                usleep(200000 * $attempt);
 
                 continue;
             }
@@ -148,22 +148,21 @@ final class NetworkPrinterService
                         break;
                     }
                 }
-                $written += $chunk;
+                $written += (int) $chunk;
             }
 
-            @fflush($fp);
             @fclose($fp);
 
             if ($ok && $written >= $len) {
                 return true;
             }
 
-            usleep(200000);
+            usleep(200000 * $attempt);
         }
 
         return $lastError instanceof RuntimeException
             ? $lastError
-            : new RuntimeException(sprintf('Printer %s:%d timeout.', $ip, $port));
+            : new RuntimeException(sprintf('Printer %s:%d print fail.', $ip, $port));
     }
 
     /**
@@ -171,13 +170,19 @@ final class NetworkPrinterService
      *
      * @return array{
      *   ok: bool,
+     *   complete: bool,
      *   fallback?: bool,
-     *   message?: string,
+     *   message?: string|null,
      *   results: list<array{department: string, ok: bool, error?: string}>,
-     *   unrouted: int
+     *   unrouted: int,
+     *   is_addon?: bool,
+     *   pending_item_ids: list<int>,
+     *   printed_item_ids: list<int>,
+     *   remaining_pending_ids: list<int>,
+     *   needs_browser_fallback: bool
      * }
      */
-    public function dispatchPendingKitchenPrints(PosOrder $order): array
+    public function dispatchPendingKitchenPrints(PosOrder $order, int $pass = 1): array
     {
         $this->ensureKitchenAgentSchema();
         PosRuntimeSchema::ensureOrderItemsTable();
@@ -208,10 +213,16 @@ final class NetworkPrinterService
 
         if ($kitchenItems->isEmpty()) {
             return [
-                'ok' => false,
-                'message' => 'Koi naya kitchen item pending nahi.',
+                'ok' => true,
+                'complete' => true,
+                'message' => $pass === 1 ? 'Koi naya kitchen item pending nahi.' : null,
                 'results' => [],
                 'unrouted' => 0,
+                'pending_item_ids' => [],
+                'printed_item_ids' => [],
+                'remaining_pending_ids' => [],
+                'needs_browser_fallback' => false,
+                'empty_pending' => $pass === 1,
             ];
         }
 
@@ -221,6 +232,7 @@ final class NetworkPrinterService
 
         $groups = [];
         $unrouted = 0;
+        $unroutedIds = [];
         foreach ($kitchenItems as $item) {
             $dept = $this->resolveItemDepartment($item->product);
             if ($dept && ! empty($dept->printer_ip)) {
@@ -228,18 +240,26 @@ final class NetworkPrinterService
                 $groups[$dept->id]['items'][] = $item;
             } else {
                 $unrouted++;
+                $unroutedIds[] = (int) $item->id;
             }
         }
+
+        $pendingIds = $kitchenItems->pluck('id')->map(fn ($id) => (int) $id)->all();
 
         if ($groups === []) {
             return [
                 'ok' => false,
+                'complete' => false,
                 'fallback' => true,
+                'needs_browser_fallback' => true,
                 'message' => 'Kisi department ka printer set nahi (Inventory → Kitchen Agents).',
                 'results' => [],
                 'unrouted' => $unrouted,
                 'is_addon' => $isAddonPrint,
-                'pending_item_ids' => $kitchenItems->pluck('id')->map(fn ($id) => (int) $id)->all(),
+                'pending_item_ids' => $pendingIds,
+                'printed_item_ids' => [],
+                'remaining_pending_ids' => $pendingIds,
+                'empty_pending' => false,
             ];
         }
 
@@ -289,8 +309,9 @@ final class NetworkPrinterService
             ];
         }
 
-        $sendResults = $this->sendMany($jobs, 8);
+        $sendResults = $this->sendMany($jobs, 10);
         $results = [];
+        $failedDeptCount = 0;
         foreach ($sendResults as $i => $sendResult) {
             $meta = $jobMeta[$i];
             $deptName = (string) $meta['dept']->name;
@@ -301,6 +322,7 @@ final class NetworkPrinterService
                     $printedItemIds[] = (int) $gi->id;
                 }
             } else {
+                $failedDeptCount++;
                 $kitchen->clearItemsKitchenPrinted($meta['ids']);
                 $results[] = [
                     'department' => $deptName,
@@ -316,14 +338,64 @@ final class NetworkPrinterService
             $kitchen->markUnprintedPendingMatchingFingerprints($order, $successFingerprints);
         }
 
+        $order->unsetRelation('items');
+        $order->load([
+            'items.product.departments:id,name,printer_ip,printer_port',
+            'items.product.department:id,name,printer_ip,printer_port',
+        ]);
+
+        $remaining = [];
+        $remainingWithPrinter = 0;
+        foreach ($order->items as $item) {
+            if (! (bool) $item->kitchen_pending || $item->isKitchenServed() || $item->kitchen_printed_at !== null) {
+                continue;
+            }
+            $remaining[] = (int) $item->id;
+            $dept = $this->resolveItemDepartment($item->product);
+            if ($dept && ! empty($dept->printer_ip)) {
+                $remainingWithPrinter++;
+            }
+        }
+
+        // One automatic retry pass for failed printers / mid-print recreate races.
+        if ($pass < 2 && ($failedDeptCount > 0 || $remainingWithPrinter > 0)) {
+            usleep(300000);
+            $again = $this->dispatchPendingKitchenPrints($order, $pass + 1);
+            $printedItemIds = array_values(array_unique(array_merge(
+                $printedItemIds,
+                $again['printed_item_ids'] ?? []
+            )));
+            $results = array_merge($results, $again['results'] ?? []);
+            $anyOk = $anyOk || (bool) ($again['ok'] ?? false);
+            $remaining = $again['remaining_pending_ids'] ?? $remaining;
+            $remainingWithPrinter = (int) ($again['remaining_with_printer'] ?? $remainingWithPrinter);
+            $unrouted = max($unrouted, (int) ($again['unrouted'] ?? 0));
+        }
+
+        $complete = $remainingWithPrinter === 0;
+        $message = null;
+        if ($printedItemIds === [] && ! $complete) {
+            $message = 'Kitchen print fail hua.';
+        } elseif (! $complete) {
+            $message = $remainingWithPrinter.' kitchen item(s) abhi print pending hain — dubara Kitchen Print dabayein.';
+        } elseif ($unrouted > 0) {
+            $message = $unrouted.' item(s) ka department printer nahi — browser slip se print hoga.';
+        }
+
         return [
-            'ok' => $anyOk,
+            'ok' => $complete || $anyOk,
+            'complete' => $complete,
+            'fallback' => false,
+            'needs_browser_fallback' => $unrouted > 0,
+            'message' => $message,
             'results' => $results,
             'unrouted' => $unrouted,
             'is_addon' => $isAddonPrint,
-            'pending_item_ids' => $kitchenItems->pluck('id')->map(fn ($id) => (int) $id)->all(),
+            'pending_item_ids' => $pendingIds,
             'printed_item_ids' => array_values(array_unique($printedItemIds)),
-            'message' => $anyOk ? null : 'Kitchen print fail hua.',
+            'remaining_pending_ids' => $remaining,
+            'remaining_with_printer' => $remainingWithPrinter,
+            'empty_pending' => false,
         ];
     }
 
