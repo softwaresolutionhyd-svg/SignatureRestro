@@ -32,6 +32,7 @@ final class PosSessionSummaryService
      *   credit_sales_other_total:float,
      *   credit_sales_visitor_expense_count:int,
      *   credit_sales_visitor_expense_total:float,
+     *   credit_sales_by_contact:list<array{name:string, count:int, total:float}>,
      *   discount_total:float,
      *   service_charge_total:float,
      *   tax_total:float,
@@ -97,6 +98,7 @@ final class PosSessionSummaryService
             'credit_sales_other_total' => $creditSplit['other_total'],
             'credit_sales_visitor_expense_count' => $creditSplit['visitor_count'],
             'credit_sales_visitor_expense_total' => $creditSplit['visitor_total'],
+            'credit_sales_by_contact' => $creditSplit['by_contact'],
             'discount_total' => round($discountTotal, 2),
             'service_charge_total' => round($serviceChargeTotal, 2),
             'tax_total' => round($taxTotal, 2),
@@ -111,9 +113,15 @@ final class PosSessionSummaryService
     }
 
     /**
-     * Split credit sales so closing can label only the Visitor Expense contact.
+     * Credit sales grouped by contact name (for closing / print labels).
      *
-     * @return array{other_count:int, other_total:float, visitor_count:int, visitor_total:float}
+     * @return array{
+     *   other_count:int,
+     *   other_total:float,
+     *   visitor_count:int,
+     *   visitor_total:float,
+     *   by_contact:list<array{name:string, count:int, total:float}>
+     * }
      */
     private function creditSalesSplitByVisitorExpense(int $sessionId): array
     {
@@ -122,6 +130,7 @@ final class PosSessionSummaryService
             'other_total' => 0.0,
             'visitor_count' => 0,
             'visitor_total' => 0.0,
+            'by_contact' => [],
         ];
 
         if (! PosRuntimeSchema::ordersHasColumn('is_credit') || ! PosRuntimeSchema::ordersHasColumn('contact_id')) {
@@ -133,7 +142,7 @@ final class PosSessionSummaryService
             ->where('status', 'paid')
             ->where('type', 'sale')
             ->where('is_credit', true)
-            ->get(['id', 'contact_id', 'grand_total']);
+            ->get(['id', 'contact_id', 'grand_total', 'guest_name']);
 
         if ($orders->isEmpty()) {
             return $empty;
@@ -147,10 +156,30 @@ final class PosSessionSummaryService
         $otherTotal = 0.0;
         $visitorCount = 0;
         $visitorTotal = 0.0;
+        /** @var array<string, array{name:string, count:int, total:float}> $byContact */
+        $byContact = [];
 
         foreach ($orders as $order) {
             $amount = round((float) $order->grand_total, 2);
-            $name = $contactNames[(int) $order->contact_id] ?? null;
+            $name = trim((string) ($contactNames[(int) $order->contact_id] ?? ''));
+            if ($name === '') {
+                $name = trim((string) ($order->guest_name ?? ''));
+            }
+            if ($name === '') {
+                $name = __('Unknown');
+            }
+
+            $key = mb_strtolower($name);
+            if (! isset($byContact[$key])) {
+                $byContact[$key] = [
+                    'name' => $name,
+                    'count' => 0,
+                    'total' => 0.0,
+                ];
+            }
+            $byContact[$key]['count']++;
+            $byContact[$key]['total'] = round($byContact[$key]['total'] + $amount, 2);
+
             if ($this->isVisitorExpenseContactName($name)) {
                 $visitorCount++;
                 $visitorTotal += $amount;
@@ -160,11 +189,17 @@ final class PosSessionSummaryService
             }
         }
 
+        $rows = array_values($byContact);
+        usort($rows, static function (array $a, array $b): int {
+            return strcasecmp((string) $a['name'], (string) $b['name']);
+        });
+
         return [
             'other_count' => $otherCount,
             'other_total' => round($otherTotal, 2),
             'visitor_count' => $visitorCount,
             'visitor_total' => round($visitorTotal, 2),
+            'by_contact' => $rows,
         ];
     }
 

@@ -149,7 +149,7 @@
                 <td class="amt">- {{ $currency }} {{ fmt_num($stats['discount_total'], 2) }}</td>
             </tr>
             <tr>
-                <td>{{ __('Service charges') }} ({{ __('included in Gross Sale') }})</td>
+                <td>{{ __('Service charges') }}</td>
                 <td class="amt">{{ $currency }} {{ fmt_num($stats['service_charge_total'], 2) }}</td>
             </tr>
             @if((float) $stats['tax_total'] > 0)
@@ -159,28 +159,21 @@
             </tr>
             @endif
             @php
-                $creditOtherCount = (int) ($stats['credit_sales_other_count'] ?? $stats['credit_sales_count']);
-                $creditOtherTotal = (float) ($stats['credit_sales_other_total'] ?? $stats['credit_sales_total']);
-                $creditVisitorCount = (int) ($stats['credit_sales_visitor_expense_count'] ?? 0);
-                $creditVisitorTotal = (float) ($stats['credit_sales_visitor_expense_total'] ?? 0);
+                $creditByContact = $stats['credit_sales_by_contact'] ?? [];
             @endphp
-            @if($creditOtherCount > 0)
+            @forelse($creditByContact as $creditRow)
             <tr>
-                <td>{{ __('Credit sales (:count)', ['count' => $creditOtherCount]) }}</td>
-                <td class="amt">{{ $currency }} {{ fmt_num($creditOtherTotal, 2) }}</td>
+                <td>{{ __('Credit sales (:count)', ['count' => $creditRow['count']]) }} ({{ $creditRow['name'] }})</td>
+                <td class="amt">{{ $currency }} {{ fmt_num($creditRow['total'], 2) }}</td>
             </tr>
-            @endif
-            @if($creditVisitorCount > 0)
-            <tr>
-                <td>{{ __('Credit sales (:count)', ['count' => $creditVisitorCount]) }} ({{ __('Visitor Expense') }})</td>
-                <td class="amt">{{ $currency }} {{ fmt_num($creditVisitorTotal, 2) }}</td>
-            </tr>
-            @elseif($stats['credit_sales_count'] > 0 && $creditOtherCount === 0 && $creditVisitorCount === 0)
-            <tr>
-                <td>{{ __('Credit sales (:count)', ['count' => $stats['credit_sales_count']]) }}</td>
-                <td class="amt">{{ $currency }} {{ fmt_num($stats['credit_sales_total'], 2) }}</td>
-            </tr>
-            @endif
+            @empty
+                @if((int) ($stats['credit_sales_count'] ?? 0) > 0)
+                <tr>
+                    <td>{{ __('Credit sales (:count)', ['count' => $stats['credit_sales_count']]) }}</td>
+                    <td class="amt">{{ $currency }} {{ fmt_num($stats['credit_sales_total'], 2) }}</td>
+                </tr>
+                @endif
+            @endforelse
             <tr class="bold">
                 <td>{{ __('Net Sale') }}</td>
                 <td class="amt">{{ $currency }} {{ fmt_num($stats['net_sales_total'], 2) }}</td>
