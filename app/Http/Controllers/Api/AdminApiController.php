@@ -170,7 +170,7 @@ class AdminApiController extends Controller
 
         return response()->json([
             'orders' => $orders->map(fn (PosOrder $o) => $this->orderCard($o, true))->values(),
-            'total' => round((float) $orders->sum('grand_total'), 2),
+            'total' => round((float) $orders->sum(fn (PosOrder $o) => PosOrderMetrics::signedGrandTotal($o)), 2),
             'count' => $orders->count(),
         ]);
     }
@@ -531,16 +531,43 @@ class AdminApiController extends Controller
                 report($e);
                 continue;
             }
-            $sessionSale += (float) ($stats['net_sales_total'] ?? 0);
-            $sessionBills += (int) ($stats['sales_count'] ?? 0);
+            // Cash/Card/Bank from session payments (same as POS closing).
             $sessionCash += (float) ($stats['payments_cash'] ?? 0);
             $sessionCard += (float) ($stats['payments_card'] ?? 0);
             $sessionBank += (float) ($stats['payments_bank'] ?? 0);
-            $sessionPending += (int) ($stats['held_count'] ?? 0);
             if ($session->user?->name) {
                 $cashiers[] = $session->user->name;
             }
             $labels[] = $session->session_no ?: ('#'.$session->id);
+        }
+
+        // Match Pending/Paid Bills exactly (same session IDs, paid_at window, signed grand_total).
+        $billSessionIds = $this->currentOpenSessionIds();
+        if ($billSessionIds !== []) {
+            $oldestOpenedAt = PosSession::query()
+                ->whereIn('id', $billSessionIds)
+                ->min('opened_at');
+
+            $paidOrders = PosOrder::query()
+                ->whereIn('session_id', $billSessionIds)
+                ->where('status', 'paid')
+                ->when($oldestOpenedAt, function ($q) use ($oldestOpenedAt) {
+                    $q->where(function ($sub) use ($oldestOpenedAt) {
+                        $sub->where('paid_at', '>=', $oldestOpenedAt)
+                            ->orWhereNull('paid_at');
+                    });
+                })
+                ->get(['id', 'type', 'grand_total']);
+
+            $sessionBills = $paidOrders->count();
+            $sessionSale = round((float) $paidOrders->sum(function (PosOrder $o) {
+                return PosOrderMetrics::signedGrandTotal($o);
+            }), 2);
+
+            $sessionPending = app(PosPendingBillsService::class)
+                ->queryHeldDrafts($billSessionIds, false)
+                ->filter(fn (PosOrder $o) => $o->isDueForServeDay())
+                ->count();
         }
 
         $todayPaidOrders = PosOrder::query()
