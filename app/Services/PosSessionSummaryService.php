@@ -75,15 +75,16 @@ final class PosSessionSummaryService
         $refundPayTotals = $this->paymentTotalsByMethod($sessionId, 'refund');
 
         $net = static function (string $m) use ($salePayTotals, $refundPayTotals): float {
-            return (float) (($salePayTotals[$m] ?? 0) - ($refundPayTotals[$m] ?? 0));
+            return round((float) (($salePayTotals[$m] ?? 0) - ($refundPayTotals[$m] ?? 0)), 2);
         };
 
-        // Payments are grand_total (incl. service). Net sales excludes service — align Cash/Card/Bank.
-        $payments = $this->excludeAmountFromPaymentMethods([
+        // Cash / Card / Bank = actual paid amounts (credit sales already excluded).
+        // Do not strip service charges here — closing must match real bank/cash slips.
+        $payments = [
             'cash' => $net('cash'),
             'card' => $net('card'),
             'bank' => $net('bank'),
-        ], $this->nonCreditSaleServiceChargeTotal($sessionId));
+        ];
 
         return [
             'held_count' => $heldCount,
@@ -233,13 +234,8 @@ final class PosSessionSummaryService
 
         $salePayTotals = $this->paymentTotalsByMethod($session->id, 'sale');
         $refundPayTotals = $this->paymentTotalsByMethod($session->id, 'refund');
-        $payments = $this->excludeAmountFromPaymentMethods([
-            'cash' => (float) (($salePayTotals['cash'] ?? 0) - ($refundPayTotals['cash'] ?? 0)),
-            'card' => (float) (($salePayTotals['card'] ?? 0) - ($refundPayTotals['card'] ?? 0)),
-            'bank' => (float) (($salePayTotals['bank'] ?? 0) - ($refundPayTotals['bank'] ?? 0)),
-        ], $this->nonCreditSaleServiceChargeTotal($session->id));
+        $cashFromSales = round((float) (($salePayTotals['cash'] ?? 0) - ($refundPayTotals['cash'] ?? 0)), 2);
 
-        $cashFromSales = $payments['cash'];
         $expected = round($cashFromSales + $cashIn - $cashOut, 2);
 
         return [
@@ -248,71 +244,9 @@ final class PosSessionSummaryService
             'cash_in' => $cashIn,
             'cash_out' => $cashOut,
             'expected_closing' => $expected,
-            // Raw cash intake before net-sales adjustment (audit).
+            // Same as cash_from_sales (kept for older callers / audit).
             'cash_from_sales_gross' => $cashFromSalesRaw,
         ];
-    }
-
-    /** Service charges on paid non-credit sales (these flow into Cash/Card/Bank payments). */
-    private function nonCreditSaleServiceChargeTotal(int $sessionId): float
-    {
-        if (! PosRuntimeSchema::ordersHasColumn('service_charge_total')) {
-            PosRuntimeSchema::ensureServiceChargeColumns();
-        }
-        if (! PosRuntimeSchema::ordersHasColumn('service_charge_total')) {
-            return 0.0;
-        }
-
-        $query = PosOrder::query()
-            ->where('session_id', $sessionId)
-            ->where('status', 'paid')
-            ->where('type', 'sale');
-
-        if (PosRuntimeSchema::ordersHasColumn('is_credit')) {
-            $query->where(function ($q) {
-                $q->where('is_credit', false)->orWhereNull('is_credit');
-            });
-        }
-
-        return round((float) $query->sum('service_charge_total'), 2);
-    }
-
-    /**
-     * Reduce payment-method totals proportionally so they match net sales (excl. service charges).
-     *
-     * @param  array{cash:float, card:float, bank:float}  $payments
-     * @return array{cash:float, card:float, bank:float}
-     */
-    private function excludeAmountFromPaymentMethods(array $payments, float $exclude): array
-    {
-        $cash = (float) ($payments['cash'] ?? 0);
-        $card = (float) ($payments['card'] ?? 0);
-        $bank = (float) ($payments['bank'] ?? 0);
-        $sum = $cash + $card + $bank;
-
-        if ($sum <= 0 || $exclude <= 0) {
-            return [
-                'cash' => round($cash, 2),
-                'card' => round($card, 2),
-                'bank' => round($bank, 2),
-            ];
-        }
-
-        $exclude = min($exclude, $sum);
-        $out = [
-            'cash' => round($cash - ($exclude * ($cash / $sum)), 2),
-            'card' => round($card - ($exclude * ($card / $sum)), 2),
-            'bank' => round($bank - ($exclude * ($bank / $sum)), 2),
-        ];
-
-        // Absorb rounding drift on the largest method so Cash+Card+Bank stays exact.
-        $drift = round(($sum - $exclude) - ($out['cash'] + $out['card'] + $out['bank']), 2);
-        if (abs($drift) >= 0.01) {
-            $largest = array_keys($out, max($out), true)[0] ?? 'cash';
-            $out[$largest] = round($out[$largest] + $drift, 2);
-        }
-
-        return $out;
     }
 
     /**
