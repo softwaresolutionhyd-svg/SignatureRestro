@@ -3912,6 +3912,9 @@
             }
             if (cartHasUnprintedKitchenLines()) {
                 alert('Warning: kuch items ab bhi Kitchen print pending hain (New tag). Kitchen Print dubara dabayein.');
+            } else {
+                // Hold jaisa: order pending list mein reh jaye, cart nayi bill ke liye khali.
+                resetForNewBill();
             }
         } catch (e) {
             alert(e.message || 'Kitchen print failed.');
