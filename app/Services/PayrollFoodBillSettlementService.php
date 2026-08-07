@@ -18,11 +18,18 @@ class PayrollFoodBillSettlementService
         private readonly EmployeeContactSyncService $contactSync,
     ) {}
 
-    /** Record food bill as credit payment when deducted in payroll. */
+    /** Record food bill as credit payment only after salary is marked paid. */
     public function settle(PayrollEntry $entry, ?int $userId = null): void
     {
         $this->ensurePayrollSchema();
         $this->ensureCreditLedgerPayrollColumn();
+
+        // Draft / unpaid payroll must NOT clear credit book — settle only when salary paid.
+        if (($entry->status ?? '') !== 'paid') {
+            $this->removeSettlement($entry);
+
+            return;
+        }
 
         $amount = round((float) ($entry->food_bill ?? 0), 2);
         if ($amount <= 0) {
@@ -103,14 +110,39 @@ class PayrollFoodBillSettlementService
         return (int) ($users->orderBy('id')->value('id') ?? 0);
     }
 
-    /** Backfill credit payments for payroll rows that already have food bill deducted. */
+    /** Backfill credit payments for payroll rows that are already paid with food bill. */
     public function syncUnsettledForPeriod(string $period, ?int $userId = null): void
     {
         PayrollEntry::query()
             ->where('period', $period)
+            ->where('status', 'paid')
             ->where('food_bill', '>', 0)
             ->orderBy('id')
             ->each(fn (PayrollEntry $entry) => $this->settle($entry, $userId));
+    }
+
+    /** Remove Deduct-From-Salary ledger rows tied to unpaid / draft payroll. */
+    public function clearPrematureSettlements(): int
+    {
+        $this->ensureCreditLedgerPayrollColumn();
+
+        if (! Schema::connection('tenant')->hasColumn('credit_ledger', 'payroll_entry_id')) {
+            return 0;
+        }
+
+        $unpaidIds = PayrollEntry::query()
+            ->where('status', '!=', 'paid')
+            ->pluck('id')
+            ->all();
+
+        if ($unpaidIds === []) {
+            return 0;
+        }
+
+        return (int) CreditLedger::query()
+            ->where('type', 'payment')
+            ->whereIn('payroll_entry_id', $unpaidIds)
+            ->delete();
     }
 
     private function removeSettlement(PayrollEntry $entry): void
