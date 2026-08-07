@@ -9,6 +9,7 @@ use App\Models\LeaveRequest;
 use App\Models\Setting;
 use App\Support\AppPasswordRules;
 use App\Support\LoginUsername;
+use App\Support\WebAuthSession;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 
@@ -115,8 +116,14 @@ class ProfileController extends Controller
         $user = $request->user();
         $mustChange = (bool) ($user->must_change_password ?? false);
 
+        $usernameRules = array_map(
+            static fn ($rule) => $rule === 'nullable' ? 'required' : $rule,
+            LoginUsername::rules($user->id)
+        );
+
         $rules = [
             'name' => ['required', 'string', 'max:150'],
+            'username' => $usernameRules,
         ];
 
         if ($mustChange) {
@@ -129,6 +136,7 @@ class ProfileController extends Controller
         $data = $request->validate($rules);
 
         $user->name = $data['name'];
+        $user->email = LoginUsername::toStoredValue((string) $data['username']);
 
         if (! empty($data['password'] ?? null)) {
             $user->password = $data['password'];
@@ -136,6 +144,13 @@ class ProfileController extends Controller
         }
 
         $user->save();
+
+        if ($request->hasSession()) {
+            $request->session()->put(
+                WebAuthSession::BOUND_USERNAME,
+                $user->loginUsername() ?? $user->email
+            );
+        }
 
         $message = $mustChange
             ? 'Naya password set ho gaya. Ab aap software use kar sakte hain.'

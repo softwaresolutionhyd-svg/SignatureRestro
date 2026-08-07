@@ -172,9 +172,14 @@
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Username</label>
-                        <input type="text" class="form-control" value="{{ $username }}" disabled>
-                        <div class="form-text">Login username — admin se change hota hai.</div>
+                        <label class="form-label" for="username">Username</label>
+                        <input type="text" name="username" id="username"
+                               class="form-control @error('username') is-invalid @enderror"
+                               value="{{ old('username', $username) }}"
+                               required maxlength="40" autocomplete="username"
+                               pattern="[A-Za-z0-9._\-]{3,40}">
+                        <div class="form-text">Login username (3–40 chars: letters, numbers, . _ -).</div>
+                        @error('username')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
 
                     @if($employee && $employee->phone)
