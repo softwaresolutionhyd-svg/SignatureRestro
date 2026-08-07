@@ -237,7 +237,7 @@
                         <td class="text-end pe-3 fw-semibold">{{ $currency }} {{ fmt_num($stats['payments_card'], 2) }}</td>
                     </tr>
                     <tr class="table-light">
-                        <td class="ps-3 fw-bold">{{ __('Total payments') }}</td>
+                        <td class="ps-3 fw-bold">{{ __('Total Amount') }}</td>
                         <td class="text-end pe-3 fw-bold">{{ $currency }} {{ fmt_num($totalPayments, 2) }}</td>
                     </tr>
                     <tr>

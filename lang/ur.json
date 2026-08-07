@@ -329,7 +329,7 @@
     "Amount must be greater than zero.": "رقم صفر سے زیادہ ہونی چاہیے۔",
     ":type saved.": ":type محفوظ ہو گئی۔",
     "e.g. Petty cash / change float": "مثال: پیٹی کیش / چینج",
-    "Total payments": "کل ادائیگیاں",
+    "Total Amount": "کل رقم",
     ":count pending bill(s)": ":count پینڈنگ بل",
     "are still open. Pay or discard them on Restaurant POS first, then close the session.": "ابھی کھلے ہیں۔ پہلے ریسٹورنٹ POS پر ادا کریں یا ڈسکارڈ کریں، پھر سیشن بند کریں۔",
     "End session": "سیشن ختم کریں",

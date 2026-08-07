@@ -208,7 +208,7 @@
                 <td class="amt">{{ $currency }} {{ fmt_num($stats['payments_card'], 2) }}</td>
             </tr>
             <tr class="bold">
-                <td>{{ __('Total payments') }}</td>
+                <td>{{ __('Total Amount') }}</td>
                 <td class="amt">{{ $currency }} {{ fmt_num($totalPayments, 2) }}</td>
             </tr>
             <tr class="bold">
