@@ -74,17 +74,17 @@ final class PosSessionSummaryService
 
         $refundPayTotals = $this->paymentTotalsByMethod($sessionId, 'refund');
 
-        $net = static function (string $m) use ($salePayTotals, $refundPayTotals): float {
+        $netPay = static function (string $m) use ($salePayTotals, $refundPayTotals): float {
             return round((float) (($salePayTotals[$m] ?? 0) - ($refundPayTotals[$m] ?? 0)), 2);
         };
 
-        // Cash / Card / Bank = actual paid amounts (credit sales already excluded).
-        // Do not strip service charges here — closing must match real bank/cash slips.
-        $payments = [
-            'cash' => $net('cash'),
-            'card' => $net('card'),
-            'bank' => $net('bank'),
-        ];
+        $grossSales = round($salesTotal - $refundsTotal, 2);
+        $netSales = round($grossSales - $serviceChargeTotal, 2);
+        $bank = $netPay('bank');
+        $card = $netPay('card');
+
+        // Bank/Card = actual slip totals. Cash = Net Sale − Credit − Bank − Card.
+        $cash = round($netSales - $creditTotal - $bank - $card, 2);
 
         return [
             'held_count' => $heldCount,
@@ -103,13 +103,11 @@ final class PosSessionSummaryService
             'discount_total' => round($discountTotal, 2),
             'service_charge_total' => round($serviceChargeTotal, 2),
             'tax_total' => round($taxTotal, 2),
-            // Gross (grand_total) already net of discount; exclude service charges from net sales.
-            'net_sales_total' => round($salesTotal - $refundsTotal - $serviceChargeTotal, 2),
-            // Gross sale = net sales + service charges (service included).
-            'gross_sales_total' => round($salesTotal - $refundsTotal, 2),
-            'payments_cash' => $payments['cash'],
-            'payments_card' => $payments['card'],
-            'payments_bank' => $payments['bank'],
+            'net_sales_total' => $netSales,
+            'gross_sales_total' => $grossSales,
+            'payments_cash' => $cash,
+            'payments_card' => $card,
+            'payments_bank' => $bank,
         ];
     }
 
@@ -232,9 +230,9 @@ final class PosSessionSummaryService
         $cashIn = (float) PosCashMovement::query()->where('session_id', $session->id)->where('type', 'in')->sum('amount');
         $cashOut = (float) PosCashMovement::query()->where('session_id', $session->id)->where('type', 'out')->sum('amount');
 
-        $salePayTotals = $this->paymentTotalsByMethod($session->id, 'sale');
-        $refundPayTotals = $this->paymentTotalsByMethod($session->id, 'refund');
-        $cashFromSales = round((float) (($salePayTotals['cash'] ?? 0) - ($refundPayTotals['cash'] ?? 0)), 2);
+        // Same Cash figure as closing summary (Net − Credit − Bank − Card).
+        $stats = $this->stats($session);
+        $cashFromSales = (float) $stats['payments_cash'];
 
         $expected = round($cashFromSales + $cashIn - $cashOut, 2);
 
@@ -244,7 +242,6 @@ final class PosSessionSummaryService
             'cash_in' => $cashIn,
             'cash_out' => $cashOut,
             'expected_closing' => $expected,
-            // Same as cash_from_sales (kept for older callers / audit).
             'cash_from_sales_gross' => $cashFromSalesRaw,
         ];
     }
