@@ -22,7 +22,7 @@ window.STAIR_NOTIFICATIONS = {
     }
 };
 </script>
-<script src="{{ asset('js/stair-notifications.js') }}?v=4" defer></script>
+<script src="{{ asset('js/stair-notifications.js') }}?v=5" defer></script>
 <style>
 .stair-notif-btn { min-width: 2.1rem; }
 .stair-notif-badge {

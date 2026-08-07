@@ -68,33 +68,37 @@
         return audioCtx;
     }
 
-    /** Soft two-tone ding — no external file needed. */
+    /** Loud clear alert — easy to hear on busy floor. */
     function playTune() {
         const now = Date.now();
-        if (now - lastSoundAt < 400) return;
+        if (now - lastSoundAt < 500) return;
         lastSoundAt = now;
         try {
             const ctx = ensureAudio();
             if (!ctx) return;
             if (ctx.state === 'suspended') ctx.resume();
 
-            const beep = (freq, start, dur, gain) => {
+            const beep = (freq, start, dur, peak) => {
                 const osc = ctx.createOscillator();
                 const g = ctx.createGain();
-                osc.type = 'sine';
+                // Square = sharper / louder presence than soft sine.
+                osc.type = 'square';
                 osc.frequency.value = freq;
                 g.gain.setValueAtTime(0.0001, start);
-                g.gain.exponentialRampToValueAtTime(gain, start + 0.02);
+                g.gain.exponentialRampToValueAtTime(peak, start + 0.015);
+                g.gain.exponentialRampToValueAtTime(peak * 0.7, start + dur * 0.55);
                 g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
                 osc.connect(g);
                 g.connect(ctx.destination);
                 osc.start(start);
-                osc.stop(start + dur + 0.02);
+                osc.stop(start + dur + 0.03);
             };
 
             const t = ctx.currentTime;
-            beep(880, t, 0.12, 0.18);
-            beep(1174.7, t + 0.11, 0.18, 0.14);
+            // Three clear beeps — high volume (0.45–0.55).
+            beep(988, t, 0.16, 0.52);
+            beep(1319, t + 0.18, 0.16, 0.55);
+            beep(1568, t + 0.36, 0.22, 0.5);
         } catch (_) { /* ignore */ }
     }
 
