@@ -2624,7 +2624,7 @@ class PosController extends Controller
                 $ip,
                 (int) (Setting::get('cashier_printer_port', 9100) ?: 9100),
                 $payload,
-                2
+                4
             );
         } catch (\Throwable $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 500);
@@ -2674,7 +2674,7 @@ class PosController extends Controller
                 $ip,
                 (int) (Setting::get('cashier_printer_port', 9100) ?: 9100),
                 $payload,
-                2
+                4
             );
         } catch (\Throwable $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 500);
@@ -2945,7 +2945,8 @@ class PosController extends Controller
 
                 $printer = app(NetworkPrinterService::class);
                 $payload = $printer->buildBillSlip($order, $settings);
-                $printer->send($ip, $port, $payload, 2);
+                // Fast + one retry — afterResponse must not hang on dead printer.
+                $printer->send($ip, $port, $payload, 4);
             } catch (\Throwable $e) {
                 report($e);
             }

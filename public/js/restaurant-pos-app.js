@@ -3120,7 +3120,7 @@
     }
 
     async function printKitchenSlip(orderId, attempt = 1) {
-        const maxAttempts = 3;
+        const maxAttempts = 2;
         const netUrl = (routes.kitchenPrint || '').replace('__ID__', String(orderId));
 
         const applyOrder = (order) => {
@@ -3178,7 +3178,7 @@
                         markUnlockedCartLinesKitchenPrinted(data.printed_item_ids || null);
                     }
                     if (stillPrinter > 0 && attempt < maxAttempts) {
-                        await new Promise((r) => setTimeout(r, 450));
+                        await new Promise((r) => setTimeout(r, 200));
                         return printKitchenSlip(orderId, attempt + 1);
                     }
                     if (stillPrinter > 0) {
@@ -3194,7 +3194,7 @@
                 }
 
                 if (attempt < maxAttempts) {
-                    await new Promise((r) => setTimeout(r, 500));
+                    await new Promise((r) => setTimeout(r, 220));
                     return printKitchenSlip(orderId, attempt + 1);
                 }
 
@@ -3211,7 +3211,7 @@
                     throw e;
                 }
                 if (attempt < maxAttempts) {
-                    await new Promise((r) => setTimeout(r, 400));
+                    await new Promise((r) => setTimeout(r, 200));
                     return printKitchenSlip(orderId, attempt + 1);
                 }
                 // Last resort: browser slip for remaining unprinted pending.
@@ -3223,12 +3223,13 @@
         return true;
     }
 
-    async function tryCashierNetworkPrint(orderId) {
+    async function tryCashierNetworkPrint(orderId, attempt = 1) {
         const url = (routes.cashierPrint || '').replace('__ID__', String(orderId));
         if (!url || !csrf) return false;
         try {
             const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-            const timer = ctrl ? window.setTimeout(() => ctrl.abort(), 4500) : null;
+            // Server allow ~4s + retry — client wait must be longer than that.
+            const timer = ctrl ? window.setTimeout(() => ctrl.abort(), 10000) : null;
             const res = await fetch(url, {
                 method: 'POST',
                 headers: {
@@ -3241,45 +3242,42 @@
             if (timer) window.clearTimeout(timer);
             const data = await res.json().catch(() => ({}));
             if (res.ok && data.ok) return true;
+            if (attempt < 2 && !data.fallback) {
+                await new Promise((r) => setTimeout(r, 250));
+                return tryCashierNetworkPrint(orderId, attempt + 1);
+            }
             if (!data.fallback && data.message) alert(data.message);
             return false;
         } catch (e) {
+            if (attempt < 2) {
+                await new Promise((r) => setTimeout(r, 250));
+                return tryCashierNetworkPrint(orderId, attempt + 1);
+            }
             return false;
         }
     }
 
-    /** Paid bill: server pehle queue kar chuka ho to dubara wait mat karo. */
+    /** Paid bill: always hit cashier printer (queued + browser request = reliable). */
     function queuePaidBillPrint(data) {
         if (!data) return;
-        if (data.cashier_print_queued) {
-            if (data.receipt_url) {
-                window.open(
-                    data.receipt_url + (data.receipt_url.includes('?') ? '&' : '?') + 'noprint=1',
-                    '_blank',
-                    'noopener,noreferrer'
-                );
-            }
-            return;
-        }
         const orderId = data.order_id;
-        if (!orderId) {
-            if (data.receipt_url) {
-                window.open(
-                    data.receipt_url + (data.receipt_url.includes('?') ? '&' : '?') + 'autoprint=1',
-                    '_blank',
-                    'noopener,noreferrer'
-                );
-            }
-            return;
-        }
-        tryCashierNetworkPrint(orderId).then((ok) => {
+        const openReceipt = (qs) => {
             if (!data.receipt_url) return;
-            const qs = ok ? 'noprint=1' : 'autoprint=1';
             window.open(
                 data.receipt_url + (data.receipt_url.includes('?') ? '&' : '?') + qs,
                 '_blank',
                 'noopener,noreferrer'
             );
+        };
+
+        if (!orderId) {
+            openReceipt('autoprint=1');
+            return;
+        }
+
+        // Even if server queued afterResponse print, also print via API — more reliable.
+        tryCashierNetworkPrint(orderId).then((ok) => {
+            openReceipt(ok ? 'noprint=1' : 'autoprint=1');
         });
     }
 
