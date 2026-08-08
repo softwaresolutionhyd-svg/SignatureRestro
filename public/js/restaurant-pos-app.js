@@ -2502,6 +2502,11 @@
         if (checkoutInFlight) return false;
         if (!prepareSubmit('checkout')) return false;
 
+        // Stable for this Pay attempt — retries reuse same id so server can block twin bills.
+        if (!extraFields.client_request_id) {
+            extraFields = { ...extraFields, client_request_id: newClientRequestId() };
+        }
+
         const formData = checkoutFormData(extraFields);
         if (!formData) return false;
 
