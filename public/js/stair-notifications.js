@@ -68,37 +68,35 @@
         return audioCtx;
     }
 
-    /** Loud clear alert — easy to hear on busy floor. */
+    /** Play selected notification tune from Settings. */
     function playTune() {
         const now = Date.now();
         if (now - lastSoundAt < 500) return;
         lastSoundAt = now;
         try {
+            const tuneId = boot.notificationTune
+                || (window.NotificationTunes && window.NotificationTunes.defaultId)
+                || 'chime_fast';
+            if (window.NotificationTunes && typeof window.NotificationTunes.play === 'function') {
+                window.NotificationTunes.play(tuneId);
+                return;
+            }
+            // Fallback if shared script missing
             const ctx = ensureAudio();
             if (!ctx) return;
             if (ctx.state === 'suspended') ctx.resume();
-
-            const beep = (freq, start, dur, peak) => {
-                const osc = ctx.createOscillator();
-                const g = ctx.createGain();
-                // Square = sharper / louder presence than soft sine.
-                osc.type = 'square';
-                osc.frequency.value = freq;
-                g.gain.setValueAtTime(0.0001, start);
-                g.gain.exponentialRampToValueAtTime(peak, start + 0.015);
-                g.gain.exponentialRampToValueAtTime(peak * 0.7, start + dur * 0.55);
-                g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
-                osc.connect(g);
-                g.connect(ctx.destination);
-                osc.start(start);
-                osc.stop(start + dur + 0.03);
-            };
-
+            const osc = ctx.createOscillator();
+            const g = ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.value = 988;
             const t = ctx.currentTime;
-            // Three clear beeps — high volume (0.45–0.55).
-            beep(988, t, 0.16, 0.52);
-            beep(1319, t + 0.18, 0.16, 0.55);
-            beep(1568, t + 0.36, 0.22, 0.5);
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(0.45, t + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+            osc.connect(g);
+            g.connect(ctx.destination);
+            osc.start(t);
+            osc.stop(t + 0.25);
         } catch (_) { /* ignore */ }
     }
 

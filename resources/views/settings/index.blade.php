@@ -680,6 +680,56 @@
 
     {{-- ── System Tab ── --}}
     <div class="tab-pane fade" id="tab-system">
+        <div class="card shadow-sm mb-4 border-primary border-opacity-25">
+            <div class="card-header bg-white fw-semibold">
+                <i class="bi bi-bell me-1"></i> Notification Tune
+            </div>
+            <div class="card-body">
+                <p class="text-secondary small mb-3">
+                    Admin / dashboard notifications ki awaaz select karein. Preview sun kar jo pasand aaye usko set karein, phir Save dabayein.
+                </p>
+                @php
+                    $currentTune = old('notification_tune', $settings['notification_tune'] ?? 'chime_fast');
+                    $tuneOptions = [
+                        ['id' => 'soft_ding', 'label' => 'Soft Ding', 'speed' => 'Slow'],
+                        ['id' => 'soft_double', 'label' => 'Soft Double', 'speed' => 'Slow'],
+                        ['id' => 'warm_chime', 'label' => 'Warm Chime', 'speed' => 'Slow'],
+                        ['id' => 'doorbell', 'label' => 'Doorbell', 'speed' => 'Slow'],
+                        ['id' => 'rising', 'label' => 'Rising Notes', 'speed' => 'Medium'],
+                        ['id' => 'chime_mid', 'label' => 'Mid Chime', 'speed' => 'Medium'],
+                        ['id' => 'chime_fast', 'label' => 'Fast Alert (loud)', 'speed' => 'Fast'],
+                        ['id' => 'pulse', 'label' => 'Quick Pulse', 'speed' => 'Fast'],
+                        ['id' => 'cash_bell', 'label' => 'Cash Bell', 'speed' => 'Fast'],
+                        ['id' => 'siren_short', 'label' => 'Short Siren', 'speed' => 'Fast'],
+                    ];
+                @endphp
+                <div class="row g-2" id="notificationTunePicker">
+                    @foreach ($tuneOptions as $tune)
+                        <div class="col-md-6">
+                            <div class="border rounded-3 p-2 h-100 d-flex align-items-center gap-2 {{ $currentTune === $tune['id'] ? 'border-primary bg-primary bg-opacity-10' : '' }}">
+                                <div class="form-check mb-0 flex-grow-1">
+                                    <input class="form-check-input" type="radio" name="notification_tune"
+                                           id="tune_{{ $tune['id'] }}" value="{{ $tune['id'] }}"
+                                           @checked($currentTune === $tune['id'])>
+                                    <label class="form-check-label" for="tune_{{ $tune['id'] }}">
+                                        <span class="fw-semibold">{{ $tune['label'] }}</span>
+                                        <span class="badge text-bg-light border ms-1">{{ $tune['speed'] }}</span>
+                                    </label>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        data-preview-tune="{{ $tune['id'] }}" title="Preview">
+                                    <i class="bi bi-play-fill"></i>
+                                </button>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+                @error('notification_tune')
+                    <div class="text-danger small mt-2">{{ $message }}</div>
+                @enderror
+            </div>
+        </div>
+
         <div class="card shadow-sm">
             <div class="card-header bg-white fw-semibold">Display & Format</div>
             <div class="card-body">
@@ -849,6 +899,37 @@
 @endsection
 
 @section('scripts')
+<script src="{{ asset('js/notification-tunes.js') }}?v=1"></script>
+<script>
+(function () {
+    document.querySelectorAll('[data-preview-tune]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const id = btn.getAttribute('data-preview-tune');
+            if (window.NotificationTunes) {
+                window.NotificationTunes.play(id);
+            }
+        });
+    });
+
+    const picker = document.getElementById('notificationTunePicker');
+    if (picker) {
+        picker.querySelectorAll('input[name="notification_tune"]').forEach(function (radio) {
+            radio.addEventListener('change', function () {
+                picker.querySelectorAll('.border').forEach(function (box) {
+                    box.classList.remove('border-primary', 'bg-primary', 'bg-opacity-10');
+                });
+                const wrap = radio.closest('.border');
+                if (wrap) wrap.classList.add('border-primary', 'bg-primary', 'bg-opacity-10');
+                if (window.NotificationTunes) {
+                    window.NotificationTunes.play(radio.value);
+                }
+            });
+        });
+    }
+})();
+</script>
 <script>
 function previewLogo(input) {
     if (input.files && input.files[0]) {

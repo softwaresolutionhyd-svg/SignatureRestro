@@ -77,6 +77,8 @@ class SettingsController extends Controller
         'lan_server_ip'                     => '',
         'lan_server_port'                   => '',
         'lan_server_https'                  => '0',
+        // Notifications
+        'notification_tune'                 => 'chime_fast',
     ];
 
     public function index()
@@ -141,6 +143,10 @@ class SettingsController extends Controller
             'hr_annual_leave_days' => ['required', 'integer', 'min:0', 'max:365'],
             'lan_server_ip' => ['nullable', 'string', 'max:120'],
             'lan_server_port' => ['nullable', 'integer', 'min:1', 'max:65535'],
+            'notification_tune' => ['required', 'string', 'max:40', Rule::in([
+                'soft_ding', 'soft_double', 'warm_chime', 'doorbell', 'rising',
+                'chime_mid', 'chime_fast', 'pulse', 'cash_bell', 'siren_short',
+            ])],
             'product_extra_cost_fields' => ['nullable', 'array', 'max:20'],
             'product_extra_cost_fields.*.label' => ['nullable', 'string', 'max:60'],
             'product_extra_cost_fields.*.rate' => ['nullable', 'numeric', 'min:0', 'max:999999'],
