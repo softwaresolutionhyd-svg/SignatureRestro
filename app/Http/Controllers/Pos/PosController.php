@@ -1299,8 +1299,6 @@ class PosController extends Controller
             $msg = __('Order pehle se paid hai — duplicate bill nahi bani.');
 
             if ($wantsJson) {
-                $this->queueCashierBillPrint((int) $order->id);
-
                 return response()->json([
                     'success' => true,
                     'message' => $msg,
@@ -1309,7 +1307,8 @@ class PosController extends Controller
                     'order_no' => $order->order_no,
                     'order' => $this->paidOrderPayloadForJson($order),
                     'table_board' => $this->orderTaker->tableBoard(),
-                    'cashier_print_queued' => true,
+                    // Client prints once via cashier-print API (avoid double with afterResponse queue).
+                    'cashier_print_queued' => false,
                     'receipt_url' => $openReceipt ? route('restaurant-pos.receipt', $order) : null,
                     'redirect_url' => $openReceipt
                         ? route('restaurant-pos.receipt', $order)
@@ -1571,8 +1570,6 @@ class PosController extends Controller
             : ($isCredit ? 'Credit sale recorded successfully.' : 'Order paid successfully.');
 
         if ($wantsJson) {
-            $this->queueCashierBillPrint((int) $order->id);
-
             return response()->json([
                 'success' => true,
                 'message' => $msg,
@@ -1581,7 +1578,8 @@ class PosController extends Controller
                 'order_no' => $order->order_no,
                 'order' => $this->paidOrderPayloadForJson($order),
                 'table_board' => $this->orderTaker->tableBoard(),
-                'cashier_print_queued' => true,
+                // Client prints once via cashier-print API (avoid double with afterResponse queue).
+                'cashier_print_queued' => false,
                 'receipt_url' => $openReceipt ? route('restaurant-pos.receipt', $order) : null,
                 'redirect_url' => $openReceipt
                     ? route('restaurant-pos.receipt', $order)

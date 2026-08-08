@@ -3223,12 +3223,12 @@
         return true;
     }
 
-    async function tryCashierNetworkPrint(orderId, attempt = 1) {
+    async function tryCashierNetworkPrint(orderId) {
         const url = (routes.cashierPrint || '').replace('__ID__', String(orderId));
         if (!url || !csrf) return false;
         try {
             const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-            // Server allow ~4s + retry — client wait must be longer than that.
+            // Server ~4s; no auto-retry (retry after late OK = duplicate slip).
             const timer = ctrl ? window.setTimeout(() => ctrl.abort(), 10000) : null;
             const res = await fetch(url, {
                 method: 'POST',
@@ -3242,13 +3242,8 @@
             if (timer) window.clearTimeout(timer);
             const data = await res.json().catch(() => ({}));
             if (res.ok && data.ok) return true;
-            if (attempt < 2 && !data.fallback) {
-                await new Promise((r) => setTimeout(r, 250));
-                return tryCashierNetworkPrint(orderId, attempt + 1);
-            }
             if (!data.fallback && data.message) {
                 const msg = String(data.message || '');
-                // Connection errors: short Urdu tip instead of long Windows text.
                 if (/connect|timeout|band \/ network|did not properly respond/i.test(msg)) {
                     alert('Cashier printer connect nahi ho rahi (IP / power / LAN check karein).\n\n' + msg);
                 } else {
@@ -3257,15 +3252,11 @@
             }
             return false;
         } catch (e) {
-            if (attempt < 2) {
-                await new Promise((r) => setTimeout(r, 250));
-                return tryCashierNetworkPrint(orderId, attempt + 1);
-            }
             return false;
         }
     }
 
-    /** Paid bill: always hit cashier printer (queued + browser request = reliable). */
+    /** Paid bill: exactly one cashier thermal print (API). Receipt opens with noprint if ok. */
     function queuePaidBillPrint(data) {
         if (!data) return;
         const orderId = data.order_id;
@@ -3283,7 +3274,7 @@
             return;
         }
 
-        // Even if server queued afterResponse print, also print via API — more reliable.
+        // Single print path — do not also rely on server afterResponse queue.
         tryCashierNetworkPrint(orderId).then((ok) => {
             openReceipt(ok ? 'noprint=1' : 'autoprint=1');
         });
