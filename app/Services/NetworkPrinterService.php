@@ -142,7 +142,11 @@ final class NetworkPrinterService
 
             if ($fp === false) {
                 $results[$i] = new RuntimeException(
-                    sprintf('Printer %s:%d se connect nahi ho saka (%s).', $ip, $port, $errstr ?: 'timeout')
+                    sprintf(
+                        'Printer %s:%d band / network pe nahi mil rahi. Power, LAN cable/WiFi aur IP check karein.',
+                        $ip,
+                        $port
+                    )
                 );
                 continue;
             }
@@ -272,7 +276,11 @@ final class NetworkPrinterService
 
             if ($fp === false) {
                 $lastError = new RuntimeException(
-                    sprintf('Printer %s:%d se connect nahi ho saka (%s).', $ip, $port, $errstr ?: 'timeout')
+                    sprintf(
+                        'Printer %s:%d band / network pe nahi mil rahi. Power, LAN cable/WiFi aur IP check karein.',
+                        $ip,
+                        $port
+                    )
                 );
                 if ($attempt < $attempts) {
                     usleep(80000 * $attempt);

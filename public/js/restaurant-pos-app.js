@@ -3246,7 +3246,15 @@
                 await new Promise((r) => setTimeout(r, 250));
                 return tryCashierNetworkPrint(orderId, attempt + 1);
             }
-            if (!data.fallback && data.message) alert(data.message);
+            if (!data.fallback && data.message) {
+                const msg = String(data.message || '');
+                // Connection errors: short Urdu tip instead of long Windows text.
+                if (/connect|timeout|band \/ network|did not properly respond/i.test(msg)) {
+                    alert('Cashier printer connect nahi ho rahi (IP / power / LAN check karein).\n\n' + msg);
+                } else {
+                    alert(msg);
+                }
+            }
             return false;
         } catch (e) {
             if (attempt < 2) {
