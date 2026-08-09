@@ -38,6 +38,9 @@
     let cart = [];
     let kitchenVoids = [];
     let itemReductions = [];
+    /** Voids already confirmed for this resumed bill — survive later autosaves. */
+    let sessionPersistedKitchenVoids = [];
+    let cartSaveGeneration = 0;
     let kitchenVoidsSessionList = [];
     let kitchenVoidsLoading = false;
     let pendingChangeAction = null;
@@ -910,6 +913,41 @@
 
     function findCartRowForProduct(productId) {
         return cart.find((r) => Number(r.product_id) === Number(productId)) || null;
+    }
+
+    function mergeKitchenVoidsForSubmit() {
+        const out = [];
+        const seen = new Set();
+        const push = (v) => {
+            if (!v || !(Number(v.qty) > 0)) return;
+            const key = [
+                Number(v.product_id) || 0,
+                String(v.uom || '').toLowerCase(),
+                Number(v.qty) || 0,
+                String(v.reason || '').toLowerCase(),
+                Number(v.order_item_id) || 0,
+                v.is_custom ? 1 : 0,
+            ].join('|');
+            if (seen.has(key)) return;
+            seen.add(key);
+            out.push(v);
+        };
+        sessionPersistedKitchenVoids.forEach(push);
+        kitchenVoids.forEach(push);
+        return out;
+    }
+
+    function rememberSessionKitchenVoids(voids) {
+        if (!Array.isArray(voids) || !voids.length) return;
+        voids.forEach((v) => {
+            if (!v || !(Number(v.qty) > 0)) return;
+            sessionPersistedKitchenVoids.push({ ...v });
+        });
+    }
+
+    function clearSessionKitchenVoids() {
+        sessionPersistedKitchenVoids = [];
+        kitchenVoids = [];
     }
 
     function kitchenVoidQtyForRow(row) {
@@ -2530,7 +2568,7 @@
         form.querySelector('[name="resume_order_id"]').value = resumeOrderId ? String(resumeOrderId) : '';
         const kitchenVoidsInput = form.querySelector('[name="kitchen_voids"]');
         if (kitchenVoidsInput) {
-            kitchenVoidsInput.value = JSON.stringify(kitchenVoids);
+            kitchenVoidsInput.value = JSON.stringify(mergeKitchenVoidsForSubmit());
         }
         const itemReductionsInput = form.querySelector('[name="item_reductions"]');
         if (itemReductionsInput) {
@@ -2847,8 +2885,9 @@
 
     function resetForNewBill() {
         cart.length = 0;
-        kitchenVoids = [];
+        clearSessionKitchenVoids();
         itemReductions = [];
+        cartSaveGeneration += 1;
         pendingRemoveIndex = null;
         resumeOrderId = null;
         lastHeldOrderId = null;
@@ -2911,7 +2950,7 @@
         const totals = calcCartTotals();
         const formData = new FormData(form);
         formData.set('items', JSON.stringify(cartItemsForSubmit()));
-        formData.set('kitchen_voids', JSON.stringify(kitchenVoids));
+        formData.set('kitchen_voids', JSON.stringify(mergeKitchenVoidsForSubmit()));
         formData.set('item_reductions', JSON.stringify(itemReductions));
         formData.set('send_to_kitchen', sendToKitchen ? '1' : '0');
         formData.set('client_grand_total', String(totals.grand));
@@ -3001,8 +3040,9 @@
     }
 
     function applyPendingOrderToCheckout(order) {
-        kitchenVoids = [];
+        clearSessionKitchenVoids();
         itemReductions = [];
+        cartSaveGeneration += 1;
         cancelWholeOrderPending = false;
         ownerDiscountActive = !!order.is_owner_discount;
 
@@ -3579,7 +3619,7 @@
         }
 
         const orderId = resumeOrderId;
-        const voidsSnapshot = kitchenVoids.slice();
+        const voidsSnapshot = mergeKitchenVoidsForSubmit();
         const url = (routes.discardHold || '').replace('__ID__', String(orderId));
         if (!url) {
             throw new Error('Discard route missing.');
@@ -3675,14 +3715,21 @@
             return null;
         }
 
+        const gen = ++cartSaveGeneration;
+
         return enqueueResumeSave(async () => {
+            // Newer cart edit superseded this save (prevents cancel→autosave race).
+            if (gen !== cartSaveGeneration) {
+                return null;
+            }
+
             setCartSaving(true);
             try {
                 if (!cart.length) {
                     // Empty cart:
                     // - Kitchen-printed bill → sirf manager Cancel Order (voids) se delete.
                     // - Hold-only (no kitchen print) → pending draft discard OK, items free remove.
-                    if (cancelWholeOrderPending && kitchenVoids.length > 0) {
+                    if (cancelWholeOrderPending && mergeKitchenVoidsForSubmit().length > 0) {
                         await discardResumedDraft();
                         return null;
                     }
@@ -3695,6 +3742,11 @@
                     );
                 }
 
+                if (gen !== cartSaveGeneration) {
+                    return null;
+                }
+
+                const voidsSnapshot = mergeKitchenVoidsForSubmit();
                 const formData = buildHoldFormData(sendToKitchen, null, {
                     // Kitchen update: contact optional. Unpaid/hold update: contact zaroori.
                     requireGuestMeta: !sendToKitchen,
@@ -3705,7 +3757,6 @@
                         : 'Contact / guest details likhein, phir unpaid slip print karein.');
                 }
 
-                const voidsSnapshot = kitchenVoids.slice();
                 const res = await fetch(routes.hold, {
                     method: 'POST',
                     headers: {
@@ -3727,12 +3778,23 @@
                     throw new Error(errMsg);
                 }
 
+                if (gen !== cartSaveGeneration) {
+                    // A newer edit happened while request was in flight — keep session voids.
+                    if (voidsSnapshot.length) {
+                        rememberSessionKitchenVoids(voidsSnapshot);
+                    }
+                    return data.order || null;
+                }
+
                 const hadKitchenVoids = voidsSnapshot.length > 0;
+                if (hadKitchenVoids) {
+                    rememberSessionKitchenVoids(voidsSnapshot);
+                }
                 if (data.order) {
                     upsertPendingBill(data.order, true);
                     // Always reload from server so kitchen-locked lines never vanish from cart UI.
                     reloadCartFromOrder(data.order);
-                    // Cancelled kitchen lines must not reappear if server briefly re-appended them.
+                    // Cancelled kitchen lines must not reappear (server + client guards).
                     if (hadKitchenVoids && applyKitchenVoidsToCart(voidsSnapshot)) {
                         renderAll();
                     }

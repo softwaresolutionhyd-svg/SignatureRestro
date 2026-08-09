@@ -1284,7 +1284,8 @@ class PosController extends Controller
             $resumeDraft = $this->findDraftOrderForSession($session, $resumeOrderId, $checkoutUser);
             if ($resumeDraft) {
                 $oldItems = $resumeDraft->items()->get()->all();
-                $kitchenVoids = $this->normalizedKitchenVoids($request);
+                $requestKitchenVoids = $this->normalizedKitchenVoids($request);
+                $kitchenVoids = $this->mergePersistedKitchenVoids((int) $resumeOrderId, $requestKitchenVoids);
                 $itemsNormalized = app(KitchenService::class)->appendMissingKitchenLockedNormalized(
                     $oldItems,
                     $itemsNormalized,
@@ -1780,7 +1781,8 @@ class PosController extends Controller
             $resumeDraft = $this->findDraftOrderForSession($session, $resumeOrderId, $holdUser);
             if ($resumeDraft) {
                 $oldItems = $resumeDraft->items()->get()->all();
-                $kitchenVoids = $this->normalizedKitchenVoids($request);
+                $requestKitchenVoids = $this->normalizedKitchenVoids($request);
+                $kitchenVoids = $this->mergePersistedKitchenVoids((int) $resumeOrderId, $requestKitchenVoids);
                 $itemsNormalized = app(KitchenService::class)->appendMissingKitchenLockedNormalized(
                     $oldItems,
                     $itemsNormalized,
@@ -1843,7 +1845,12 @@ class PosController extends Controller
         $sendToKitchen = $this->isRestaurantPosRequest($request)
             ? $request->boolean('send_to_kitchen')
             : true;
-        $kitchenVoids = $this->normalizedKitchenVoids($request);
+        // Request voids = new cancels this submit. Merged voids also include prior cancels
+        // so a later autosave cannot re-append already-cancelled kitchen lines.
+        $requestKitchenVoids = $this->normalizedKitchenVoids($request);
+        $kitchenVoids = $resumeOrderId
+            ? $this->mergePersistedKitchenVoids((int) $resumeOrderId, $requestKitchenVoids)
+            : $requestKitchenVoids;
 
         try {
             $order = DB::connection('tenant')->transaction(function () use ($request, $session, $itemsNormalized, $guestName, $roomNo, $waiterName, $serveTime, $serveDate, $orderNotes, $customerType, $saleMode, $serviceType, $restaurantTableId, $resumeOrderId, $clientTotals, $sendToKitchen, &$updatedExisting, &$reusedDuplicateCreate, $holdUser, $kitchenVoids) {
@@ -2141,7 +2148,12 @@ class PosController extends Controller
             $order->load(['table', 'items']);
         }
 
-        $removedPrint = $this->logKitchenVoids($order, $kitchenVoids);
+        if ($requestKitchenVoids !== []) {
+            $this->persistKitchenVoids((int) $order->id, $requestKitchenVoids);
+        }
+
+        // Only log / print newly submitted voids (not cached prior cancels).
+        $removedPrint = $this->logKitchenVoids($order, $requestKitchenVoids);
         $this->logItemReductions($order, $this->normalizedItemReductions($request));
 
         $message = $updatedExisting ? 'Held order updated.' : 'Order held successfully.';
@@ -2497,6 +2509,7 @@ class PosController extends Controller
         }
 
         $order->delete();
+        $this->forgetPersistedKitchenVoids((int) $orderId);
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -4950,11 +4963,81 @@ class PosController extends Controller
     }
 
     /**
+     * Remember kitchen voids for an order so a later autosave (without voids in the
+     * request) cannot re-append already-cancelled printed lines.
+     *
+     * @param  list<array<string, mixed>>  $voids
+     */
+    private function persistKitchenVoids(int $orderId, array $voids): void
+    {
+        if ($orderId <= 0 || $voids === []) {
+            return;
+        }
+
+        $merged = $this->mergePersistedKitchenVoids($orderId, $voids);
+        Cache::put($this->kitchenVoidCacheKey($orderId), $merged, now()->addDays(2));
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $requestVoids
+     * @return list<array<string, mixed>>
+     */
+    private function mergePersistedKitchenVoids(int $orderId, array $requestVoids): array
+    {
+        $cached = Cache::get($this->kitchenVoidCacheKey($orderId), []);
+        if (! is_array($cached)) {
+            $cached = [];
+        }
+
+        $out = [];
+        foreach (array_merge($cached, $requestVoids) as $void) {
+            if (! is_array($void)) {
+                continue;
+            }
+            $qty = (float) ($void['qty'] ?? 0);
+            if ($qty <= 0) {
+                continue;
+            }
+            $out[] = [
+                'product_id' => (int) ($void['product_id'] ?? 0),
+                'uom' => (string) ($void['uom'] ?? ''),
+                'qty' => $qty,
+                'reason' => trim((string) ($void['reason'] ?? 'void')) ?: 'void',
+                'notes' => trim((string) ($void['notes'] ?? '')),
+                'name' => trim((string) ($void['name'] ?? '')),
+                'item_name' => trim((string) ($void['item_name'] ?? '')),
+                'is_custom' => filter_var($void['is_custom'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'order_item_id' => (int) ($void['order_item_id'] ?? 0) ?: null,
+            ];
+        }
+
+        return $out;
+    }
+
+    private function forgetPersistedKitchenVoids(int $orderId): void
+    {
+        if ($orderId > 0) {
+            Cache::forget($this->kitchenVoidCacheKey($orderId));
+        }
+    }
+
+    private function kitchenVoidCacheKey(int $orderId): string
+    {
+        return 'pos:order:kitchen_voids:'.$orderId;
+    }
+
+    /**
      * @param  list<array{product_id: int, uom: string, qty: float, reason: string, notes?: string, name?: string}>  $kitchenVoids
      * @return array{ok: bool, results: list<array{department: string, ok: bool, error?: string}>, unrouted: int, message?: string|null}
      */
     private function logKitchenVoids(PosOrder $order, array $kitchenVoids): array
     {
+        if ($kitchenVoids === []) {
+            return ['ok' => true, 'results' => [], 'unrouted' => 0, 'message' => null];
+        }
+
+        // Drop exact duplicate voids already logged in the last few minutes (retry / race).
+        $kitchenVoids = $this->dedupeRecentKitchenVoids((int) $order->id, $kitchenVoids);
         if ($kitchenVoids === []) {
             return ['ok' => true, 'results' => [], 'unrouted' => 0, 'message' => null];
         }
@@ -4999,6 +5082,7 @@ class PosController extends Controller
                     'order_id' => (int) $order->id,
                 ]
             );
+            $this->markKitchenVoidLogged((int) $order->id, $void);
         }
         unset($void);
 
@@ -5016,6 +5100,51 @@ class PosController extends Controller
                 'message' => 'Removed items print fail: '.$e->getMessage(),
             ];
         }
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $voids
+     * @return list<array<string, mixed>>
+     */
+    private function dedupeRecentKitchenVoids(int $orderId, array $voids): array
+    {
+        $out = [];
+        foreach ($voids as $void) {
+            if (! is_array($void)) {
+                continue;
+            }
+            $sig = $this->kitchenVoidDedupeSignature($void);
+            if (Cache::has('pos:kitchen_void_logged:'.$orderId.':'.$sig)) {
+                continue;
+            }
+            $out[] = $void;
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  array<string, mixed>  $void
+     */
+    private function markKitchenVoidLogged(int $orderId, array $void): void
+    {
+        $sig = $this->kitchenVoidDedupeSignature($void);
+        Cache::put('pos:kitchen_void_logged:'.$orderId.':'.$sig, 1, now()->addMinutes(10));
+    }
+
+    /**
+     * @param  array<string, mixed>  $void
+     */
+    private function kitchenVoidDedupeSignature(array $void): string
+    {
+        return hash('sha256', json_encode([
+            (int) ($void['product_id'] ?? 0),
+            mb_strtolower(trim((string) ($void['uom'] ?? ''))),
+            round((float) ($void['qty'] ?? 0), 3),
+            mb_strtolower(trim((string) ($void['reason'] ?? ''))),
+            (int) ($void['order_item_id'] ?? 0),
+            filter_var($void['is_custom'] ?? false, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
+        ], JSON_UNESCAPED_UNICODE));
     }
 
     /**
