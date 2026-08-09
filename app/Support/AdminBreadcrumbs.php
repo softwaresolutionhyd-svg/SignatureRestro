@@ -262,6 +262,9 @@ final class AdminBreadcrumbs
 
         if (str_contains($name, '.attendance.')) {
             $leaf = ['label' => 'Attendance', 'url' => $name === 'employees.attendance.index' ? null : route('employees.attendance.index')];
+            if ($name === 'employees.attendance.print-today') {
+                return [$dash, $hrHub, $leaf, ['label' => "Today's Attendance", 'url' => null]];
+            }
 
             return [$dash, $hrHub, $leaf];
         }

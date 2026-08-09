@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Employee;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\EmployeeAttendance;
+use App\Models\Setting;
 use App\Services\AttendancePayrollService;
 use App\Services\PayrollSalaryService;
 use App\Services\Sync\SyncPayrollQueueService;
@@ -12,6 +13,7 @@ use App\Support\ActivityLogger;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\View\View;
 
 class AttendanceController extends Controller
 {
@@ -91,6 +93,84 @@ class AttendanceController extends Controller
             'grid',
             'summaries',
         ));
+    }
+
+    public function printToday(Request $request): View
+    {
+        abort_unless($request->user()?->canManageTeamAttendance(), 403);
+
+        $dateInput = trim((string) $request->query('date', ''));
+        if ($dateInput !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateInput)) {
+            $date = Carbon::createFromFormat('Y-m-d', $dateInput)->startOfDay();
+        } else {
+            $date = now()->timezone(config('app.timezone'))->startOfDay();
+        }
+        $dateKey = $date->format('Y-m-d');
+        $activeOnly = $request->boolean('active_only', true);
+
+        $staffQuery = Employee::query()->excludeAdminAccounts()->orderBy('employee_no');
+        if ($activeOnly) {
+            $staffQuery->where('active', true);
+        }
+        $employees = $staffQuery->get(['id', 'name', 'employee_no', 'active']);
+
+        $byEmp = EmployeeAttendance::query()
+            ->whereDate('attendance_date', $dateKey)
+            ->whereIn('employee_id', $employees->pluck('id'))
+            ->get(['employee_id', 'status'])
+            ->keyBy('employee_id');
+
+        $present = collect();
+        $absent = collect();
+        $holiday = collect();
+        $unmarked = collect();
+
+        foreach ($employees as $employee) {
+            $rec = $byEmp->get($employee->id);
+            $code = $rec
+                ? AttendancePayrollService::codeFromStatus((string) $rec->status)
+                : '';
+
+            $row = [
+                'employee_no' => (string) ($employee->employee_no ?? ''),
+                'name' => (string) $employee->name,
+                'code' => $code !== '' ? $code : '—',
+                'label' => match ($code) {
+                    'P' => 'Present',
+                    'A' => 'Absent',
+                    'H' => 'Holiday',
+                    default => 'Not marked',
+                },
+            ];
+
+            match ($code) {
+                'P' => $present->push($row),
+                'A' => $absent->push($row),
+                'H' => $holiday->push($row),
+                default => $unmarked->push($row),
+            };
+        }
+
+        $companyName = Setting::get('company_name', config('app.name'));
+        $dateLabel = $date->timezone(config('app.timezone'))->format('l, d M Y');
+
+        return view('employees.attendance-print-today', [
+            'companyName' => $companyName,
+            'dateKey' => $dateKey,
+            'dateLabel' => $dateLabel,
+            'activeOnly' => $activeOnly,
+            'present' => $present,
+            'absent' => $absent,
+            'holiday' => $holiday,
+            'unmarked' => $unmarked,
+            'totals' => [
+                'present' => $present->count(),
+                'absent' => $absent->count(),
+                'holiday' => $holiday->count(),
+                'unmarked' => $unmarked->count(),
+                'all' => $employees->count(),
+            ],
+        ]);
     }
 
     public function saveGrid(Request $request)

@@ -319,6 +319,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
     Route::prefix('employees')->name('employees.')->group(function () {
         Route::middleware('moduleAccess')->group(function () {
             Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance.index');
+            Route::get('/attendance/print-today', [AttendanceController::class, 'printToday'])->name('attendance.print-today');
             Route::post('/attendance/grid', [AttendanceController::class, 'saveGrid'])->name('attendance.grid');
 
             Route::get('/', [EmployeeController::class, 'index'])->name('index');

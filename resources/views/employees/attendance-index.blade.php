@@ -177,6 +177,15 @@
                            onchange="window.location='{{ route('employees.attendance.index') }}?month={{ $month }}&active_only='+(this.checked?1:0)+'{{ $attEmployeeNoQs }}'">
                     <label class="form-check-label" for="activeOnlyToggle">Sirf active</label>
                 </div>
+                <a class="btn btn-sm btn-outline-dark"
+                   href="{{ route('employees.attendance.print-today', array_filter([
+                       'date' => now()->format('Y-m-d'),
+                       'active_only' => $activeOnly ? 1 : null,
+                   ])) }}"
+                   target="_blank"
+                   rel="noopener">
+                    <i class="bi bi-printer me-1"></i> Print today's attendance
+                </a>
                 <button type="submit" class="btn btn-sm btn-primary" form="attendanceGridForm">
                     <i class="bi bi-save me-1"></i> Save attendance
                 </button>
@@ -280,9 +289,20 @@
             </div>
             <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <span class="small text-secondary">Save karne par payroll draft mein net salary working days (P+H) se auto update hogi.</span>
-                <button type="submit" class="btn btn-primary btn-sm">
-                    <i class="bi bi-save me-1"></i> Save attendance
-                </button>
+                <div class="d-flex flex-wrap gap-2">
+                    <a class="btn btn-sm btn-outline-dark"
+                       href="{{ route('employees.attendance.print-today', array_filter([
+                           'date' => now()->format('Y-m-d'),
+                           'active_only' => $activeOnly ? 1 : null,
+                       ])) }}"
+                       target="_blank"
+                       rel="noopener">
+                        <i class="bi bi-printer me-1"></i> Print today's attendance
+                    </a>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-save me-1"></i> Save attendance
+                    </button>
+                </div>
             </div>
         </div>
     </form>
