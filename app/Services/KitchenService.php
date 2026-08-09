@@ -156,6 +156,7 @@ final class KitchenService
     /**
      * Kitchen void matching ignores notes — instructions often change after print,
      * and a notes mismatch would re-append the locked line (item “stuck” in cart).
+     * Non-custom lines also ignore item_name (often null vs product title).
      *
      * @param  array<string, mixed>|PosOrderItem  $item
      */
@@ -169,11 +170,16 @@ final class KitchenService
         } else {
             $productId = (int) ($item['product_id'] ?? 0);
             $uom = mb_strtolower(trim((string) ($item['uom'] ?? '')));
-            $itemName = mb_strtolower(trim((string) ($item['item_name'] ?? '')));
+            // Prefer item_name; fall back to name so client voids still match.
+            $itemName = mb_strtolower(trim((string) ($item['item_name'] ?? $item['name'] ?? '')));
             $isCustom = filter_var($item['is_custom'] ?? false, FILTER_VALIDATE_BOOLEAN);
         }
 
-        return implode('|', [$productId, $uom, $isCustom ? '1' : '0', $itemName]);
+        if (! $isCustom) {
+            return implode('|', [$productId, $uom, '0']);
+        }
+
+        return implode('|', [$productId, $uom, '1', $itemName]);
     }
 
     /**
@@ -342,12 +348,13 @@ final class KitchenService
             if ($id > 0 && isset($voidedItemIds[$id]) && $voidedItemIds[$id] > 0.0005) {
                 $take = min((float) $old->qty, (float) $voidedItemIds[$id]);
                 $voidedItemIds[$id] = max(0.0, (float) $voidedItemIds[$id] - $take);
-                // Covered by explicit line void — do not count toward missing locked qty.
+                // Also consume fingerprint void pool so leftover void qty is accurate.
+                $fp = $this->voidMatchFingerprint($old);
+                $voidQty[$fp] = max(0.0, ($voidQty[$fp] ?? 0.0) - $take);
                 $remainingLocked = round((float) $old->qty - $take, 3);
                 if ($remainingLocked <= 0.0005) {
                     continue;
                 }
-                $fp = $this->voidMatchFingerprint($old);
                 $lockedQty[$fp] = ($lockedQty[$fp] ?? 0.0) + $remainingLocked;
                 $samples[$fp] = $old;
                 continue;

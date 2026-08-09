@@ -597,12 +597,15 @@ class PosController extends Controller
                 $resumed = [
                     'id' => $resumedOrder->id,
                     'items' => $resumedOrder->items->map(fn (PosOrderItem $item) => [
+                        'id' => (int) $item->id,
                         'product_id' => (int) $item->product_id,
                         'uom' => (string) $item->uom,
                         'qty' => (float) $item->qty,
                         'unit_price' => (float) $item->unit_price,
                         'tax_percent' => (float) $item->tax_percent,
                         'notes' => (string) ($item->notes ?? ''),
+                        'item_name' => $item->item_name,
+                        'is_custom' => (bool) $item->is_custom,
                         'kitchen_served' => $item->isKitchenServed(),
                         'kitchen_pending' => (bool) $item->kitchen_pending,
                         'kitchen_printed' => $item->kitchen_printed_at !== null,

@@ -893,6 +893,7 @@
 
     function buildReductionEntry(row, qty, reason) {
         const orderItemId = Number(row.order_item_id) || 0;
+        const isCustom = !!row.is_custom;
         return {
             product_id: row.product_id,
             uom: row.uom,
@@ -900,14 +901,76 @@
             reason: String(reason || '').trim(),
             notes: String(row.notes || '').trim(),
             name: row.name,
-            item_name: row.is_custom ? String(row.item_name || row.name || '').trim() : '',
-            is_custom: !!row.is_custom,
+            // Non-custom: empty item_name (server fingerprints product+uom only).
+            item_name: isCustom ? String(row.item_name || row.name || '').trim() : '',
+            is_custom: isCustom,
             order_item_id: orderItemId > 0 ? orderItemId : null,
         };
     }
 
     function findCartRowForProduct(productId) {
         return cart.find((r) => Number(r.product_id) === Number(productId)) || null;
+    }
+
+    function kitchenVoidQtyForRow(row) {
+        const qty = Math.max(0, Number(row?.qty) || 0);
+        const locked = Math.max(0, Number(row?.kitchen_locked_qty) || 0);
+        if (row?.kitchen_printed || row?.kitchen_served || locked > 0.0005) {
+            return Math.round(Math.max(qty, locked) * 1000) / 1000;
+        }
+        return 0;
+    }
+
+    /** After server reload, strip qty that was just kitchen-voided (prevents cancelled item stuck in cart). */
+    function applyKitchenVoidsToCart(voids) {
+        if (!Array.isArray(voids) || !voids.length) return false;
+        let changed = false;
+        voids.forEach((v) => {
+            let left = Math.round((Number(v.qty) || 0) * 1000) / 1000;
+            if (left <= 0.0005) return;
+
+            const oid = Number(v.order_item_id) || 0;
+            if (oid > 0) {
+                const idx = cart.findIndex((r) => Number(r.order_item_id) === oid);
+                if (idx >= 0) {
+                    const row = cart[idx];
+                    const take = Math.min(Number(row.qty) || 0, left);
+                    if (take > 0.0005) {
+                        row.qty = Math.round(((Number(row.qty) || 0) - take) * 1000) / 1000;
+                        const locked = Number(row.kitchen_locked_qty) || 0;
+                        if (locked > 0) {
+                            row.kitchen_locked_qty = Math.max(0, Math.round((locked - take) * 1000) / 1000);
+                        }
+                        left = Math.round((left - take) * 1000) / 1000;
+                        changed = true;
+                        if (row.qty <= 0.0005) cart.splice(idx, 1);
+                    }
+                }
+            }
+
+            if (left <= 0.0005) return;
+
+            const wantCustom = !!v.is_custom;
+            const wantUom = String(v.uom || '').trim().toLowerCase();
+            const wantPid = Number(v.product_id) || 0;
+            for (let i = cart.length - 1; i >= 0 && left > 0.0005; i--) {
+                const row = cart[i];
+                if (Number(row.product_id) !== wantPid) continue;
+                if (!!row.is_custom !== wantCustom) continue;
+                if (String(row.uom || '').trim().toLowerCase() !== wantUom) continue;
+                const take = Math.min(Number(row.qty) || 0, left);
+                if (take <= 0.0005) continue;
+                row.qty = Math.round(((Number(row.qty) || 0) - take) * 1000) / 1000;
+                const locked = Number(row.kitchen_locked_qty) || 0;
+                if (locked > 0) {
+                    row.kitchen_locked_qty = Math.max(0, Math.round((locked - take) * 1000) / 1000);
+                }
+                left = Math.round((left - take) * 1000) / 1000;
+                changed = true;
+                if (row.qty <= 0.0005) cart.splice(i, 1);
+            }
+        });
+        return changed;
     }
 
     async function removeCartLine(index, reason) {
@@ -930,9 +993,9 @@
             return;
         }
 
-        const locked = Number(row.kitchen_locked_qty) || 0;
+        const voidQty = kitchenVoidQtyForRow(row);
         // Reason sirf tab jab kitchen print ho chuka ho (locked qty).
-        const needsReason = locked > 0 && !String(reason || '').trim();
+        const needsReason = voidQty > 0.0005 && !String(reason || '').trim();
         if (needsReason) {
             openItemChangeReasonModal({ type: 'remove', index });
             return;
@@ -942,8 +1005,8 @@
         const reductionsBefore = itemReductions.length;
         const reasonText = String(reason || '').trim();
 
-        if (locked > 0 && reasonText) {
-            kitchenVoids.push(buildReductionEntry(row, locked, reasonText));
+        if (voidQty > 0.0005 && reasonText) {
+            kitchenVoids.push(buildReductionEntry(row, voidQty, reasonText));
         }
         // Pre-kitchen deletions: no reason log required.
         cart.splice(index, 1);
@@ -996,7 +1059,7 @@
             label = row ? `${fmtQty(row.qty)}× ${row.name}` : '';
             if (title) title.textContent = 'Item hataein';
             if (hint) {
-                hint.textContent = Number(row?.kitchen_locked_qty) > 0
+                hint.textContent = Number(row?.kitchen_locked_qty) > 0 || row?.kitchen_printed || row?.kitchen_served
                     ? 'Kitchen item hataane ka reason select karein:'
                     : 'Item hataane ka reason select karein:';
             }
@@ -3669,6 +3732,10 @@
                     upsertPendingBill(data.order, true);
                     // Always reload from server so kitchen-locked lines never vanish from cart UI.
                     reloadCartFromOrder(data.order);
+                    // Cancelled kitchen lines must not reappear if server briefly re-appended them.
+                    if (hadKitchenVoids && applyKitchenVoidsToCart(voidsSnapshot)) {
+                        renderAll();
+                    }
                     setResumeStateFromOrder(data.order);
                     if (data.order.table_id) {
                         setTableBoardStatus(data.order.table_id, 'occupied');
