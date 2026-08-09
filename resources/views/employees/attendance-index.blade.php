@@ -119,6 +119,23 @@
     font-size: 0.7rem;
     padding: 0.35rem 0.55rem;
 }
+.attendance-grid tr.att-cat-row td {
+    background: #111827 !important;
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.78rem;
+    text-align: left;
+    letter-spacing: 0.4px;
+    padding: 0.35rem 0.45rem;
+    position: sticky;
+    left: 0;
+    z-index: 2;
+}
+.attendance-grid tr.att-cat-row td.att-sticky-col {
+    background: #111827 !important;
+    color: #fff;
+    box-shadow: none;
+}
 </style>
 @endpush
 
@@ -240,7 +257,14 @@
                             <td colspan="{{ count($dates) + 5 }}" class="text-center text-secondary py-4">Koi employee nahi.</td>
                         </tr>
                     @else
-                        @foreach($employees as $employee)
+                        @foreach($categoryGroups as $group)
+                        <tr class="att-cat-row">
+                            <td class="att-sticky-col" colspan="{{ count($dates) + 5 }}">
+                                {{ strtoupper($group['name']) }}
+                                <span style="font-weight:500;opacity:.85;">— {{ $group['employees']->count() }}</span>
+                            </td>
+                        </tr>
+                        @foreach($group['employees'] as $employee)
                         @php
                             $summary = $summaries[$employee->id] ?? ['present'=>0,'absent'=>0,'holiday'=>0,'earned'=>0,'per_day'=>0];
                             $rowGrid = $grid[$employee->id] ?? [];
@@ -282,6 +306,7 @@
                                 {{ number_format($summary['earned'], 2) }}
                             </td>
                         </tr>
+                        @endforeach
                         @endforeach
                     @endif
                     </tbody>

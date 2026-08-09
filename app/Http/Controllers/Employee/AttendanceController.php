@@ -35,14 +35,18 @@ class AttendanceController extends Controller
         $dates = $this->attendancePayroll->datesInMonth($month);
         [$startStr, $endStr] = $this->attendancePayroll->monthBounds($month);
 
-        $staffQuery = Employee::query()->excludeAdminAccounts()->orderBy('employee_no');
+        $staffQuery = Employee::query()
+            ->excludeAdminAccounts()
+            ->with(['staffCategory:id,name,sort_order'])
+            ->orderBy('employee_no');
         if ($activeOnly) {
             $staffQuery->where('active', true);
         }
         if ($employeeNo !== '') {
             $staffQuery->matchingSearch($employeeNo);
         }
-        $employees = $staffQuery->get(['id', 'name', 'employee_no', 'active', 'salary']);
+        $employees = $staffQuery->get(['id', 'name', 'employee_no', 'active', 'salary', 'staff_category_id']);
+        $categoryGroups = $this->groupEmployeesByStaffCategory($employees);
 
         $grid = [];
         $summaries = [];
@@ -86,6 +90,7 @@ class AttendanceController extends Controller
 
         return view('employees.attendance-index', compact(
             'employees',
+            'categoryGroups',
             'month',
             'activeOnly',
             'employeeNo',
@@ -108,11 +113,14 @@ class AttendanceController extends Controller
         $dateKey = $date->format('Y-m-d');
         $activeOnly = $request->boolean('active_only', true);
 
-        $staffQuery = Employee::query()->excludeAdminAccounts()->orderBy('employee_no');
+        $staffQuery = Employee::query()
+            ->excludeAdminAccounts()
+            ->with(['staffCategory:id,name,sort_order'])
+            ->orderBy('employee_no');
         if ($activeOnly) {
             $staffQuery->where('active', true);
         }
-        $employees = $staffQuery->get(['id', 'name', 'employee_no', 'active']);
+        $employees = $staffQuery->get(['id', 'name', 'employee_no', 'active', 'staff_category_id']);
 
         $byEmp = EmployeeAttendance::query()
             ->whereDate('attendance_date', $dateKey)
@@ -120,57 +128,105 @@ class AttendanceController extends Controller
             ->get(['employee_id', 'status'])
             ->keyBy('employee_id');
 
-        $present = collect();
-        $absent = collect();
-        $holiday = collect();
-        $unmarked = collect();
+        $totals = [
+            'present' => 0,
+            'absent' => 0,
+            'holiday' => 0,
+            'unmarked' => 0,
+            'all' => $employees->count(),
+        ];
 
-        foreach ($employees as $employee) {
-            $rec = $byEmp->get($employee->id);
-            $code = $rec
-                ? AttendancePayrollService::codeFromStatus((string) $rec->status)
-                : '';
+        $categoryGroups = [];
+        foreach ($this->groupEmployeesByStaffCategory($employees) as $group) {
+            $rows = [];
+            foreach ($group['employees'] as $employee) {
+                $rec = $byEmp->get($employee->id);
+                $code = $rec
+                    ? AttendancePayrollService::codeFromStatus((string) $rec->status)
+                    : '';
 
-            $row = [
-                'employee_no' => (string) ($employee->employee_no ?? ''),
-                'name' => (string) $employee->name,
-                'code' => $code !== '' ? $code : '—',
-                'label' => match ($code) {
+                $statusLabel = match ($code) {
                     'P' => 'Present',
                     'A' => 'Absent',
                     'H' => 'Holiday',
                     default => 'Not marked',
-                },
-            ];
+                };
 
-            match ($code) {
-                'P' => $present->push($row),
-                'A' => $absent->push($row),
-                'H' => $holiday->push($row),
-                default => $unmarked->push($row),
-            };
+                match ($code) {
+                    'P' => $totals['present']++,
+                    'A' => $totals['absent']++,
+                    'H' => $totals['holiday']++,
+                    default => $totals['unmarked']++,
+                };
+
+                $rows[] = [
+                    'employee_no' => (string) ($employee->employee_no ?? ''),
+                    'name' => (string) $employee->name,
+                    'code' => $code !== '' ? $code : '—',
+                    'status' => $statusLabel,
+                ];
+            }
+
+            $categoryGroups[] = [
+                'name' => $group['name'],
+                'rows' => $rows,
+            ];
         }
 
         $companyName = Setting::get('company_name', config('app.name'));
-        $dateLabel = $date->timezone(config('app.timezone'))->format('l, d M Y');
+        $dateLabel = $date->timezone(config('app.timezone'))->format('d M Y');
 
         return view('employees.attendance-print-today', [
             'companyName' => $companyName,
             'dateKey' => $dateKey,
             'dateLabel' => $dateLabel,
             'activeOnly' => $activeOnly,
-            'present' => $present,
-            'absent' => $absent,
-            'holiday' => $holiday,
-            'unmarked' => $unmarked,
-            'totals' => [
-                'present' => $present->count(),
-                'absent' => $absent->count(),
-                'holiday' => $holiday->count(),
-                'unmarked' => $unmarked->count(),
-                'all' => $employees->count(),
-            ],
+            'categoryGroups' => $categoryGroups,
+            'totals' => $totals,
         ]);
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Employee>  $employees
+     * @return list<array{name: string, employees: \Illuminate\Support\Collection<int, Employee>}>
+     */
+    private function groupEmployeesByStaffCategory($employees): array
+    {
+        $employees->loadMissing('staffCategory');
+
+        $categories = \App\Models\EmployeeStaffCategory::query()
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'sort_order']);
+
+        $groups = [];
+        foreach ($categories as $category) {
+            $rows = $employees
+                ->where('staff_category_id', $category->id)
+                ->sortBy('employee_no', SORT_NATURAL)
+                ->values();
+            if ($rows->isEmpty()) {
+                continue;
+            }
+            $groups[] = ['name' => (string) $category->name, 'employees' => $rows];
+        }
+
+        $unassigned = $employees
+            ->filter(fn (Employee $employee) => empty($employee->staff_category_id))
+            ->sortBy('employee_no', SORT_NATURAL)
+            ->values();
+        if ($unassigned->isNotEmpty()) {
+            $groups[] = ['name' => 'Unassigned', 'employees' => $unassigned];
+        }
+
+        if ($groups === [] && $employees->isNotEmpty()) {
+            $groups[] = [
+                'name' => 'All Employees',
+                'employees' => $employees->sortBy('employee_no', SORT_NATURAL)->values(),
+            ];
+        }
+
+        return $groups;
     }
 
     public function saveGrid(Request $request)
