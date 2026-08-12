@@ -1488,10 +1488,12 @@ class PosController extends Controller
                 }
             }
 
+            $sameCartSessionIds = $this->resolvePosBillSessionIds($session, $checkoutUser);
+
             // No resume id: still attach a matching recent draft (same cart) so Pay doesn't mint a twin bill.
             if (! $existingDraft && ! $resumeOrderId && $request->type === 'sale') {
                 $twinDraft = $this->findRecentSameCartDraft(
-                    (int) $session->id,
+                    $sameCartSessionIds,
                     $serviceType,
                     $itemsNormalized,
                     $guestName,
@@ -1512,11 +1514,11 @@ class PosController extends Controller
 
             $payItemsFp = $this->posItemsOnlyFingerprint((int) $session->id, $serviceType, $itemsNormalized);
             $payLock = null;
-            if (! $existingDraft && $request->type === 'sale') {
+            if ($request->type === 'sale') {
                 $payLock = Cache::lock('pos:pay:lock:'.$payItemsFp, 25);
                 if (! $payLock->block(8)) {
                     $racePaid = $this->findRecentSameCartPaid(
-                        (int) $session->id,
+                        $sameCartSessionIds,
                         $serviceType,
                         $itemsNormalized,
                         $guestName,
@@ -1534,9 +1536,10 @@ class PosController extends Controller
 
             try {
             // Same cart already paid moments ago (double Pay / cart re-punch) — return that bill, do not create another.
-            if (! $existingDraft && $request->type === 'sale') {
+            // Also covers: draft A still open while cart was already paid as bill B.
+            if ($request->type === 'sale') {
                 $twinPaid = $this->findRecentSameCartPaid(
-                    (int) $session->id,
+                    $sameCartSessionIds,
                     $serviceType,
                     $itemsNormalized,
                     $guestName,
@@ -1546,11 +1549,20 @@ class PosController extends Controller
                     round((float) $grandTotal, 2)
                 );
                 if ($twinPaid !== null) {
+                    if ($existingDraft && (int) $existingDraft->id !== (int) $twinPaid->id) {
+                        // Orphan twin draft — drop it so it cannot be paid again.
+                        try {
+                            SyncAwareDelete::relation($existingDraft->items());
+                            $existingDraft->delete();
+                        } catch (\Throwable $e) {
+                            report($e);
+                        }
+                    }
                     if ($clientPayKey !== '') {
                         Cache::put(
                             'pos:pay:cid:'.(Auth::id() ?? 0).':'.$session->id.':'.$clientPayKey,
                             (int) $twinPaid->id,
-                            now()->addMinutes(12)
+                            now()->addMinutes(20)
                         );
                     }
                     $this->rememberPaidCartFingerprint(
@@ -1648,7 +1660,7 @@ class PosController extends Controller
                 Cache::put(
                     'pos:pay:cid:'.(Auth::id() ?? 0).':'.$session->id.':'.$clientPayKey,
                     (int) $order->id,
-                    now()->addMinutes(12)
+                    now()->addMinutes(20)
                 );
             }
 
@@ -2028,8 +2040,9 @@ class PosController extends Controller
             $itemsWithKitchenFlags = $kitchen->applyKitchenPendingFlags([], $itemsData, $sendToKitchen);
 
             // Already paid same cart (e.g. Pay Now, then Hold/Kitchen again) — do not mint twin bill.
+            $sameCartSessionIds = $this->resolvePosBillSessionIds($session, $holdUser);
             $recentPaid = $this->findRecentSameCartPaid(
-                (int) $session->id,
+                $sameCartSessionIds,
                 $serviceType,
                 $itemsNormalized,
                 $guestName,
@@ -2057,7 +2070,7 @@ class PosController extends Controller
 
             // Kitchen pehle (bina contact), phir unpaid contact ke sath — same cart = update, naya order nahi.
             $reuseDraft = $this->findRecentSameCartDraft(
-                (int) $session->id,
+                $sameCartSessionIds,
                 $serviceType,
                 $itemsNormalized,
                 $guestName,
@@ -2085,7 +2098,7 @@ class PosController extends Controller
                     Cache::put(
                         'pos:hold:create:'.$this->posItemsOnlyFingerprint((int) $session->id, $serviceType, $itemsNormalized),
                         (int) $existing->id,
-                        now()->addSeconds(120)
+                        now()->addMinutes(20)
                     );
 
                     return $existing->fresh(['table', 'items']);
@@ -2139,8 +2152,8 @@ class PosController extends Controller
                     PosOrderItem::create(['order_id' => $order->id] + $item);
                 }
 
-                Cache::put($cacheKey, (int) $order->id, now()->addSeconds(120));
-                Cache::put($itemsCacheKey, (int) $order->id, now()->addSeconds(120));
+                Cache::put($cacheKey, (int) $order->id, now()->addMinutes(20));
+                Cache::put($itemsCacheKey, (int) $order->id, now()->addMinutes(20));
 
                 return $order->fresh(['table', 'items']);
             } finally {
@@ -4386,10 +4399,11 @@ class PosController extends Controller
     /**
      * Same cart (items + service) recent draft — e.g. kitchen without contact, then unpaid with phone.
      *
+     * @param  int|list<int>  $sessionId
      * @param  list<array<string, mixed>>  $itemsNormalized
      */
     private function findRecentSameCartDraft(
-        int $sessionId,
+        int|array $sessionId,
         ?string $serviceType,
         array $itemsNormalized,
         ?string $guestName,
@@ -4397,15 +4411,20 @@ class PosController extends Controller
         ?int $tableId,
         ?int $userId
     ): ?PosOrder {
+        $sessionIds = array_values(array_unique(array_filter(array_map('intval', (array) $sessionId))));
+        if ($sessionIds === []) {
+            return null;
+        }
+
         $want = $this->itemsFingerprintPayload($itemsNormalized);
         $newContact = trim((string) (($roomNo !== null && $roomNo !== '') ? $roomNo : ($guestName ?? '')));
 
         $query = PosOrder::query()
-            ->where('session_id', $sessionId)
+            ->whereIn('session_id', $sessionIds)
             ->where('status', 'draft')
             ->where('created_at', '>=', now()->subMinutes(45))
             ->orderByDesc('id')
-            ->limit(20);
+            ->limit(40);
 
         if ($serviceType) {
             $query->where('service_type', $serviceType);
@@ -4415,8 +4434,9 @@ class PosController extends Controller
         } else {
             $query->whereNull('table_id');
         }
+        // Prefer same user, but managers may re-punch after cashier — still collapse twins.
         if ($userId) {
-            $query->where('user_id', $userId);
+            $query->orderByRaw('CASE WHEN user_id = ? THEN 0 ELSE 1 END', [$userId]);
         }
 
         foreach ($query->with('items')->get() as $draft) {
@@ -4456,10 +4476,11 @@ class PosController extends Controller
     /**
      * Same cart recently paid — blocks twin Hold/Kitchen/Pay after a successful sale.
      *
+     * @param  int|list<int>  $sessionId
      * @param  list<array<string, mixed>>  $itemsNormalized
      */
     private function findRecentSameCartPaid(
-        int $sessionId,
+        int|array $sessionId,
         ?string $serviceType,
         array $itemsNormalized,
         ?string $guestName,
@@ -4467,13 +4488,18 @@ class PosController extends Controller
         ?int $tableId,
         ?int $userId,
         ?float $grandTotal = null,
-        int $withinMinutes = 12
+        int $withinMinutes = 15
     ): ?PosOrder {
+        $sessionIds = array_values(array_unique(array_filter(array_map('intval', (array) $sessionId))));
+        if ($sessionIds === []) {
+            return null;
+        }
+
         $want = $this->itemsFingerprintPayload($itemsNormalized);
         $newContact = trim((string) (($roomNo !== null && $roomNo !== '') ? $roomNo : ($guestName ?? '')));
 
         $query = PosOrder::query()
-            ->where('session_id', $sessionId)
+            ->whereIn('session_id', $sessionIds)
             ->where('status', 'paid')
             ->where('type', 'sale')
             ->where(function ($q) use ($withinMinutes) {
@@ -4484,7 +4510,7 @@ class PosController extends Controller
                     });
             })
             ->orderByDesc('id')
-            ->limit(25);
+            ->limit(40);
 
         if ($serviceType) {
             $query->where('service_type', $serviceType);
@@ -4495,7 +4521,7 @@ class PosController extends Controller
             $query->whereNull('table_id');
         }
         if ($userId) {
-            $query->where('user_id', $userId);
+            $query->orderByRaw('CASE WHEN user_id = ? THEN 0 ELSE 1 END', [$userId]);
         }
         if ($grandTotal !== null) {
             $query->whereBetween('grand_total', [$grandTotal - 0.02, $grandTotal + 0.02]);
@@ -4551,7 +4577,7 @@ class PosController extends Controller
         Cache::put(
             'pos:paid:cart:'.$this->posItemsOnlyFingerprint($sessionId, $serviceType, $itemsNormalized),
             $orderId,
-            now()->addMinutes(12)
+            now()->addMinutes(20)
         );
     }
 

@@ -51,6 +51,7 @@
     let holdSubmitLock = false;
     let checkoutInFlight = false;
     let lastHeldOrderId = null;
+    let lastHeldItemsFp = null;
     try {
         // Only keep session hold id when this page load is resuming that same bill.
         const stored = Number(sessionStorage.getItem('rp_last_held_order_id') || 0);
@@ -59,6 +60,10 @@
             lastHeldOrderId = stored;
         } else {
             sessionStorage.removeItem('rp_last_held_order_id');
+        }
+        const storedFp = sessionStorage.getItem('rp_last_held_items_fp');
+        if (storedFp && lastHeldOrderId) {
+            lastHeldItemsFp = storedFp;
         }
     } catch (_) { /* ignore */ }
     let payments = [{ method: 'cash', amount: 0 }];
@@ -2818,11 +2823,12 @@
         if (confirmBtn) confirmBtn.disabled = true;
         if (otherBtn) otherBtn.disabled = true;
 
+        let paidOk = false;
         try {
-            await postCheckout({
+            paidOk = !!(await postCheckout({
                 cash_tendered: tendered,
                 cash_change: change,
-            }, { skipPrint: !printBill });
+            }, { skipPrint: !printBill }));
             getPayModal()?.hide();
             // Modal close ke baad dubara ensure — layout/focus Paid tab pe rahe
             requestAnimationFrame(() => showPaidTabAfterCheckout());
@@ -2830,9 +2836,11 @@
             alert(e.message || 'Payment failed.');
             updatePayModalAmounts();
         } finally {
-            if (confirmBtn) confirmBtn.disabled = false;
-            if (otherBtn) otherBtn.disabled = false;
-            updatePayModalAmounts();
+            if (!paidOk) {
+                if (confirmBtn) confirmBtn.disabled = false;
+                if (otherBtn) otherBtn.disabled = false;
+                updatePayModalAmounts();
+            }
         }
     }
 
@@ -2896,15 +2904,28 @@
         showPaidTabAfterCheckout();
     }
 
-    function resetForNewBill() {
+    function resetForNewBill(opts = {}) {
+        const keepLastHeld = !!opts.keepLastHeld;
+        const keptId = keepLastHeld ? lastHeldOrderId : null;
+        const keptFp = keepLastHeld ? lastHeldItemsFp : null;
+
         cart.length = 0;
         clearSessionKitchenVoids();
         itemReductions = [];
         cartSaveGeneration += 1;
         pendingRemoveIndex = null;
         resumeOrderId = null;
-        lastHeldOrderId = null;
-        try { sessionStorage.removeItem('rp_last_held_order_id'); } catch (_) { /* ignore */ }
+        if (keepLastHeld) {
+            lastHeldOrderId = keptId;
+            lastHeldItemsFp = keptFp;
+        } else {
+            lastHeldOrderId = null;
+            lastHeldItemsFp = null;
+            try {
+                sessionStorage.removeItem('rp_last_held_order_id');
+                sessionStorage.removeItem('rp_last_held_items_fp');
+            } catch (_) { /* ignore */ }
+        }
         // Har nayi bill Cash se start — Bank/Card previous bill se sticky na rahe.
         if ($('#rpPayMethod')) $('#rpPayMethod').value = 'cash';
         payments = [{ method: 'cash', amount: 0 }];
@@ -2939,6 +2960,36 @@
         setServiceType('dine_in');
         renderAll();
         $('#rpProductSearch')?.focus();
+    }
+
+    function cartItemsFingerprint() {
+        const rows = cartItemsForSubmit().map((r) => [
+            Number(r.product_id) || 0,
+            r.is_custom ? 1 : 0,
+            String(r.item_name || '').trim().toLowerCase(),
+            String(r.uom || '').trim().toLowerCase(),
+            Math.round((Number(r.qty) || 0) * 1000) / 1000,
+            Math.round((Number(r.unit_price) || 0) * 100) / 100,
+        ]);
+        rows.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+        return JSON.stringify({
+            st: selectedServiceType(),
+            t: Number($('#rpTable')?.value || 0) || 0,
+            i: rows,
+        });
+    }
+
+    /** After Hold/Kitchen clear, same cart re-punch should update same bill — not mint a twin. */
+    function attachLastHeldResumeIfSameCart() {
+        if (resumeOrderId) return;
+        const oid = Number(lastHeldOrderId || 0);
+        if (!oid || !lastHeldItemsFp) return;
+        if (cartItemsFingerprint() !== lastHeldItemsFp) return;
+        resumeOrderId = oid;
+        const form = $('#rpSubmitForm');
+        if (form) {
+            form.querySelector('[name="resume_order_id"]').value = String(oid);
+        }
     }
 
     function buildHoldFormData(sendToKitchen = false, clientRequestId = null, opts = {}) {
@@ -2988,7 +3039,11 @@
     function rememberHeldOrder(order) {
         if (!order?.id) return;
         lastHeldOrderId = Number(order.id);
-        try { sessionStorage.setItem('rp_last_held_order_id', String(order.id)); } catch (_) { /* ignore */ }
+        lastHeldItemsFp = cartItemsFingerprint();
+        try {
+            sessionStorage.setItem('rp_last_held_order_id', String(order.id));
+            sessionStorage.setItem('rp_last_held_items_fp', lastHeldItemsFp || '');
+        } catch (_) { /* ignore */ }
         setResumeStateFromOrder(order);
     }
 
@@ -3975,6 +4030,18 @@
         window.open(`${base}?autoprint=1`, '_blank', 'noopener,noreferrer');
     }
 
+    /** Snapshot cart fingerprint before clearing so same-cart re-punch resumes this bill. */
+    function stampLastHeldFromCurrentCart(orderId) {
+        const oid = Number(orderId || resumeOrderId || 0);
+        if (!oid) return;
+        lastHeldOrderId = oid;
+        lastHeldItemsFp = cartItemsFingerprint();
+        try {
+            sessionStorage.setItem('rp_last_held_order_id', String(oid));
+            sessionStorage.setItem('rp_last_held_items_fp', lastHeldItemsFp || '');
+        } catch (_) { /* ignore */ }
+    }
+
     async function submitHoldOrder() {
         if (holdSubmitLock || kitchenPrintBusy) return;
         if (!prepareSubmit('hold')) return;
@@ -3985,8 +4052,18 @@
         let savedOk = false;
         try {
             if (resumeOrderId) {
+                stampLastHeldFromCurrentCart(resumeOrderId);
                 await saveResumedDraftChanges(false);
-                resetForNewBill();
+                resetForNewBill({ keepLastHeld: true });
+                savedOk = true;
+                return;
+            }
+
+            attachLastHeldResumeIfSameCart();
+            if (resumeOrderId) {
+                stampLastHeldFromCurrentCart(resumeOrderId);
+                await saveResumedDraftChanges(false);
+                resetForNewBill({ keepLastHeld: true });
                 savedOk = true;
                 return;
             }
@@ -4010,6 +4087,7 @@
 
             if (data.order) {
                 upsertPendingBill(data.order, !!data.updated);
+                stampLastHeldFromCurrentCart(data.order.id);
                 if (data.order.table_id) {
                     setTableBoardStatus(data.order.table_id, 'occupied');
                 }
@@ -4018,7 +4096,7 @@
             }
 
             savedOk = true;
-            resetForNewBill();
+            resetForNewBill({ keepLastHeld: true });
         } catch (e) {
             alert(e.message || 'Hold failed.');
         } finally {
@@ -4046,9 +4124,11 @@
         let savedOk = false;
         try {
             let order = null;
+            attachLastHeldResumeIfSameCart();
             const existingId = Number(resumeOrderId || 0);
             if (Number.isFinite(existingId) && existingId > 0) {
                 resumeOrderId = existingId;
+                stampLastHeldFromCurrentCart(existingId);
                 order = await saveResumedDraftChanges(true);
             } else {
                 const formData = buildHoldFormData(true, newClientRequestId(), { requireGuestMeta: false });
@@ -4071,6 +4151,7 @@
                 order = data.order || null;
                 if (order) {
                     upsertPendingBill(order, !!data.updated);
+                    stampLastHeldFromCurrentCart(order.id);
                     reloadCartFromOrder(order);
                     rememberHeldOrder(order);
                     if (order.table_id) {
@@ -4086,6 +4167,7 @@
             if (order) {
                 rememberHeldOrder(order);
             } else {
+                stampLastHeldFromCurrentCart(orderId);
                 resumeOrderId = Number(orderId);
                 lastHeldOrderId = Number(orderId);
             }
@@ -4101,7 +4183,8 @@
                 alert('Warning: kuch items ab bhi Kitchen print pending hain (New tag). Kitchen Print dubara dabayein.');
             } else {
                 // Hold jaisa: order pending list mein reh jaye, cart nayi bill ke liye khali.
-                resetForNewBill();
+                // keepLastHeld: same cart dubara punch = same bill update (no twin 036/037).
+                resetForNewBill({ keepLastHeld: true });
             }
         } catch (e) {
             alert(e.message || 'Kitchen print failed.');
