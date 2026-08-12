@@ -390,6 +390,82 @@ final class KitchenService
     }
 
     /**
+     * Remove / reduce line qty that was already kitchen-voided (so cancelled items
+     * cannot stay in the cart payload after a race or stale pending sync).
+     *
+     * @param  list<array<string, mixed>>  $normalized
+     * @param  list<array<string, mixed>>  $voids
+     * @return list<array<string, mixed>>
+     */
+    public function reduceNormalizedByVoids(array $normalized, array $voids): array
+    {
+        if ($normalized === [] || $voids === []) {
+            return $normalized;
+        }
+
+        $voidByItemId = [];
+        $voidByFp = [];
+        foreach ($voids as $void) {
+            if (! is_array($void)) {
+                continue;
+            }
+            $qty = round((float) ($void['qty'] ?? 0), 3);
+            if ($qty <= 0.0005) {
+                continue;
+            }
+            $id = (int) ($void['order_item_id'] ?? 0);
+            if ($id > 0) {
+                $voidByItemId[$id] = ($voidByItemId[$id] ?? 0.0) + $qty;
+            }
+            $fp = $this->voidMatchFingerprint($void);
+            $voidByFp[$fp] = ($voidByFp[$fp] ?? 0.0) + $qty;
+        }
+
+        $out = [];
+        foreach ($normalized as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+            $qty = round((float) ($item['qty'] ?? 0), 3);
+            if ($qty <= 0.0005) {
+                continue;
+            }
+
+            $take = 0.0;
+            $id = (int) ($item['id'] ?? $item['order_item_id'] ?? 0);
+            if ($id > 0 && isset($voidByItemId[$id]) && $voidByItemId[$id] > 0.0005) {
+                $take = min($qty, (float) $voidByItemId[$id]);
+                $voidByItemId[$id] = max(0.0, (float) $voidByItemId[$id] - $take);
+                $fp = $this->voidMatchFingerprint($item);
+                $voidByFp[$fp] = max(0.0, ($voidByFp[$fp] ?? 0.0) - $take);
+            } else {
+                $fp = $this->voidMatchFingerprint($item);
+                if (($voidByFp[$fp] ?? 0.0) > 0.0005) {
+                    $take = min($qty, (float) $voidByFp[$fp]);
+                    $voidByFp[$fp] = max(0.0, (float) $voidByFp[$fp] - $take);
+                }
+            }
+
+            $remaining = round($qty - $take, 3);
+            if ($remaining <= 0.0005) {
+                continue;
+            }
+
+            $row = $item;
+            $row['qty'] = $remaining;
+            if (isset($row['kitchen_locked_qty'])) {
+                $row['kitchen_locked_qty'] = max(
+                    0.0,
+                    round((float) $row['kitchen_locked_qty'] - $take, 3)
+                );
+            }
+            $out[] = $row;
+        }
+
+        return $out;
+    }
+
+    /**
      * Kitchen-locked = already ticketed/served. Unprinted pending lines stay editable.
      */
     public function isKitchenLockedLine(PosOrderItem $item): bool

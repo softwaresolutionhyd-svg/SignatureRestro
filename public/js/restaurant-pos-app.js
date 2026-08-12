@@ -1998,6 +1998,19 @@
             }
             kitchenVoidsSessionList = Array.isArray(data.items) ? data.items : [];
             updateKitchenVoidCount();
+            if (resumeOrderId) {
+                const voids = kitchenVoidsForOrder(resumeOrderId);
+                if (voids.length) {
+                    rememberSessionKitchenVoids(voids);
+                    if (applyKitchenVoidsToCart(voids)) {
+                        renderAll();
+                        // Persist cleaned cart so cancelled items leave the draft bill too.
+                        if (cart.length > 0) {
+                            saveResumedDraftChanges().catch(() => {});
+                        }
+                    }
+                }
+            }
             return kitchenVoidsSessionList;
         } catch (e) {
             console.warn('kitchen voids load failed', e);
@@ -3039,6 +3052,40 @@
         }
     }
 
+    function kitchenVoidsForOrder(orderId) {
+        const oid = Number(orderId) || 0;
+        if (!oid) return [];
+        return (kitchenVoidsSessionList || [])
+            .filter((v) => Number(v.order_id) === oid)
+            .map((v) => ({
+                product_id: Number(v.product_id) || 0,
+                uom: String(v.uom || ''),
+                qty: Number(v.qty) || 0,
+                reason: String(v.reason || 'void'),
+                is_custom: !!v.is_custom,
+                order_item_id: Number(v.order_item_id) || null,
+                name: String(v.product || v.name || ''),
+                item_name: String(v.product || v.item_name || ''),
+            }))
+            .filter((v) => v.qty > 0.0005 && (v.product_id > 0 || (v.order_item_id && v.order_item_id > 0)));
+    }
+
+    async function stripKitchenVoidsForOpenOrder(orderId) {
+        const oid = Number(orderId) || 0;
+        if (!oid) return;
+        try {
+            if (canViewKitchenVoids && routes.kitchenVoids) {
+                await loadSessionKitchenVoids();
+            }
+        } catch (_) { /* ignore */ }
+        const voids = kitchenVoidsForOrder(oid);
+        if (!voids.length) return;
+        rememberSessionKitchenVoids(voids);
+        if (applyKitchenVoidsToCart(voids)) {
+            renderAll();
+        }
+    }
+
     function applyPendingOrderToCheckout(order) {
         clearSessionKitchenVoids();
         itemReductions = [];
@@ -3085,6 +3132,12 @@
         setCreditMode(false);
         setResumeStateFromOrder(order);
         reloadCartFromOrder(order);
+        // Cancelled kitchen items must not reappear when reopening a pending bill.
+        const openVoids = kitchenVoidsForOrder(order.id);
+        if (openVoids.length) {
+            rememberSessionKitchenVoids(openVoids);
+            applyKitchenVoidsToCart(openVoids);
+        }
         updateOwnerDiscountButton();
         updateCheckoutActions();
         updateCancelOrderButton();
@@ -3094,6 +3147,9 @@
         const grand = calcCartTotals().grand;
         payments = [{ method: 'cash', amount: grand }];
         autoPaymentAmount = true;
+
+        // Refresh void list then strip again (covers first open before voids loaded).
+        stripKitchenVoidsForOpenOrder(order.id);
     }
 
     async function payPendingBillNow(orderId) {

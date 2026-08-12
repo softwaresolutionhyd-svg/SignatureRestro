@@ -114,4 +114,35 @@ class KitchenVoidAppendTest extends TestCase
 
         $this->assertSame([], $out);
     }
+
+    public function test_reduce_normalized_by_voids_removes_cancelled_line(): void
+    {
+        $kitchen = new KitchenService;
+
+        $normalized = [[
+            'product_id' => 42,
+            'uom' => 'nos',
+            'qty' => 1,
+            'is_custom' => false,
+            'order_item_id' => 501,
+        ], [
+            'product_id' => 99,
+            'uom' => 'nos',
+            'qty' => 1,
+            'is_custom' => false,
+        ]];
+
+        $voids = [[
+            'product_id' => 42,
+            'uom' => 'nos',
+            'qty' => 1,
+            'is_custom' => false,
+            'order_item_id' => 501,
+        ]];
+
+        $out = $kitchen->reduceNormalizedByVoids($normalized, $voids);
+
+        $this->assertCount(1, $out);
+        $this->assertSame(99, (int) $out[0]['product_id']);
+    }
 }

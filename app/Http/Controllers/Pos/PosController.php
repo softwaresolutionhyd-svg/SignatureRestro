@@ -730,9 +730,12 @@ class PosController extends Controller
                 'id' => (int) $log->id,
                 'order_id' => (int) ($props['order_id'] ?? $log->subject_id),
                 'order_no' => $orderNo,
+                'product_id' => $productId,
                 'product' => $name,
                 'qty' => round((float) ($void['qty'] ?? 0), 3),
                 'uom' => (string) ($void['uom'] ?? ''),
+                'is_custom' => filter_var($void['is_custom'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'order_item_id' => (int) ($void['order_item_id'] ?? 0) ?: null,
                 'reason' => (string) ($void['reason'] ?? ''),
                 'notes' => (string) ($void['notes'] ?? ''),
                 'cancelled_at' => $log->created_at?->format('d M Y, h:i A') ?? '',
@@ -1291,6 +1294,7 @@ class PosController extends Controller
                     $itemsNormalized,
                     $kitchenVoids
                 );
+                $itemsNormalized = app(KitchenService::class)->reduceNormalizedByVoids($itemsNormalized, $kitchenVoids);
                 $this->assertCartQtyNotReducedByNonManager($oldItems, $itemsNormalized, $checkoutUser);
                 $this->assertKitchenLockedQuantitiesPreserved($oldItems, $itemsNormalized, $kitchenVoids, hardFail: true);
             }
@@ -1788,6 +1792,7 @@ class PosController extends Controller
                     $itemsNormalized,
                     $kitchenVoids
                 );
+                $itemsNormalized = app(KitchenService::class)->reduceNormalizedByVoids($itemsNormalized, $kitchenVoids);
                 $this->assertCartQtyNotReducedByNonManager($oldItems, $itemsNormalized, $holdUser);
                 $this->assertKitchenLockedQuantitiesPreserved($oldItems, $itemsNormalized, $kitchenVoids, hardFail: true);
             }
@@ -1848,6 +1853,10 @@ class PosController extends Controller
         // Request voids = new cancels this submit. Merged voids also include prior cancels
         // so a later autosave cannot re-append already-cancelled kitchen lines.
         $requestKitchenVoids = $this->normalizedKitchenVoids($request);
+        if ($resumeOrderId && $requestKitchenVoids !== []) {
+            // Persist before the transaction so a concurrent autosave sees the voids.
+            $this->persistKitchenVoids((int) $resumeOrderId, $requestKitchenVoids);
+        }
         $kitchenVoids = $resumeOrderId
             ? $this->mergePersistedKitchenVoids((int) $resumeOrderId, $requestKitchenVoids)
             : $requestKitchenVoids;
@@ -1949,7 +1958,10 @@ class PosController extends Controller
                         $workingNormalized,
                         $kitchenVoids
                     );
-                    if (count($preservedNormalized) !== count($workingNormalized)) {
+                    $preservedNormalized = $kitchen->reduceNormalizedByVoids($preservedNormalized, $kitchenVoids);
+                    if (count($preservedNormalized) !== count($workingNormalized)
+                        || $this->normalizedQtyTotal($preservedNormalized) !== $this->normalizedQtyTotal($workingNormalized)
+                    ) {
                         $workingNormalized = $preservedNormalized;
                         [$subtotal, $discountTotal, $taxTotal, $serviceTotal, $grandTotal, $itemsData] = $this->buildLines($workingNormalized, $lineOpts);
                         // Stale cart missed kitchen lines — trust rebuilt server totals.
@@ -2156,6 +2168,10 @@ class PosController extends Controller
         $removedPrint = $this->logKitchenVoids($order, $requestKitchenVoids);
         $this->logItemReductions($order, $this->normalizedItemReductions($request));
 
+        // Belt-and-suspenders: cancelled kitchen lines must not remain on the draft.
+        if ($this->purgeVoidedLinesFromDraft($order, $requestKitchenVoids)) {
+            $order->load(['table', 'items.product', 'user', 'payments', 'contact']);
+        }
         $message = $updatedExisting ? 'Held order updated.' : 'Order held successfully.';
         if ($reusedDuplicateCreate) {
             $message = 'Order pehle se save ho chuki hai ('.$order->order_no.').';
@@ -3987,6 +4003,12 @@ class PosController extends Controller
             return $payload;
         }
 
+        // Draft bills: strip qty already cancelled (activity log) so POS cart never shows them.
+        if ($order->status === 'draft') {
+            $this->purgeVoidedLinesFromDraft($order);
+            $order->loadMissing(['items.product:id,name']);
+        }
+
         $payload['served_count'] = $order->items->filter(fn (PosOrderItem $item) => $item->isKitchenServed())->count();
         $payload['pending_count'] = $order->items->filter(fn (PosOrderItem $item) => ! $item->isKitchenServed() && (bool) $item->kitchen_pending)->count();
         // Timeline is unused on POS cards — skip building it on list/sync hot paths.
@@ -4996,8 +5018,24 @@ class PosController extends Controller
             $cached = [];
         }
 
+        // Activity logs are durable; cache bridges autosave races before/without a log row.
+        // Exact-signature dedupe prevents log+cache double-count wiping a re-added item.
+        return $this->uniqueKitchenVoidRows(array_merge(
+            $this->kitchenVoidsFromActivityLogs($orderId),
+            $cached,
+            $requestVoids
+        ));
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $voids
+     * @return list<array<string, mixed>>
+     */
+    private function uniqueKitchenVoidRows(array $voids): array
+    {
         $out = [];
-        foreach (array_merge($cached, $requestVoids) as $void) {
+        $seen = [];
+        foreach ($voids as $void) {
             if (! is_array($void)) {
                 continue;
             }
@@ -5005,7 +5043,7 @@ class PosController extends Controller
             if ($qty <= 0) {
                 continue;
             }
-            $out[] = [
+            $row = [
                 'product_id' => (int) ($void['product_id'] ?? 0),
                 'uom' => (string) ($void['uom'] ?? ''),
                 'qty' => $qty,
@@ -5016,9 +5054,146 @@ class PosController extends Controller
                 'is_custom' => filter_var($void['is_custom'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'order_item_id' => (int) ($void['order_item_id'] ?? 0) ?: null,
             ];
+            $sig = $this->kitchenVoidDedupeSignature($row);
+            if (isset($seen[$sig])) {
+                continue;
+            }
+            $seen[$sig] = true;
+            $out[] = $row;
         }
 
         return $out;
+    }
+
+    /**
+     * Durable void source — survives cache miss / page reload (fixes cancelled item stuck in cart).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function kitchenVoidsFromActivityLogs(int $orderId): array
+    {
+        if ($orderId <= 0) {
+            return [];
+        }
+
+        $logs = ActivityLog::query()
+            ->where('action', 'pos.kitchen_void')
+            ->where(function ($q) use ($orderId) {
+                $q->where(function ($inner) use ($orderId) {
+                    $inner->where('subject_type', PosOrder::class)
+                        ->where('subject_id', $orderId);
+                })
+                    ->orWhere('properties->order_id', $orderId)
+                    ->orWhere('properties->order_id', (string) $orderId);
+            })
+            ->orderBy('id')
+            ->limit(300)
+            ->get(['id', 'properties']);
+
+        $out = [];
+        foreach ($logs as $log) {
+            $props = is_array($log->properties) ? $log->properties : [];
+            $void = is_array($props['void'] ?? null) ? $props['void'] : [];
+            if ($void === []) {
+                continue;
+            }
+            $out[] = $void;
+        }
+
+        return $out;
+    }
+
+    /**
+     * If activity-log voids still appear as draft lines (race / stale sync), delete them from DB.
+     *
+     * @param  list<array<string, mixed>>  $extraVoids
+     */
+    private function purgeVoidedLinesFromDraft(PosOrder $order, array $extraVoids = []): bool
+    {
+        if ($order->status !== 'draft') {
+            return false;
+        }
+
+        $orderId = (int) $order->id;
+        $voids = $this->mergePersistedKitchenVoids($orderId, $extraVoids);
+        if ($voids === []) {
+            return false;
+        }
+
+        $order->loadMissing('items');
+        $items = $order->items;
+        if ($items->isEmpty()) {
+            return false;
+        }
+
+        $kitchen = app(KitchenService::class);
+        $normalized = $items->map(function (PosOrderItem $item) {
+            return [
+                'id' => (int) $item->id,
+                'order_item_id' => (int) $item->id,
+                'product_id' => (int) $item->product_id,
+                'item_name' => $item->item_name,
+                'is_custom' => (bool) $item->is_custom,
+                'uom' => (string) $item->uom,
+                'qty' => (float) $item->qty,
+                'unit_price' => (float) $item->unit_price,
+                'discount_percent' => (float) ($item->discount_percent ?? 0),
+                'tax_percent' => (float) ($item->tax_percent ?? 0),
+                'notes' => $item->notes,
+                'kitchen_locked_qty' => $kitchen->isKitchenLockedLine($item) ? (float) $item->qty : 0.0,
+            ];
+        })->all();
+
+        $reduced = $kitchen->reduceNormalizedByVoids($normalized, $voids);
+        if ($this->normalizedQtyTotal($reduced) >= $this->normalizedQtyTotal($normalized) - 0.0005
+            && count($reduced) === count($normalized)
+        ) {
+            return false;
+        }
+
+        $pricing = $this->posPricingOptions();
+        $billTax = (float) ($order->bill_tax_percent ?? 0);
+        $billDiscount = (float) ($order->bill_discount_percent ?? 0);
+        $lineOpts = [
+            'tax_mode' => $pricing['tax_mode'],
+            'bill_tax_percent' => $billTax,
+            'bill_discount_percent' => $billDiscount,
+            'allow_discount' => $pricing['allow_discount'],
+            'service_type' => $order->serviceTypeKey(),
+        ];
+        [$subtotal, $discountTotal, $taxTotal, $serviceTotal, $grandTotal, $itemsData] = $this->buildLines($reduced, $lineOpts);
+        $itemsWithFlags = $kitchen->applyKitchenPendingFlags($items->all(), $itemsData, false);
+
+        SyncAwareDelete::relation($order->items());
+        foreach ($itemsWithFlags as $item) {
+            PosOrderItem::create(['order_id' => $order->id] + $item);
+        }
+        $order->update([
+            'subtotal' => $subtotal,
+            'discount_total' => $discountTotal,
+            'tax_total' => $taxTotal,
+            'service_charge_percent' => $serviceTotal > 0 ? PosServiceCharge::percent() : null,
+            'service_charge_total' => $serviceTotal,
+            'grand_total' => $grandTotal,
+        ]);
+        $order->unsetRelation('items');
+        $order->load(['items.product']);
+
+        return true;
+    }
+
+    /** @param  list<array<string, mixed>>  $rows */
+    private function normalizedQtyTotal(array $rows): float
+    {
+        $total = 0.0;
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $total += (float) ($row['qty'] ?? 0);
+        }
+
+        return round($total, 3);
     }
 
     private function forgetPersistedKitchenVoids(int $orderId): void
