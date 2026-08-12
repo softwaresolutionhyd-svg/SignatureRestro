@@ -1525,7 +1525,10 @@ class PosController extends Controller
                         $roomNo,
                         $tableId ? (int) $tableId : null,
                         Auth::id() ? (int) Auth::id() : null,
-                        round((float) $grandTotal, 2)
+                        round((float) $grandTotal, 2),
+                        15,
+                        $contactId ? (int) $contactId : null,
+                        $isCredit
                     );
                     if ($racePaid !== null) {
                         return ['order' => $racePaid, 'idempotent' => true];
@@ -1546,7 +1549,10 @@ class PosController extends Controller
                     $roomNo,
                     $tableId ? (int) $tableId : null,
                     Auth::id() ? (int) Auth::id() : null,
-                    round((float) $grandTotal, 2)
+                    round((float) $grandTotal, 2),
+                    15,
+                    $contactId ? (int) $contactId : null,
+                    $isCredit
                 );
                 if ($twinPaid !== null) {
                     if ($existingDraft && (int) $existingDraft->id !== (int) $twinPaid->id) {
@@ -2049,7 +2055,10 @@ class PosController extends Controller
                 $roomNo,
                 $tableId ? (int) $tableId : null,
                 Auth::id() ? (int) Auth::id() : null,
-                isset($orderPayload['grand_total']) ? round((float) $orderPayload['grand_total'], 2) : null
+                isset($orderPayload['grand_total']) ? round((float) $orderPayload['grand_total'], 2) : null,
+                15,
+                null,
+                null
             );
             if ($recentPaid === null) {
                 $cachedPaidId = Cache::get(
@@ -4488,7 +4497,9 @@ class PosController extends Controller
         ?int $tableId,
         ?int $userId,
         ?float $grandTotal = null,
-        int $withinMinutes = 15
+        int $withinMinutes = 15,
+        ?int $contactId = null,
+        ?bool $isCredit = null
     ): ?PosOrder {
         $sessionIds = array_values(array_unique(array_filter(array_map('intval', (array) $sessionId))));
         if ($sessionIds === []) {
@@ -4550,12 +4561,18 @@ class PosController extends Controller
                 ? $paid->room_no
                 : ($paid->guest_name ?? '')));
 
-            if ($paidContact !== '' && $newContact !== '' && $paidContact !== $newContact) {
+            if ($paidContact !== '' && $newContact !== '' && strcasecmp($paidContact, $newContact) !== 0) {
                 continue;
             }
 
-            // Anonymous takeaway: only treat as twin when contact side also empty.
-            if ($paidContact !== $newContact) {
+            // Credit twin: same contact_id must match when both sides have one.
+            if ($contactId && (int) ($paid->contact_id ?? 0) > 0
+                && (int) $paid->contact_id !== (int) $contactId) {
+                continue;
+            }
+
+            // Prefer same credit/cash mode when we know it.
+            if ($isCredit !== null && (bool) $paid->is_credit !== $isCredit) {
                 continue;
             }
 

@@ -2617,7 +2617,13 @@
         const totals = calcCartTotals();
         const formData = new FormData(form);
         formData.set('items', JSON.stringify(cartItemsForSubmit()));
-        if (!isCreditMode) {
+        if (isCreditMode) {
+            formData.set('is_credit', '1');
+            formData.set('contact_id', String(selectedContactId || ''));
+            formData.set('payments', JSON.stringify([]));
+        } else {
+            formData.set('is_credit', '0');
+            formData.set('contact_id', '');
             const payMethod = $('#rpPayMethod')?.value || 'cash';
             formData.set('payments', JSON.stringify([{ method: payMethod, amount: totals.grand }]));
         }
@@ -2669,7 +2675,11 @@
 
             // UI pehle update — thermal print wait mat karo (server queue / background).
             applyCheckoutSuccess(data);
-            if (!skipPrint) {
+            if (isCreditMode) {
+                if (data.receipt_url) {
+                    window.open(data.receipt_url, '_blank', 'noopener,noreferrer');
+                }
+            } else if (!skipPrint) {
                 queuePaidBillPrint(data);
             }
 
@@ -2794,6 +2804,7 @@
     }
 
     function openPayModal() {
+        if (checkoutInFlight) return;
         if (!prepareSubmit('checkout')) return;
 
         if (isCreditMode) {
@@ -4209,15 +4220,19 @@
     }
 
     async function submitOrder(mode) {
-        if (mode === 'checkout' && !isCreditMode) {
+        // Cash / Card / Bank / Credit — sab AJAX postCheckout (form.submit = double credit risk).
+        if (mode === 'checkout') {
+            if (checkoutInFlight) return;
             const confirmBtn = $('#rpPayBtn');
             if (confirmBtn) confirmBtn.disabled = true;
+            let ok = false;
             try {
-                await postCheckout();
+                ok = !!(await postCheckout());
             } catch (e) {
-                alert(e.message || 'Payment failed.');
+                alert(e.message || (isCreditMode ? 'Credit sale fail.' : 'Payment failed.'));
             } finally {
-                if (confirmBtn) confirmBtn.disabled = false;
+                // Success / in-flight pe button lock; fail pe dubara allow.
+                if (!ok && !checkoutInFlight && confirmBtn) confirmBtn.disabled = false;
             }
             return;
         }
