@@ -5,6 +5,7 @@
 @php
     $s = $statusMap[$expense->status] ?? ['label' => $expense->status, 'color' => 'secondary'];
     $user = auth()->user();
+    $canManage = $user && $user->canManageExpenses();
     $isAdmin = $user && ($user->bypassesModulePermissions() || in_array($user->role ?? '', ['admin'], true));
 @endphp
 
@@ -30,35 +31,22 @@
     <div class="d-flex flex-wrap gap-2">
         <a href="{{ route('expenses.index') }}" class="btn btn-outline-secondary btn-sm">← Back</a>
 
-        {{-- Submit --}}
-        @if($expense->status === 'draft')
+        {{-- Send for Approval (draft / refused only) --}}
+        @if(in_array($expense->status, ['draft', 'refused'], true))
         <form method="POST" action="{{ route('expenses.submit', $expense) }}" class="d-inline">
             @csrf
-            <button class="btn btn-info btn-sm text-white" onclick="return confirm('Submit this expense for approval?')">
-                Submit for Approval
+            <button class="btn btn-info btn-sm text-white" onclick="return confirm('Send this expense for approval?')">
+                Send for Approval
             </button>
         </form>
         @endif
 
-        {{-- Approve (admin) --}}
-        @if($isAdmin && $expense->status === 'submitted')
-        <form method="POST" action="{{ route('expenses.approve', $expense) }}" class="d-inline">
-            @csrf
-            <button class="btn btn-primary btn-sm">Approve</button>
-        </form>
-        @endif
-
-        {{-- Mark Paid (admin) --}}
-        @if($isAdmin && $expense->status === 'approved')
+        {{-- Mark Paid (manager/admin) — from sent-for-approval or legacy approved --}}
+        @if($canManage && in_array($expense->status, ['submitted', 'approved'], true))
         <form method="POST" action="{{ route('expenses.markPaid', $expense) }}" class="d-inline">
             @csrf
-            <button class="btn btn-success btn-sm">Mark as Paid</button>
+            <button class="btn btn-success btn-sm" onclick="return confirm('Mark this expense as paid?')">Mark as Paid</button>
         </form>
-        @endif
-
-        {{-- Refuse (admin) --}}
-        @if($isAdmin && in_array($expense->status, ['submitted', 'approved']))
-        <button class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#refuseModal">Refuse</button>
         @endif
 
         {{-- Edit --}}
@@ -77,18 +65,16 @@
     </div>
 </div>
 
-{{-- Status timeline --}}
+{{-- Status timeline (2 steps) --}}
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body py-3">
         <div class="d-flex align-items-center gap-0 flex-wrap">
             @php
                 $steps = [
-                    ['key'=>'draft',     'label'=>'Draft',     'color'=>'#64748b'],
-                    ['key'=>'submitted', 'label'=>'Submitted', 'color'=>'#0ea5e9'],
-                    ['key'=>'approved',  'label'=>'Approved',  'color'=>'#7c3aed'],
-                    ['key'=>'paid',      'label'=>'Paid',      'color'=>'#22c55e'],
+                    ['key'=>'submitted', 'label'=>'Sent for Approval', 'color'=>'#0ea5e9'],
+                    ['key'=>'paid',      'label'=>'Paid',              'color'=>'#22c55e'],
                 ];
-                $statusOrder = ['draft'=>0,'submitted'=>1,'approved'=>2,'paid'=>3,'refused'=>99];
+                $statusOrder = ['draft'=>0,'refused'=>0,'submitted'=>1,'approved'=>1,'paid'=>2];
                 $currentOrder = $statusOrder[$expense->status] ?? 0;
             @endphp
             @foreach($steps as $i => $step)
@@ -98,15 +84,15 @@
                     $isActive = ($expense->status !== 'refused') && ($currentOrder === $stepOrder);
                 @endphp
                 @if($i > 0)
-                <div style="flex:1;height:2px;background:{{ $isDone ? $step['color'] : '#e2e8f0' }};min-width:20px;max-width:60px;" class="mx-1"></div>
+                <div style="flex:1;height:2px;background:{{ $isDone ? $step['color'] : '#e2e8f0' }};min-width:20px;max-width:80px;" class="mx-1"></div>
                 @endif
-                <div class="d-flex flex-column align-items-center" style="min-width:60px;">
+                <div class="d-flex flex-column align-items-center" style="min-width:90px;">
                     <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold"
                         style="width:32px;height:32px;background:{{ $isDone ? $step['color'] : '#e2e8f0' }};color:{{ $isDone ? '#fff' : '#94a3b8' }};font-size:13px;
                         {{ $isActive ? 'box-shadow:0 0 0 4px '.$step['color'].'30;' : '' }}">
                         @if($isDone && !$isActive)✓@else{{ $i+1 }}@endif
                     </div>
-                    <div class="small mt-1 fw-{{ $isActive ? 'bold' : 'normal' }}" style="color:{{ $isDone ? $step['color'] : '#94a3b8' }};font-size:11px;">
+                    <div class="small mt-1 fw-{{ $isActive ? 'bold' : 'normal' }} text-center" style="color:{{ $isDone ? $step['color'] : '#94a3b8' }};font-size:11px;">
                         {{ $step['label'] }}
                     </div>
                 </div>
@@ -231,17 +217,8 @@
                     <li class="list-group-item d-flex gap-2 py-2">
                         <span style="color:#0ea5e9;" class="mt-1">●</span>
                         <div>
-                            <div class="fw-semibold">Submitted</div>
+                            <div class="fw-semibold">Sent for Approval</div>
                             <div class="text-secondary">{{ $expense->submitted_at->format('d M Y H:i') }}</div>
-                        </div>
-                    </li>
-                    @endif
-                    @if($expense->approved_at)
-                    <li class="list-group-item d-flex gap-2 py-2">
-                        <span style="color:#7c3aed;" class="mt-1">●</span>
-                        <div>
-                            <div class="fw-semibold">Approved by {{ $expense->approvedBy?->name ?? 'Admin' }}</div>
-                            <div class="text-secondary">{{ $expense->approved_at->format('d M Y H:i') }}</div>
                         </div>
                     </li>
                     @endif
@@ -249,7 +226,7 @@
                     <li class="list-group-item d-flex gap-2 py-2">
                         <span style="color:#22c55e;" class="mt-1">●</span>
                         <div>
-                            <div class="fw-semibold">Paid</div>
+                            <div class="fw-semibold">Paid{{ $expense->approvedBy?->name ? ' by '.$expense->approvedBy->name : '' }}</div>
                             <div class="text-secondary">{{ $expense->paid_at->format('d M Y H:i') }}</div>
                         </div>
                     </li>
@@ -268,30 +245,4 @@
         </div>
     </div>
 </div>
-
-{{-- Refuse Modal --}}
-@if($isAdmin && in_array($expense->status, ['submitted','approved']))
-<div class="modal fade" id="refuseModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Refuse Expense #{{ $expense->id }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form method="POST" action="{{ route('expenses.refuse', $expense) }}">
-                @csrf
-                <div class="modal-body">
-                    <label class="form-label">Reason for refusal <span class="text-danger">*</span></label>
-                    <textarea name="refuse_reason" class="form-control" rows="3" required
-                        placeholder="Explain why this expense is being refused…"></textarea>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-danger">Confirm Refuse</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-@endif
 @endsection

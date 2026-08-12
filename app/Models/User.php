@@ -222,6 +222,16 @@ class User extends Authenticatable
         return $this->hasManagerDesignationAccess();
     }
 
+    /** Expense mark-as-paid — company admin, admin role, or manager/owner designation. */
+    public function canManageExpenses(): bool
+    {
+        if ($this->bypassesModulePermissions() || ($this->role ?? null) === 'admin') {
+            return true;
+        }
+
+        return $this->hasManagerDesignationAccess();
+    }
+
     /** Demand module launcher — Admin, Manager, or Storekeeper. */
     public function canAccessDemand(): bool
     {

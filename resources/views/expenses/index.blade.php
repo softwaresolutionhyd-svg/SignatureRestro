@@ -25,14 +25,12 @@
 <div class="row g-3 mb-4">
     @php
         $ribbonItems = [
-            ['key' => 'draft',     'label' => 'Draft',     'color' => '#64748b', 'icon' => 'M4 8h12M4 12h8'],
-            ['key' => 'submitted', 'label' => 'Submitted', 'color' => '#0ea5e9', 'icon' => 'M5 10l4 4 6-7'],
-            ['key' => 'approved',  'label' => 'Approved',  'color' => '#7c3aed', 'icon' => 'M4 10l4 4 8-8'],
-            ['key' => 'paid',      'label' => 'Paid',      'color' => '#22c55e', 'icon' => 'M3 10a7 7 0 1 0 14 0 7 7 0 0 0-14 0zm4 0l2.5 2.5L12 7'],
+            ['key' => 'submitted', 'label' => 'Sent for Approval', 'color' => '#0ea5e9', 'icon' => 'M5 10l4 4 6-7'],
+            ['key' => 'paid',      'label' => 'Paid',              'color' => '#22c55e', 'icon' => 'M3 10a7 7 0 1 0 14 0 7 7 0 0 0-14 0zm4 0l2.5 2.5L12 7'],
         ];
     @endphp
     @foreach($ribbonItems as $ri)
-    <div class="col-6 col-md-3">
+    <div class="col-6 col-md-6">
         <div class="card border-0 shadow-sm h-100 cursor-pointer" style="border-left:4px solid {{ $ri['color'] }} !important;">
             <div class="card-body py-3">
                 <div class="d-flex align-items-center justify-content-between">

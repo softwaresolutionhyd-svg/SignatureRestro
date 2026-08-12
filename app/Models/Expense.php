@@ -46,11 +46,11 @@ class Expense extends Model
     public static function statusLabel(): array
     {
         return [
-            self::STATUS_DRAFT     => ['label' => 'Draft',     'color' => 'secondary'],
-            self::STATUS_SUBMITTED => ['label' => 'Submitted', 'color' => 'info'],
-            self::STATUS_APPROVED  => ['label' => 'Approved',  'color' => 'primary'],
-            self::STATUS_PAID      => ['label' => 'Paid',      'color' => 'success'],
-            self::STATUS_REFUSED   => ['label' => 'Refused',   'color' => 'danger'],
+            self::STATUS_DRAFT     => ['label' => 'Draft',              'color' => 'secondary'],
+            self::STATUS_SUBMITTED => ['label' => 'Sent for Approval',  'color' => 'info'],
+            self::STATUS_APPROVED  => ['label' => 'Approved',           'color' => 'primary'],
+            self::STATUS_PAID      => ['label' => 'Paid',               'color' => 'success'],
+            self::STATUS_REFUSED   => ['label' => 'Refused',            'color' => 'danger'],
         ];
     }
 

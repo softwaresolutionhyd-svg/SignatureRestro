@@ -70,6 +70,8 @@ class ExpenseController extends Controller
         $data['employee_id'] = $employee->id;
 
         $expense = new Expense($data);
+        $expense->status = Expense::STATUS_SUBMITTED;
+        $expense->submitted_at = now();
         $expense->recalculate();
 
         if ($request->hasFile('receipt')) {
@@ -79,7 +81,7 @@ class ExpenseController extends Controller
         $expense->save();
 
         return redirect()->route('expenses.show', $expense)
-            ->with('success', 'Expense saved as draft.');
+            ->with('success', 'Expense sent for approval.');
     }
 
     public function show(Expense $expense)
@@ -155,19 +157,25 @@ class ExpenseController extends Controller
 
     public function submit(Expense $expense)
     {
-        if ($expense->status !== Expense::STATUS_DRAFT) {
-            return back()->with('error', 'Only draft expenses can be submitted.');
+        if (! in_array($expense->status, [Expense::STATUS_DRAFT, Expense::STATUS_REFUSED], true)) {
+            return back()->with('error', 'Only draft or refused expenses can be sent for approval.');
         }
         if (Setting::get('expenses_require_receipt_on_submit', '0') === '1' && empty($expense->receipt_path)) {
             return back()->with('error', 'Attach a receipt before submitting for approval.');
         }
-        $expense->update(['status' => Expense::STATUS_SUBMITTED, 'submitted_at' => now()]);
-        return back()->with('success', 'Expense submitted for approval.');
+        $expense->update([
+            'status' => Expense::STATUS_SUBMITTED,
+            'submitted_at' => now(),
+            'refuse_reason' => null,
+        ]);
+
+        return back()->with('success', 'Expense sent for approval.');
     }
 
     public function approve(Expense $expense)
     {
-        $this->assertCanApproveExpenses();
+        // Legacy endpoint — flow is now Send for Approval → Mark as Paid.
+        $this->assertCanManageExpenses();
 
         if ($expense->status !== Expense::STATUS_SUBMITTED) {
             return back()->with('error', 'Only submitted expenses can be approved.');
@@ -182,7 +190,8 @@ class ExpenseController extends Controller
 
     public function refuse(Request $request, Expense $expense)
     {
-        $this->assertCanApproveExpenses();
+        // Legacy endpoint — refuse is hidden from the simplified manager flow.
+        $this->assertCanManageExpenses();
 
         $request->validate(['refuse_reason' => 'required|string|max:500']);
         if (!in_array($expense->status, [Expense::STATUS_SUBMITTED, Expense::STATUS_APPROVED])) {
@@ -197,12 +206,22 @@ class ExpenseController extends Controller
 
     public function markPaid(Expense $expense)
     {
-        $this->assertCanApproveExpenses();
+        $this->assertCanManageExpenses();
 
-        if ($expense->status !== Expense::STATUS_APPROVED) {
-            return back()->with('error', 'Only approved expenses can be marked as paid.');
+        if (! in_array($expense->status, [Expense::STATUS_SUBMITTED, Expense::STATUS_APPROVED], true)) {
+            return back()->with('error', 'Only expenses sent for approval can be marked as paid.');
         }
-        $expense->update(['status' => Expense::STATUS_PAID, 'paid_at' => now()]);
+
+        $payload = [
+            'status' => Expense::STATUS_PAID,
+            'paid_at' => now(),
+        ];
+        if (empty($expense->approved_at)) {
+            $payload['approved_at'] = now();
+            $payload['approved_by'] = Auth::id();
+        }
+
+        $expense->update($payload);
         $this->autoJournal->postExpensePaid($expense);
 
         return back()->with('success', 'Expense marked as paid.');
@@ -210,13 +229,13 @@ class ExpenseController extends Controller
 
     // ---- Helpers ----
 
-    private function assertCanApproveExpenses(): void
+    private function assertCanManageExpenses(): void
     {
         $user = Auth::user();
         abort_unless(
-            $user && ($user->bypassesModulePermissions() || in_array($user->role ?? '', ['admin'], true)),
+            $user && $user->canManageExpenses(),
             403,
-            'Only admin can approve or pay expenses.'
+            'Only manager or admin can mark expenses as paid.'
         );
     }
     private function validated(Request $request, ?int $ignoreId = null): array

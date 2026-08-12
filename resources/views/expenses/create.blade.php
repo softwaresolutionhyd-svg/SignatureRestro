@@ -14,7 +14,7 @@
     @csrf
     @include('expenses._form', ['expense' => null])
     <div class="mt-4 d-flex gap-2">
-        <button type="submit" class="btn btn-primary px-4">Save Draft</button>
+        <button type="submit" class="btn btn-primary px-4">Send for Approval</button>
         <a href="{{ route('expenses.index') }}" class="btn btn-outline-secondary">Cancel</a>
     </div>
 </form>
