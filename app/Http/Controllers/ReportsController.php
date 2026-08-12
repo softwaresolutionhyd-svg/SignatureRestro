@@ -583,21 +583,34 @@ class ReportsController extends Controller
         $chartLabels = $dailySales->pluck('day')->map(fn($d) => date('d M', strtotime($d)));
         $chartData   = $dailySales->pluck('total')->map(fn($v) => (float) $v);
 
-        $voidRows = $this->salesVoidRowsForPeriod($from, $to);
+        $voidCount = $this->salesVoidRowsForPeriod($from, $to)->count();
 
         return view('reports.sales', compact(
             'orders', 'from', 'to', 'currency',
             'totalRevenue', 'totalDiscount', 'totalTax', 'totalGrossProfit', 'orderCount', 'avgOrder',
             'ownerDiscountTotal', 'ownerDiscountCount',
             'serviceTypeStats', 'chartLabels', 'chartData',
-            'voidRows'
+            'voidCount'
         ));
+    }
+
+    /**
+     * Void items / cancelled bills list (from Sales by order type).
+     */
+    public function salesVoids(Request $request): View
+    {
+        $from = $request->input('from', now()->startOfMonth()->format('Y-m-d'));
+        $to = $request->input('to', now()->format('Y-m-d'));
+        $currency = Setting::get('currency_symbol', 'Rs.');
+        $voidRows = $this->salesVoidRowsForPeriod($from, $to);
+
+        return view('reports.sales-voids', compact('voidRows', 'from', 'to', 'currency'));
     }
 
     /**
      * Void / cancelled-bill detail from activity log.
      */
-    public function salesVoidShow(ActivityLog $activityLog): View
+    public function salesVoidShow(Request $request, ActivityLog $activityLog): View
     {
         abort_unless(in_array($activityLog->action, ['pos.kitchen_void', 'pos.order_cancelled'], true), 404);
 
@@ -606,11 +619,15 @@ class ReportsController extends Controller
         abort_unless($row !== null, 404);
 
         $currency = Setting::get('currency_symbol', 'Rs.');
+        $from = $request->input('from');
+        $to = $request->input('to');
 
         return view('reports.sales-void-show', [
             'log' => $activityLog,
             'row' => $row,
             'currency' => $currency,
+            'from' => $from,
+            'to' => $to,
         ]);
     }
 

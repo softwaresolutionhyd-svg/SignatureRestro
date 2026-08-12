@@ -17,7 +17,7 @@
         <button type="button" class="btn btn-primary btn-sm" id="voidCashierPrintBtn">
             <i class="bi bi-printer me-1"></i> Print (Cashier)
         </button>
-        <a href="{{ route('reports.sales') }}" class="btn btn-outline-secondary btn-sm">← Sales Report</a>
+        <a href="{{ ($from && $to) ? route('reports.sales.voids', ['from' => $from, 'to' => $to]) : route('reports.sales.voids') }}" class="btn btn-outline-secondary btn-sm">← Void Items</a>
     </div>
 </div>
 <p id="voidPrintStatus" class="small mb-3" style="display:none;"></p>
