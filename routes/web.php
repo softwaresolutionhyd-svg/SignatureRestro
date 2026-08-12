@@ -390,6 +390,8 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
         Route::get('/profit-loss', [ReportsController::class, 'profitLoss'])->name('profit-loss');
         Route::get('/sales',     [ReportsController::class, 'sales'])     ->name('sales');
         Route::get('/sales/service/{serviceType}', [ReportsController::class, 'salesByService'])->name('sales.service');
+        Route::get('/sales/voids/{activityLog}', [ReportsController::class, 'salesVoidShow'])->name('sales.voids.show');
+        Route::post('/sales/voids/{activityLog}/cashier-print', [ReportsController::class, 'salesVoidCashierPrint'])->name('sales.voids.cashier-print');
         Route::get('/sales/{order}', [ReportsController::class, 'salesShow'])->name('sales.show');
         Route::post('/sales/{order}/cashier-print', [ReportsController::class, 'salesCashierPrint'])->name('sales.cashier-print');
         Route::get('/purchases', [ReportsController::class, 'purchases']) ->name('purchases');

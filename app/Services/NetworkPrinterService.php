@@ -907,6 +907,98 @@ final class NetworkPrinterService
     }
 
     /**
+     * Cashier printer slip for voided items / cancelled bills (provisional-bill style).
+     *
+     * @param  array{
+     *   order_no?: string,
+     *   order_type?: string,
+     *   table?: string,
+     *   date?: string,
+     *   cashier?: string,
+     *   cancelled_by?: string,
+     *   reason?: string,
+     *   kind?: string
+     * }  $meta
+     * @param  list<array{name?: string, qty?: float|int|string, uom?: string, reason?: string, item_name?: string}>  $items
+     * @param  array<string, mixed>  $settings
+     */
+    public function buildCancellationBillSlip(array $meta, array $items, array $settings): string
+    {
+        $company = strtoupper(trim((string) ($settings['company_name'] ?? config('app.name'))));
+        $company = preg_replace('/\bRESRO\b/u', 'RESTRO', $company) ?? $company;
+        $kind = strtolower(trim((string) ($meta['kind'] ?? 'item')));
+        $title = $kind === 'bill' ? 'CANCELLED BILL' : 'VOID ITEMS';
+
+        $out = self::INIT;
+        $out .= self::ALIGN_CENTER . self::SIZE_TALL . self::BOLD_ON;
+        $out .= $this->clip($company !== '' ? $company : 'SIGNATURE RESTRO') . "\n";
+        $out .= self::SIZE_NORMAL . self::BOLD_OFF;
+        $out .= "\n";
+        $out .= self::BOLD_ON . $this->clip($title) . self::BOLD_OFF . "\n";
+        $out .= $this->clip('(Provisional / Cancel slip)') . "\n";
+        $out .= self::ALIGN_LEFT . $this->rule() . "\n";
+
+        $orderNo = trim((string) ($meta['order_no'] ?? ''));
+        if ($orderNo !== '') {
+            $out .= $this->line('Bill #: '.$orderNo) . "\n";
+        }
+        $orderType = trim((string) ($meta['order_type'] ?? ''));
+        if ($orderType !== '') {
+            $out .= $this->line('Order Type: '.$orderType) . "\n";
+        }
+        $table = trim((string) ($meta['table'] ?? ''));
+        if ($table !== '') {
+            $out .= $this->line('Table: '.$table) . "\n";
+        }
+        $date = trim((string) ($meta['date'] ?? ''));
+        if ($date !== '') {
+            $out .= $this->line('Date: '.$date) . "\n";
+        }
+        $cashier = trim((string) ($meta['cashier'] ?? ''));
+        if ($cashier !== '') {
+            $out .= $this->line('Cashier: '.$cashier) . "\n";
+        }
+        $cancelledBy = trim((string) ($meta['cancelled_by'] ?? ''));
+        if ($cancelledBy !== '') {
+            $out .= $this->line('Cancelled By: '.$cancelledBy) . "\n";
+        }
+        $reason = trim((string) ($meta['reason'] ?? ''));
+        if ($reason !== '') {
+            $out .= $this->line('Reason: '.$reason) . "\n";
+        }
+
+        $out .= $this->rule() . "\n";
+        $out .= self::BOLD_ON . $this->itemRow4('ITEMS', 'QTY', '', '') . self::BOLD_OFF . "\n";
+        $out .= $this->rule();
+
+        foreach ($items as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+            $qty = rtrim(rtrim(number_format((float) ($item['qty'] ?? 0), 3, '.', ''), '0'), '.');
+            $uom = trim((string) ($item['uom'] ?? ''));
+            $qtyLabel = $uom !== '' ? $qty.' '.$uom : $qty;
+            $name = trim((string) ($item['name'] ?? $item['item_name'] ?? 'Item'));
+            $out .= self::BOLD_ON;
+            $out .= $this->itemRows4($name, $qtyLabel, '', '');
+            $out .= self::BOLD_OFF;
+            $itemReason = trim((string) ($item['reason'] ?? ''));
+            if ($itemReason !== '' && $itemReason !== $reason) {
+                $out .= $this->line('  ('.$itemReason.')') . "\n";
+            }
+            $out .= "\n";
+        }
+
+        $out .= $this->rule();
+        $out .= self::ALIGN_CENTER . self::BOLD_ON;
+        $out .= $this->clip('*** CANCELLED / VOID ***') . "\n";
+        $out .= self::BOLD_OFF . self::ALIGN_LEFT;
+        $out .= "\n" . self::CUT;
+
+        return $out;
+    }
+
+    /**
      * Resolve which department (with a printer) a product should print to.
      */
     public function resolveItemDepartment(?InventoryProduct $product): ?InventoryDepartment

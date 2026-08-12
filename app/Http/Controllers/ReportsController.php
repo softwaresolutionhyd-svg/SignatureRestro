@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\Contact;
 use App\Models\CreditLedger;
 use App\Models\Employee;
@@ -26,8 +27,10 @@ use App\Services\PosSessionSummaryService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\View\View;
 
 class ReportsController extends Controller
 {
@@ -580,12 +583,252 @@ class ReportsController extends Controller
         $chartLabels = $dailySales->pluck('day')->map(fn($d) => date('d M', strtotime($d)));
         $chartData   = $dailySales->pluck('total')->map(fn($v) => (float) $v);
 
+        $voidRows = $this->salesVoidRowsForPeriod($from, $to);
+
         return view('reports.sales', compact(
             'orders', 'from', 'to', 'currency',
             'totalRevenue', 'totalDiscount', 'totalTax', 'totalGrossProfit', 'orderCount', 'avgOrder',
             'ownerDiscountTotal', 'ownerDiscountCount',
-            'serviceTypeStats', 'chartLabels', 'chartData'
+            'serviceTypeStats', 'chartLabels', 'chartData',
+            'voidRows'
         ));
+    }
+
+    /**
+     * Void / cancelled-bill detail from activity log.
+     */
+    public function salesVoidShow(ActivityLog $activityLog): View
+    {
+        abort_unless(in_array($activityLog->action, ['pos.kitchen_void', 'pos.order_cancelled'], true), 404);
+
+        $activityLog->loadMissing(['user:id,name', 'subject']);
+        $row = $this->salesVoidRowFromLog($activityLog);
+        abort_unless($row !== null, 404);
+
+        $currency = Setting::get('currency_symbol', 'Rs.');
+
+        return view('reports.sales-void-show', [
+            'log' => $activityLog,
+            'row' => $row,
+            'currency' => $currency,
+        ]);
+    }
+
+    /** Print void/cancel slip on CASHIER network printer (provisional style). */
+    public function salesVoidCashierPrint(ActivityLog $activityLog): JsonResponse
+    {
+        abort_unless(in_array($activityLog->action, ['pos.kitchen_void', 'pos.order_cancelled'], true), 404);
+
+        $activityLog->loadMissing(['user:id,name', 'subject']);
+        $row = $this->salesVoidRowFromLog($activityLog);
+        if ($row === null) {
+            return response()->json(['ok' => false, 'message' => 'Void record nahi mili.'], 404);
+        }
+
+        $ip = trim((string) Setting::get('cashier_printer_ip', ''));
+        if ($ip === '') {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Cashier printer set nahi (Inventory → Kitchen Agents → CASHIER).',
+            ]);
+        }
+
+        $settings = array_merge([
+            'company_name' => config('app.name'),
+            'currency_symbol' => 'Rs.',
+        ], Setting::all_map());
+
+        $printer = app(NetworkPrinterService::class);
+        $payload = $printer->buildCancellationBillSlip(
+            [
+                'kind' => $row['kind'],
+                'order_no' => $row['order_no'],
+                'order_type' => $row['order_type'],
+                'table' => $row['table'],
+                'date' => $row['cancelled_at'],
+                'cashier' => $row['cashier'],
+                'cancelled_by' => $row['cancelled_by'],
+                'reason' => $row['reason'],
+            ],
+            $row['items'],
+            $settings
+        );
+
+        try {
+            $printer->send($ip, (int) (Setting::get('cashier_printer_port', 9100) ?: 9100), $payload);
+        } catch (\Throwable $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 500);
+        }
+
+        return response()->json(['ok' => true, 'message' => 'Cancel / void slip cashier printer pe bhej di.']);
+    }
+
+    /**
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function salesVoidRowsForPeriod(string $from, string $to): Collection
+    {
+        if (! Schema::hasTable('activity_logs')) {
+            return collect();
+        }
+
+        $logs = ActivityLog::query()
+            ->whereIn('action', ['pos.kitchen_void', 'pos.order_cancelled'])
+            ->whereBetween('created_at', [$from.' 00:00:00', $to.' 23:59:59'])
+            ->with(['user:id,name', 'subject'])
+            ->orderByDesc('created_at')
+            ->limit(500)
+            ->get();
+
+        $billCancelOrderIds = [];
+        foreach ($logs as $log) {
+            if ($log->action !== 'pos.order_cancelled') {
+                continue;
+            }
+            $props = is_array($log->properties) ? $log->properties : [];
+            $oid = (int) ($props['order_id'] ?? $log->subject_id ?? 0);
+            if ($oid > 0) {
+                $billCancelOrderIds[$oid] = $log->created_at?->timestamp ?? 0;
+            }
+        }
+
+        $rows = collect();
+        foreach ($logs as $log) {
+            // Skip item voids that belong to a whole-bill cancel (same order, ~2 min window).
+            if ($log->action === 'pos.kitchen_void') {
+                $props = is_array($log->properties) ? $log->properties : [];
+                $oid = (int) ($props['order_id'] ?? $log->subject_id ?? 0);
+                if ($oid > 0 && isset($billCancelOrderIds[$oid])) {
+                    $cancelTs = $billCancelOrderIds[$oid];
+                    $voidTs = $log->created_at?->timestamp ?? 0;
+                    if (abs($voidTs - $cancelTs) <= 120) {
+                        continue;
+                    }
+                }
+            }
+
+            $row = $this->salesVoidRowFromLog($log);
+            if ($row !== null) {
+                $rows->push($row);
+            }
+        }
+
+        return $rows->values();
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function salesVoidRowFromLog(ActivityLog $log): ?array
+    {
+        $props = is_array($log->properties) ? $log->properties : [];
+        /** @var PosOrder|null $order */
+        $order = $log->subject instanceof PosOrder ? $log->subject : null;
+
+        $orderNo = trim((string) ($order?->order_no ?? $props['order_no'] ?? ''));
+        if ($orderNo === '') {
+            $oid = (int) ($props['order_id'] ?? $log->subject_id ?? 0);
+            $orderNo = $oid > 0 ? '#'.$oid : '—';
+        }
+
+        $cashier = trim((string) ($props['cashier_name'] ?? ''));
+        if ($cashier === '') {
+            $cashier = trim((string) ($order?->user?->name ?? ''));
+        }
+        if ($cashier === '' && $order) {
+            $order->loadMissing('user:id,name');
+            $cashier = trim((string) ($order->user?->name ?? ''));
+        }
+
+        $orderType = '';
+        if ($order) {
+            $orderType = (string) ($order->serviceTypeLabel() ?: '');
+        } elseif (! empty($props['service_type'])) {
+            $labels = PosOrder::serviceTypeLabels();
+            $key = (string) $props['service_type'];
+            $orderType = (string) ($labels[$key] ?? $key);
+        }
+
+        $table = trim((string) ($props['table_name'] ?? $order?->table?->name ?? ''));
+        if ($table === '' && $order) {
+            $order->loadMissing('table:id,name');
+            $table = trim((string) ($order->table?->name ?? ''));
+        }
+
+        if ($log->action === 'pos.order_cancelled') {
+            $reason = trim((string) ($props['reason'] ?? ''));
+            $voids = is_array($props['voids'] ?? null) ? $props['voids'] : [];
+            $items = [];
+            foreach ($voids as $void) {
+                if (! is_array($void)) {
+                    continue;
+                }
+                $name = trim((string) ($void['name'] ?? $void['item_name'] ?? ''));
+                if ($name === '') {
+                    $name = 'Item';
+                }
+                $items[] = [
+                    'name' => $name,
+                    'qty' => (float) ($void['qty'] ?? 0),
+                    'uom' => (string) ($void['uom'] ?? ''),
+                    'reason' => (string) ($void['reason'] ?? $reason),
+                ];
+            }
+
+            $detail = $items !== []
+                ? count($items).' item(s) cancelled'
+                : ('Complete bill'.(! empty($props['item_count']) ? ' ('.(int) $props['item_count'].' items)' : ''));
+
+            return [
+                'id' => (int) $log->id,
+                'kind' => 'bill',
+                'kind_label' => 'Bill Cancelled',
+                'order_no' => $orderNo,
+                'detail' => $detail,
+                'reason' => $reason !== '' ? $reason : '—',
+                'cancelled_by' => (string) ($log->user?->name ?? '—'),
+                'cashier' => $cashier !== '' ? $cashier : '—',
+                'cancelled_at' => $log->created_at?->timezone(config('app.timezone'))->format('d M Y, h:i A') ?? '—',
+                'order_type' => $orderType,
+                'table' => $table,
+                'items' => $items,
+            ];
+        }
+
+        if ($log->action === 'pos.kitchen_void') {
+            $void = is_array($props['void'] ?? null) ? $props['void'] : [];
+            $name = trim((string) ($void['name'] ?? $void['item_name'] ?? ''));
+            if ($name === '') {
+                $name = 'Item';
+            }
+            $qty = (float) ($void['qty'] ?? 0);
+            $uom = (string) ($void['uom'] ?? '');
+            $reason = trim((string) ($void['reason'] ?? ''));
+            $qtyLabel = rtrim(rtrim(number_format($qty, 3, '.', ''), '0'), '.');
+            $detail = $qtyLabel.($uom !== '' ? ' '.$uom : '').' × '.$name;
+
+            return [
+                'id' => (int) $log->id,
+                'kind' => 'item',
+                'kind_label' => 'Item Void',
+                'order_no' => $orderNo,
+                'detail' => $detail,
+                'reason' => $reason !== '' ? $reason : '—',
+                'cancelled_by' => (string) ($log->user?->name ?? '—'),
+                'cashier' => $cashier !== '' ? $cashier : '—',
+                'cancelled_at' => $log->created_at?->timezone(config('app.timezone'))->format('d M Y, h:i A') ?? '—',
+                'order_type' => $orderType,
+                'table' => $table,
+                'items' => [[
+                    'name' => $name,
+                    'qty' => $qty,
+                    'uom' => $uom,
+                    'reason' => $reason,
+                ]],
+            ];
+        }
+
+        return null;
     }
 
     /**

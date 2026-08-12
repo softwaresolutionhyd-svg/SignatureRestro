@@ -2414,7 +2414,7 @@ class PosController extends Controller
             abort(403);
         }
 
-        $order->loadMissing('items');
+        $order->loadMissing(['items', 'user:id,name', 'table:id,name']);
         $kitchen = app(KitchenService::class);
         $hasKitchenLocked = $order->items->contains(
             fn (PosOrderItem $item) => $kitchen->isKitchenLockedLine($item)
@@ -2493,6 +2493,13 @@ class PosController extends Controller
                     'void_count' => count($kitchenVoids),
                     'voids' => $kitchenVoids,
                     'item_count' => $itemCount,
+                    'session_id' => (int) ($order->session_id ?? 0) ?: null,
+                    'order_no' => $orderNo,
+                    'order_id' => (int) $order->id,
+                    'cashier_name' => (string) ($order->user?->name ?? ''),
+                    'service_type' => (string) ($order->service_type ?? ''),
+                    'table_name' => (string) ($order->table?->name ?? ''),
+                    'guest_name' => (string) ($order->guest_name ?? ''),
                 ]
             );
             \App\Services\PosActivityNotifier::orderCancelled($order, $reason);
@@ -5036,6 +5043,8 @@ class PosController extends Controller
             return ['ok' => true, 'results' => [], 'unrouted' => 0, 'message' => null];
         }
 
+        $order->loadMissing(['user:id,name', 'table:id,name']);
+
         // Drop exact duplicate voids already logged in the last few minutes (retry / race).
         $kitchenVoids = $this->dedupeRecentKitchenVoids((int) $order->id, $kitchenVoids);
         if ($kitchenVoids === []) {
@@ -5080,6 +5089,9 @@ class PosController extends Controller
                     'session_id' => (int) ($order->session_id ?? 0) ?: null,
                     'order_no' => (string) ($order->order_no ?? ''),
                     'order_id' => (int) $order->id,
+                    'cashier_name' => (string) ($order->user?->name ?? ''),
+                    'service_type' => (string) ($order->service_type ?? ''),
+                    'table_name' => (string) ($order->table?->name ?? ''),
                 ]
             );
             $this->markKitchenVoidLogged((int) $order->id, $void);
