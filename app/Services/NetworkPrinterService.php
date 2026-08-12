@@ -964,7 +964,7 @@ final class NetworkPrinterService
         }
         $reason = trim((string) ($meta['reason'] ?? ''));
         if ($reason !== '') {
-            $out .= $this->line('Reason: '.$reason) . "\n";
+            $out .= $this->wrappedLabeledField('Reason', $reason);
         }
 
         $out .= $this->rule() . "\n";
@@ -984,7 +984,7 @@ final class NetworkPrinterService
             $out .= self::BOLD_OFF;
             $itemReason = trim((string) ($item['reason'] ?? ''));
             if ($itemReason !== '' && $itemReason !== $reason) {
-                $out .= $this->line('  ('.$itemReason.')') . "\n";
+                $out .= $this->wrappedLabeledField('', $this->kitchenBracketText($itemReason), 2);
             }
             $out .= "\n";
         }
@@ -1569,7 +1569,45 @@ final class NetworkPrinterService
             if ($noteLine === '') {
                 continue;
             }
-            $out .= $this->line($this->kitchenBracketText($noteLine)) . "\n";
+            $bracketed = $this->kitchenBracketText($noteLine);
+            foreach ($this->wrapText($bracketed, self::WIDTH) as $wrapped) {
+                $out .= $wrapped . "\n";
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Print a labeled field across multiple thermal lines (full reason text).
+     */
+    private function wrappedLabeledField(string $label, string $text, int $indent = 0): string
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return '';
+        }
+
+        $pad = str_repeat(' ', max(0, $indent));
+        $out = '';
+        $first = true;
+
+        foreach (preg_split("/\r\n|\n|\r/", $text) ?: [$text] as $segment) {
+            $segment = trim(preg_replace('/\s+/u', ' ', (string) $segment) ?? '');
+            if ($segment === '') {
+                continue;
+            }
+
+            if ($first && $label !== '') {
+                $payload = $pad.$label.': '.$segment;
+            } else {
+                $payload = $pad.$segment;
+            }
+            $first = false;
+
+            foreach ($this->wrapText($payload, self::WIDTH) as $line) {
+                $out .= $line."\n";
+            }
         }
 
         return $out;
