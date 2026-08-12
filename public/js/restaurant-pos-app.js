@@ -674,9 +674,9 @@
     }
 
     function kitchenLockedFromResume(ri) {
-        const qty = Number(ri.qty) || 0;
-        // Sirf actual kitchen print / served lock. Hold-only / pending-print bilkul free.
-        if (ri.kitchen_served || ri.kitchen_printed) {
+        const qty = parseOrderQty(ri.qty);
+        // Printed / served / already queued for kitchen → lock (cashier × hide).
+        if (ri.kitchen_served || ri.kitchen_printed || ri.kitchen_pending) {
             return qty;
         }
         return 0;
@@ -684,8 +684,8 @@
 
     function sanitizeCartKitchenLocks() {
         cart.forEach((r) => {
-            // Hold-only lines kabhi lock na hon — stale locked_qty clear.
-            if (!(r.kitchen_served || r.kitchen_printed)) {
+            // Hold-only lines (no kitchen queue yet) — free edit/remove.
+            if (!(r.kitchen_served || r.kitchen_printed || r.kitchen_pending)) {
                 r.kitchen_locked_qty = 0;
                 r.kitchen_printed = false;
                 return;
@@ -694,11 +694,17 @@
             if ((Number(r.kitchen_locked_qty) || 0) < qty) {
                 r.kitchen_locked_qty = qty;
             }
+            if (r.kitchen_printed || r.kitchen_served || r.kitchen_pending) {
+                r.kitchen_locked_qty = Math.max(Number(r.kitchen_locked_qty) || 0, qty);
+            }
         });
     }
 
     function isCartLineKitchenLocked(row) {
-        return (Number(row?.kitchen_locked_qty) || 0) > 0.0005;
+        if ((Number(row?.kitchen_locked_qty) || 0) > 0.0005) {
+            return true;
+        }
+        return !!(row?.kitchen_printed || row?.kitchen_served || row?.kitchen_pending);
     }
 
     function canEditUnlockedCartLine() {
@@ -706,6 +712,8 @@
     }
 
     function canReduceOrRemoveCartLine(row) {
+        // Pre-kitchen: cashier + manager dono × use kar sakte hain.
+        // Kitchen print / pending ticket ke baad: sirf manager/admin.
         if (!isCartLineKitchenLocked(row)) {
             return canEditUnlockedCartLine();
         }
@@ -1505,13 +1513,15 @@
             (Number(r.kitchen_locked_qty) || 0) > 0.0005
             || r.kitchen_printed
             || r.kitchen_served
+            || r.kitchen_pending
         ));
         wrap.innerHTML = cart.map((r, i) => {
             const total = lineRowTotal(r, totals, i);
-            const locked = Number(r.kitchen_locked_qty) || 0;
+            const locked = isCartLineKitchenLocked(r);
+            const lockedQty = Math.max(Number(r.kitchen_locked_qty) || 0, locked ? (Number(r.qty) || 0) : 0);
             const showRemove = canReduceOrRemoveCartLine(r);
-            const isNewAddon = orderHasKitchen && locked <= 0.0005;
-            const kitchenBadge = locked > 0
+            const isNewAddon = orderHasKitchen && !locked;
+            const kitchenBadge = locked
                 ? `<span class="rp-kitchen-pill ${r.kitchen_served ? 'rp-kitchen-pill--served' : 'rp-kitchen-pill--pending'}" title="Kitchen me bheja hua">
                     <i class="bi ${r.kitchen_served ? 'bi-check-circle-fill' : 'bi-fire'}"></i>
                     ${r.kitchen_served ? 'Served' : 'Kitchen'}
@@ -1521,12 +1531,12 @@
                         <i class="bi bi-stars"></i> New
                        </span>`
                     : '');
-            const removeTitle = locked > 0 ? 'Kitchen item — reason required' : 'Remove item';
+            const removeTitle = locked ? 'Kitchen item — sirf manager remove kar sakta hai' : 'Remove item';
             const canDec = Number(r.qty) > 0 && (
-                canVoidKitchenItems || Number(r.qty) > locked
+                canVoidKitchenItems || Number(r.qty) > lockedQty
             );
             const noteVal = escHtml(r.notes || '');
-            return `<div class="rp-cart-line${locked > 0 ? ' is-kitchen-locked' : ''}${isNewAddon ? ' is-kitchen-new' : ''}${r.is_custom ? ' is-on-demand' : ''}" data-cart-index="${i}" data-product-id="${r.product_id}">
+            return `<div class="rp-cart-line${locked ? ' is-kitchen-locked' : ''}${isNewAddon ? ' is-kitchen-new' : ''}${r.is_custom ? ' is-on-demand' : ''}" data-cart-index="${i}" data-product-id="${r.product_id}">
                 <div class="rp-cl-row">
                     <div class="rp-cl-main">
                         <div class="rp-cl-qty-ctrl" role="group" aria-label="Quantity">
