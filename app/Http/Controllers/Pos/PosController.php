@@ -5127,7 +5127,7 @@ class PosController extends Controller
         }
 
         $kitchen = app(KitchenService::class);
-        $normalized = $items->map(function (PosOrderItem $item) {
+        $normalized = $items->map(function (PosOrderItem $item) use ($kitchen) {
             return [
                 'id' => (int) $item->id,
                 'order_item_id' => (int) $item->id,
