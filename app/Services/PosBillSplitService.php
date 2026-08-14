@@ -174,6 +174,12 @@ final class PosBillSplitService
     private function splitGuestLabel(PosOrder $order, string $tag): string
     {
         $base = trim((string) ($order->table?->name ?: $order->guest_name ?: $order->order_no));
+        if (preg_match('/^(.*?)(?: · Split .+)$/u', $base, $m) === 1) {
+            $stripped = trim((string) ($m[1] ?? ''));
+            if ($stripped !== '') {
+                $base = $stripped;
+            }
+        }
         $label = trim($base.' · Split '.$tag);
 
         return mb_substr($label, 0, 120);

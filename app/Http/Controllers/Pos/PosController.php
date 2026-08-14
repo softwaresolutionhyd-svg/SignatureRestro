@@ -1515,25 +1515,34 @@ class PosController extends Controller
             }
 
             $payItemsFp = $this->posItemsOnlyFingerprint((int) $session->id, $serviceType, $itemsNormalized);
+            // Split sibling bills (same phone / similar items) must not share one pay lock.
+            $payingSpecificDraft = $resumeOrderId
+                && $existingDraft
+                && (int) $existingDraft->id === (int) $resumeOrderId;
+            if ($payingSpecificDraft) {
+                $payItemsFp .= ':resume:'.$resumeOrderId;
+            }
             $payLock = null;
             if ($request->type === 'sale') {
                 $payLock = Cache::lock('pos:pay:lock:'.$payItemsFp, 25);
                 if (! $payLock->block(8)) {
-                    $racePaid = $this->findRecentSameCartPaid(
-                        $sameCartSessionIds,
-                        $serviceType,
-                        $itemsNormalized,
-                        $guestName,
-                        $roomNo,
-                        $tableId ? (int) $tableId : null,
-                        Auth::id() ? (int) Auth::id() : null,
-                        round((float) $grandTotal, 2),
-                        15,
-                        $contactId ? (int) $contactId : null,
-                        $isCredit
-                    );
-                    if ($racePaid !== null) {
-                        return ['order' => $racePaid, 'idempotent' => true];
+                    if (! $payingSpecificDraft) {
+                        $racePaid = $this->findRecentSameCartPaid(
+                            $sameCartSessionIds,
+                            $serviceType,
+                            $itemsNormalized,
+                            $guestName,
+                            $roomNo,
+                            $tableId ? (int) $tableId : null,
+                            Auth::id() ? (int) Auth::id() : null,
+                            round((float) $grandTotal, 2),
+                            15,
+                            $contactId ? (int) $contactId : null,
+                            $isCredit
+                        );
+                        if ($racePaid !== null) {
+                            return ['order' => $racePaid, 'idempotent' => true];
+                        }
                     }
                     throw new \RuntimeException('Payment already submitting — Pending/Paid tab check karein.');
                 }
@@ -1542,7 +1551,8 @@ class PosController extends Controller
             try {
             // Same cart already paid moments ago (double Pay / cart re-punch) — return that bill, do not create another.
             // Also covers: draft A still open while cart was already paid as bill B.
-            if ($request->type === 'sale') {
+            // Do NOT collapse a specific resumed pending bill into a sibling (item/member split shares).
+            if ($request->type === 'sale' && ! $payingSpecificDraft) {
                 $twinPaid = $this->findRecentSameCartPaid(
                     $sameCartSessionIds,
                     $serviceType,
@@ -4492,7 +4502,6 @@ class PosController extends Controller
         }
 
         $want = $this->itemsFingerprintPayload($itemsNormalized);
-        $newContact = trim((string) (($roomNo !== null && $roomNo !== '') ? $roomNo : ($guestName ?? '')));
 
         $query = PosOrder::query()
             ->whereIn('session_id', $sessionIds)
@@ -4533,12 +4542,8 @@ class PosController extends Controller
                 continue;
             }
 
-            $draftContact = trim((string) (($draft->room_no !== null && $draft->room_no !== '')
-                ? $draft->room_no
-                : ($draft->guest_name ?? '')));
-
-            // Different takeaway/delivery customer → not the same bill.
-            if ($draftContact !== '' && $newContact !== '' && $draftContact !== $newContact) {
+            // Different takeaway/delivery customer, or a split sibling of the same phone.
+            if ($this->sameCartCustomerMismatch($guestName, $roomNo, $draft->guest_name, $draft->room_no)) {
                 continue;
             }
 
@@ -4573,7 +4578,6 @@ class PosController extends Controller
         }
 
         $want = $this->itemsFingerprintPayload($itemsNormalized);
-        $newContact = trim((string) (($roomNo !== null && $roomNo !== '') ? $roomNo : ($guestName ?? '')));
 
         $query = PosOrder::query()
             ->whereIn('session_id', $sessionIds)
@@ -4623,11 +4627,7 @@ class PosController extends Controller
                 continue;
             }
 
-            $paidContact = trim((string) (($paid->room_no !== null && $paid->room_no !== '')
-                ? $paid->room_no
-                : ($paid->guest_name ?? '')));
-
-            if ($paidContact !== '' && $newContact !== '' && strcasecmp($paidContact, $newContact) !== 0) {
+            if ($this->sameCartCustomerMismatch($guestName, $roomNo, $paid->guest_name, $paid->room_no)) {
                 continue;
             }
 
@@ -4646,6 +4646,33 @@ class PosController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Phone/room match is not enough: item/member split bills share the same delivery phone.
+     * Guest labels (e.g. Split M1/3 vs M3/3) keep those siblings distinct.
+     */
+    private function sameCartCustomerMismatch(
+        ?string $guestName,
+        ?string $roomNo,
+        ?string $otherGuestName,
+        ?string $otherRoomNo
+    ): bool {
+        $newContact = trim((string) (($roomNo !== null && $roomNo !== '') ? $roomNo : ($guestName ?? '')));
+        $otherContact = trim((string) (($otherRoomNo !== null && $otherRoomNo !== '')
+            ? $otherRoomNo
+            : ($otherGuestName ?? '')));
+        if ($otherContact !== '' && $newContact !== '' && strcasecmp($otherContact, $newContact) !== 0) {
+            return true;
+        }
+
+        $newGuest = trim((string) ($guestName ?? ''));
+        $otherGuest = trim((string) ($otherGuestName ?? ''));
+        if ($newGuest !== '' && $otherGuest !== '' && strcasecmp($newGuest, $otherGuest) !== 0) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
@@ -4692,6 +4719,7 @@ class PosController extends Controller
                 strtolower(trim((string) ($row['uom'] ?? ''))),
                 round((float) ($row['qty'] ?? 0), 3),
                 round((float) ($row['unit_price'] ?? 0), 2),
+                strtolower(trim((string) ($row['notes'] ?? ''))),
             ];
         }
         usort($normItems, static fn ($a, $b) => $a <=> $b);
