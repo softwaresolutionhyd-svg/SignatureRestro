@@ -31,6 +31,12 @@
             </form>
 
             <div class="d-flex flex-wrap gap-2">
+                <a href="{{ route('employees.attendance.scan') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-qr-code-scan me-1"></i> QR Scan
+                </a>
+                <a href="{{ route('employees.qr-cards') }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">
+                    <i class="bi bi-printer me-1"></i> Print QR cards
+                </a>
                 @if($u->canManageTeamAttendance())
                     <a href="{{ route('employees.attendance.index') }}" class="btn btn-outline-secondary">
                         <i class="bi bi-calendar-check me-1"></i> Attendance
@@ -114,6 +120,9 @@
                             @if($u->moduleAllows('hr', 'edit'))
                                 <a class="btn btn-sm btn-outline-primary" href="{{ route('employees.edit', $e) }}">Edit</a>
                             @endif
+                            <a class="btn btn-sm btn-outline-secondary" href="{{ route('employees.qr-card', $e) }}" target="_blank" rel="noopener" title="Print QR card">
+                                <i class="bi bi-qr-code"></i>
+                            </a>
                             @if($u->moduleAllows('hr', 'delete'))
                                 <form class="d-inline" method="POST" action="{{ route('employees.destroy', $e) }}"
                                       onsubmit="return confirm('Delete employee?');">

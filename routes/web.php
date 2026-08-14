@@ -26,6 +26,7 @@ use App\Http\Controllers\Pos\PosController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Employee\AttendanceController;
+use App\Http\Controllers\Employee\QrAttendanceController;
 use App\Http\Controllers\Employee\DepartmentController;
 use App\Http\Controllers\Employee\DesignationController;
 use App\Http\Controllers\Employee\EmployeeController;
@@ -96,6 +97,11 @@ Route::post('/deploy/hooks/migrate', [DeployHookController::class, 'migrate'])
     ->name('deploy.hooks.migrate');
 
 Auth::routes(['register' => false, 'reset' => false]);
+
+Route::get('/a/{token}', [QrAttendanceController::class, 'checkIn'])
+    ->middleware('throttle:40,1')
+    ->where('token', '[A-Fa-f0-9]{64}')
+    ->name('attendance.qr.checkin');
 
 Route::get('/logout', function () {
     \App\Support\WebAuthSession::destroy(request());
@@ -319,10 +325,16 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
     });
 
     Route::prefix('employees')->name('employees.')->group(function () {
+        Route::get('/attendance/scan', [QrAttendanceController::class, 'scanKiosk'])->name('attendance.scan');
+
         Route::middleware('moduleAccess')->group(function () {
             Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance.index');
             Route::get('/attendance/print-today', [AttendanceController::class, 'printToday'])->name('attendance.print-today');
             Route::post('/attendance/grid', [AttendanceController::class, 'saveGrid'])->name('attendance.grid');
+            Route::get('/qr-cards', [QrAttendanceController::class, 'cards'])->name('qr-cards');
+            Route::get('/{employee}/qr.svg', [QrAttendanceController::class, 'svg'])->name('qr.svg');
+            Route::get('/{employee}/qr-card', [QrAttendanceController::class, 'card'])->name('qr-card');
+            Route::post('/{employee}/qr-regenerate', [QrAttendanceController::class, 'regenerate'])->name('qr.regenerate');
 
             Route::get('/', [EmployeeController::class, 'index'])->name('index');
             Route::get('/create', [EmployeeController::class, 'create'])->name('create');

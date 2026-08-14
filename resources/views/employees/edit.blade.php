@@ -16,6 +16,12 @@
                 @method('PUT')
                 @include('employees.form')
             </form>
+            <form id="employee-qr-regen-form"
+                  method="POST"
+                  action="{{ route('employees.qr.regenerate', $employee) }}"
+                  class="d-none">
+                @csrf
+            </form>
             @if($employee->user && ($employee->user->role ?? '') === 'user')
                 <form id="employee-delete-login-form"
                       method="POST"

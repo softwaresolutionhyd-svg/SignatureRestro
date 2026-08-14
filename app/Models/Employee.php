@@ -3,17 +3,20 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToCompany;
+use App\Support\EnsuresEmployeeQrTokenSchema;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Schema;
 
 class Employee extends Model
 {
     protected $connection = 'tenant';
 
     use BelongsToCompany;
+    use EnsuresEmployeeQrTokenSchema;
     use HasFactory;
 
     protected $fillable = [
@@ -31,6 +34,7 @@ class Employee extends Model
         'salary',
         'address',
         'photo_path',
+        'qr_token',
         'active',
     ];
 
@@ -39,6 +43,53 @@ class Employee extends Model
         'salary' => 'decimal:2',
         'active' => 'bool',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Employee $employee) {
+            if (! Schema::connection('tenant')->hasColumn('employees', 'qr_token')) {
+                return;
+            }
+            if (blank($employee->qr_token)) {
+                $employee->qr_token = static::newQrToken();
+            }
+        });
+    }
+
+    public static function newQrToken(): string
+    {
+        do {
+            $token = bin2hex(random_bytes(32));
+        } while (static::query()->withoutGlobalScopes()->where('qr_token', $token)->exists());
+
+        return $token;
+    }
+
+    public function ensureQrToken(): string
+    {
+        static::ensureQrTokenSchema();
+
+        $token = trim((string) ($this->qr_token ?? ''));
+        if (preg_match('/^[a-f0-9]{64}$/i', $token) === 1) {
+            return $token;
+        }
+
+        $this->qr_token = static::newQrToken();
+        if ($this->exists) {
+            $this->saveQuietly();
+        }
+
+        return (string) $this->qr_token;
+    }
+
+    public function regenerateQrToken(): string
+    {
+        static::ensureQrTokenSchema();
+        $this->qr_token = static::newQrToken();
+        $this->save();
+
+        return (string) $this->qr_token;
+    }
 
     public function user(): BelongsTo
     {

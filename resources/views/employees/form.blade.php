@@ -118,6 +118,29 @@
                 </div>
             @endif
         </div>
+        <div class="border rounded-3 p-3 bg-light mt-3">
+            <div class="fw-semibold mb-2">Attendance QR</div>
+            @if(($employee->exists ?? false) && ! empty($qrSvg ?? null))
+                <style>.employee-qr-preview svg{width:100%!important;height:100%!important;display:block;}</style>
+                <div class="bg-white border rounded p-2 text-center mb-2">
+                    <div class="mx-auto employee-qr-preview" style="width:160px;height:160px;">
+                        {!! $qrSvg !!}
+                    </div>
+                </div>
+                <div class="small text-secondary mb-2">Card print karke scan hone par aaj ki Present automatic lag jayegi. Attendance module khula hona zaroori nahi.</div>
+                <div class="d-grid gap-2">
+                    <a class="btn btn-sm btn-outline-primary" href="{{ route('employees.qr-card', $employee) }}" target="_blank" rel="noopener">
+                        <i class="bi bi-printer me-1"></i> Print QR card
+                    </a>
+                    <button type="submit" form="employee-qr-regen-form" class="btn btn-sm btn-outline-warning"
+                            onclick="return confirm('Naya QR generate hoga. Purana printed card kaam nahi karega. Continue?');">
+                        <i class="bi bi-arrow-repeat me-1"></i> Regenerate QR
+                    </button>
+                </div>
+            @else
+                <div class="small text-secondary mb-0">Employee save karte hi QR automatic generate hoga. Phir yahan se card print karein.</div>
+            @endif
+        </div>
     </div>
 
     <div class="col-12">

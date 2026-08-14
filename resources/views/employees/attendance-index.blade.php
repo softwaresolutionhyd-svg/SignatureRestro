@@ -157,6 +157,7 @@
         Har din <strong>P</strong> (Present), <strong>A</strong> (Absent), ya <strong>H</strong> (Holiday) select karein.
         <strong>Net salary = (Basic ÷ 30) × (Present + Holiday)</strong>.
         Absent aur blank din pay nahi milti.
+        QR card scan se Present automatic lagti hai — grid khula hona zaroori nahi.
     </div>
 
     <div class="card shadow-sm mb-3">
@@ -194,6 +195,9 @@
                            onchange="window.location='{{ route('employees.attendance.index') }}?month={{ $month }}&active_only='+(this.checked?1:0)+'{{ $attEmployeeNoQs }}'">
                     <label class="form-check-label" for="activeOnlyToggle">Sirf active</label>
                 </div>
+                <a class="btn btn-sm btn-outline-success" href="{{ route('employees.attendance.scan') }}">
+                    <i class="bi bi-qr-code-scan me-1"></i> QR Scan
+                </a>
                 <a class="btn btn-sm btn-outline-dark"
                    href="{{ route('employees.attendance.print-today', array_filter([
                        'date' => now()->format('Y-m-d'),

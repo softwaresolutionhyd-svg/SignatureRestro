@@ -10,6 +10,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\EmployeeContactSyncService;
 use App\Services\EmployeePhotoService;
+use App\Services\QrAttendanceService;
 use App\Support\ActivityLogger;
 use App\Support\AppPasswordRules;
 use App\Support\EnsuresEmployeePhotoSchema;
@@ -29,10 +30,12 @@ class EmployeeController extends Controller
     public function __construct(
         private readonly EmployeeContactSyncService $contactSync,
         private readonly EmployeePhotoService $photos,
+        private readonly QrAttendanceService $qrAttendance,
     ) {}
     public function index(Request $request)
     {
         $this->ensureEmployeePhotoSchema();
+        Employee::ensureQrTokenSchema();
 
         $q = trim((string) $request->query('q', ''));
         $employeeNo = trim((string) $request->query('employee_no', ''));
@@ -74,6 +77,7 @@ class EmployeeController extends Controller
     public function create()
     {
         $this->ensureEmployeePhotoSchema();
+        Employee::ensureQrTokenSchema();
         $cid = current_company_id();
         abort_if($cid === null, 403);
 
@@ -87,6 +91,7 @@ class EmployeeController extends Controller
     public function store(Request $request)
     {
         $this->ensureEmployeePhotoSchema();
+        Employee::ensureQrTokenSchema();
         $cid = current_company_id();
         abort_if($cid === null, 403);
 
@@ -143,8 +148,9 @@ class EmployeeController extends Controller
             $this->assertEmployeeUserAccountAvailable($cid, $userId);
         }
 
+        $emp = null;
         try {
-            DB::connection('tenant')->transaction(function () use ($data, $cid, $userId, $photoPath) {
+            DB::connection('tenant')->transaction(function () use ($data, $cid, $userId, $photoPath, &$emp) {
                 $emp = Employee::create([
                     'company_id' => $cid,
                     'user_id' => $userId,
@@ -172,7 +178,10 @@ class EmployeeController extends Controller
             }
             throw $e;
         }
-        return redirect()->route('employees.index')->with('status', 'Employee created.');
+
+        return redirect()
+            ->route('employees.edit', $emp)
+            ->with('status', 'Employee created. QR card print kar sakte hain.');
     }
 
     public function edit(Employee $employee)
@@ -182,10 +191,12 @@ class EmployeeController extends Controller
         abort_if($cid === null, 403);
 
         $employee->load(['user', 'designation', 'staffCategory']);
+        $employee->ensureQrToken();
         $designations = EmployeeDesignation::query()->where('active', true)->orderBy('name')->get(['id', 'name']);
         $staffCategories = $this->staffCategoriesForForm($cid);
+        $qrSvg = $this->qrAttendance->svgForEmployee($employee, 200);
 
-        return view('employees.edit', compact('employee', 'designations', 'staffCategories'));
+        return view('employees.edit', compact('employee', 'designations', 'staffCategories', 'qrSvg'));
     }
 
     public function update(Request $request, Employee $employee)
