@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\Setting;
 use App\Services\QrAttendanceService;
 use App\Support\ActivityLogger;
+use App\Support\EnsuresEmployeeProfileSchema;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -14,6 +15,8 @@ use Illuminate\View\View;
 
 class QrAttendanceController extends Controller
 {
+    use EnsuresEmployeeProfileSchema;
+
     public function __construct(
         private readonly QrAttendanceService $qrAttendance
     ) {}
@@ -77,19 +80,16 @@ class QrAttendanceController extends Controller
 
     public function card(Employee $employee): View
     {
+        $this->ensureEmployeeProfileSchema();
         $employee->ensureQrToken();
         $employee->loadMissing(['designation:id,name']);
 
-        return view('employees.qr-card', [
-            'companyName' => Setting::get('company_name', config('app.name')),
-            'employees' => collect([$employee]),
-            'qrAttendance' => $this->qrAttendance,
-            'single' => true,
-        ]);
+        return view('employees.qr-card', $this->cardPageData(collect([$employee]), true));
     }
 
     public function cards(): View
     {
+        $this->ensureEmployeeProfileSchema();
         Employee::ensureQrTokenSchema();
 
         $employees = Employee::query()
@@ -103,12 +103,24 @@ class QrAttendanceController extends Controller
             $employee->ensureQrToken();
         }
 
-        return view('employees.qr-card', [
-            'companyName' => Setting::get('company_name', config('app.name')),
+        return view('employees.qr-card', $this->cardPageData($employees, false));
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Employee>  $employees
+     * @return array{companyName: string, companyLogo: ?string, employees: \Illuminate\Support\Collection, qrAttendance: QrAttendanceService, single: bool}
+     */
+    private function cardPageData($employees, bool $single): array
+    {
+        $logoPath = (string) Setting::get('company_logo', '');
+
+        return [
+            'companyName' => (string) Setting::get('company_name', config('app.name')),
+            'companyLogo' => company_logo_data_uri($logoPath) ?: company_logo_url($logoPath),
             'employees' => $employees,
             'qrAttendance' => $this->qrAttendance,
-            'single' => false,
-        ]);
+            'single' => $single,
+        ];
     }
 
     public function regenerate(Employee $employee)

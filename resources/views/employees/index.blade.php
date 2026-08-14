@@ -35,7 +35,7 @@
                     <i class="bi bi-qr-code-scan me-1"></i> QR Scan
                 </a>
                 <a href="{{ route('employees.qr-cards') }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">
-                    <i class="bi bi-printer me-1"></i> Print QR cards
+                    <i class="bi bi-printer me-1"></i> Print ID cards
                 </a>
                 @if($u->canManageTeamAttendance())
                     <a href="{{ route('employees.attendance.index') }}" class="btn btn-outline-secondary">
@@ -120,7 +120,7 @@
                             @if($u->moduleAllows('hr', 'edit'))
                                 <a class="btn btn-sm btn-outline-primary" href="{{ route('employees.edit', $e) }}">Edit</a>
                             @endif
-                            <a class="btn btn-sm btn-outline-secondary" href="{{ route('employees.qr-card', $e) }}" target="_blank" rel="noopener" title="Print QR card">
+                            <a class="btn btn-sm btn-outline-secondary" href="{{ route('employees.qr-card', $e) }}" target="_blank" rel="noopener" title="Print ID card">
                                 <i class="bi bi-qr-code"></i>
                             </a>
                             @if($u->moduleAllows('hr', 'delete'))

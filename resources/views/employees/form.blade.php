@@ -174,7 +174,7 @@
                 <div class="small text-secondary mb-2">Card print karke scan hone par aaj ki Present automatic lag jayegi. Attendance module khula hona zaroori nahi.</div>
                 <div class="d-grid gap-2">
                     <a class="btn btn-sm btn-outline-primary" href="{{ route('employees.qr-card', $employee) }}" target="_blank" rel="noopener">
-                        <i class="bi bi-printer me-1"></i> Print QR card
+                        <i class="bi bi-printer me-1"></i> Print ID card
                     </a>
                     <button type="submit" form="employee-qr-regen-form" class="btn btn-sm btn-outline-warning"
                             onclick="return confirm('Naya QR generate hoga. Purana printed card kaam nahi karega. Continue?');">
