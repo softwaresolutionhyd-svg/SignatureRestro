@@ -25,12 +25,18 @@
         }
         .toolbar {
             display: flex;
+            flex-wrap: wrap;
             justify-content: space-between;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
             margin-bottom: 14px;
+            padding: 12px 14px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 4px rgba(0,0,0,.08);
         }
-        .toolbar button {
+        .toolbar-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .toolbar button, .toolbar a.btn-link {
             padding: 8px 16px;
             border: 0;
             border-radius: 6px;
@@ -38,14 +44,54 @@
             color: #fff;
             font-weight: 600;
             cursor: pointer;
+            text-decoration: none;
+            font-size: 13px;
+            display: inline-block;
         }
-        .sheet { display: flex; flex-direction: column; gap: 16px; }
+        .toolbar a.btn-muted {
+            background: #fff;
+            color: var(--ink);
+            border: 1px solid #ccc;
+        }
+        .toolbar form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+        .toolbar select {
+            padding: 6px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 12px;
+            max-width: 180px;
+        }
+        .toolbar label.chk {
+            display: inline-flex;
+            gap: 4px;
+            align-items: center;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        .report-meta {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+        .sheet {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180mm, 1fr));
+            gap: 12px 16px;
+            justify-content: center;
+        }
         .id-pack {
             display: flex;
             flex-wrap: wrap;
-            gap: 8mm;
+            gap: 6mm;
             page-break-inside: avoid;
             break-inside: avoid;
+            justify-content: flex-start;
+            padding: 4px;
         }
         .id-face {
             width: 85.6mm;
@@ -219,8 +265,19 @@
             text-transform: uppercase;
         }
         @media print {
-            body { background: #fff; padding: 8mm; }
-            .toolbar { display: none !important; }
+            @page { size: A4 portrait; margin: 8mm; }
+            body { background: #fff; padding: 0; }
+            .toolbar, .report-meta { display: none !important; }
+            .sheet {
+                display: block;
+            }
+            .id-pack {
+                display: flex;
+                gap: 5mm;
+                margin-bottom: 6mm;
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
             .id-face, .id-head, .gold-line, .id-photo, .qr-plate {
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
@@ -231,8 +288,41 @@
 </head>
 <body>
     <div class="toolbar">
-        <strong>{{ ($single ?? false) ? 'Print ID card (front + back)' : 'Print all ID cards (front + back)' }}</strong>
-        <button type="button" onclick="window.print()">Print</button>
+        <div>
+            <strong>{{ ($single ?? false) ? 'Print ID card (front + back)' : 'All employees ID cards (PDF)' }}</strong>
+            @unless($single ?? false)
+                <div class="report-meta" style="margin:4px 0 0;">
+                    {{ $employees->count() }} card{{ $employees->count() === 1 ? '' : 's' }}
+                    @isset($printedAt) · {{ $printedAt }}@endisset
+                    · Print / Save as PDF se ek saath cards nikal lo
+                </div>
+            @endunless
+        </div>
+        <div class="toolbar-actions">
+            @unless($single ?? false)
+                <form method="GET" action="{{ route('employees.qr-cards') }}">
+                    <select name="staff_category_id" onchange="this.form.submit()" title="Staff category">
+                        <option value="">All categories</option>
+                        @foreach(($categories ?? []) as $cat)
+                            <option value="{{ $cat->id }}" @selected(($staffCategoryId ?? null) == $cat->id)>{{ $cat->name }}</option>
+                        @endforeach
+                    </select>
+                    <select name="designation_id" onchange="this.form.submit()" title="Designation">
+                        <option value="">All designations</option>
+                        @foreach(($designations ?? []) as $des)
+                            <option value="{{ $des->id }}" @selected(($designationId ?? null) == $des->id)>{{ $des->name }}</option>
+                        @endforeach
+                    </select>
+                    <label class="chk">
+                        <input type="hidden" name="active_only" value="0">
+                        <input type="checkbox" name="active_only" value="1" @checked($activeOnly ?? true) onchange="this.form.submit()">
+                        Active only
+                    </label>
+                </form>
+            @endunless
+            <button type="button" onclick="window.print()">Print / PDF</button>
+            <a class="btn-link btn-muted" href="{{ route('employees.index') }}">Back</a>
+        </div>
     </div>
     <div class="sheet">
         @forelse($employees as $emp)
@@ -306,9 +396,11 @@
                 </article>
             </section>
         @empty
-            <p>No active employees.</p>
+            <p>No employees match these filters.</p>
         @endforelse
     </div>
-    <script>window.addEventListener('load', () => setTimeout(() => window.print(), 400));</script>
+    @if($single ?? false)
+        <script>window.addEventListener('load', () => setTimeout(() => window.print(), 400));</script>
+    @endif
 </body>
 </html>

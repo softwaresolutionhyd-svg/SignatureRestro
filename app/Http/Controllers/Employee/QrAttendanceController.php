@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Employee;
 
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
+use App\Models\EmployeeDesignation;
+use App\Models\EmployeeStaffCategory;
 use App\Models\Setting;
 use App\Services\QrAttendanceService;
 use App\Support\ActivityLogger;
@@ -87,23 +89,55 @@ class QrAttendanceController extends Controller
         return view('employees.qr-card', $this->cardPageData(collect([$employee]), true));
     }
 
-    public function cards(): View
+    public function cards(Request $request): View
     {
         $this->ensureEmployeeProfileSchema();
         Employee::ensureQrTokenSchema();
 
-        $employees = Employee::query()
+        $activeOnly = $request->boolean('active_only', true);
+        $staffCategoryId = $request->integer('staff_category_id') ?: null;
+        $designationId = $request->integer('designation_id') ?: null;
+
+        $query = Employee::query()
             ->excludeAdminAccounts()
-            ->where('active', true)
-            ->with(['designation:id,name'])
-            ->orderBy('employee_no')
-            ->get();
+            ->with(['designation:id,name', 'staffCategory:id,name'])
+            ->orderBy('employee_no');
+
+        if ($activeOnly) {
+            $query->where('active', true);
+        }
+        if ($staffCategoryId) {
+            $query->where('staff_category_id', $staffCategoryId);
+        }
+        if ($designationId) {
+            $query->where('designation_id', $designationId);
+        }
+
+        $employees = $query->get();
 
         foreach ($employees as $employee) {
             $employee->ensureQrToken();
         }
 
-        return view('employees.qr-card', $this->cardPageData($employees, false));
+        $categories = EmployeeStaffCategory::query()
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name']);
+        $designations = EmployeeDesignation::query()
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return view('employees.qr-card', array_merge(
+            $this->cardPageData($employees, false),
+            [
+                'activeOnly' => $activeOnly,
+                'staffCategoryId' => $staffCategoryId,
+                'designationId' => $designationId,
+                'categories' => $categories,
+                'designations' => $designations,
+                'printedAt' => now()->timezone(config('app.timezone'))->format('d M Y, h:i A'),
+            ]
+        ));
     }
 
     /**
