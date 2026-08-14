@@ -77,6 +77,53 @@ class EmployeeController extends Controller
         return view('employees.index', compact('employees', 'q', 'employeeNo', 'sort'));
     }
 
+    /** A4 printable employees directory — staff category → designation. */
+    public function printReport(Request $request)
+    {
+        $this->ensureEmployeePhotoSchema();
+        $this->ensureEmployeeProfileSchema();
+        $this->ensureEmployeeStaffCategorySchema();
+
+        $activeOnly = $request->boolean('active_only', true);
+        $groupBy = strtolower(trim((string) $request->query('group', 'category')));
+        if (! in_array($groupBy, ['category', 'designation'], true)) {
+            $groupBy = 'category';
+        }
+
+        $query = Employee::query()
+            ->excludeAdminAccounts()
+            ->with([
+                'designation:id,name',
+                'staffCategory:id,name,sort_order',
+                'user:id,email',
+            ])
+            ->orderBy('employee_no');
+
+        if ($activeOnly) {
+            $query->where('active', true);
+        }
+
+        $employees = $query->get();
+        $groups = $groupBy === 'designation'
+            ? $this->groupEmployeesForPrintByDesignation($employees)
+            : $this->groupEmployeesForPrintByCategory($employees);
+
+        $companyName = Setting::get('company_name', config('app.name'));
+        $printedAt = now()->timezone(config('app.timezone'))->format('d M Y, h:i A');
+        $totalCount = $employees->count();
+        $activeCount = $employees->where('active', true)->count();
+
+        return view('employees.print-report', compact(
+            'groups',
+            'groupBy',
+            'activeOnly',
+            'companyName',
+            'printedAt',
+            'totalCount',
+            'activeCount'
+        ));
+    }
+
     public function create()
     {
         $this->ensureEmployeePhotoSchema();
@@ -386,6 +433,8 @@ class EmployeeController extends Controller
 
     public function destroy(Employee $employee)
     {
+        abort_unless(auth()->user()?->canDeleteEmployees(), 403);
+
         $employee->load('user');
         if ($employee->user && in_array($employee->user->role ?? '', ['company_admin', 'super_admin', 'admin'], true)) {
             return redirect()->route('employees.index')->withErrors('This administrator employee record cannot be deleted.');
@@ -404,6 +453,99 @@ class EmployeeController extends Controller
             $user->delete();
         }
         return redirect()->route('employees.index')->with('status', 'Employee deleted.');
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Employee>  $employees
+     * @return list<array{name: string, subgroups: list<array{name: string, employees: \Illuminate\Support\Collection<int, Employee>}>}>
+     */
+    private function groupEmployeesForPrintByCategory($employees): array
+    {
+        $categories = EmployeeStaffCategory::query()
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'sort_order']);
+
+        $groups = [];
+        foreach ($categories as $category) {
+            $inCategory = $employees
+                ->where('staff_category_id', $category->id)
+                ->values();
+            if ($inCategory->isEmpty()) {
+                continue;
+            }
+            $groups[] = [
+                'name' => (string) $category->name,
+                'subgroups' => $this->subgroupByDesignation($inCategory),
+            ];
+        }
+
+        $unassigned = $employees
+            ->filter(fn (Employee $employee) => empty($employee->staff_category_id))
+            ->values();
+        if ($unassigned->isNotEmpty()) {
+            $groups[] = [
+                'name' => 'Unassigned',
+                'subgroups' => $this->subgroupByDesignation($unassigned),
+            ];
+        }
+
+        if ($groups === [] && $employees->isNotEmpty()) {
+            $groups[] = [
+                'name' => 'All Employees',
+                'subgroups' => $this->subgroupByDesignation($employees),
+            ];
+        }
+
+        return $groups;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Employee>  $employees
+     * @return list<array{name: string, subgroups: list<array{name: string, employees: \Illuminate\Support\Collection<int, Employee>}>}>
+     */
+    private function groupEmployeesForPrintByDesignation($employees): array
+    {
+        $groups = [];
+        foreach ($this->subgroupByDesignation($employees) as $subgroup) {
+            $groups[] = [
+                'name' => $subgroup['name'],
+                'subgroups' => [[
+                    'name' => '',
+                    'employees' => $subgroup['employees'],
+                ]],
+            ];
+        }
+
+        return $groups;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Employee>  $employees
+     * @return list<array{name: string, employees: \Illuminate\Support\Collection<int, Employee>}>
+     */
+    private function subgroupByDesignation($employees): array
+    {
+        $byName = [];
+        foreach ($employees as $employee) {
+            $label = trim((string) ($employee->designation?->name ?? ''));
+            if ($label === '') {
+                $label = 'No designation';
+            }
+            $byName[$label][] = $employee;
+        }
+
+        ksort($byName, SORT_NATURAL | SORT_FLAG_CASE);
+
+        $out = [];
+        foreach ($byName as $name => $rows) {
+            $out[] = [
+                'name' => $name,
+                'employees' => collect($rows)->sortBy('employee_no', SORT_NATURAL)->values(),
+            ];
+        }
+
+        return $out;
     }
 
     private function normalizePermissions(array $permissions): array

@@ -232,6 +232,23 @@ class User extends Authenticatable
         return $this->hasManagerDesignationAccess();
     }
 
+    /**
+     * Permanent employee delete — company/platform admin only.
+     * Manager (designation) cannot delete any employee even if HR delete is ticked.
+     */
+    public function canDeleteEmployees(): bool
+    {
+        if ($this->bypassesModulePermissions() || ($this->role ?? null) === 'admin') {
+            return true;
+        }
+
+        if ($this->hasManagerDesignationOnly()) {
+            return false;
+        }
+
+        return $this->moduleAllows('hr', 'delete');
+    }
+
     /** Demand module launcher — Admin, Manager, or Storekeeper. */
     public function canAccessDemand(): bool
     {

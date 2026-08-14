@@ -37,6 +37,9 @@
                 <a href="{{ route('employees.qr-cards') }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">
                     <i class="bi bi-printer me-1"></i> Print ID cards
                 </a>
+                <a href="{{ route('employees.print-report') }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">
+                    <i class="bi bi-file-earmark-pdf me-1"></i> Print Report
+                </a>
                 @if($u->canManageTeamAttendance())
                     <a href="{{ route('employees.attendance.index') }}" class="btn btn-outline-secondary">
                         <i class="bi bi-calendar-check me-1"></i> Attendance
@@ -83,7 +86,7 @@
                     <th>Phone</th>
                     <th>Join date</th>
                     <th>Status</th>
-                    @if($u->moduleAllows('hr', 'edit') || $u->moduleAllows('hr', 'delete'))
+                    @if($u->moduleAllows('hr', 'edit') || $u->canDeleteEmployees())
                         <th class="text-end">Actions</th>
                     @endif
                 </tr>
@@ -115,7 +118,7 @@
                                 <span class="badge text-bg-secondary">Inactive</span>
                             @endif
                         </td>
-                        @if($u->moduleAllows('hr', 'edit') || $u->moduleAllows('hr', 'delete'))
+                        @if($u->moduleAllows('hr', 'edit') || $u->canDeleteEmployees())
                         <td class="text-end">
                             @if($u->moduleAllows('hr', 'edit'))
                                 <a class="btn btn-sm btn-outline-primary" href="{{ route('employees.edit', $e) }}">Edit</a>
@@ -123,7 +126,7 @@
                             <a class="btn btn-sm btn-outline-secondary" href="{{ route('employees.qr-card', $e) }}" target="_blank" rel="noopener" title="Print ID card">
                                 <i class="bi bi-qr-code"></i>
                             </a>
-                            @if($u->moduleAllows('hr', 'delete'))
+                            @if($u->canDeleteEmployees())
                                 <form class="d-inline" method="POST" action="{{ route('employees.destroy', $e) }}"
                                       onsubmit="return confirm('Delete employee?');">
                                     @csrf
@@ -135,7 +138,7 @@
                         @endif
                     </tr>
                 @empty
-                    <tr><td colspan="{{ ($u->moduleAllows('hr', 'edit') || $u->moduleAllows('hr', 'delete')) ? 10 : 9 }}" class="text-center text-secondary py-4">No employees yet.</td></tr>
+                    <tr><td colspan="{{ ($u->moduleAllows('hr', 'edit') || $u->canDeleteEmployees()) ? 10 : 9 }}" class="text-center text-secondary py-4">No employees yet.</td></tr>
                 @endforelse
                 </tbody>
             </table>

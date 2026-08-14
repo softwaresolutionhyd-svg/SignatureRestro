@@ -103,6 +103,7 @@
                                     <a href="{{ route('employees.edit', $employee) }}" class="btn btn-sm btn-outline-primary">
                                         <i class="bi bi-pencil"></i>
                                     </a>
+                                    @if(auth()->user()?->canDeleteEmployees())
                                     <form method="POST" action="{{ route('employees.destroy', $employee) }}" 
                                           onsubmit="return confirm('Are you sure you want to delete this employee?');" 
                                           class="d-inline">
@@ -112,6 +113,7 @@
                                             <i class="bi bi-trash"></i>
                                         </button>
                                     </form>
+                                    @endif
                                 </div>
                             </td>
                         </tr>

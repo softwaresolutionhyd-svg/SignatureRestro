@@ -338,6 +338,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
             Route::post('/{employee}/qr-regenerate', [QrAttendanceController::class, 'regenerate'])->name('qr.regenerate');
 
             Route::get('/', [EmployeeController::class, 'index'])->name('index');
+            Route::get('/print-report', [EmployeeController::class, 'printReport'])->name('print-report');
             Route::get('/create', [EmployeeController::class, 'create'])->name('create');
             Route::post('/', [EmployeeController::class, 'store'])->name('store');
 
