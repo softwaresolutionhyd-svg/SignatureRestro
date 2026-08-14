@@ -588,6 +588,21 @@ final class KitchenService
                 ? max(0.0, (float) $item['kitchen_locked_qty'])
                 : null;
 
+            // Same DB line that was already printed/served: never treat as a New card
+            // just because the client sent kitchen_locked_qty=0.
+            $incomingId = (int) ($item['order_item_id'] ?? $item['id'] ?? 0);
+            if ($incomingId > 0) {
+                foreach ($oldItems as $oldItem) {
+                    if (! $oldItem instanceof PosOrderItem || (int) $oldItem->id !== $incomingId) {
+                        continue;
+                    }
+                    if ($this->isKitchenLockedLine($oldItem)) {
+                        $clientLockedHint = max((float) ($clientLockedHint ?? 0), (float) $oldItem->qty);
+                    }
+                    break;
+                }
+            }
+
             // 1) Already served portion
             if ($hasServedAt && isset($servedPool[$baseFp]) && $servedPool[$baseFp]['served_qty'] > 0.0005) {
                 $maxServed = min((float) $servedPool[$baseFp]['served_qty'], $remaining);

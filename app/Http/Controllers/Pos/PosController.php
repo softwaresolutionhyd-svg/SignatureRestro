@@ -267,6 +267,7 @@ class PosController extends Controller
         $canPosPay = $posStaffCaps['can_pay'];
         $canPosDiscount = $posStaffCaps['can_discount'];
         $canPosDiscountCredit = $posStaffCaps['can_discount_credit'];
+        $canVoidKitchenItems = $this->userCanKitchenVoid($user);
         $recentDailyClosings = PosSession::query()
             ->where('user_id', $user->id)
             ->where('status', 'closed')
@@ -283,7 +284,7 @@ class PosController extends Controller
                 'note',
             ]);
 
-        return compact('session', 'products', 'heldOrders', 'paidOrders', 'paidBillsDetail', 'pendingBillsDetail', 'resumedOrder', 'contacts', 'posSettings', 'sessionCashExpected', 'sessionPosStats', 'tables', 'tableBoard', 'checkedInRooms', 'waiters', 'recentDailyClosings', 'canReopenPaidBill', 'canDiscardHeldBill', 'canPosPay', 'canPosDiscount', 'canPosDiscountCredit');
+        return compact('session', 'products', 'heldOrders', 'paidOrders', 'paidBillsDetail', 'pendingBillsDetail', 'resumedOrder', 'contacts', 'posSettings', 'sessionCashExpected', 'sessionPosStats', 'tables', 'tableBoard', 'checkedInRooms', 'waiters', 'recentDailyClosings', 'canReopenPaidBill', 'canDiscardHeldBill', 'canPosPay', 'canPosDiscount', 'canPosDiscountCredit', 'canVoidKitchenItems');
     }
 
     /** Manager / admin only — cashiers cannot delete or reopen bills. */
@@ -618,6 +619,7 @@ class PosController extends Controller
                         'kitchen_served' => $item->isKitchenServed(),
                         'kitchen_pending' => (bool) $item->kitchen_pending,
                         'kitchen_printed' => $item->kitchen_printed_at !== null,
+                        'kitchen_locked' => app(KitchenService::class)->isKitchenLockedLine($item),
                     ])->values()->all(),
                 ];
             }
@@ -4143,6 +4145,7 @@ class PosController extends Controller
             'kitchen_served' => $item->isKitchenServed(),
             'kitchen_pending' => (bool) $item->kitchen_pending,
             'kitchen_printed' => $item->kitchen_printed_at !== null,
+            'kitchen_locked' => app(KitchenService::class)->isKitchenLockedLine($item),
             'kitchen_served_at' => $item->kitchen_served_at?->format('H:i'),
         ])->values()->all();
 

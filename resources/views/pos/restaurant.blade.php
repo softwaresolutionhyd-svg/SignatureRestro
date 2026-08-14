@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=65">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=66">
 @endpush
 
 @section('content')
@@ -73,6 +73,7 @@
         'kitchen_served' => $i->isKitchenServed(),
         'kitchen_pending' => (bool) $i->kitchen_pending,
         'kitchen_printed' => $i->kitchen_printed_at !== null,
+        'kitchen_locked' => $i->isKitchenServed() || $i->kitchen_printed_at !== null,
     ])->values();
     $resumeStub = str_replace('999999999', '__ID__', route('restaurant-pos.resume', ['order' => 999999999]));
 
@@ -85,7 +86,7 @@
         : trim((string) (auth()->user()?->name ?? ''));
 @endphp
 
-<div class="restaurant-pos-app">
+<div class="restaurant-pos-app{{ empty($canVoidKitchenItems) ? ' rp-no-kitchen-void' : '' }}">
     <header class="rp-topbar">
         <div class="rp-topbar-brand">
             <span class="rp-brand-mark" aria-hidden="true"><i class="bi bi-cup-hot-fill"></i></span>
@@ -563,7 +564,7 @@
         'restaurantName' => config('app.name'),
         // Pre-kitchen: har cashier free remove/qty-kam. Post-kitchen void: manager only.
         'canReduceCartItems' => true,
-        'canVoidKitchenItems' => (bool) (($canPosDiscountCredit ?? false) || auth()->user()?->bypassesModulePermissions()),
+        'canVoidKitchenItems' => (bool) ($canVoidKitchenItems ?? false),
         'canReopenPaidBill' => (bool) ($canReopenPaidBill ?? false),
         'canDiscardHeldBill' => (bool) ($canDiscardHeldBill ?? false),
         'canPosPay' => (bool) ($canPosPay ?? false),
@@ -593,5 +594,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=119"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=120"></script>
 @endsection

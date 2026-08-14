@@ -1874,6 +1874,10 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     cursor: not-allowed;
 }
 
+.restaurant-pos-app.rp-no-kitchen-void .rp-cart-line.is-kitchen-locked .rp-cl-remove {
+    display: none !important;
+}
+
 .restaurant-pos-app .rp-cl-actions {
     display: flex;
     flex-direction: column;

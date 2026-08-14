@@ -678,7 +678,7 @@
     function kitchenLockedFromResume(ri) {
         const qty = parseOrderQty(ri.qty);
         // Printed / served / already queued for kitchen → lock (cashier × hide).
-        if (ri.kitchen_served || ri.kitchen_printed || ri.kitchen_pending) {
+        if (ri.kitchen_locked || ri.kitchen_served || ri.kitchen_printed || ri.kitchen_pending) {
             return qty;
         }
         return 0;
@@ -686,27 +686,43 @@
 
     function sanitizeCartKitchenLocks() {
         cart.forEach((r) => {
-            // Hold-only lines (no kitchen queue yet) — free edit/remove.
-            if (!(r.kitchen_served || r.kitchen_printed || r.kitchen_pending)) {
-                r.kitchen_locked_qty = 0;
-                r.kitchen_printed = false;
+            if (r.kitchen_locked || r.kitchen_served || r.kitchen_printed || r.kitchen_pending) {
+                const qty = Number(r.qty) || 0;
+                r.kitchen_locked_qty = Math.max(Number(r.kitchen_locked_qty) || 0, qty);
                 return;
             }
-            const qty = Number(r.qty) || 0;
-            if ((Number(r.kitchen_locked_qty) || 0) < qty) {
-                r.kitchen_locked_qty = qty;
-            }
-            if (r.kitchen_printed || r.kitchen_served || r.kitchen_pending) {
-                r.kitchen_locked_qty = Math.max(Number(r.kitchen_locked_qty) || 0, qty);
-            }
+            // Hold-only lines (no kitchen queue yet) — free edit/remove.
+            r.kitchen_locked_qty = 0;
         });
     }
 
+    function pendingResumeItem(row) {
+        const oid = Number(row?.order_item_id || row?.id || 0);
+        if (!oid || !resumeOrderId) {
+            return null;
+        }
+        const order = (boot.pendingBillsDetail || []).find((o) => Number(o.id) === Number(resumeOrderId));
+        return (order?.items || []).find((i) => Number(i.id) === oid) || null;
+    }
+
     function isCartLineKitchenLocked(row) {
-        if ((Number(row?.kitchen_locked_qty) || 0) > 0.0005) {
+        if (!row) {
+            return false;
+        }
+        if (row.kitchen_locked === true || row.kitchen_locked === 1) {
             return true;
         }
-        return !!(row?.kitchen_printed || row?.kitchen_served || row?.kitchen_pending);
+        if ((Number(row.kitchen_locked_qty) || 0) > 0.0005) {
+            return true;
+        }
+        if (row.kitchen_printed || row.kitchen_served || row.kitchen_pending) {
+            return true;
+        }
+        const item = pendingResumeItem(row);
+        if (item && (item.kitchen_locked || item.kitchen_printed || item.kitchen_served || item.kitchen_pending)) {
+            return true;
+        }
+        return false;
     }
 
     function canEditUnlockedCartLine() {
@@ -1031,10 +1047,13 @@
         const row = cart[index];
         if (!row) return;
 
-        // Kitchen print se pehle — kabhi lock mat mano (sirf printed/served lock).
         const lockedQty = Number(row.kitchen_locked_qty) || 0;
-        if (lockedQty > 0.0005 && !(row.kitchen_printed || row.kitchen_served)) {
-            row.kitchen_locked_qty = 0;
+        if (lockedQty > 0.0005 && !(row.kitchen_printed || row.kitchen_served || row.kitchen_pending || row.kitchen_locked)) {
+            const fromBill = pendingResumeItem(row);
+            if (fromBill && (fromBill.kitchen_printed || fromBill.kitchen_served || fromBill.kitchen_locked)) {
+                row.kitchen_printed = true;
+                row.kitchen_locked = true;
+            }
         }
 
         if (!canReduceOrRemoveCartLine(row)) {
@@ -1525,17 +1544,13 @@
             return;
         }
         const totals = calcCartTotals();
-        const orderHasKitchen = cart.some((r) => (
-            (Number(r.kitchen_locked_qty) || 0) > 0.0005
-            || r.kitchen_printed
-            || r.kitchen_served
-            || r.kitchen_pending
-        ));
+        const orderHasKitchen = cart.some((r) => isCartLineKitchenLocked(r));
         wrap.innerHTML = cart.map((r, i) => {
             const total = lineRowTotal(r, totals, i);
             const locked = isCartLineKitchenLocked(r);
             const lockedQty = Math.max(Number(r.kitchen_locked_qty) || 0, locked ? (Number(r.qty) || 0) : 0);
             const showRemove = canReduceOrRemoveCartLine(r);
+            const qtyLockedForCashier = locked && !canVoidKitchenItems;
             const isNewAddon = orderHasKitchen && !locked;
             const kitchenBadge = locked
                 ? `<span class="rp-kitchen-pill ${r.kitchen_served ? 'rp-kitchen-pill--served' : 'rp-kitchen-pill--pending'}" title="Kitchen me bheja hua">
@@ -1557,7 +1572,7 @@
                     <div class="rp-cl-main">
                         <div class="rp-cl-qty-ctrl" role="group" aria-label="Quantity">
                             <button type="button" class="rp-cl-qty-btn" data-action="cart-dec" data-index="${i}"${canDec ? '' : ' disabled'} aria-label="Decrease">−</button>
-                            <input type="text" inputmode="decimal" class="rp-cl-qty-input" data-index="${i}" value="${fmtQty(r.qty)}" aria-label="Quantity" autocomplete="off" spellcheck="false">
+                            <input type="text" inputmode="decimal" class="rp-cl-qty-input" data-index="${i}" value="${fmtQty(r.qty)}" aria-label="Quantity" autocomplete="off" spellcheck="false"${qtyLockedForCashier ? ' readonly' : ''}>
                             <button type="button" class="rp-cl-qty-btn" data-action="cart-inc" data-index="${i}" aria-label="Increase">+</button>
                         </div>
                         <span class="rp-cl-name">${escHtml(r.name)}${r.is_custom ? ' <span class="rp-on-demand-tag">On Demand</span>' : ''}</span>
@@ -3113,6 +3128,7 @@
                 kitchen_served: !!ri.kitchen_served,
                 kitchen_pending: !!ri.kitchen_pending,
                 kitchen_printed: !!ri.kitchen_printed,
+                kitchen_locked: !!(ri.kitchen_locked || ri.kitchen_printed || ri.kitchen_served),
                 kitchen_locked_qty: kitchenLockedFromResume(ri),
                 order_item_id: ri.id ? Number(ri.id) : null,
             });
@@ -3358,6 +3374,7 @@
             r.kitchen_printed = true;
             r.kitchen_pending = true;
             r.kitchen_served = false;
+            r.kitchen_locked = true;
             r.kitchen_locked_qty = qty;
             changed = true;
         });
@@ -4624,6 +4641,7 @@
                 kitchen_served: !!ri.kitchen_served,
                 kitchen_pending: !!ri.kitchen_pending,
                 kitchen_printed: !!ri.kitchen_printed,
+                kitchen_locked: !!(ri.kitchen_locked || ri.kitchen_printed || ri.kitchen_served),
                 kitchen_locked_qty: kitchenLockedFromResume(ri),
                 order_item_id: ri.id ? Number(ri.id) : null,
             });
