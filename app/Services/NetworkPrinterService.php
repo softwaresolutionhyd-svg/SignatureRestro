@@ -63,6 +63,28 @@ final class NetworkPrinterService
     }
 
     /**
+     * Cheap ESC/POS printers often never ACK TCP FIN — fclose() can sit until stream timeout
+     * even after the slip is already in the printer buffer. Shut the socket down immediately.
+     */
+    private function closePrinterSocket(mixed $fp): void
+    {
+        if (! is_resource($fp)) {
+            return;
+        }
+
+        try {
+            @fflush($fp);
+            stream_set_blocking($fp, false);
+            stream_set_timeout($fp, 0, 120000);
+            @stream_socket_shutdown($fp, STREAM_SHUT_RDWR);
+        } catch (\Throwable $e) {
+            // ignore — still fclose below
+        }
+
+        @fclose($fp);
+    }
+
+    /**
      * Send ESC/POS jobs to many printers in parallel so Bar does not wait for Kitchen.
      *
      * @param  list<array{ip:string, port:int|string, payload:string}>  $jobs
@@ -70,7 +92,7 @@ final class NetworkPrinterService
      */
     public function sendMany(array $jobs, int $timeoutSeconds = 4): array
     {
-        $timeoutSeconds = max(2, min(8, $timeoutSeconds));
+        $timeoutSeconds = max(1, min(6, $timeoutSeconds));
         if ($jobs === []) {
             return [];
         }
@@ -189,7 +211,7 @@ final class NetworkPrinterService
                 $results[$i] = new RuntimeException(
                     sprintf('Printer %s:%d connect fail.', $st['ip'], $st['port'])
                 );
-                @fclose($fp);
+                $this->closePrinterSocket($fp);
                 unset($sockets[$i], $states[$i]);
             }
 
@@ -203,7 +225,7 @@ final class NetworkPrinterService
                 $len = strlen($st['payload']);
                 if ($st['written'] >= $len) {
                     $results[$i] = true;
-                    @fclose($fp);
+                    $this->closePrinterSocket($fp);
                     unset($sockets[$i], $states[$i]);
                     unset($st);
                     continue;
@@ -214,7 +236,7 @@ final class NetworkPrinterService
                     $results[$i] = new RuntimeException(
                         sprintf('Printer %s:%d par data bhejne mein masla.', $st['ip'], $st['port'])
                     );
-                    @fclose($fp);
+                    $this->closePrinterSocket($fp);
                     unset($sockets[$i], $states[$i]);
                     unset($st);
                     continue;
@@ -222,7 +244,7 @@ final class NetworkPrinterService
                 $st['written'] += (int) $chunk;
                 if ($st['written'] >= $len) {
                     $results[$i] = true;
-                    @fclose($fp);
+                    $this->closePrinterSocket($fp);
                     unset($sockets[$i], $states[$i]);
                 }
                 unset($st);
@@ -242,7 +264,7 @@ final class NetworkPrinterService
                     )
                 );
             }
-            @fclose($fp);
+            $this->closePrinterSocket($fp);
         }
 
         ksort($results);
@@ -261,7 +283,7 @@ final class NetworkPrinterService
     private function sendBlockingWithRetry(string $ip, int $port, string $payload, int $timeoutSeconds, int $attempts = 2)
     {
         $attempts = max(1, min(3, $attempts));
-        $timeoutSeconds = max(2, min(8, $timeoutSeconds));
+        $timeoutSeconds = max(1, min(6, $timeoutSeconds));
         $lastError = null;
 
         for ($attempt = 1; $attempt <= $attempts; $attempt++) {
@@ -316,7 +338,7 @@ final class NetworkPrinterService
                 $written += (int) $chunk;
             }
 
-            @fclose($fp);
+            $this->closePrinterSocket($fp);
 
             if ($ok && $written >= $len) {
                 return true;
@@ -476,7 +498,7 @@ final class NetworkPrinterService
             ];
         }
 
-        $sendResults = $this->sendMany($jobs, 4);
+        $sendResults = $this->sendMany($jobs, 2);
         $results = [];
         $failedDeptCount = 0;
         foreach ($sendResults as $i => $sendResult) {

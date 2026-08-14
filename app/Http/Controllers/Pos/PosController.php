@@ -2186,6 +2186,12 @@ class PosController extends Controller
             $this->persistKitchenVoids((int) $order->id, $requestKitchenVoids);
         }
 
+        // Kitchen tickets FIRST — do not wait for a second HTTP round-trip or void slips.
+        $kitchenPrint = null;
+        if ($sendToKitchen) {
+            $kitchenPrint = $this->dispatchKitchenPrintNow($order);
+        }
+
         // Only log / print newly submitted voids (not cached prior cancels).
         $removedPrint = $this->logKitchenVoids($order, $requestKitchenVoids);
         $this->logItemReductions($order, $this->normalizedItemReductions($request));
@@ -2213,6 +2219,7 @@ class PosController extends Controller
                 'order' => $this->posOrderDetailsPayload($order->loadMissing(['items.product', 'table', 'user', 'payments', 'contact'])),
                 'held_count' => $this->heldOrdersForSession($session)->count(),
                 'removed_print' => $removedPrint,
+                'kitchen_print' => $kitchenPrint,
             ]);
         }
 
@@ -2727,6 +2734,33 @@ class PosController extends Controller
             'departmentName',
             'isAddonPrint'
         ));
+    }
+
+    /**
+     * Print pending kitchen tickets immediately (same request as Hold/Kitchen Print).
+     *
+     * @return array<string, mixed>
+     */
+    private function dispatchKitchenPrintNow(PosOrder $order): array
+    {
+        try {
+            $result = app(NetworkPrinterService::class)->dispatchPendingKitchenPrints($order);
+            $order->unsetRelation('items');
+            $order->load(['items.product', 'table', 'user', 'payments', 'contact']);
+
+            return $result;
+        } catch (\Throwable $e) {
+            report($e);
+
+            return [
+                'ok' => false,
+                'complete' => false,
+                'message' => $e->getMessage(),
+                'results' => [],
+                'unrouted' => 0,
+                'remaining_with_printer' => 0,
+            ];
+        }
     }
 
     /**

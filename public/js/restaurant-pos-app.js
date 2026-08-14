@@ -48,6 +48,7 @@
     let cancelWholeOrderPending = false;
     let resumeSaveLock = Promise.resolve();
     let kitchenPrintBusy = false;
+    let lastHoldKitchenPrint = null;
     let holdSubmitLock = false;
     let checkoutInFlight = false;
     let lastHeldOrderId = null;
@@ -3463,6 +3464,13 @@
         return true;
     }
 
+    function kitchenPrintedOnHold(kp) {
+        if (!kp) return false;
+        if (kp.fallback) return false;
+        if (Number(kp.unrouted || 0) > 0) return false;
+        return !!(kp.complete || (kp.ok && Number(kp.remaining_with_printer || 0) === 0));
+    }
+
     async function tryCashierNetworkPrint(orderId) {
         const url = (routes.cashierPrint || '').replace('__ID__', String(orderId));
         if (!url || !csrf) return false;
@@ -3912,6 +3920,7 @@
 
                 if (gen !== cartSaveGeneration) {
                     // A newer edit happened while request was in flight — keep session voids.
+                    lastHoldKitchenPrint = data.kitchen_print || lastHoldKitchenPrint;
                     if (voidsSnapshot.length) {
                         rememberSessionKitchenVoids(voidsSnapshot);
                     }
@@ -3938,6 +3947,7 @@
                 kitchenVoids = [];
                 itemReductions = [];
                 notifyRemovedPrintResult(data.removed_print, hadKitchenVoids);
+                lastHoldKitchenPrint = data.kitchen_print || null;
                 if (hadKitchenVoids && canViewKitchenVoids) {
                     loadSessionKitchenVoids().then(() => {
                         if (orderListMode === 'kitchen-voids') {
@@ -4142,6 +4152,7 @@
         if (kitchenBtn) kitchenBtn.disabled = true;
         holdSubmitLock = true;
         kitchenPrintBusy = true;
+        lastHoldKitchenPrint = null;
         let savedOk = false;
         try {
             let order = null;
@@ -4169,6 +4180,7 @@
                     throw new Error(data.message || validationMsg || 'Kitchen print failed.');
                 }
 
+                lastHoldKitchenPrint = data.kitchen_print || null;
                 order = data.order || null;
                 if (order) {
                     upsertPendingBill(order, !!data.updated);
@@ -4194,7 +4206,10 @@
             }
             savedOk = true;
             const hadNewBeforePrint = cartHasUnprintedKitchenLines();
-            await printKitchenSlip(orderId);
+            // Hold request already sent tickets — skip second LAN round-trip unless leftover.
+            if (!kitchenPrintedOnHold(lastHoldKitchenPrint)) {
+                await printKitchenSlip(orderId);
+            }
 
             // Final safety: agar ab bhi New/unprinted lines hain to ek aur forced pass.
             if (hadNewBeforePrint && cartHasUnprintedKitchenLines()) {
