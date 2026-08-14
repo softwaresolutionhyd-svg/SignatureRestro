@@ -8,7 +8,7 @@
     <div class="mb-3">
         <a href="{{ route('inventory.stock-check.index') }}" class="text-decoration-none small">&larr; List</a>
         <h4 class="fw-bold mt-2 mb-0">Naya stock check (draft)</h4>
-        <p class="text-secondary small mb-0">List khali start hoti hai. <em>Add line</em> se product ka naam / SKU type karke chuno. Counted qty kisi bhi allowed UOM mein likho — save par base UOM mein convert ho jati hai.</p>
+        <p class="text-secondary small mb-0">List khali start hoti hai. <em>Add line</em> se product type karke chuno. Counted <strong>base qty</strong> (jaise pkt) aur jahan inner UOM ho wahan <strong>inner qty</strong> (jaise g) alag likho — save par dono mil kar base stock ban jati hai.</p>
     </div>
 
     <form method="POST" action="{{ route('inventory.stock-check.store') }}" class="card shadow-sm" id="stockCheckForm">
@@ -33,9 +33,9 @@
                     <thead class="table-light">
                     <tr>
                         <th style="min-width: 280px;">Product</th>
-                        <th class="text-end" style="min-width: 140px;">Book</th>
-                        <th style="min-width: 150px;">UOM</th>
-                        <th class="text-end" style="min-width: 160px;">Counted</th>
+                        <th class="text-end" style="min-width: 160px;">Book</th>
+                        <th class="text-end" style="min-width: 140px;">Base qty</th>
+                        <th class="text-end" style="min-width: 140px;">Inner qty</th>
                         <th style="width:1%;"></th>
                     </tr>
                     </thead>
@@ -55,7 +55,8 @@
             'id' => $p->id,
             'label' => $p->sku . ' — ' . $p->name,
             'uom' => (string) $p->uom,
-            'uoms' => $p->uomsForForms(),
+            'pkg_qty' => $p->hasPackageContents() ? (float) $p->package_contents_qty : null,
+            'pkg_uom' => $p->hasPackageContents() ? trim((string) $p->package_contents_uom) : '',
             'book' => (float) $p->qty_on_hand,
         ])->values();
         $oldLines = old('lines');

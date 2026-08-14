@@ -336,6 +336,32 @@ class InventoryProduct extends Model
         return round((float) $this->qty_on_hand * (float) $this->package_contents_qty, 6);
     }
 
+    /**
+     * Split a base-UOM quantity into whole base units + leftover inner units (e.g. 11.5 pkt → 11 pkt + 250 g).
+     *
+     * @return array{base: float, inner: float|null, inner_uom: ?string}
+     */
+    public function splitQtyIntoBaseAndInner(float $qtyBase): array
+    {
+        if (! $this->hasPackageContents()) {
+            return ['base' => $qtyBase, 'inner' => null, 'inner_uom' => null];
+        }
+
+        $factor = (float) $this->package_contents_qty;
+        $whole = floor($qtyBase + 0.0000001);
+        $frac = $qtyBase - $whole;
+        $inner = round($frac * $factor, 6);
+        if (abs($inner) < 0.0000001) {
+            $inner = 0.0;
+        }
+
+        return [
+            'base' => $whole,
+            'inner' => $inner,
+            'inner_uom' => trim((string) $this->package_contents_uom),
+        ];
+    }
+
     /** Human line for product cards, e.g. "≈ 62.500 g in packets". */
     public function packageContentsLine(): ?string
     {

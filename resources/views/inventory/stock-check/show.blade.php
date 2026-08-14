@@ -68,31 +68,60 @@
     </div>
 
     <div class="card shadow-sm">
-        <div class="card-header bg-white fw-semibold">Lines (base UOM)</div>
+        <div class="card-header bg-white fw-semibold">Lines</div>
         <div class="table-responsive">
             <table class="table mb-0 align-middle">
                 <thead class="table-light">
                 <tr>
                     <th>Product</th>
-                    <th class="text-end">Expected (at submit)</th>
+                    <th class="text-end">Expected (base)</th>
                     <th class="text-end">Counted</th>
                     <th class="text-end">Variance</th>
                 </tr>
                 </thead>
                 <tbody>
                 @foreach ($stockCheck->lines as $l)
+                    @php
+                        $product = $l->product;
+                        $countedSplit = ($product && $l->counted_qty !== null)
+                            ? $product->splitQtyIntoBaseAndInner((float) $l->counted_qty)
+                            : null;
+                    @endphp
                     <tr>
                         <td>
-                            <div class="fw-semibold">{{ $l->product->name }}</div>
-                            <div class="text-secondary small">{{ $l->product->sku }} · {{ $l->product->uom }}</div>
+                            <div class="fw-semibold">{{ $product->name ?? '—' }}</div>
+                            <div class="text-secondary small">{{ $product->sku ?? '' }} · {{ $product->uom ?? '' }}
+                                @if($product?->hasPackageContents())
+                                    · 1 {{ $product->uom }} = {{ fmt_num((float) $product->package_contents_qty, 6) }} {{ $product->package_contents_uom }}
+                                @endif
+                            </div>
                         </td>
-                        <td class="text-end">{{ fmt_num((float) $l->expected_qty, 6) }}</td>
-                        <td class="text-end">{{ $l->counted_qty !== null ? fmt_num((float) $l->counted_qty, 6) : '—' }}</td>
+                        <td class="text-end">
+                            {{ fmt_num((float) $l->expected_qty, 6) }} {{ $product->uom ?? '' }}
+                            @if($product?->hasPackageContents())
+                                <div class="small text-secondary">≈ {{ fmt_num((float) $l->expected_qty * (float) $product->package_contents_qty, 3) }} {{ $product->package_contents_uom }}</div>
+                            @endif
+                        </td>
+                        <td class="text-end">
+                            @if ($l->counted_qty !== null)
+                                {{ fmt_num((float) $l->counted_qty, 6) }} {{ $product->uom ?? '' }}
+                                @if($countedSplit && $countedSplit['inner'] !== null && $product?->hasPackageContents())
+                                    <div class="small text-secondary">
+                                        {{ fmt_num((float) $countedSplit['base'], 3) }} {{ $product->uom }}
+                                        @if((float) $countedSplit['inner'] > 0)
+                                            + {{ fmt_num((float) $countedSplit['inner'], 3) }} {{ $countedSplit['inner_uom'] }}
+                                        @endif
+                                    </div>
+                                @endif
+                            @else
+                                —
+                            @endif
+                        </td>
                         <td class="text-end fw-semibold">
                             @if ($l->counted_qty !== null)
                                 @php $v = (float) $l->counted_qty - (float) $l->expected_qty; @endphp
                                 <span class="{{ $v > 0 ? 'text-success' : ($v < 0 ? 'text-danger' : 'text-secondary') }}">
-                                    {{ $v >= 0 ? '+' : '' }}{{ fmt_num($v, 6) }}
+                                    {{ $v >= 0 ? '+' : '' }}{{ fmt_num($v, 6) }} {{ $product->uom ?? '' }}
                                 </span>
                             @else
                                 —

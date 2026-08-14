@@ -15,19 +15,8 @@
         return p ? String(p.label || '') : '';
     }
 
-    function factorForUom(product, uomCode) {
-        if (!product) return 1;
-        const row = (product.uoms || []).find(u => String(u.uom) === String(uomCode));
-        return row && Number(row.factor) > 0 ? Number(row.factor) : 1;
-    }
-
-    function bookLabel(pid, uomCode) {
-        const p = productById(pid);
-        if (!p) return '—';
-        const factor = factorForUom(p, uomCode || p.uom);
-        const qtyInSelectedUom = Number(p.book) / factor;
-        const shownUom = uomCode || p.uom;
-        return `${fmt(qtyInSelectedUom)} ${shownUom}`;
+    function hasInner(product) {
+        return !!(product && Number(product.pkg_qty) > 0 && String(product.pkg_uom || '').trim());
     }
 
     function fmt(n) {
@@ -35,6 +24,17 @@
         let s = (Math.round(n * 1000000) / 1000000).toString();
         if (s.includes('.')) s = s.replace(/\.?0+$/, '');
         return s === '-0' ? '0' : s;
+    }
+
+    function bookLabel(pid) {
+        const p = productById(pid);
+        if (!p) return '—';
+        let text = `${fmt(Number(p.book))} ${p.uom || ''}`.trim();
+        if (hasInner(p)) {
+            const innerBook = Number(p.book) * Number(p.pkg_qty);
+            text += `\n≈ ${fmt(innerBook)} ${p.pkg_uom}`;
+        }
+        return text;
     }
 
     function normalize(value) {
@@ -80,26 +80,6 @@
         }).join('');
     }
 
-    function uomOptions(pid, selectedUom) {
-        const p = productById(pid);
-        if (!p) {
-            return '<option value="">Select UOM…</option>';
-        }
-
-        const rows = (p.uoms || []);
-        if (!rows.length) {
-            return `<option value="${p.uom}" selected>${p.uom}</option>`;
-        }
-
-        const fallback = selectedUom || p.uom;
-        return rows.map((row) => {
-            const code = String(row.uom);
-            const isSelected = String(fallback) === code ? 'selected' : '';
-            const tag = code === p.uom ? ' (base)' : '';
-            return `<option value="${code}" ${isSelected}>${code}${tag}</option>`;
-        }).join('');
-    }
-
     function addLine(line = {}, { focus = false } = {}) {
         const idx = body.querySelectorAll('tr').length;
         const tr = document.createElement('tr');
@@ -109,43 +89,63 @@
                        placeholder="Type name / SKU…" autocomplete="off">
                 <input type="hidden" class="line-product-id" name="lines[${idx}][product_id]" value="${line.product_id ?? ''}" required>
             </td>
-            <td class="text-end text-secondary small line-book">—</td>
+            <td class="text-end text-secondary small line-book" style="white-space: pre-line;">—</td>
             <td>
-                <select class="form-select line-uom" name="lines[${idx}][uom]" required></select>
+                <div class="input-group input-group-sm">
+                    <input class="form-control text-end line-qty-base" type="number" step="0.000001" min="0"
+                           name="lines[${idx}][qty_base]" value="${line.qty_base ?? ''}" placeholder="0">
+                    <span class="input-group-text line-base-uom">—</span>
+                </div>
             </td>
-            <td><input class="form-control text-end" type="number" step="0.000001" min="0" name="lines[${idx}][qty]" value="${line.qty ?? ''}" placeholder="optional draft"></td>
+            <td>
+                <div class="input-group input-group-sm line-inner-wrap">
+                    <input class="form-control text-end line-qty-inner" type="number" step="0.000001" min="0"
+                           name="lines[${idx}][qty_inner]" value="${line.qty_inner ?? ''}" placeholder="0">
+                    <span class="input-group-text line-inner-uom">—</span>
+                </div>
+                <div class="small text-secondary line-inner-empty d-none">Inner UOM nahi</div>
+            </td>
             <td><button type="button" class="btn btn-sm btn-outline-danger removeLine">×</button></td>
         `;
         const search = tr.querySelector('.line-product-search');
         const hidden = tr.querySelector('.line-product-id');
-        const uomSel = tr.querySelector('.line-uom');
         const bookCell = tr.querySelector('.line-book');
+        const baseUom = tr.querySelector('.line-base-uom');
+        const innerUom = tr.querySelector('.line-inner-uom');
+        const innerWrap = tr.querySelector('.line-inner-wrap');
+        const innerEmpty = tr.querySelector('.line-inner-empty');
+        const innerInput = tr.querySelector('.line-qty-inner');
         const initialProduct = productById(line.product_id);
         if (initialProduct) {
             search.value = productLabel(initialProduct);
         }
 
-        function refreshUoms(selectedUom) {
-            uomSel.innerHTML = uomOptions(hidden.value, selectedUom);
+        function refreshMeta(product) {
+            bookCell.textContent = bookLabel(product ? product.id : '');
+            baseUom.textContent = product?.uom || '—';
+            const innerOk = hasInner(product);
+            innerWrap.classList.toggle('d-none', !innerOk);
+            innerEmpty.classList.toggle('d-none', innerOk);
+            if (innerOk) {
+                innerUom.textContent = product.pkg_uom;
+                innerInput.disabled = false;
+            } else {
+                innerInput.value = '';
+                innerInput.disabled = true;
+            }
         }
 
-        function refreshBook() {
-            bookCell.textContent = bookLabel(hidden.value, uomSel.value);
-        }
-
-        function setProduct(product, selectedUom) {
+        function setProduct(product) {
             if (!product) {
                 hidden.value = '';
                 search.classList.toggle('is-invalid', Boolean(String(search.value || '').trim()));
-                refreshUoms('');
-                refreshBook();
+                refreshMeta(null);
                 return;
             }
             hidden.value = String(product.id);
             search.value = productLabel(product);
             search.classList.remove('is-invalid');
-            refreshUoms(selectedUom || product.uom);
-            refreshBook();
+            refreshMeta(product);
         }
 
         function resolveTyped() {
@@ -177,8 +177,7 @@
             } else {
                 hidden.value = '';
                 search.classList.remove('is-invalid');
-                refreshUoms('');
-                refreshBook();
+                refreshMeta(null);
             }
             fillDatalist(search.value, hidden);
         });
@@ -188,14 +187,13 @@
             e.preventDefault();
             resolveTyped();
         });
-        uomSel.addEventListener('change', refreshBook);
         tr.querySelector('.removeLine').addEventListener('click', () => {
             tr.remove();
             reindex();
         });
 
         body.appendChild(tr);
-        setProduct(initialProduct, line.uom || '');
+        setProduct(initialProduct);
         if (focus) {
             search.focus();
         }
@@ -227,6 +225,10 @@
 
     addBtn?.addEventListener('click', () => addLine({}, { focus: true }));
     if (initialLines.length) {
-        initialLines.forEach(l => addLine({ product_id: l.product_id, uom: l.uom, qty: l.qty }));
+        initialLines.forEach(l => addLine({
+            product_id: l.product_id,
+            qty_base: l.qty_base ?? l.qty ?? '',
+            qty_inner: l.qty_inner ?? '',
+        }));
     }
 </script>

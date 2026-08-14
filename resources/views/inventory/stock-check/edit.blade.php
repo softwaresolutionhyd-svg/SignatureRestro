@@ -33,9 +33,9 @@
                     <thead class="table-light">
                     <tr>
                         <th style="min-width: 280px;">Product</th>
-                        <th class="text-end" style="min-width: 140px;">Book</th>
-                        <th style="min-width: 150px;">UOM</th>
-                        <th class="text-end" style="min-width: 160px;">Counted</th>
+                        <th class="text-end" style="min-width: 160px;">Book</th>
+                        <th class="text-end" style="min-width: 140px;">Base qty</th>
+                        <th class="text-end" style="min-width: 140px;">Inner qty</th>
                         <th style="width:1%;"></th>
                     </tr>
                     </thead>
@@ -55,18 +55,32 @@
             'id' => $p->id,
             'label' => $p->sku . ' — ' . $p->name,
             'uom' => (string) $p->uom,
-            'uoms' => $p->uomsForForms(),
+            'pkg_qty' => $p->hasPackageContents() ? (float) $p->package_contents_qty : null,
+            'pkg_uom' => $p->hasPackageContents() ? trim((string) $p->package_contents_uom) : '',
             'book' => (float) $p->qty_on_hand,
         ])->values();
         $oldLines = old('lines');
         if (is_array($oldLines)) {
             $initialLines = $oldLines;
         } else {
-            $initialLines = $stockCheck->lines->map(fn ($l) => [
-                'product_id' => $l->product_id,
-                'uom' => (string) ($l->product?->uom ?? ''),
-                'qty' => $l->counted_qty !== null ? (string) $l->counted_qty : '',
-            ])->values()->all();
+            $initialLines = $stockCheck->lines->map(function ($l) {
+                $base = $l->counted_qty !== null ? (string) $l->counted_qty : '';
+                $inner = '';
+                $product = $l->product;
+                if ($product && $l->counted_qty !== null && $product->hasPackageContents()) {
+                    $split = $product->splitQtyIntoBaseAndInner((float) $l->counted_qty);
+                    $base = (string) $split['base'];
+                    $inner = $split['inner'] !== null && (float) $split['inner'] > 0
+                        ? (string) $split['inner']
+                        : '';
+                }
+
+                return [
+                    'product_id' => $l->product_id,
+                    'qty_base' => $base,
+                    'qty_inner' => $inner,
+                ];
+            })->values()->all();
         }
     @endphp
     @include('inventory.stock-check.partials.lines-editor')

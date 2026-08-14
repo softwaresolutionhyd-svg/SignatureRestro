@@ -67,7 +67,7 @@ class StockCheckController extends Controller
 
     public function show(StockCheck $stockCheck)
     {
-        $stockCheck->load(['lines.product:id,sku,name,uom']);
+        $stockCheck->load(['lines.product:id,sku,name,uom,package_contents_qty,package_contents_uom']);
 
         return view('inventory.stock-check.show', compact('stockCheck'));
     }
@@ -76,7 +76,7 @@ class StockCheckController extends Controller
     {
         abort_unless($stockCheck->isDraft(), 403);
 
-        $stockCheck->load(['lines.product:id,sku,name,uom,qty_on_hand']);
+        $stockCheck->load(['lines.product:id,sku,name,uom,qty_on_hand,package_contents_qty,package_contents_uom']);
 
         $products = InventoryProduct::query()
             ->where('active', true)
@@ -179,7 +179,7 @@ class StockCheckController extends Controller
     }
 
     /**
-     * @return array{title: ?string, lines: list<array{product_id: int, uom: string, qty: mixed}>}
+     * @return array{title: ?string, lines: list<array{product_id: int, qty_base: mixed, qty_inner: mixed}>}
      */
     private function validatedLinesRequest(Request $request): array
     {
@@ -187,33 +187,50 @@ class StockCheckController extends Controller
             'title' => ['nullable', 'string', 'max:200'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.product_id' => ['required', 'integer', Rule::exists(InventoryProduct::class, 'id')],
-            'lines.*.uom' => ['required', 'string', 'max:20'],
-            'lines.*.qty' => ['nullable', 'numeric', 'min:0'],
+            'lines.*.qty_base' => ['nullable', 'numeric', 'min:0'],
+            'lines.*.qty_inner' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $ids = array_column($data['lines'], 'product_id');
         if (count($ids) !== count(array_unique($ids))) {
-            abort(422, 'Ek product ek hi dafa line mein aa sakta hai.');
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'lines' => 'Ek product ek hi dafa line mein aa sakta hai.',
+            ]);
         }
 
         return $data;
     }
 
     /**
-     * @param  list<array{product_id: int, uom: string, qty: mixed}>  $lines
+     * @param  list<array{product_id: int, qty_base: mixed, qty_inner: mixed}>  $lines
      */
     private function syncLines(StockCheck $check, array $lines): void
     {
         foreach ($lines as $row) {
             $product = InventoryProduct::query()->findOrFail((int) $row['product_id']);
-            $qty = $row['qty'];
-            $uom = trim((string) ($row['uom'] ?? ''));
-            if ($uom === '') {
-                abort(422, 'Line UOM required.');
-            }
+            $baseRaw = $row['qty_base'] ?? null;
+            $innerRaw = $row['qty_inner'] ?? null;
+            $hasBase = $baseRaw !== null && $baseRaw !== '';
+            $hasInner = $innerRaw !== null && $innerRaw !== '';
+
             $counted = null;
-            if ($qty !== null && $qty !== '') {
-                $counted = $product->convertQtyToBaseUom((float) $qty, $uom);
+            if ($hasBase || $hasInner) {
+                $counted = 0.0;
+                if ($hasBase) {
+                    $counted += $product->convertQtyToBaseUom((float) $baseRaw, (string) $product->uom);
+                }
+                if ($hasInner) {
+                    if (! $product->hasPackageContents()) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'lines' => $product->sku.' pe inner UOM set nahi — sirf base qty likhein.',
+                        ]);
+                    }
+                    $counted += $product->convertQtyToBaseUom(
+                        (float) $innerRaw,
+                        trim((string) $product->package_contents_uom)
+                    );
+                }
+                $counted = round($counted, 6);
             }
 
             StockCheckLine::create([
