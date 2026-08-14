@@ -113,14 +113,18 @@
                     credentials: 'same-origin'
                 });
                 const data = await res.json();
+                const already = !!(data.already || (data.ok && /already/i.test(String(data.message || data.title || ''))));
                 const name = (data.employee && data.employee.name) ? data.employee.name : '';
                 const no = (data.employee && data.employee.employee_no) ? data.employee.employee_no : '';
-                const state = data.ok ? (data.already ? 'already' : 'ok') : 'fail';
-                show(state, '<div class="name">' + (name || (data.ok ? 'Present' : 'Failed')) + '</div>'
-                    + (no ? '<div>' + no + '</div>' : '')
+                const state = already ? 'already' : (data.ok ? 'ok' : 'fail');
+                const heading = already
+                    ? 'Attendance already punched'
+                    : (data.title || (data.ok ? 'Present' : 'Failed'));
+                show(state, '<div class="name">' + heading + '</div>'
+                    + (name ? '<div class="mt-1">' + name + (no ? ' · ' + no : '') + '</div>' : '')
                     + '<div class="mt-1">' + (data.message || '') + '</div>'
                     + '<div class="small mt-1">' + (data.date || '') + ' · ' + (data.time || '') + '</div>');
-                beep(!!data.ok);
+                beep(!!data.ok || already);
             } catch (e) {
                 show('fail', '<div>Scan failed. Network / camera page dubara try karein.</div>');
                 beep(false);

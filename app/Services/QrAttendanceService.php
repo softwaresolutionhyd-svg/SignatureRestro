@@ -10,6 +10,8 @@ use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
 use BaconQrCode\Writer;
 use Carbon\Carbon;
+use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -60,6 +62,7 @@ class QrAttendanceService
             'already' => false,
             'employee' => null,
             'attendance' => null,
+            'title' => 'Not marked',
             'message' => 'QR code invalid hai.',
             'time' => now()->timezone(config('app.timezone'))->format('h:i A'),
             'date' => now()->timezone(config('app.timezone'))->format(app_date_format()),
@@ -117,91 +120,153 @@ class QrAttendanceService
         $tz = (string) config('app.timezone');
         $now = Carbon::now($tz);
         $dateKey = $now->toDateString();
-        $timeLabel = $now->format('h:i A');
-        $dateLabel = $now->format(app_date_format());
 
+        $existing = $this->todayRecord($employee->id, $dateKey);
+        if ($existing) {
+            return $this->alreadyPunchedResult($employee, $existing, $tz, $dateKey);
+        }
+
+        $createdNew = false;
         $attendance = null;
-        $already = false;
 
-        DB::connection('tenant')->transaction(function () use ($employee, $dateKey, $now, &$attendance, &$already) {
-            $existing = EmployeeAttendance::query()
-                ->withoutGlobalScopes()
-                ->where('employee_id', $employee->id)
-                ->whereDate('attendance_date', $dateKey)
-                ->lockForUpdate()
-                ->first();
+        try {
+            $attendance = DB::connection('tenant')->transaction(function () use ($employee, $dateKey, $now, &$createdNew) {
+                $existing = $this->todayRecord($employee->id, $dateKey);
+                if ($existing) {
+                    return $existing;
+                }
 
-            if ($existing && $existing->status === AttendancePayrollService::STATUS_PRESENT) {
-                $already = true;
-                $attendance = $existing;
+                $createdNew = true;
 
-                return;
-            }
-
-            $attendance = EmployeeAttendance::query()->withoutGlobalScopes()->updateOrCreate(
-                [
-                    'employee_id' => $employee->id,
-                    'attendance_date' => $dateKey,
-                ],
-                [
+                return EmployeeAttendance::query()->withoutGlobalScopes()->create([
                     'company_id' => $employee->company_id,
+                    'employee_id' => $employee->id,
                     'user_id' => auth()->id(),
+                    'attendance_date' => $dateKey,
                     'status' => AttendancePayrollService::STATUS_PRESENT,
                     'source' => 'qr',
-                    'clock_in' => $existing?->clock_in ?? $now,
+                    'clock_in' => $now,
                     'clock_out' => null,
-                    'notes' => $existing?->notes,
-                ]
-            );
-        });
-
-        if (! $already) {
-            try {
-                app(PayrollSalaryService::class)->syncPayrollEntryForEmployee(
-                    $employee,
-                    $now->format('Y-m'),
-                    auth()->id()
-                );
-            } catch (Throwable) {
+                ]);
+            });
+        } catch (UniqueConstraintViolationException) {
+            $attendance = $this->todayRecord($employee->id, $dateKey);
+            $createdNew = false;
+        } catch (QueryException $e) {
+            $duplicate = str_contains(strtolower($e->getMessage()), 'duplicate')
+                || (string) $e->getCode() === '23000';
+            $attendance = $this->todayRecord($employee->id, $dateKey);
+            if ($duplicate || $attendance) {
+                $createdNew = false;
+            } else {
+                return [
+                    'ok' => false,
+                    'already' => false,
+                    'employee' => $employee,
+                    'attendance' => null,
+                    'title' => 'Not marked',
+                    'message' => 'Attendance save nahi ho saki. Dobara scan karein.',
+                    'time' => $now->format('h:i A'),
+                    'date' => $now->format(app_date_format()),
+                ];
+            }
+        } catch (Throwable) {
+            $attendance = $this->todayRecord($employee->id, $dateKey);
+            if ($attendance) {
+                return $this->alreadyPunchedResult($employee, $attendance, $tz, $dateKey);
             }
 
-            if (config('sync.enabled') && config('sync.role') === 'local') {
-                try {
-                    app(\App\Services\Sync\SyncPayrollQueueService::class)->queuePayrollData($now->format('Y-m'));
-                } catch (Throwable) {
-                }
-            }
-
-            ActivityLogger::log('attendance.qr_present', 'QR attendance present', $employee, [
-                'employee_no' => $employee->employee_no,
-                'date' => $dateKey,
-            ]);
-        }
-
-        $clock = $attendance?->clock_in
-            ? Carbon::parse($attendance->clock_in)->timezone($tz)->format('h:i A')
-            : $timeLabel;
-
-        if ($already) {
             return [
-                'ok' => true,
-                'already' => true,
+                'ok' => false,
+                'already' => false,
                 'employee' => $employee,
-                'attendance' => $attendance,
-                'message' => $employee->name.' aaj pehle se Present hai ('.$clock.').',
-                'time' => $clock,
-                'date' => $dateLabel,
+                'attendance' => null,
+                'title' => 'Not marked',
+                'message' => 'Attendance save nahi ho saki. Dobara scan karein.',
+                'time' => $now->format('h:i A'),
+                'date' => $now->format(app_date_format()),
             ];
         }
+
+        if (! $createdNew || ! $attendance) {
+            return $this->alreadyPunchedResult(
+                $employee,
+                $attendance ?: $this->todayRecord($employee->id, $dateKey),
+                $tz,
+                $dateKey
+            );
+        }
+
+        try {
+            app(PayrollSalaryService::class)->syncPayrollEntryForEmployee(
+                $employee,
+                $now->format('Y-m'),
+                auth()->id()
+            );
+        } catch (Throwable) {
+        }
+
+        if (config('sync.enabled') && config('sync.role') === 'local') {
+            try {
+                app(\App\Services\Sync\SyncPayrollQueueService::class)->queuePayrollData($now->format('Y-m'));
+            } catch (Throwable) {
+            }
+        }
+
+        ActivityLogger::log('attendance.qr_present', 'QR attendance present', $employee, [
+            'employee_no' => $employee->employee_no,
+            'date' => $dateKey,
+        ]);
 
         return [
             'ok' => true,
             'already' => false,
             'employee' => $employee,
             'attendance' => $attendance,
+            'title' => 'Present',
             'message' => $employee->name.' Present mark ho gaya.',
+            'time' => $now->format('h:i A'),
+            'date' => $now->format(app_date_format()),
+        ];
+    }
+
+    private function todayRecord(int $employeeId, string $dateKey): ?EmployeeAttendance
+    {
+        return EmployeeAttendance::query()
+            ->withoutGlobalScopes()
+            ->where('employee_id', $employeeId)
+            ->whereRaw('DATE(attendance_date) = ?', [$dateKey])
+            ->first();
+    }
+
+    /**
+     * @return array{
+     *     ok: bool,
+     *     already: bool,
+     *     employee: Employee,
+     *     attendance: ?EmployeeAttendance,
+     *     title: string,
+     *     message: string,
+     *     time: string,
+     *     date: string
+     * }
+     */
+    private function alreadyPunchedResult(Employee $employee, ?EmployeeAttendance $attendance, string $tz, string $dateKey): array
+    {
+        $now = Carbon::now($tz);
+        $clock = $attendance?->clock_in
+            ? Carbon::parse($attendance->clock_in)->timezone($tz)->format('h:i A')
+            : $now->format('h:i A');
+
+        return [
+            'ok' => true,
+            'already' => true,
+            'employee' => $employee,
+            'attendance' => $attendance,
+            'title' => 'Attendance already punched',
+            'message' => $employee->name.' ki attendance already punch ho chuki hai ('.$clock.').',
             'time' => $clock,
-            'date' => $dateLabel,
+            'date' => Carbon::parse($dateKey)->format(app_date_format()),
         ];
     }
 }

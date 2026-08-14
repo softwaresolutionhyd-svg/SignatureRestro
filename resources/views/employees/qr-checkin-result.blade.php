@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex,nofollow">
-    <title>{{ $ok ? 'Present' : 'QR Attendance' }} — {{ config('app.name') }}</title>
+    <title>{{ $ok ? (($already ?? false) ? 'Already punched' : 'Present') : 'QR Attendance' }} — {{ config('app.name') }}</title>
     <link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
     <style>
         * { box-sizing: border-box; }
@@ -38,7 +38,7 @@
 <body>
     <div class="card">
         <div class="icon">{{ $ok ? (($already ?? false) ? '✓' : '●') : '!' }}</div>
-        <h1>{{ $ok ? (($already ?? false) ? 'Already Present' : 'Present') : 'Not marked' }}</h1>
+        <h1>{{ $title ?? ($ok ? (($already ?? false) ? 'Attendance already punched' : 'Present') : 'Not marked') }}</h1>
         @if($employee)
             @if($employee->photoUrl())
                 <img class="photo" src="{{ $employee->photoUrl() }}" alt="">

@@ -20,23 +20,37 @@ class QrAttendanceController extends Controller
 
     public function checkIn(Request $request, string $token): JsonResponse|View
     {
-        $result = $this->qrAttendance->markPresentByToken($token);
+        try {
+            $result = $this->qrAttendance->markPresentByToken($token);
+        } catch (\Throwable) {
+            $result = [
+                'ok' => false,
+                'already' => false,
+                'employee' => null,
+                'attendance' => null,
+                'title' => 'Not marked',
+                'message' => 'Attendance save nahi ho saki. Dobara scan karein.',
+                'time' => now()->format('h:i A'),
+                'date' => now()->format(app_date_format()),
+            ];
+        }
 
         if ($request->expectsJson() || $request->query('format') === 'json') {
-            $employee = $result['employee'];
+            $employee = $result['employee'] ?? null;
 
             return response()->json([
-                'ok' => $result['ok'],
-                'already' => $result['already'],
-                'message' => $result['message'],
-                'time' => $result['time'],
-                'date' => $result['date'],
+                'ok' => (bool) ($result['ok'] ?? false),
+                'already' => (bool) ($result['already'] ?? false),
+                'title' => $result['title'] ?? (($result['already'] ?? false) ? 'Attendance already punched' : 'Present'),
+                'message' => $result['message'] ?? '',
+                'time' => $result['time'] ?? '',
+                'date' => $result['date'] ?? '',
                 'employee' => $employee ? [
                     'name' => $employee->name,
                     'employee_no' => $employee->employee_no,
                     'photo_url' => $employee->photoUrl(),
                 ] : null,
-            ], $result['ok'] ? 200 : 422);
+            ], ($result['ok'] ?? false) || ($result['already'] ?? false) ? 200 : 422);
         }
 
         return view('employees.qr-checkin-result', $result);
