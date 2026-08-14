@@ -84,10 +84,43 @@
                 </div>
             </div>
 
+            <div class="col-12 col-md-6">
+                <label class="form-label">Father name</label>
+                <input type="text" name="father_name" value="{{ old('father_name', $employee->father_name ?? '') }}"
+                       class="form-control @error('father_name') is-invalid @enderror" maxlength="150"
+                       placeholder="S/O">
+                @error('father_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+
+            <div class="col-12 col-md-6">
+                <label class="form-label">CNIC no</label>
+                <input type="text" name="cnic" value="{{ old('cnic', $employee->cnic ?? '') }}"
+                       class="form-control @error('cnic') is-invalid @enderror" maxlength="30"
+                       placeholder="35202-1234567-1" inputmode="numeric">
+                @error('cnic')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+
             <div class="col-12">
                 <label class="form-label">Address</label>
-                <textarea name="address" rows="3" class="form-control @error('address') is-invalid @enderror">{{ old('address', $employee->address ?? '') }}</textarea>
+                <textarea name="address" rows="2" class="form-control @error('address') is-invalid @enderror"
+                          maxlength="255" placeholder="Street / house / area">{{ old('address', $employee->address ?? '') }}</textarea>
                 @error('address')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+
+            <div class="col-12 col-md-6">
+                <label class="form-label">City</label>
+                <input type="text" name="city" value="{{ old('city', $employee->city ?? '') }}"
+                       class="form-control @error('city') is-invalid @enderror" maxlength="100"
+                       placeholder="e.g. Lahore">
+                @error('city')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+
+            <div class="col-12 col-md-6">
+                <label class="form-label">District</label>
+                <input type="text" name="district" value="{{ old('district', $employee->district ?? '') }}"
+                       class="form-control @error('district') is-invalid @enderror" maxlength="100"
+                       placeholder="e.g. Lahore">
+                @error('district')<div class="invalid-feedback">{{ $message }}</div>@enderror
             </div>
         </div>
     </div>

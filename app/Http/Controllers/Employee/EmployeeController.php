@@ -14,6 +14,7 @@ use App\Services\QrAttendanceService;
 use App\Support\ActivityLogger;
 use App\Support\AppPasswordRules;
 use App\Support\EnsuresEmployeePhotoSchema;
+use App\Support\EnsuresEmployeeProfileSchema;
 use App\Support\EnsuresEmployeeStaffCategorySchema;
 use App\Support\LoginUsername;
 use App\Support\ModuleAccess;
@@ -25,6 +26,7 @@ use Illuminate\Validation\ValidationException;
 class EmployeeController extends Controller
 {
     use EnsuresEmployeePhotoSchema;
+    use EnsuresEmployeeProfileSchema;
     use EnsuresEmployeeStaffCategorySchema;
 
     public function __construct(
@@ -35,6 +37,7 @@ class EmployeeController extends Controller
     public function index(Request $request)
     {
         $this->ensureEmployeePhotoSchema();
+        $this->ensureEmployeeProfileSchema();
         Employee::ensureQrTokenSchema();
 
         $q = trim((string) $request->query('q', ''));
@@ -77,6 +80,7 @@ class EmployeeController extends Controller
     public function create()
     {
         $this->ensureEmployeePhotoSchema();
+        $this->ensureEmployeeProfileSchema();
         Employee::ensureQrTokenSchema();
         $cid = current_company_id();
         abort_if($cid === null, 403);
@@ -91,6 +95,7 @@ class EmployeeController extends Controller
     public function store(Request $request)
     {
         $this->ensureEmployeePhotoSchema();
+        $this->ensureEmployeeProfileSchema();
         Employee::ensureQrTokenSchema();
         $cid = current_company_id();
         abort_if($cid === null, 403);
@@ -109,7 +114,11 @@ class EmployeeController extends Controller
             'staff_category_id' => ['nullable', 'integer', 'exists:tenant.employee_staff_categories,id'],
             'join_date' => ['nullable', 'date'],
             'salary' => ['nullable', 'numeric', 'min:0'],
+            'father_name' => ['nullable', 'string', 'max:150'],
+            'cnic' => ['nullable', 'string', 'max:30'],
             'address' => ['nullable', 'string', 'max:255'],
+            'city' => ['nullable', 'string', 'max:100'],
+            'district' => ['nullable', 'string', 'max:100'],
             'photo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:4096'],
             'active' => ['nullable', 'boolean'],
 
@@ -162,7 +171,11 @@ class EmployeeController extends Controller
                     'staff_category_id' => $data['staff_category_id'],
                     'join_date' => $data['join_date'] ?? null,
                     'salary' => $data['salary'],
+                    'father_name' => $data['father_name'] ?? null,
+                    'cnic' => $data['cnic'] ?? null,
                     'address' => $data['address'] ?? null,
+                    'city' => $data['city'] ?? null,
+                    'district' => $data['district'] ?? null,
                     'photo_path' => $photoPath,
                     'active' => $data['active'],
                 ]);
@@ -187,6 +200,7 @@ class EmployeeController extends Controller
     public function edit(Employee $employee)
     {
         $this->ensureEmployeePhotoSchema();
+        $this->ensureEmployeeProfileSchema();
         $cid = current_company_id();
         abort_if($cid === null, 403);
 
@@ -202,6 +216,7 @@ class EmployeeController extends Controller
     public function update(Request $request, Employee $employee)
     {
         $this->ensureEmployeePhotoSchema();
+        $this->ensureEmployeeProfileSchema();
         $cid = current_company_id();
         abort_if($cid === null || (int) $employee->company_id !== (int) $cid, 403);
 
@@ -221,7 +236,11 @@ class EmployeeController extends Controller
             'staff_category_id' => ['nullable', 'integer', 'exists:tenant.employee_staff_categories,id'],
             'join_date' => ['nullable', 'date'],
             'salary' => ['nullable', 'numeric', 'min:0'],
+            'father_name' => ['nullable', 'string', 'max:150'],
+            'cnic' => ['nullable', 'string', 'max:30'],
             'address' => ['nullable', 'string', 'max:255'],
+            'city' => ['nullable', 'string', 'max:100'],
+            'district' => ['nullable', 'string', 'max:100'],
             'photo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:4096'],
             'remove_photo' => ['nullable', 'boolean'],
             'active' => ['nullable', 'boolean'],
@@ -290,7 +309,11 @@ class EmployeeController extends Controller
             'staff_category_id' => $data['staff_category_id'],
             'join_date' => $data['join_date'] ?? null,
             'salary' => $data['salary'],
+            'father_name' => $data['father_name'] ?? null,
+            'cnic' => $data['cnic'] ?? null,
             'address' => $data['address'] ?? null,
+            'city' => $data['city'] ?? null,
+            'district' => $data['district'] ?? null,
             'photo_path' => $photoPath,
             'active' => $data['active'],
             'user_id' => $employee->user_id,
