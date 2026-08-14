@@ -108,6 +108,14 @@
                             <div class="kitchen-item-main">
                                 <div class="kitchen-item-name">{{ $line->displayName() }}</div>
                                 <div class="kitchen-item-qty">{{ fmt_num((float) $line->qty, 3) }} {{ $line->uom }}</div>
+                                @php $dealParts = \App\Models\MenuDeal::componentLinesForDisplay($line); @endphp
+                                @if($dealParts !== [])
+                                    <ul class="small mb-0 ps-3">
+                                        @foreach($dealParts as $part)
+                                            <li>{{ fmt_num((float) $part['qty'], 3) }} {{ $part['uom'] }} × {{ $part['name'] }}</li>
+                                        @endforeach
+                                    </ul>
+                                @endif
                                 @if(trim((string) ($line->notes ?? '')) !== '')
                                     <div class="kitchen-item-note">{{ $line->notes }}</div>
                                 @endif

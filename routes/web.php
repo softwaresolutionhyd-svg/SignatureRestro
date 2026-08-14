@@ -14,6 +14,7 @@ use App\Http\Controllers\Inventory\StockIssueController;
 use App\Http\Controllers\Inventory\MoveController;
 use App\Http\Controllers\Inventory\UomLibraryController;
 use App\Http\Controllers\Inventory\StockCheckController;
+use App\Http\Controllers\Inventory\DealController;
 use App\Http\Controllers\Purchase\PurchaseController;
 use App\Http\Controllers\Purchase\VendorController as PurchaseVendorController;
 use App\Http\Controllers\Purchase\OrderController as PurchaseOrderController;
@@ -183,6 +184,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
             ->name('stock-check.reject')
             ->middleware('role:company_admin,super_admin,admin');
         Route::resource('stock-check', StockCheckController::class)->parameters(['stock-check' => 'stockCheck']);
+        Route::resource('deals', DealController::class)->except(['show']);
         });
     });
 

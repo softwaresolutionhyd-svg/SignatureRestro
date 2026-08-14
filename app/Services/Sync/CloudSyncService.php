@@ -497,6 +497,7 @@ class CloudSyncService
         $order = [
             'companies', 'users', 'settings', 'contacts',
             'inventory_units', 'inventory_unit_conversions', 'inventory_categories', 'inventory_departments', 'inventory_products',
+            'menu_deals', 'menu_deal_items',
             'pos_sitting_areas', 'pos_tables', 'pos_sessions', 'pos_orders', 'pos_order_items', 'pos_payments', 'credit_ledger',
         ];
         usort($tables, function ($a, $b) use ($order) {
@@ -616,6 +617,7 @@ class CloudSyncService
         $order = [
             'companies', 'users', 'settings', 'contacts',
             'inventory_products', 'inventory_product_stocks',
+            'menu_deals', 'menu_deal_items',
             'pos_orders', 'pos_order_items', 'pos_payments', 'credit_ledger',
         ];
         $tables = array_keys($cursors);

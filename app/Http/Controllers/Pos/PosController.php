@@ -196,6 +196,8 @@ class PosController extends Controller
             ->withExists(['manufacturingBoms' => fn ($q) => $q->where('active', true)])
             ->get(['id', 'sku', 'barcode', 'name', 'image_path', 'uom', 'price', 'cost', 'gas_charges', 'extra_costs', 'qty_on_hand', 'reorder_level', 'active', 'for_pos', 'for_purchase', 'category_id']);
 
+        $products = \App\Models\MenuDeal::rejectHiddenFrom($products, $resumeProductIds);
+
         // Recent contacts for quick credit selection
         $contacts = Contact::where('active', true)->orderBy('name')->get(['id','name','phone']);
 
@@ -2695,11 +2697,24 @@ class PosController extends Controller
 
         abort_unless($kitchenItems->isNotEmpty(), 404);
 
+        $markIds = $kitchenItems->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+        $slipItems = collect();
+        foreach ($kitchenItems as $item) {
+            foreach (\App\Models\MenuDeal::kitchenPrintRowsFor($item) as $row) {
+                $slipItems->push($row['print']);
+            }
+        }
+        if ($slipItems->isNotEmpty()) {
+            $kitchenItems = $slipItems;
+        }
+
         $departmentName = 'KITCHEN';
         $printer = app(NetworkPrinterService::class);
         $deptNames = $kitchenItems
-            ->map(function (PosOrderItem $item) use ($printer) {
-                $dept = $printer->resolveItemDepartment($item->product);
+            ->map(function ($item) use ($printer) {
+                $product = $item->product ?? null;
+                $dept = $printer->resolveItemDepartment($product instanceof \App\Models\InventoryProduct ? $product : null);
 
                 return $dept?->name;
             })
@@ -2719,9 +2734,7 @@ class PosController extends Controller
         // (auto-print or silent iframe print with noprint=1).
         $shouldMarkPrinted = $autoPrint || $request->boolean('noprint', false) || $request->boolean('mark_printed', false);
         if ($shouldMarkPrinted) {
-            app(KitchenService::class)->markItemsKitchenPrinted(
-                $kitchenItems->pluck('id')->map(fn ($id) => (int) $id)->all()
-            );
+            app(KitchenService::class)->markItemsKitchenPrinted($markIds);
         }
 
         return view('pos.kitchen-slip', compact(
@@ -3635,7 +3648,7 @@ class PosController extends Controller
             });
     }
 
-    private function applyInventoryForPos(PosOrder $order, array $item): void
+    private function applyInventoryForPos(PosOrder $order, array $item, array $seenDealIds = []): void
     {
         if (filter_var($item['is_custom'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
             return;
@@ -3657,6 +3670,25 @@ class PosController extends Controller
 
         $qtyBase = (float) $item['qty'] * $factor;
         $isSale = $order->type === 'sale';
+
+        $deal = \App\Models\MenuDeal::forPosProduct((int) $product->id);
+        if ($deal && $deal->items->isNotEmpty() && empty($seenDealIds[$deal->id])) {
+            $seenDealIds[$deal->id] = true;
+            foreach ($deal->items as $line) {
+                $component = $line->product;
+                if (! $component) {
+                    continue;
+                }
+                $this->applyInventoryForPos($order, [
+                    'product_id' => (int) $line->product_id,
+                    'uom' => (string) ($component->uom ?: $item['uom']),
+                    'qty' => (float) $item['qty'] * (float) $line->qty,
+                    'is_custom' => false,
+                ], $seenDealIds);
+            }
+
+            return;
+        }
 
         if ($product->manufacturing_boms_exists) {
             $bom = ManufacturingBom::query()

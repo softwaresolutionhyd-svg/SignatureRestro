@@ -47,6 +47,9 @@ $alertBadge = $lowStockBadge + $outBadge;
         <a href="{{ route('inventory.stock-check.index') }}" class="btn btn-outline-primary {{ request()->routeIs('inventory.stock-check.*') ? 'active' : '' }}">
             <i class="bi bi-clipboard-check me-1"></i> {{ __('Stock check') }}
         </a>
+        <a href="{{ route('inventory.deals.index') }}" class="btn btn-outline-primary {{ request()->routeIs('inventory.deals.*') ? 'active' : '' }}">
+            <i class="bi bi-stars me-1"></i> {{ __('Deals') }}
+        </a>
         <a href="{{ route('manufacturing.index') }}" class="btn btn-outline-primary {{ request()->routeIs('manufacturing.*') ? 'active' : '' }}">
             <i class="bi bi-gear-wide-connected me-1"></i> {{ __('Manufacturing') }}
         </a>

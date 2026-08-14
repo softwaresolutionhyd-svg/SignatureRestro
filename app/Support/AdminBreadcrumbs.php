@@ -145,6 +145,15 @@ final class AdminBreadcrumbs
             }
 
             return $out;
+        } elseif (str_contains($name, '.deals.')) {
+            $out[] = ['label' => 'Deals', 'url' => $name === 'inventory.deals.index' ? null : route('inventory.deals.index')];
+            if (in_array($name, ['inventory.deals.create', 'inventory.deals.store'], true)) {
+                $out[] = ['label' => 'New', 'url' => null];
+            } elseif (in_array($name, ['inventory.deals.edit', 'inventory.deals.update'], true)) {
+                $out[] = ['label' => 'Edit', 'url' => null];
+            }
+
+            return $out;
         } elseif (str_contains($name, 'uom-library')) {
             $out[] = ['label' => 'Units & conversions', 'url' => null];
         }

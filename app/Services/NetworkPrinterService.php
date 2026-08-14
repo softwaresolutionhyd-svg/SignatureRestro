@@ -423,13 +423,20 @@ final class NetworkPrinterService
         $unrouted = 0;
         $unroutedIds = [];
         foreach ($kitchenItems as $item) {
-            $dept = $this->resolveItemDepartment($item->product);
-            if ($dept && ! empty($dept->printer_ip)) {
-                $groups[$dept->id]['dept'] = $dept;
-                $groups[$dept->id]['items'][] = $item;
-            } else {
-                $unrouted++;
-                $unroutedIds[] = (int) $item->id;
+            foreach (\App\Models\MenuDeal::kitchenPrintRowsFor($item) as $row) {
+                /** @var PosOrderItem $source */
+                $source = $row['source'];
+                $product = $row['product'] ?? $source->product;
+                $print = $row['print'];
+                $dept = $this->resolveItemDepartment($product instanceof \App\Models\InventoryProduct ? $product : null);
+                if ($dept && ! empty($dept->printer_ip)) {
+                    $groups[$dept->id]['dept'] = $dept;
+                    $groups[$dept->id]['print'][] = $print;
+                    $groups[$dept->id]['sources'][(int) $source->id] = $source;
+                } else {
+                    $unrouted++;
+                    $unroutedIds[] = (int) $source->id;
+                }
             }
         }
 
@@ -467,8 +474,8 @@ final class NetworkPrinterService
         // and cause the next kitchen print to dump the whole order again.
         $preMarkIds = [];
         foreach ($groups as $group) {
-            foreach ($group['items'] as $gi) {
-                $preMarkIds[] = (int) $gi->id;
+            foreach (array_keys($group['sources'] ?? []) as $sourceId) {
+                $preMarkIds[] = (int) $sourceId;
             }
         }
         $kitchen->markItemsKitchenPrinted($preMarkIds);
@@ -478,23 +485,23 @@ final class NetworkPrinterService
         foreach ($groups as $group) {
             /** @var InventoryDepartment $dept */
             $dept = $group['dept'];
-            /** @var list<PosOrderItem> $groupItems */
-            $groupItems = $group['items'];
+            $printItems = $group['print'] ?? [];
+            $sources = array_values($group['sources'] ?? []);
             $jobs[] = [
                 'ip' => (string) $dept->printer_ip,
                 'port' => (int) ($dept->printer_port ?: 9100),
                 'payload' => $this->buildKitchenSlip(
                     $order,
                     (string) $dept->name,
-                    $groupItems,
+                    $printItems,
                     $company,
                     $isAddonPrint
                 ),
             ];
             $jobMeta[] = [
                 'dept' => $dept,
-                'items' => $groupItems,
-                'ids' => array_map(static fn (PosOrderItem $gi) => (int) $gi->id, $groupItems),
+                'items' => $sources,
+                'ids' => array_map(static fn ($src) => (int) $src->id, $sources),
             ];
         }
 

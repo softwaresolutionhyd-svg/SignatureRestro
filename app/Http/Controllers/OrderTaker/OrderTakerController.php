@@ -280,23 +280,20 @@ class OrderTakerController extends Controller
         });
 
         $extraIds = array_values(array_unique(array_filter(array_map('intval', $extraIds))));
-        if ($extraIds === []) {
-            return $products;
+        if ($extraIds !== []) {
+            $have = $products->pluck('id')->map(fn ($id) => (int) $id)->all();
+            $missing = array_values(array_diff($extraIds, $have));
+            if ($missing !== []) {
+                $extra = InventoryProduct::query()
+                    ->whereIn('id', $missing)
+                    ->with(['uomConversions' => fn ($q) => $q->where('active', true)])
+                    ->with(['category:id,name,parent_id', 'category.parent:id,name'])
+                    ->get(['id', 'sku', 'name', 'image_path', 'uom', 'price', 'for_pos', 'for_purchase', 'category_id']);
+                $products = $products->concat($extra)->values();
+            }
         }
 
-        $have = $products->pluck('id')->map(fn ($id) => (int) $id)->all();
-        $missing = array_values(array_diff($extraIds, $have));
-        if ($missing === []) {
-            return $products;
-        }
-
-        $extra = InventoryProduct::query()
-            ->whereIn('id', $missing)
-            ->with(['uomConversions' => fn ($q) => $q->where('active', true)])
-            ->with(['category:id,name,parent_id', 'category.parent:id,name'])
-            ->get(['id', 'sku', 'name', 'image_path', 'uom', 'price', 'for_pos', 'for_purchase', 'category_id']);
-
-        return $products->concat($extra)->values();
+        return \App\Models\MenuDeal::rejectHiddenFrom($products, $extraIds);
     }
 
     private function wantsJson(Request $request): bool

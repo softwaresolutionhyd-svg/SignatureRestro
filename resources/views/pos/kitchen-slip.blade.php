@@ -205,7 +205,7 @@
         <tbody>
             @foreach($kitchenItems as $line)
                 <tr>
-                    <td class="item-name">{{ $line->displayName() }}</td>
+                    <td class="item-name">{{ method_exists($line, 'displayName') ? $line->displayName() : ($line->product->name ?? $line->name ?? 'Item') }}</td>
                     <td class="item-qty">{{ fmt_num((float) $line->qty, 3) }}</td>
                 </tr>
                 @if(trim((string) ($line->notes ?? '')) !== '')

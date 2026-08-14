@@ -37,6 +37,7 @@ class OrderTakerApiController extends Controller
                     ->get(['id', 'sku', 'name', 'uom', 'price', 'for_pos', 'for_purchase']);
             }
         );
+        $products = \App\Models\MenuDeal::rejectHiddenFrom($products);
         $tablesEnabled = (string) Setting::get('pos_enable_tables', '1') !== '0';
         $tables = $tablesEnabled
             ? PosTable::query()->where('active', true)->orderBy('name')->get(['id', 'name'])
