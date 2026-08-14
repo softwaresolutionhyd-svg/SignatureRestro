@@ -37,11 +37,9 @@ class StockCheckController extends Controller
             ->with(['uomConversions' => function ($q) {
                 $q->where('active', true)->select(['id', 'product_id', 'uom', 'factor_to_base']);
             }])
-            ->get(['id', 'sku', 'name', 'uom', 'qty_on_hand', 'for_purchase', 'package_contents_qty', 'package_contents_uom']);
+            ->get(['id', 'sku', 'name', 'uom', 'qty_on_hand', 'package_contents_qty', 'package_contents_uom']);
 
-        $autoLineProductIds = $products->where('for_purchase', true)->pluck('id')->values();
-
-        return view('inventory.stock-check.create', compact('products', 'autoLineProductIds'));
+        return view('inventory.stock-check.create', compact('products'));
     }
 
     public function store(Request $request)

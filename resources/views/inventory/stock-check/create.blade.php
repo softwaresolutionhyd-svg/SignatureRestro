@@ -8,7 +8,7 @@
     <div class="mb-3">
         <a href="{{ route('inventory.stock-check.index') }}" class="text-decoration-none small">&larr; List</a>
         <h4 class="fw-bold mt-2 mb-0">Naya stock check (draft)</h4>
-        <p class="text-secondary small mb-0">Counted qty kisi bhi allowed UOM mein likh sakte hain (base ya inner). System save par usay base UOM mein convert kar dega. <strong>Purchase</strong> wale active products yahan auto lines ban kar aa jate hain; aur bhi <em>Add line</em> se add kar sakte hain.</p>
+        <p class="text-secondary small mb-0">List khali start hoti hai. <em>Add line</em> se product chunte jao, counted qty kisi bhi allowed UOM mein likho (base ya inner). System save par usay base UOM mein convert kar dega.</p>
     </div>
 
     <form method="POST" action="{{ route('inventory.stock-check.store') }}" class="card shadow-sm">
@@ -63,7 +63,6 @@
     @endphp
     <script>
         const products = @json($productsJs);
-        const autoLineProductIds = @json($autoLineProductIds);
         const initialLines = @json($initialLines);
         const body = document.getElementById('linesBody');
         const addBtn = document.getElementById('addLineBtn');
@@ -177,10 +176,6 @@
         addBtn.addEventListener('click', () => addLine({}));
         if (initialLines.length) {
             initialLines.forEach(l => addLine({ product_id: l.product_id, uom: l.uom, qty: l.qty }));
-        } else if (autoLineProductIds.length) {
-            autoLineProductIds.forEach(id => addLine({ product_id: id, qty: '', uom: '' }));
-        } else {
-            addLine({});
         }
     </script>
 @endsection
