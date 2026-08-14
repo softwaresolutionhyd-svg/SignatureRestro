@@ -269,9 +269,23 @@
             <img id="employeePhotoCropImg" alt="">
             <div id="employeePhotoCropFrame" class="emp-photo-crop-frame"></div>
         </div>
-        <label class="form-label small mb-1">Zoom</label>
-        <input type="range" class="form-range" id="employeePhotoZoom" min="100" max="280" value="100">
-        <div class="small text-secondary mb-3">Drag karke face frame ke beech rakhein, phir Apply crop.</div>
+        <div class="row g-2 mb-2">
+            <div class="col-6">
+                <div class="d-flex justify-content-between align-items-center">
+                    <label class="form-label small mb-1" for="employeePhotoZoom">Zoom</label>
+                    <span class="small text-secondary" id="employeePhotoZoomVal">100%</span>
+                </div>
+                <input type="range" class="form-range" id="employeePhotoZoom" min="100" max="280" value="100">
+            </div>
+            <div class="col-6">
+                <div class="d-flex justify-content-between align-items-center">
+                    <label class="form-label small mb-1" for="employeePhotoBrightness">Brightness</label>
+                    <span class="small text-secondary" id="employeePhotoBrightnessVal">100%</span>
+                </div>
+                <input type="range" class="form-range" id="employeePhotoBrightness" min="50" max="160" value="100">
+            </div>
+        </div>
+        <div class="small text-secondary mb-3">Drag karke face frame ke beech rakhein. Zoom / brightness adjust karke Apply crop.</div>
         <div class="d-flex gap-2 justify-content-end">
             <button type="button" class="btn btn-outline-secondary" data-emp-photo-close="crop">Cancel</button>
             <button type="button" class="btn btn-primary" id="employeePhotoApplyCropBtn">
@@ -345,6 +359,9 @@
     const stage = document.getElementById('employeePhotoCropStage');
     const cropImg = document.getElementById('employeePhotoCropImg');
     const zoom = document.getElementById('employeePhotoZoom');
+    const zoomVal = document.getElementById('employeePhotoZoomVal');
+    const brightness = document.getElementById('employeePhotoBrightness');
+    const brightnessVal = document.getElementById('employeePhotoBrightnessVal');
     const applyBtn = document.getElementById('employeePhotoApplyCropBtn');
     if (!input || !preview || !placeholder) return;
 
@@ -357,6 +374,21 @@
     let dragY = 0;
     let startLeft = 0;
     let startTop = 0;
+
+    function brightnessFactor() {
+        return Math.max(0.5, Math.min(1.6, Number(brightness?.value || 100) / 100));
+    }
+
+    function syncAdjustLabels() {
+        if (zoomVal) zoomVal.textContent = String(Number(zoom?.value || 100)) + '%';
+        if (brightnessVal) brightnessVal.textContent = String(Number(brightness?.value || 100)) + '%';
+    }
+
+    function applyLiveFilters() {
+        if (!cropImg) return;
+        cropImg.style.filter = 'brightness(' + brightnessFactor() + ')';
+        syncAdjustLabels();
+    }
 
     function showPreview(url) {
         preview.src = url;
@@ -463,9 +495,17 @@
     function openCrop(url) {
         cropImg.src = url;
         zoom.value = '100';
+        if (brightness) brightness.value = '100';
+        applyLiveFilters();
         openOverlay(cropModal);
-        cropImg.onload = () => fitImage();
-        if (cropImg.complete && cropImg.naturalWidth) fitImage();
+        cropImg.onload = () => {
+            fitImage();
+            applyLiveFilters();
+        };
+        if (cropImg.complete && cropImg.naturalWidth) {
+            fitImage();
+            applyLiveFilters();
+        }
     }
 
     zoom?.addEventListener('input', () => {
@@ -484,7 +524,10 @@
         cropImg.style.width = imgW + 'px';
         cropImg.style.left = (cx - originX * imgW) + 'px';
         cropImg.style.top = (cy - originY * imgH) + 'px';
+        syncAdjustLabels();
     });
+
+    brightness?.addEventListener('input', applyLiveFilters);
 
     stage?.addEventListener('pointerdown', (e) => {
         dragging = true;
@@ -517,7 +560,10 @@
         const canvas = document.createElement('canvas');
         canvas.width = OUT_W;
         canvas.height = OUT_H;
-        canvas.getContext('2d').drawImage(cropImg, sx, sy, sw, sh, 0, 0, OUT_W, OUT_H);
+        const ctx = canvas.getContext('2d');
+        ctx.filter = 'brightness(' + brightnessFactor() + ')';
+        ctx.drawImage(cropImg, sx, sy, sw, sh, 0, 0, OUT_W, OUT_H);
+        ctx.filter = 'none';
         canvas.toBlob((blob) => {
             if (!blob) return;
             setFile(blob, 'passport.jpg');
