@@ -66,17 +66,6 @@
             width: 1.8mm;
             background: linear-gradient(180deg, var(--gold-light), var(--gold), #a8863a);
         }
-        .screen-tag {
-            position: absolute;
-            top: 1.6mm;
-            right: 3mm;
-            z-index: 2;
-            font-size: 6pt;
-            letter-spacing: .12em;
-            text-transform: uppercase;
-            color: var(--gold-light);
-            font-weight: 700;
-        }
         .id-head {
             background: linear-gradient(105deg, var(--wine-deep) 0%, var(--wine) 55%, #8d4454 100%);
             color: #faf6ef;
@@ -221,7 +210,6 @@
         @media print {
             body { background: #fff; padding: 8mm; }
             .toolbar { display: none !important; }
-            .screen-tag { display: none !important; }
             .id-face, .id-head, .gold-line, .id-photo, .qr-plate {
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
@@ -243,7 +231,6 @@
             @endphp
             <section class="id-pack">
                 <article class="id-face">
-                    <span class="screen-tag">Front</span>
                     <header class="id-head">
                         @if(!empty($companyLogo))
                             <img src="{{ $companyLogo }}" alt="">
@@ -279,7 +266,6 @@
                 </article>
 
                 <article class="id-face">
-                    <span class="screen-tag">Back</span>
                     <header class="id-head">
                         @if(!empty($companyLogo))
                             <img src="{{ $companyLogo }}" alt="">
