@@ -140,9 +140,20 @@
                 </div>
             </div>
             <input type="file" name="photo" id="employeePhotoInput" accept="image/jpeg,image/png,image/webp"
-                   class="form-control form-control-sm @error('photo') is-invalid @enderror">
-            @error('photo')<div class="invalid-feedback">{{ $message }}</div>@enderror
-            <div class="form-text small mt-2 mb-0">JPG / PNG / WebP — max 4 MB. Center crop passport size mein save hogi.</div>
+                   class="d-none @error('photo') is-invalid @enderror">
+            @error('photo')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+            <div class="d-grid gap-2">
+                <button type="button" class="btn btn-sm btn-primary" id="employeePhotoCaptureBtn">
+                    <i class="bi bi-camera me-1"></i> Capture image
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="employeePhotoChooseBtn">
+                    <i class="bi bi-folder2-open me-1"></i> Choose image
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="employeePhotoCropBtn">
+                    <i class="bi bi-crop me-1"></i> Crop image
+                </button>
+            </div>
+            <div class="form-text small mt-2 mb-0">Camera se capture karein ya file choose karein, phir 35×45 mm crop apply karein. Max 4 MB.</div>
             @if($existingPhoto)
                 <div class="form-check mt-2">
                     <input type="hidden" name="remove_photo" value="0">
@@ -230,6 +241,92 @@
 </div>
 
 @once
+<div id="employeePhotoCaptureModal" class="emp-photo-overlay d-none" role="dialog" aria-modal="true">
+    <div class="emp-photo-dialog">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <strong>Capture image</strong>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-emp-photo-close="capture">Close</button>
+        </div>
+        <div class="emp-photo-cam-wrap border rounded overflow-hidden bg-dark mb-2">
+            <video id="employeePhotoCam" playsinline autoplay muted></video>
+        </div>
+        <div id="employeePhotoCamError" class="text-danger small mb-2 d-none"></div>
+        <div class="d-flex gap-2 justify-content-end">
+            <button type="button" class="btn btn-primary" id="employeePhotoSnapBtn">
+                <i class="bi bi-camera me-1"></i> Take photo
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="employeePhotoCropModal" class="emp-photo-overlay d-none" role="dialog" aria-modal="true">
+    <div class="emp-photo-dialog">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <strong>Crop image — 35 × 45 mm</strong>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-emp-photo-close="crop">Close</button>
+        </div>
+        <div id="employeePhotoCropStage" class="emp-photo-crop-stage mb-2">
+            <img id="employeePhotoCropImg" alt="">
+            <div id="employeePhotoCropFrame" class="emp-photo-crop-frame"></div>
+        </div>
+        <label class="form-label small mb-1">Zoom</label>
+        <input type="range" class="form-range" id="employeePhotoZoom" min="100" max="280" value="100">
+        <div class="small text-secondary mb-3">Drag karke face frame ke beech rakhein, phir Apply crop.</div>
+        <div class="d-flex gap-2 justify-content-end">
+            <button type="button" class="btn btn-outline-secondary" data-emp-photo-close="crop">Cancel</button>
+            <button type="button" class="btn btn-primary" id="employeePhotoApplyCropBtn">
+                <i class="bi bi-crop me-1"></i> Apply crop
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+.emp-photo-overlay {
+    position: fixed; inset: 0; z-index: 1080;
+    background: rgba(15, 23, 42, .62);
+    display: flex; align-items: center; justify-content: center;
+    padding: 1rem;
+}
+.emp-photo-overlay.d-none { display: none !important; }
+.emp-photo-dialog {
+    width: min(520px, 100%);
+    background: #fff;
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: 0 12px 40px rgba(0,0,0,.25);
+}
+.emp-photo-cam-wrap { aspect-ratio: 3 / 4; }
+.emp-photo-cam-wrap video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.emp-photo-crop-stage {
+    position: relative;
+    height: 360px;
+    overflow: hidden;
+    background: #0f172a;
+    border-radius: 8px;
+    touch-action: none;
+    user-select: none;
+}
+.emp-photo-crop-stage img {
+    position: absolute;
+    left: 0; top: 0;
+    max-width: none;
+    cursor: grab;
+}
+.emp-photo-crop-frame {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 140px; height: 180px;
+    transform: translate(-50%, -50%);
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,.55);
+    pointer-events: none;
+    border-radius: 4px;
+}
+</style>
+@endonce
+
+@once
 @push('scripts')
 <script>
 (() => {
@@ -237,16 +334,195 @@
     const preview = document.getElementById('employeePhotoPreview');
     const placeholder = document.getElementById('employeePhotoPlaceholder');
     const remove = document.getElementById('removeEmployeePhoto');
+    const captureBtn = document.getElementById('employeePhotoCaptureBtn');
+    const chooseBtn = document.getElementById('employeePhotoChooseBtn');
+    const cropBtn = document.getElementById('employeePhotoCropBtn');
+    const captureModal = document.getElementById('employeePhotoCaptureModal');
+    const cropModal = document.getElementById('employeePhotoCropModal');
+    const video = document.getElementById('employeePhotoCam');
+    const camError = document.getElementById('employeePhotoCamError');
+    const snapBtn = document.getElementById('employeePhotoSnapBtn');
+    const stage = document.getElementById('employeePhotoCropStage');
+    const cropImg = document.getElementById('employeePhotoCropImg');
+    const zoom = document.getElementById('employeePhotoZoom');
+    const applyBtn = document.getElementById('employeePhotoApplyCropBtn');
     if (!input || !preview || !placeholder) return;
 
-    input.addEventListener('change', () => {
-        const file = input.files && input.files[0];
-        if (!file) return;
-        const url = URL.createObjectURL(file);
+    const OUT_W = 350;
+    const OUT_H = 450;
+    let stream = null;
+    let baseW = 0;
+    let dragging = false;
+    let dragX = 0;
+    let dragY = 0;
+    let startLeft = 0;
+    let startTop = 0;
+
+    function showPreview(url) {
         preview.src = url;
         preview.classList.remove('d-none');
         placeholder.classList.add('d-none');
         if (remove) remove.checked = false;
+    }
+
+    function setFile(blob, name) {
+        const file = new File([blob], name || 'passport.jpg', { type: 'image/jpeg' });
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        input.files = dt.files;
+        showPreview(URL.createObjectURL(blob));
+    }
+
+    function stopCamera() {
+        if (stream) {
+            stream.getTracks().forEach((t) => t.stop());
+            stream = null;
+        }
+        if (video) video.srcObject = null;
+    }
+
+    function openOverlay(el) {
+        el.classList.remove('d-none');
+    }
+    function closeOverlay(el) {
+        el.classList.add('d-none');
+        if (el === captureModal) stopCamera();
+    }
+
+    document.querySelectorAll('[data-emp-photo-close]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const which = btn.getAttribute('data-emp-photo-close');
+            closeOverlay(which === 'capture' ? captureModal : cropModal);
+        });
+    });
+
+    chooseBtn?.addEventListener('click', () => input.click());
+
+    input.addEventListener('change', () => {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        openCrop(URL.createObjectURL(file));
+    });
+
+    cropBtn?.addEventListener('click', () => {
+        const src = preview.classList.contains('d-none') ? '' : preview.src;
+        if (!src) {
+            input.click();
+            return;
+        }
+        openCrop(src);
+    });
+
+    async function openCamera() {
+        camError.classList.add('d-none');
+        camError.textContent = '';
+        openOverlay(captureModal);
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: 'user' }, width: { ideal: 1280 }, height: { ideal: 960 } },
+                audio: false
+            });
+            video.srcObject = stream;
+            await video.play();
+        } catch (e) {
+            camError.textContent = 'Camera nahi khuli. Browser permission dein, ya Choose image use karein.';
+            camError.classList.remove('d-none');
+        }
+    }
+
+    captureBtn?.addEventListener('click', openCamera);
+
+    snapBtn?.addEventListener('click', () => {
+        if (!video || video.readyState < 2) return;
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 720;
+        canvas.height = video.videoHeight || 960;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        canvas.toBlob((blob) => {
+            if (!blob) return;
+            closeOverlay(captureModal);
+            openCrop(URL.createObjectURL(blob));
+        }, 'image/jpeg', 0.92);
+    });
+
+    function fitImage() {
+        if (!cropImg.naturalWidth || !stage) return;
+        const frameW = 140;
+        const frameH = 180;
+        const minScale = Math.max(frameW / cropImg.naturalWidth, frameH / cropImg.naturalHeight);
+        baseW = cropImg.naturalWidth * minScale;
+        const z = Number(zoom.value || 100) / 100;
+        cropImg.style.width = (baseW * z) + 'px';
+        cropImg.style.height = 'auto';
+        const imgW = baseW * z;
+        const imgH = cropImg.naturalHeight * (imgW / cropImg.naturalWidth);
+        cropImg.style.left = ((stage.clientWidth - imgW) / 2) + 'px';
+        cropImg.style.top = ((stage.clientHeight - imgH) / 2) + 'px';
+    }
+
+    function openCrop(url) {
+        cropImg.src = url;
+        zoom.value = '100';
+        openOverlay(cropModal);
+        cropImg.onload = () => fitImage();
+        if (cropImg.complete && cropImg.naturalWidth) fitImage();
+    }
+
+    zoom?.addEventListener('input', () => {
+        if (!baseW) return;
+        const z = Number(zoom.value) / 100;
+        const cx = stage.clientWidth / 2;
+        const cy = stage.clientHeight / 2;
+        const oldW = cropImg.getBoundingClientRect().width;
+        const oldH = cropImg.getBoundingClientRect().height;
+        const imgW = baseW * z;
+        const imgH = cropImg.naturalHeight * (imgW / cropImg.naturalWidth);
+        const left = parseFloat(cropImg.style.left || '0');
+        const top = parseFloat(cropImg.style.top || '0');
+        const originX = (cx - left) / Math.max(1, oldW);
+        const originY = (cy - top) / Math.max(1, oldH);
+        cropImg.style.width = imgW + 'px';
+        cropImg.style.left = (cx - originX * imgW) + 'px';
+        cropImg.style.top = (cy - originY * imgH) + 'px';
+    });
+
+    stage?.addEventListener('pointerdown', (e) => {
+        dragging = true;
+        dragX = e.clientX;
+        dragY = e.clientY;
+        startLeft = parseFloat(cropImg.style.left || '0');
+        startTop = parseFloat(cropImg.style.top || '0');
+        stage.setPointerCapture(e.pointerId);
+        cropImg.style.cursor = 'grabbing';
+    });
+    stage?.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        cropImg.style.left = (startLeft + e.clientX - dragX) + 'px';
+        cropImg.style.top = (startTop + e.clientY - dragY) + 'px';
+    });
+    stage?.addEventListener('pointerup', () => {
+        dragging = false;
+        cropImg.style.cursor = 'grab';
+    });
+
+    applyBtn?.addEventListener('click', () => {
+        const frame = document.getElementById('employeePhotoCropFrame').getBoundingClientRect();
+        const imgRect = cropImg.getBoundingClientRect();
+        const scaleX = cropImg.naturalWidth / imgRect.width;
+        const scaleY = cropImg.naturalHeight / imgRect.height;
+        const sx = (frame.left - imgRect.left) * scaleX;
+        const sy = (frame.top - imgRect.top) * scaleY;
+        const sw = frame.width * scaleX;
+        const sh = frame.height * scaleY;
+        const canvas = document.createElement('canvas');
+        canvas.width = OUT_W;
+        canvas.height = OUT_H;
+        canvas.getContext('2d').drawImage(cropImg, sx, sy, sw, sh, 0, 0, OUT_W, OUT_H);
+        canvas.toBlob((blob) => {
+            if (!blob) return;
+            setFile(blob, 'passport.jpg');
+            closeOverlay(cropModal);
+        }, 'image/jpeg', 0.92);
     });
 })();
 </script>
