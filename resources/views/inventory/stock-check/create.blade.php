@@ -8,10 +8,10 @@
     <div class="mb-3">
         <a href="{{ route('inventory.stock-check.index') }}" class="text-decoration-none small">&larr; List</a>
         <h4 class="fw-bold mt-2 mb-0">Naya stock check (draft)</h4>
-        <p class="text-secondary small mb-0">List khali start hoti hai. <em>Add line</em> se product chunte jao, counted qty kisi bhi allowed UOM mein likho (base ya inner). System save par usay base UOM mein convert kar dega.</p>
+        <p class="text-secondary small mb-0">List khali start hoti hai. <em>Add line</em> se product ka naam / SKU type karke chuno. Counted qty kisi bhi allowed UOM mein likho — save par base UOM mein convert ho jati hai.</p>
     </div>
 
-    <form method="POST" action="{{ route('inventory.stock-check.store') }}" class="card shadow-sm">
+    <form method="POST" action="{{ route('inventory.stock-check.store') }}" class="card shadow-sm" id="stockCheckForm">
         @csrf
         <div class="card-body">
             <div class="mb-3">
@@ -61,121 +61,5 @@
         $oldLines = old('lines');
         $initialLines = is_array($oldLines) ? $oldLines : [];
     @endphp
-    <script>
-        const products = @json($productsJs);
-        const initialLines = @json($initialLines);
-        const body = document.getElementById('linesBody');
-        const addBtn = document.getElementById('addLineBtn');
-
-        function productById(pid) {
-            return products.find(x => String(x.id) === String(pid)) || null;
-        }
-
-        function factorForUom(product, uomCode) {
-            if (!product) return 1;
-            const row = (product.uoms || []).find(u => String(u.uom) === String(uomCode));
-            return row && Number(row.factor) > 0 ? Number(row.factor) : 1;
-        }
-
-        function bookLabel(pid, uomCode) {
-            const p = products.find(x => String(x.id) === String(pid));
-            if (!p) return '—';
-            const factor = factorForUom(p, uomCode || p.uom);
-            const qtyInSelectedUom = Number(p.book) / factor;
-            const shownUom = uomCode || p.uom;
-            return `${fmt(qtyInSelectedUom)} ${shownUom}`;
-        }
-
-        function fmt(n) {
-            if (!Number.isFinite(n)) return '0';
-            let s = (Math.round(n * 1000000) / 1000000).toString();
-            if (s.includes('.')) s = s.replace(/\.?0+$/, '');
-            return s === '-0' ? '0' : s;
-        }
-
-        function productOptions(selected) {
-            return '<option value="">Select product…</option>' + products.map(p => {
-                const sel = selected && String(selected) === String(p.id) ? 'selected' : '';
-                return `<option value="${p.id}" ${sel}>${p.label}</option>`;
-            }).join('');
-        }
-
-        function uomOptions(pid, selectedUom) {
-            const p = productById(pid);
-            if (!p) {
-                return '<option value="">Select UOM…</option>';
-            }
-
-            const rows = (p.uoms || []);
-            if (!rows.length) {
-                return `<option value="${p.uom}" selected>${p.uom}</option>`;
-            }
-
-            const fallback = selectedUom || p.uom;
-            return rows.map((row) => {
-                const code = String(row.uom);
-                const isSelected = String(fallback) === code ? 'selected' : '';
-                const tag = code === p.uom ? ' (base)' : '';
-                return `<option value="${code}" ${isSelected}>${code}${tag}</option>`;
-            }).join('');
-        }
-
-        function addLine(line = {}) {
-            const idx = body.querySelectorAll('tr').length;
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>
-                    <select class="form-select line-product" name="lines[${idx}][product_id]" required>
-                        ${productOptions(line.product_id)}
-                    </select>
-                </td>
-                <td class="text-end text-secondary small line-book">—</td>
-                <td>
-                    <select class="form-select line-uom" name="lines[${idx}][uom]" required></select>
-                </td>
-                <td><input class="form-control text-end" type="number" step="0.000001" min="0" name="lines[${idx}][qty]" value="${line.qty ?? ''}" placeholder="optional draft"></td>
-                <td><button type="button" class="btn btn-sm btn-outline-danger removeLine">×</button></td>
-            `;
-            const prodSel = tr.querySelector('.line-product');
-            const uomSel = tr.querySelector('.line-uom');
-            const bookCell = tr.querySelector('.line-book');
-
-            function refreshUoms() {
-                const p = productById(prodSel.value);
-                const selected = line.uom || p?.uom || '';
-                uomSel.innerHTML = uomOptions(prodSel.value, selected);
-            }
-
-            function refreshBook() {
-                bookCell.textContent = bookLabel(prodSel.value, uomSel.value);
-            }
-
-            prodSel.addEventListener('change', () => {
-                line.uom = '';
-                refreshUoms();
-                refreshBook();
-            });
-            uomSel.addEventListener('change', refreshBook);
-            refreshUoms();
-            refreshBook();
-            tr.querySelector('.removeLine').addEventListener('click', () => {
-                tr.remove();
-                reindex();
-            });
-            body.appendChild(tr);
-        }
-
-        function reindex() {
-            [...body.querySelectorAll('tr')].forEach((row, i) => {
-                row.querySelectorAll('[name]').forEach(el => {
-                    el.name = el.name.replace(/lines\[\d+]/, 'lines[' + i + ']');
-                });
-            });
-        }
-
-        addBtn.addEventListener('click', () => addLine({}));
-        if (initialLines.length) {
-            initialLines.forEach(l => addLine({ product_id: l.product_id, uom: l.uom, qty: l.qty }));
-        }
-    </script>
+    @include('inventory.stock-check.partials.lines-editor')
 @endsection
