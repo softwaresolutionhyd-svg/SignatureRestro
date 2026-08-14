@@ -127,15 +127,15 @@
         .id-meta { min-width: 0; flex: 1; }
         .id-meta .name {
             font-family: 'Playfair Display', Georgia, serif;
-            font-size: 11.5pt;
+            font-size: 10.5pt;
             font-weight: 700;
             line-height: 1.12;
             color: var(--wine-deep);
-            margin-bottom: 1.6mm;
+            margin-bottom: 1.2mm;
         }
         .id-meta .row {
-            font-size: 7pt;
-            line-height: 1.42;
+            font-size: 6.7pt;
+            line-height: 1.38;
             display: grid;
             grid-template-columns: 16mm 1fr;
             gap: 1mm;
@@ -169,40 +169,51 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 1.6mm 4mm 2.4mm 5mm;
-            gap: 1.2mm;
+            padding: 1.2mm 4mm 1.8mm 5mm;
+            gap: 0.9mm;
         }
         .qr-plate {
-            width: 23.5mm;
-            height: 23.5mm;
+            width: 20.5mm;
+            height: 20.5mm;
             flex-shrink: 0;
             background: #fff;
             border: 0.35mm solid var(--gold);
             border-radius: 1.4mm;
-            padding: 1.2mm;
+            padding: 1mm;
             display: flex;
             align-items: center;
             justify-content: center;
             box-shadow: 0 1mm 2mm rgba(74, 31, 42, .08);
         }
         .qr-plate svg {
-            width: 20.5mm !important;
-            height: 20.5mm !important;
+            width: 18mm !important;
+            height: 18mm !important;
             display: block;
             max-width: 100%;
             max-height: 100%;
         }
         .id-back-body .bname {
             font-family: 'Playfair Display', Georgia, serif;
-            font-size: 9.5pt;
+            font-size: 9pt;
             font-weight: 700;
             text-align: center;
             line-height: 1.15;
             color: var(--wine-deep);
-            max-width: 70mm;
+            max-width: 72mm;
+        }
+        .id-back-body .baddr {
+            font-size: 6.4pt;
+            line-height: 1.3;
+            text-align: center;
+            color: var(--ink);
+            max-width: 72mm;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
         }
         .id-back-body .hint {
-            font-size: 6pt;
+            font-size: 5.8pt;
             color: var(--muted);
             letter-spacing: .08em;
             text-transform: uppercase;
@@ -228,6 +239,11 @@
             @php
                 $photo = $emp->photoUrl();
                 $initials = mb_strtoupper(mb_substr(trim((string) $emp->name), 0, 1));
+                $addressLine = implode(', ', array_filter([
+                    trim((string) ($emp->address ?? '')),
+                    trim((string) ($emp->city ?? '')),
+                    trim((string) ($emp->district ?? '')),
+                ], fn ($v) => $v !== ''));
             @endphp
             <section class="id-pack">
                 <article class="id-face">
@@ -260,6 +276,10 @@
                                 <span class="lbl">CNIC</span>
                                 <span class="val">{{ $emp->cnic ?: '—' }}</span>
                             </div>
+                            <div class="row">
+                                <span class="lbl">Mobile</span>
+                                <span class="val">{{ $emp->phone ?: '—' }}</span>
+                            </div>
                         </div>
                     </div>
                     <div class="id-foot">{{ $emp->employee_no }} · Staff identity card</div>
@@ -275,9 +295,12 @@
                     <div class="gold-line"></div>
                     <div class="id-back-body">
                         <div class="qr-plate">
-                            {!! $qrAttendance->svgForEmployee($emp, 160) !!}
+                            {!! $qrAttendance->svgForEmployee($emp, 140) !!}
                         </div>
                         <div class="bname">{{ $emp->name }}</div>
+                        @if($addressLine !== '')
+                            <div class="baddr">{{ $addressLine }}</div>
+                        @endif
                         <div class="hint">Scan for attendance</div>
                     </div>
                 </article>
