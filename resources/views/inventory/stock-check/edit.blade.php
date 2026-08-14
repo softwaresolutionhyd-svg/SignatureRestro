@@ -57,6 +57,7 @@
             'uom' => (string) $p->uom,
             'pkg_qty' => $p->hasPackageContents() ? (float) $p->package_contents_qty : null,
             'pkg_uom' => $p->hasPackageContents() ? trim((string) $p->package_contents_uom) : '',
+            'uoms' => $p->uomsForForms(),
             'book' => (float) $p->qty_on_hand,
         ])->values();
         $oldLines = old('lines');
@@ -79,6 +80,8 @@
                     'product_id' => $l->product_id,
                     'qty_base' => $base,
                     'qty_inner' => $inner,
+                    'uom_base' => (string) ($product?->uom ?? ''),
+                    'uom_inner' => (string) ($product?->package_contents_uom ?? ''),
                 ];
             })->values()->all();
         }

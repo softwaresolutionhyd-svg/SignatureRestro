@@ -189,6 +189,8 @@ class StockCheckController extends Controller
             'lines.*.product_id' => ['required', 'integer', Rule::exists(InventoryProduct::class, 'id')],
             'lines.*.qty_base' => ['nullable', 'numeric', 'min:0'],
             'lines.*.qty_inner' => ['nullable', 'numeric', 'min:0'],
+            'lines.*.uom_base' => ['nullable', 'string', 'max:30'],
+            'lines.*.uom_inner' => ['nullable', 'string', 'max:30'],
         ]);
 
         $ids = array_column($data['lines'], 'product_id');
@@ -212,23 +214,29 @@ class StockCheckController extends Controller
             $innerRaw = $row['qty_inner'] ?? null;
             $hasBase = $baseRaw !== null && $baseRaw !== '';
             $hasInner = $innerRaw !== null && $innerRaw !== '';
+            $uomBase = trim((string) ($row['uom_base'] ?? $product->uom));
+            $uomInner = trim((string) ($row['uom_inner'] ?? $product->package_contents_uom ?? ''));
+            if ($uomBase === '') {
+                $uomBase = (string) $product->uom;
+            }
 
             $counted = null;
             if ($hasBase || $hasInner) {
                 $counted = 0.0;
-                if ($hasBase) {
-                    $counted += $product->convertQtyToBaseUom((float) $baseRaw, (string) $product->uom);
-                }
-                if ($hasInner) {
-                    if (! $product->hasPackageContents()) {
-                        throw \Illuminate\Validation\ValidationException::withMessages([
-                            'lines' => $product->sku.' pe inner UOM set nahi — sirf base qty likhein.',
-                        ]);
+                try {
+                    if ($hasBase) {
+                        $counted += $product->convertQtyToBaseUom((float) $baseRaw, $uomBase);
                     }
-                    $counted += $product->convertQtyToBaseUom(
-                        (float) $innerRaw,
-                        trim((string) $product->package_contents_uom)
-                    );
+                    if ($hasInner) {
+                        if ($uomInner === '') {
+                            throw new \InvalidArgumentException($product->sku.': inner qty ke liye UOM select karein.');
+                        }
+                        $counted += $product->convertQtyToBaseUom((float) $innerRaw, $uomInner);
+                    }
+                } catch (\InvalidArgumentException $e) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'lines' => $e->getMessage(),
+                    ]);
                 }
                 $counted = round($counted, 6);
             }

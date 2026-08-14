@@ -8,7 +8,7 @@
     <div class="mb-3">
         <a href="{{ route('inventory.stock-check.index') }}" class="text-decoration-none small">&larr; List</a>
         <h4 class="fw-bold mt-2 mb-0">Naya stock check (draft)</h4>
-        <p class="text-secondary small mb-0">List khali start hoti hai. <em>Add line</em> se product type karke chuno. Counted <strong>base qty</strong> (jaise pkt) aur jahan inner UOM ho wahan <strong>inner qty</strong> (jaise g) alag likho — save par dono mil kar base stock ban jati hai.</p>
+        <p class="text-secondary small mb-0">List khali start hoti hai. <em>Add line</em> se product type karke chuno. Base qty aur inner qty dono ke saath UOM change kar sakte ho (pkt, g, kg…). Save par dono mil kar base stock ban jati hai.</p>
     </div>
 
     <form method="POST" action="{{ route('inventory.stock-check.store') }}" class="card shadow-sm" id="stockCheckForm">
@@ -57,6 +57,7 @@
             'uom' => (string) $p->uom,
             'pkg_qty' => $p->hasPackageContents() ? (float) $p->package_contents_qty : null,
             'pkg_uom' => $p->hasPackageContents() ? trim((string) $p->package_contents_uom) : '',
+            'uoms' => $p->uomsForForms(),
             'book' => (float) $p->qty_on_hand,
         ])->values();
         $oldLines = old('lines');

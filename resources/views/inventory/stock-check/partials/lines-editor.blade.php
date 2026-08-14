@@ -19,6 +19,13 @@
         return !!(product && Number(product.pkg_qty) > 0 && String(product.pkg_uom || '').trim());
     }
 
+    function factorForUom(product, uomCode) {
+        if (!product) return 1;
+        const code = String(uomCode || '');
+        const row = (product.uoms || []).find(u => String(u.uom) === code);
+        return row && Number(row.factor) > 0 ? Number(row.factor) : 1;
+    }
+
     function fmt(n) {
         if (!Number.isFinite(n)) return '0';
         let s = (Math.round(n * 1000000) / 1000000).toString();
@@ -26,15 +33,45 @@
         return s === '-0' ? '0' : s;
     }
 
-    function bookLabel(pid) {
+    function bookLabel(pid, baseUom, innerUom) {
         const p = productById(pid);
         if (!p) return '—';
-        let text = `${fmt(Number(p.book))} ${p.uom || ''}`.trim();
-        if (hasInner(p)) {
+        const baseCode = baseUom || p.uom;
+        const baseFactor = factorForUom(p, baseCode);
+        let text = `${fmt(Number(p.book) / baseFactor)} ${baseCode || ''}`.trim();
+        const innerCode = innerUom || p.pkg_uom;
+        if (innerCode && innerCode !== baseCode) {
+            const innerFactor = factorForUom(p, innerCode);
+            text += `\n≈ ${fmt(Number(p.book) / innerFactor)} ${innerCode}`;
+        } else if (hasInner(p) && (!innerCode || innerCode === p.pkg_uom)) {
             const innerBook = Number(p.book) * Number(p.pkg_qty);
             text += `\n≈ ${fmt(innerBook)} ${p.pkg_uom}`;
         }
         return text;
+    }
+
+    function uomOptions(product, selectedUom, { markBase = false } = {}) {
+        if (!product) {
+            return '<option value="">UOM…</option>';
+        }
+        const rows = (product.uoms || []);
+        if (!rows.length) {
+            return `<option value="${product.uom}" selected>${product.uom}</option>`;
+        }
+        const fallback = selectedUom || product.uom;
+        return rows.map((row) => {
+            const code = String(row.uom);
+            const isSelected = String(fallback) === code ? 'selected' : '';
+            const tag = markBase && code === product.uom ? ' (base)' : '';
+            return `<option value="${code}" ${isSelected}>${code}${tag}</option>`;
+        }).join('');
+    }
+
+    function defaultInnerUom(product) {
+        if (!product) return '';
+        if (hasInner(product)) return product.pkg_uom;
+        const alt = (product.uoms || []).find(u => String(u.uom) !== String(product.uom));
+        return alt ? String(alt.uom) : String(product.uom || '');
     }
 
     function normalize(value) {
@@ -94,45 +131,48 @@
                 <div class="input-group input-group-sm">
                     <input class="form-control text-end line-qty-base" type="number" step="0.000001" min="0"
                            name="lines[${idx}][qty_base]" value="${line.qty_base ?? ''}" placeholder="0">
-                    <span class="input-group-text line-base-uom">—</span>
+                    <select class="form-select line-uom-base" name="lines[${idx}][uom_base]" style="max-width: 110px;">
+                        <option value="">UOM…</option>
+                    </select>
                 </div>
             </td>
             <td>
-                <div class="input-group input-group-sm line-inner-wrap">
+                <div class="input-group input-group-sm">
                     <input class="form-control text-end line-qty-inner" type="number" step="0.000001" min="0"
                            name="lines[${idx}][qty_inner]" value="${line.qty_inner ?? ''}" placeholder="0">
-                    <span class="input-group-text line-inner-uom">—</span>
+                    <select class="form-select line-uom-inner" name="lines[${idx}][uom_inner]" style="max-width: 110px;">
+                        <option value="">UOM…</option>
+                    </select>
                 </div>
-                <div class="small text-secondary line-inner-empty d-none">Inner UOM nahi</div>
             </td>
             <td><button type="button" class="btn btn-sm btn-outline-danger removeLine">×</button></td>
         `;
         const search = tr.querySelector('.line-product-search');
         const hidden = tr.querySelector('.line-product-id');
         const bookCell = tr.querySelector('.line-book');
-        const baseUom = tr.querySelector('.line-base-uom');
-        const innerUom = tr.querySelector('.line-inner-uom');
-        const innerWrap = tr.querySelector('.line-inner-wrap');
-        const innerEmpty = tr.querySelector('.line-inner-empty');
+        const baseUomSel = tr.querySelector('.line-uom-base');
+        const innerUomSel = tr.querySelector('.line-uom-inner');
         const innerInput = tr.querySelector('.line-qty-inner');
         const initialProduct = productById(line.product_id);
         if (initialProduct) {
             search.value = productLabel(initialProduct);
         }
 
-        function refreshMeta(product) {
-            bookCell.textContent = bookLabel(product ? product.id : '');
-            baseUom.textContent = product?.uom || '—';
-            const innerOk = hasInner(product);
-            innerWrap.classList.toggle('d-none', !innerOk);
-            innerEmpty.classList.toggle('d-none', innerOk);
-            if (innerOk) {
-                innerUom.textContent = product.pkg_uom;
-                innerInput.disabled = false;
-            } else {
-                innerInput.value = '';
-                innerInput.disabled = true;
-            }
+        function refreshBook() {
+            bookCell.textContent = bookLabel(hidden.value, baseUomSel.value, innerUomSel.value);
+        }
+
+        function refreshMeta(product, selectedBase, selectedInner) {
+            baseUomSel.innerHTML = uomOptions(product, selectedBase || product?.uom, { markBase: true });
+            innerUomSel.innerHTML = uomOptions(
+                product,
+                selectedInner || defaultInnerUom(product),
+                { markBase: false }
+            );
+            innerInput.disabled = !product;
+            baseUomSel.disabled = !product;
+            innerUomSel.disabled = !product;
+            refreshBook();
         }
 
         function setProduct(product) {
@@ -145,7 +185,9 @@
             hidden.value = String(product.id);
             search.value = productLabel(product);
             search.classList.remove('is-invalid');
-            refreshMeta(product);
+            refreshMeta(product, line.uom_base, line.uom_inner);
+            line.uom_base = '';
+            line.uom_inner = '';
         }
 
         function resolveTyped() {
@@ -187,6 +229,8 @@
             e.preventDefault();
             resolveTyped();
         });
+        baseUomSel.addEventListener('change', refreshBook);
+        innerUomSel.addEventListener('change', refreshBook);
         tr.querySelector('.removeLine').addEventListener('click', () => {
             tr.remove();
             reindex();
@@ -229,6 +273,8 @@
             product_id: l.product_id,
             qty_base: l.qty_base ?? l.qty ?? '',
             qty_inner: l.qty_inner ?? '',
+            uom_base: l.uom_base || '',
+            uom_inner: l.uom_inner || '',
         }));
     }
 </script>
