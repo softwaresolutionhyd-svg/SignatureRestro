@@ -31,6 +31,7 @@
     const canReduceCartItems = true;
     const requireItemChangeReason = false;
     const canReopenPaidBill = boot.canReopenPaidBill === true;
+    const canDiscardHeldBill = boot.canDiscardHeldBill === true;
     const posCustomProductId = Number(settings.custom_product_id || 0);
     const posCustomProductSku = String(settings.custom_product_sku || 'POS-CUSTOM');
     let onDemandModalInstance = null;
@@ -1045,6 +1046,11 @@
             return;
         }
 
+        if (resumeOrderId && cart.length <= 1 && !canDiscardHeldBill) {
+            alert('Bill delete sirf manager/admin kar sakta hai. Last item cashier nahi hata sakta.');
+            return;
+        }
+
         const voidQty = kitchenVoidQtyForRow(row);
         // Reason sirf tab jab kitchen print ho chuka ho (locked qty).
         const needsReason = voidQty > 0.0005 && !String(reason || '').trim();
@@ -1254,6 +1260,11 @@
         }
 
         if (next <= 0) {
+            const remaining = cart.filter((r) => Number(r.product_id) !== Number(productId)).length;
+            if (resumeOrderId && remaining === 0 && !canDiscardHeldBill) {
+                alert('Bill delete sirf manager/admin kar sakta hai. Last item cashier nahi hata sakta.');
+                return;
+            }
             cart = cart.filter((r) => Number(r.product_id) !== Number(productId));
             renderAll();
             if (resumeOrderId) {
@@ -1349,6 +1360,10 @@
         }
 
         if (next <= 0) {
+            if (resumeOrderId && cart.length <= 1 && !canDiscardHeldBill) {
+                alert('Bill delete sirf manager/admin kar sakta hai. Last item cashier nahi hata sakta.');
+                return;
+            }
             cart.splice(index, 1);
             renderAll();
             if (resumeOrderId) {
@@ -3758,6 +3773,10 @@
             return;
         }
 
+        if (!canDiscardHeldBill) {
+            throw new Error('Bill delete sirf manager/admin kar sakta hai. Cashier ke paas ye access nahi.');
+        }
+
         const orderId = resumeOrderId;
         const voidsSnapshot = mergeKitchenVoidsForSubmit();
         const url = (routes.discardHold || '').replace('__ID__', String(orderId));
@@ -3868,12 +3887,15 @@
                 if (!cart.length) {
                     // Empty cart:
                     // - Kitchen-printed bill → sirf manager Cancel Order (voids) se delete.
-                    // - Hold-only (no kitchen print) → pending draft discard OK, items free remove.
+                    // - Hold-only (no kitchen print) → pending draft discard manager/admin only.
                     if (cancelWholeOrderPending && mergeKitchenVoidsForSubmit().length > 0) {
                         await discardResumedDraft();
                         return null;
                     }
                     if (!resumedOrderHasKitchenPrint()) {
+                        if (!canDiscardHeldBill) {
+                            throw new Error('Bill delete sirf manager/admin kar sakta hai. Kam az kam 1 item bill me rakhein.');
+                        }
                         await discardResumedDraft();
                         return null;
                     }

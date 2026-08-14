@@ -565,6 +565,7 @@
         'canReduceCartItems' => true,
         'canVoidKitchenItems' => (bool) (($canPosDiscountCredit ?? false) || auth()->user()?->bypassesModulePermissions()),
         'canReopenPaidBill' => (bool) ($canReopenPaidBill ?? false),
+        'canDiscardHeldBill' => (bool) ($canDiscardHeldBill ?? false),
         'canPosPay' => (bool) ($canPosPay ?? false),
         'canPosDiscount' => (bool) ($canPosDiscount ?? false),
         'canPosDiscountCredit' => (bool) ($canPosDiscountCredit ?? false),
@@ -592,5 +593,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=118"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=119"></script>
 @endsection

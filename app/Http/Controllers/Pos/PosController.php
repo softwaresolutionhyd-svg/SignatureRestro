@@ -262,6 +262,7 @@ class PosController extends Controller
         $sessionPosStats = $this->sessionPosStats($session);
         $checkedInRooms = $this->checkedInRoomsForPos();
         $canReopenPaidBill = $this->userCanReopenPaidPosBill($user);
+        $canDiscardHeldBill = $this->userCanDeletePosBill($user);
         $posStaffCaps = $this->posStaffCapabilities($user);
         $canPosPay = $posStaffCaps['can_pay'];
         $canPosDiscount = $posStaffCaps['can_discount'];
@@ -282,10 +283,11 @@ class PosController extends Controller
                 'note',
             ]);
 
-        return compact('session', 'products', 'heldOrders', 'paidOrders', 'paidBillsDetail', 'pendingBillsDetail', 'resumedOrder', 'contacts', 'posSettings', 'sessionCashExpected', 'sessionPosStats', 'tables', 'tableBoard', 'checkedInRooms', 'waiters', 'recentDailyClosings', 'canReopenPaidBill', 'canPosPay', 'canPosDiscount', 'canPosDiscountCredit');
+        return compact('session', 'products', 'heldOrders', 'paidOrders', 'paidBillsDetail', 'pendingBillsDetail', 'resumedOrder', 'contacts', 'posSettings', 'sessionCashExpected', 'sessionPosStats', 'tables', 'tableBoard', 'checkedInRooms', 'waiters', 'recentDailyClosings', 'canReopenPaidBill', 'canDiscardHeldBill', 'canPosPay', 'canPosDiscount', 'canPosDiscountCredit');
     }
 
-    private function userCanReopenPaidPosBill(?User $user): bool
+    /** Manager / admin only — cashiers cannot delete or reopen bills. */
+    private function userCanDeletePosBill(?User $user): bool
     {
         if ($user === null) {
             return false;
@@ -295,12 +297,17 @@ class PosController extends Controller
             return true;
         }
 
-        $employee = $this->resolvePosEmployee($user);
-        if ($employee === null) {
+        $caps = $this->posStaffCapabilities($user);
+        if ($caps['is_cashier'] && ! $caps['is_manager']) {
             return false;
         }
 
-        return $this->employeeIsPosManager($employee);
+        return $caps['is_manager'];
+    }
+
+    private function userCanReopenPaidPosBill(?User $user): bool
+    {
+        return $this->userCanDeletePosBill($user);
     }
 
     /**
@@ -2436,7 +2443,17 @@ class PosController extends Controller
     /** Delete a draft held order for the current open register session (items cascade). */
     public function discardHeld(Request $request, int $orderId): RedirectResponse|JsonResponse
     {
-        $session = $this->requireOpenSessionForUser(Auth::user());
+        $user = Auth::user();
+        if (! $this->userCanDeletePosBill($user)) {
+            $message = 'Bill delete sirf manager/admin kar sakta hai. Cashier ke paas ye access nahi.';
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 403);
+            }
+
+            return back()->with('error', $message);
+        }
+
+        $session = $this->requireOpenSessionForUser($user);
         $order = PosOrder::query()->find($orderId);
 
         if ($order === null) {
