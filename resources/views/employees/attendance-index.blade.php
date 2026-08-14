@@ -154,10 +154,10 @@
     @endif
 
     <div class="alert alert-info small mb-3">
-        Har din <strong>P</strong> (Present), <strong>A</strong> (Absent), ya <strong>H</strong> (Holiday) select karein.
+        Har din <strong>P</strong> (Present), <strong>A</strong> (Absent), ya <strong>H</strong> (Holiday) select karein — <strong>turant auto-save</strong> ho jata hai, Save button nahi.
         <strong>Net salary = (Basic ÷ 30) × (Present + Holiday)</strong>.
         Absent aur blank din pay nahi milti.
-        QR card scan se Present automatic lagti hai — grid khula hona zaroori nahi.
+        QR card scan se Present bhi automatic save hoti hai.
     </div>
 
     <div class="card shadow-sm mb-3">
@@ -207,9 +207,7 @@
                    rel="noopener">
                     <i class="bi bi-printer me-1"></i> Print today's attendance
                 </a>
-                <button type="submit" class="btn btn-sm btn-primary" form="attendanceGridForm">
-                    <i class="bi bi-save me-1"></i> Save attendance
-                </button>
+                <span class="small text-success" id="attendanceAutoSaveHint">P / A / H select karte hi auto-save</span>
             </div>
         </div>
     </div>
@@ -317,21 +315,16 @@
                 </table>
             </div>
             <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <span class="small text-secondary">Save karne par payroll draft mein net salary working days (P+H) se auto update hogi.</span>
-                <div class="d-flex flex-wrap gap-2">
-                    <a class="btn btn-sm btn-outline-dark"
-                       href="{{ route('employees.attendance.print-today', array_filter([
-                           'date' => now()->format('Y-m-d'),
-                           'active_only' => $activeOnly ? 1 : null,
-                       ])) }}"
-                       target="_blank"
-                       rel="noopener">
-                        <i class="bi bi-printer me-1"></i> Print today's attendance
-                    </a>
-                    <button type="submit" class="btn btn-primary btn-sm">
-                        <i class="bi bi-save me-1"></i> Save attendance
-                    </button>
-                </div>
+                <span class="small text-secondary">QR scan aur grid dono turant save hote hain — Save button ki zaroorat nahi. Payroll working days (P+H) se auto update hota hai.</span>
+                <a class="btn btn-sm btn-outline-dark"
+                   href="{{ route('employees.attendance.print-today', array_filter([
+                       'date' => now()->format('Y-m-d'),
+                       'active_only' => $activeOnly ? 1 : null,
+                   ])) }}"
+                   target="_blank"
+                   rel="noopener">
+                    <i class="bi bi-printer me-1"></i> Print today's attendance
+                </a>
             </div>
         </div>
     </form>
@@ -340,6 +333,10 @@
 @section('scripts')
 <script>
 (() => {
+    const cellUrl = @json(route('employees.attendance.cell'));
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    const hint = document.getElementById('attendanceAutoSaveHint');
+
     function paintCell(sel) {
         sel.classList.remove('att-p', 'att-a', 'att-h');
         if (sel.value === 'P') sel.classList.add('att-p');
@@ -347,25 +344,57 @@
         if (sel.value === 'H') sel.classList.add('att-h');
     }
 
-    function refreshRowSummary(employeeId) {
-        const selects = document.querySelectorAll(`select[name^="attendance[${employeeId}]"]`);
-        let p = 0, a = 0, h = 0;
-        selects.forEach((s) => {
-            if (s.value === 'P') p++;
-            if (s.value === 'A') a++;
-            if (s.value === 'H') h++;
-        });
+    function applySummary(employeeId, data) {
         const pEl = document.querySelector(`[data-summary-p="${employeeId}"]`);
         const aEl = document.querySelector(`[data-summary-a="${employeeId}"]`);
         const hEl = document.querySelector(`[data-summary-h="${employeeId}"]`);
         const payEl = document.querySelector(`[data-summary-pay="${employeeId}"]`);
-        if (pEl) pEl.textContent = String(p);
-        if (aEl) aEl.textContent = String(a);
-        if (hEl) hEl.textContent = String(h);
-        if (payEl) {
-            const perDay = Number(payEl.dataset.perDay || 0);
-            const working = Math.min(30, p + h);
-            payEl.textContent = (perDay * working).toFixed(2);
+        if (pEl && data.present != null) pEl.textContent = String(data.present);
+        if (aEl && data.absent != null) aEl.textContent = String(data.absent);
+        if (hEl && data.holiday != null) hEl.textContent = String(data.holiday);
+        if (payEl && data.earned != null) payEl.textContent = Number(data.earned).toFixed(2);
+    }
+
+    function setHint(text, ok) {
+        if (!hint) return;
+        hint.textContent = text;
+        hint.classList.toggle('text-success', !!ok);
+        hint.classList.toggle('text-danger', !ok);
+        hint.classList.toggle('text-secondary', false);
+    }
+
+    async function autoSave(sel) {
+        const employeeId = sel.dataset.employeeId;
+        const date = sel.dataset.date;
+        if (!employeeId || !date) return;
+        sel.disabled = true;
+        setHint('Saving…', true);
+        try {
+            const res = await fetch(cellUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    employee_id: Number(employeeId),
+                    date,
+                    code: sel.value || ''
+                })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) {
+                throw new Error(data.message || 'Save failed');
+            }
+            applySummary(employeeId, data);
+            setHint('Saved', true);
+        } catch (e) {
+            setHint('Save nahi hua — dobara select karein', false);
+        } finally {
+            sel.disabled = false;
         }
     }
 
@@ -373,23 +402,8 @@
         paintCell(sel);
         sel.addEventListener('change', () => {
             paintCell(sel);
-            const empId = sel.dataset.employeeId;
-            if (empId) refreshRowSummary(empId);
+            autoSave(sel);
         });
-    });
-
-    const form = document.getElementById('attendanceGridForm');
-    const jsonInput = document.getElementById('attendanceJson');
-    form?.addEventListener('submit', () => {
-        const payload = {};
-        document.querySelectorAll('[data-att-cell]').forEach((sel) => {
-            const empId = sel.dataset.employeeId;
-            const date = sel.dataset.date;
-            if (!empId || !date) return;
-            if (!payload[empId]) payload[empId] = {};
-            payload[empId][date] = sel.value;
-        });
-        if (jsonInput) jsonInput.value = JSON.stringify(payload);
     });
 
     const wrap = document.querySelector('.attendance-grid-wrap');

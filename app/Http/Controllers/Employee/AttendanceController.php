@@ -229,6 +229,48 @@ class AttendanceController extends Controller
         return $groups;
     }
 
+    public function saveCell(Request $request)
+    {
+        abort_unless($request->user()?->canManageTeamAttendance(), 403);
+
+        $data = $request->validate([
+            'employee_id' => ['required', 'integer'],
+            'date' => ['required', 'date_format:Y-m-d'],
+            'code' => ['nullable', 'string', 'max:1'],
+        ]);
+
+        $employee = Employee::query()->excludeAdminAccounts()->find((int) $data['employee_id']);
+        if (! $employee) {
+            return response()->json(['ok' => false, 'message' => 'Employee nahi mila.'], 422);
+        }
+
+        $this->persistDay(
+            $employee->id,
+            (string) $data['date'],
+            is_string($data['code'] ?? null) ? $data['code'] : '',
+            $request->user()->id
+        );
+
+        $month = substr((string) $data['date'], 0, 7);
+        app(PayrollSalaryService::class)->syncPayrollEntryForEmployee($employee, $month, $request->user()->id);
+
+        if (config('sync.enabled') && config('sync.role') === 'local') {
+            app(SyncPayrollQueueService::class)->queuePayrollData($month);
+        }
+
+        $counts = $this->attendancePayroll->monthCountsForEmployee($employee->id, $month);
+        $workingDays = (int) ($counts['present'] ?? 0) + (int) ($counts['holiday'] ?? 0);
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Attendance auto-save ho gayi.',
+            'present' => $counts['present'] ?? 0,
+            'absent' => $counts['absent'] ?? 0,
+            'holiday' => $counts['holiday'] ?? 0,
+            'earned' => $this->attendancePayroll->earnedSalary((float) $employee->salary, $workingDays),
+        ]);
+    }
+
     public function saveGrid(Request $request)
     {
         abort_unless($request->user()->canManageTeamAttendance(), 403);
@@ -266,34 +308,7 @@ class AttendanceController extends Controller
                         continue;
                     }
 
-                    $status = AttendancePayrollService::statusFromCode(is_string($code) ? $code : null);
-                    $existing = EmployeeAttendance::query()
-                        ->where('employee_id', $employeeId)
-                        ->whereDate('attendance_date', $date)
-                        ->first();
-
-                    if ($status === null) {
-                        if ($existing) {
-                            $existing->delete();
-                        }
-
-                        continue;
-                    }
-
-                    EmployeeAttendance::query()->updateOrCreate(
-                        [
-                            'employee_id' => $employeeId,
-                            'attendance_date' => $date,
-                        ],
-                        [
-                            'user_id' => $request->user()->id,
-                            'status' => $status,
-                            'source' => 'manual',
-                            'clock_in' => null,
-                            'clock_out' => null,
-                            'notes' => null,
-                        ]
-                    );
+                    $this->persistDay($employeeId, $date, is_string($code) ? $code : '', $request->user()->id);
                 }
             }
         });
@@ -321,5 +336,57 @@ class AttendanceController extends Controller
                 'employee_no' => trim((string) ($data['employee_no'] ?? '')),
             ], fn ($v) => $v !== '' && $v !== null))
             ->with('status', 'Attendance save ho gayi — payroll net salary working days (P+H) ke hisab se update ho gayi.');
+    }
+
+    private function persistDay(int $employeeId, string $date, string $code, int $userId): void
+    {
+        $status = AttendancePayrollService::statusFromCode($code);
+        $existing = EmployeeAttendance::query()
+            ->where('employee_id', $employeeId)
+            ->whereRaw('DATE(attendance_date) = ?', [$date])
+            ->first();
+
+        if ($status === null) {
+            if ($existing) {
+                $existing->delete();
+            }
+
+            return;
+        }
+
+        if ($existing && $existing->status === $status) {
+            return;
+        }
+
+        $payload = [
+            'user_id' => $userId,
+            'status' => $status,
+            'source' => 'manual',
+        ];
+
+        if ($existing && $existing->source === 'qr' && $status === AttendancePayrollService::STATUS_PRESENT) {
+            $payload['source'] = 'qr';
+            $payload['clock_in'] = $existing->clock_in;
+            $payload['clock_out'] = $existing->clock_out;
+            $payload['notes'] = $existing->notes;
+        } else {
+            $payload['clock_in'] = $existing && $status === AttendancePayrollService::STATUS_PRESENT
+                ? $existing->clock_in
+                : null;
+            $payload['clock_out'] = null;
+            $payload['notes'] = $existing?->notes;
+        }
+
+        if ($existing) {
+            $existing->fill($payload)->save();
+
+            return;
+        }
+
+        EmployeeAttendance::query()->create([
+            'employee_id' => $employeeId,
+            'attendance_date' => $date,
+            ...$payload,
+        ]);
     }
 }

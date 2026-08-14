@@ -331,6 +331,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
             Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance.index');
             Route::get('/attendance/print-today', [AttendanceController::class, 'printToday'])->name('attendance.print-today');
             Route::post('/attendance/grid', [AttendanceController::class, 'saveGrid'])->name('attendance.grid');
+            Route::post('/attendance/cell', [AttendanceController::class, 'saveCell'])->name('attendance.cell');
             Route::get('/qr-cards', [QrAttendanceController::class, 'cards'])->name('qr-cards');
             Route::get('/{employee}/qr.svg', [QrAttendanceController::class, 'svg'])->name('qr.svg');
             Route::get('/{employee}/qr-card', [QrAttendanceController::class, 'card'])->name('qr-card');
