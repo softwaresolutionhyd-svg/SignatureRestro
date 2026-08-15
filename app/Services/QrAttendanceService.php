@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Employee;
 use App\Models\EmployeeAttendance;
 use App\Support\ActivityLogger;
+use App\Support\LanServerUrl;
 use BaconQrCode\Renderer\Image\SvgImageBackEnd;
 use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
@@ -21,7 +22,8 @@ class QrAttendanceService
     {
         $employee->ensureQrToken();
 
-        return route('attendance.qr.checkin', ['token' => $employee->qr_token], true);
+        // Phone pe 127.0.0.1 / localhost kaam nahi karta — LAN (ya public) base use karo.
+        return LanServerUrl::pathUrl('a/'.$employee->qr_token);
     }
 
     public function svgForUrl(string $url, int $size = 220): string

@@ -297,6 +297,18 @@
                     · Print / Save as PDF se ek saath cards nikal lo
                 </div>
             @endunless
+            @if(!empty($qrBaseUrl))
+                @php
+                    $qrHost = strtolower((string) (parse_url($qrBaseUrl, PHP_URL_HOST) ?: ''));
+                    $qrHostIsLoopback = in_array($qrHost, ['127.0.0.1', 'localhost', '::1'], true);
+                @endphp
+                <div class="report-meta" style="margin:4px 0 0;">
+                    QR opens: <code>{{ $qrBaseUrl }}/a/…</code>
+                    @if($qrHostIsLoopback)
+                        — Settings → LAN Server IP set karein, phir cards dubara print karein
+                    @endif
+                </div>
+            @endif
         </div>
         <div class="toolbar-actions">
             @unless($single ?? false)

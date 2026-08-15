@@ -10,6 +10,7 @@ use App\Models\Setting;
 use App\Services\QrAttendanceService;
 use App\Support\ActivityLogger;
 use App\Support\EnsuresEmployeeProfileSchema;
+use App\Support\LanServerUrl;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -154,6 +155,7 @@ class QrAttendanceController extends Controller
             'employees' => $employees,
             'qrAttendance' => $this->qrAttendance,
             'single' => $single,
+            'qrBaseUrl' => LanServerUrl::baseUrl(),
         ];
     }
 

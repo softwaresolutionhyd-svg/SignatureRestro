@@ -770,7 +770,7 @@
             <div class="card-body">
                 <p class="text-secondary small mb-3">
                     Cafe / restaurant PC ka jo <strong>fixed LAN IP</strong> hai woh yahan likhein.
-                    Same WiFi par mobile, tablet aur Order Taker app isi address se connect karenge.
+                    Same WiFi par mobile, tablet, Order Taker app, aur <strong>employee attendance QR</strong> isi address se open honge.
                     (PC par pehle static IP set karein — <code>scripts/set-cafe-lan-ip.ps1</code>)
                 </p>
                 <div class="row g-3">
