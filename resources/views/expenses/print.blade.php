@@ -125,17 +125,34 @@
             <th class="num" style="width:80px;">Qty</th>
             <th class="num" style="width:110px;">Unit cost</th>
             <th class="num" style="width:110px;">Subtotal</th>
-            <th class="num" style="width:100px;">Tax ({{ fmt_num((float) $expense->tax_percent, 3) }}%)</th>
+            <th class="num" style="width:100px;">Tax</th>
+            <th class="num" style="width:110px;">Total</th>
         </tr>
         </thead>
         <tbody>
+        @php
+            $displayLines = ($expense->lines ?? collect())->isNotEmpty()
+                ? $expense->lines
+                : collect([(object) [
+                    'description' => $expense->description,
+                    'qty' => $expense->qty,
+                    'unit_amount' => $expense->unit_amount,
+                    'tax_percent' => $expense->tax_percent,
+                    'total_amount' => $expense->total_amount,
+                    'tax_amount' => $expense->tax_amount,
+                    'line_total' => $expense->grand_total,
+                ]]);
+        @endphp
+        @foreach($displayLines as $line)
         <tr>
-            <td>{{ $expense->description }}</td>
-            <td class="num">{{ fmt_num((float) $expense->qty, 3) }}</td>
-            <td class="num">{{ $currency }} {{ fmt_num((float) $expense->unit_amount, 2) }}</td>
-            <td class="num">{{ $currency }} {{ fmt_num((float) $expense->total_amount, 2) }}</td>
-            <td class="num">{{ $currency }} {{ fmt_num((float) $expense->tax_amount, 2) }}</td>
+            <td>{{ $line->description }}</td>
+            <td class="num">{{ fmt_num((float) $line->qty, 3) }}</td>
+            <td class="num">{{ $currency }} {{ fmt_num((float) $line->unit_amount, 2) }}</td>
+            <td class="num">{{ $currency }} {{ fmt_num((float) $line->total_amount, 2) }}</td>
+            <td class="num">{{ $currency }} {{ fmt_num((float) $line->tax_amount, 2) }}</td>
+            <td class="num">{{ $currency }} {{ fmt_num((float) ($line->line_total ?? ((float)$line->total_amount + (float)$line->tax_amount)), 2) }}</td>
         </tr>
+        @endforeach
         </tbody>
     </table>
 

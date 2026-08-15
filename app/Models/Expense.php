@@ -69,6 +69,11 @@ class Expense extends Model
         return $this->belongsTo(User::class, 'approved_by');
     }
 
+    public function lines(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ExpenseLine::class)->orderBy('sort_order')->orderBy('id');
+    }
+
     /** Recalculate totals from qty × unit_amount + tax */
     public function recalculate(): void
     {
@@ -76,5 +81,27 @@ class Expense extends Model
         $this->total_amount = round($subtotal, 2);
         $this->tax_amount   = round($subtotal * (float) $this->tax_percent / 100, 2);
         $this->grand_total  = round($subtotal + $this->tax_amount, 2);
+    }
+
+    /** Roll up line totals onto the expense header (for journals / list). */
+    public function recalculateFromLines(): void
+    {
+        $lines = $this->relationLoaded('lines') ? $this->lines : $this->lines()->get();
+        if ($lines->isEmpty()) {
+            $this->recalculate();
+
+            return;
+        }
+
+        $sub = round((float) $lines->sum(fn (ExpenseLine $l) => (float) $l->total_amount), 2);
+        $tax = round((float) $lines->sum(fn (ExpenseLine $l) => (float) $l->tax_amount), 2);
+        $qty = round((float) $lines->sum(fn (ExpenseLine $l) => (float) $l->qty), 3);
+
+        $this->total_amount = $sub;
+        $this->tax_amount = $tax;
+        $this->grand_total = round($sub + $tax, 2);
+        $this->qty = $qty > 0 ? $qty : 1;
+        $this->unit_amount = $this->qty > 0 ? round($sub / (float) $this->qty, 2) : 0;
+        $this->tax_percent = $sub > 0 ? round($tax / $sub * 100, 3) : 0;
     }
 }

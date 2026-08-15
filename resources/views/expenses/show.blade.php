@@ -147,22 +147,39 @@
                             <th class="text-end">Qty</th>
                             <th class="text-end">Unit Cost</th>
                             <th class="text-end">Subtotal</th>
-                            <th class="text-end pe-3">Tax ({{ $expense->tax_percent }}%)</th>
+                            <th class="text-end pe-3">Tax</th>
+                            <th class="text-end pe-3">Total</th>
                         </tr>
                     </thead>
                     <tbody>
+                        @php
+                            $displayLines = $expense->lines->isNotEmpty()
+                                ? $expense->lines
+                                : collect([(object) [
+                                    'description' => $expense->description,
+                                    'qty' => $expense->qty,
+                                    'unit_amount' => $expense->unit_amount,
+                                    'tax_percent' => $expense->tax_percent,
+                                    'total_amount' => $expense->total_amount,
+                                    'tax_amount' => $expense->tax_amount,
+                                    'line_total' => $expense->grand_total,
+                                ]]);
+                        @endphp
+                        @foreach($displayLines as $line)
                         <tr>
-                            <td class="ps-3">{{ $expense->description }}</td>
-                            <td class="text-end">{{ fmt_num($expense->qty, 3) }}</td>
-                            <td class="text-end">{{ fmt_num($expense->unit_amount, 2) }}</td>
-                            <td class="text-end">{{ fmt_num($expense->total_amount, 2) }}</td>
-                            <td class="text-end pe-3">{{ fmt_num($expense->tax_amount, 2) }}</td>
+                            <td class="ps-3">{{ $line->description }}</td>
+                            <td class="text-end">{{ fmt_num((float) $line->qty, 3) }}</td>
+                            <td class="text-end">{{ fmt_num((float) $line->unit_amount, 2) }}</td>
+                            <td class="text-end">{{ fmt_num((float) $line->total_amount, 2) }}</td>
+                            <td class="text-end pe-3">{{ fmt_num((float) $line->tax_amount, 2) }}@if((float)($line->tax_percent ?? 0) > 0) <span class="text-secondary small">({{ fmt_num((float)$line->tax_percent, 3) }}%)</span>@endif</td>
+                            <td class="text-end pe-3 fw-semibold">{{ fmt_num((float) ($line->line_total ?? $line->total_amount + $line->tax_amount), 2) }}</td>
                         </tr>
+                        @endforeach
                     </tbody>
                     <tfoot class="table-light">
                         <tr>
-                            <td colspan="3" class="text-end fw-bold ps-3">Grand Total</td>
-                            <td colspan="2" class="text-end pe-3 fw-bold fs-5" style="color:#14b8a6;">
+                            <td colspan="5" class="text-end fw-bold ps-3">Grand Total</td>
+                            <td class="text-end pe-3 fw-bold fs-5" style="color:#14b8a6;">
                                 {{ fmt_num($expense->grand_total, 2) }}
                             </td>
                         </tr>

@@ -6,20 +6,27 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\ExpenseLine;
 use App\Models\Setting;
 use App\Services\AutoJournalService;
+use App\Support\EnsuresExpenseLinesSchema;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class ExpenseController extends Controller
 {
+    use EnsuresExpenseLinesSchema;
+
     public function __construct(
         private readonly AutoJournalService $autoJournal
     ) {}
 
     public function index(Request $request)
     {
+        $this->ensureExpenseLinesSchema();
+
         $query = Expense::with(['category'])
             ->orderByDesc('expense_date')
             ->orderByDesc('id');
@@ -37,16 +44,15 @@ class ExpenseController extends Controller
             $query->whereDate('expense_date', '<=', $request->to);
         }
 
-        $expenses   = $query->paginate(Setting::pageSize('expenses_per_page', 25))->withQueryString();
+        $expenses = $query->paginate(Setting::pageSize('expenses_per_page', 25))->withQueryString();
         $categories = ExpenseCategory::where('active', true)->orderBy('name')->get(['id', 'name']);
-        $statusMap  = Expense::statusLabel();
+        $statusMap = Expense::statusLabel();
 
-        // KPI counts for the header ribbon
         $kpis = [
-            'draft'     => Expense::where('status', Expense::STATUS_DRAFT)->count(),
+            'draft' => Expense::where('status', Expense::STATUS_DRAFT)->count(),
             'submitted' => Expense::where('status', Expense::STATUS_SUBMITTED)->count(),
-            'approved'  => Expense::where('status', Expense::STATUS_APPROVED)->count(),
-            'paid'      => Expense::where('status', Expense::STATUS_PAID)->count(),
+            'approved' => Expense::where('status', Expense::STATUS_APPROVED)->count(),
+            'paid' => Expense::where('status', Expense::STATUS_PAID)->count(),
         ];
 
         return view('expenses.index', compact('expenses', 'categories', 'statusMap', 'kpis'));
@@ -54,6 +60,7 @@ class ExpenseController extends Controller
 
     public function create()
     {
+        $this->ensureExpenseLinesSchema();
         $categories = ExpenseCategory::where('active', true)->orderBy('name')->get();
 
         return view('expenses.create', compact('categories'));
@@ -61,24 +68,40 @@ class ExpenseController extends Controller
 
     public function store(Request $request)
     {
+        $this->ensureExpenseLinesSchema();
+
         $employee = $this->currentEmployee();
         if (! $employee) {
             return back()->withInput()->with('error', 'Your user account is not linked to an employee. Contact admin.');
         }
 
-        $data = $this->validated($request);
-        $data['employee_id'] = $employee->id;
+        $data = $this->validatedHeader($request);
+        $lines = $this->validatedLines($request);
 
-        $expense = new Expense($data);
-        $expense->status = Expense::STATUS_SUBMITTED;
-        $expense->submitted_at = now();
-        $expense->recalculate();
+        $expense = DB::connection('tenant')->transaction(function () use ($request, $data, $lines, $employee) {
+            $expense = new Expense($data);
+            $expense->employee_id = $employee->id;
+            $expense->status = Expense::STATUS_SUBMITTED;
+            $expense->submitted_at = now();
+            $expense->qty = 1;
+            $expense->unit_amount = 0;
+            $expense->tax_percent = 0;
+            $expense->tax_amount = 0;
+            $expense->total_amount = 0;
+            $expense->grand_total = 0;
 
-        if ($request->hasFile('receipt')) {
-            $expense->receipt_path = $request->file('receipt')->store('receipts', 'public');
-        }
+            if ($request->hasFile('receipt')) {
+                $expense->receipt_path = $request->file('receipt')->store('receipts', 'public');
+            }
 
-        $expense->save();
+            $expense->save();
+            $this->syncLines($expense, $lines);
+            $expense->load('lines');
+            $expense->recalculateFromLines();
+            $expense->save();
+
+            return $expense;
+        });
 
         return redirect()->route('expenses.show', $expense)
             ->with('success', 'Expense sent for approval.');
@@ -86,14 +109,17 @@ class ExpenseController extends Controller
 
     public function show(Expense $expense)
     {
-        $expense->load(['category', 'approvedBy']);
+        $this->ensureExpenseLinesSchema();
+        $expense->load(['category', 'approvedBy', 'lines']);
         $statusMap = Expense::statusLabel();
+
         return view('expenses.show', compact('expense', 'statusMap'));
     }
 
     public function print(Expense $expense)
     {
-        $expense->load(['category', 'approvedBy', 'employee:id,name,employee_no']);
+        $this->ensureExpenseLinesSchema();
+        $expense->load(['category', 'approvedBy', 'employee:id,name,employee_no', 'lines']);
         $statusMap = Expense::statusLabel();
         $companyName = (string) Setting::get('company_name', config('app.name'));
         $companyLogo = company_logo_url(Setting::get('company_logo'));
@@ -110,31 +136,44 @@ class ExpenseController extends Controller
 
     public function edit(Expense $expense)
     {
-        if (!in_array($expense->status, [Expense::STATUS_DRAFT, Expense::STATUS_REFUSED])) {
+        $this->ensureExpenseLinesSchema();
+
+        if (! in_array($expense->status, [Expense::STATUS_DRAFT, Expense::STATUS_REFUSED])) {
             return back()->with('error', 'Only Draft or Refused expenses can be edited.');
         }
+        $expense->load('lines');
         $categories = ExpenseCategory::where('active', true)->orderBy('name')->get();
+
         return view('expenses.edit', compact('expense', 'categories'));
     }
 
     public function update(Request $request, Expense $expense)
     {
-        if (!in_array($expense->status, [Expense::STATUS_DRAFT, Expense::STATUS_REFUSED])) {
+        $this->ensureExpenseLinesSchema();
+
+        if (! in_array($expense->status, [Expense::STATUS_DRAFT, Expense::STATUS_REFUSED])) {
             return back()->with('error', 'Only Draft or Refused expenses can be edited.');
         }
 
-        $data = $this->validated($request, $expense->id);
-        $expense->fill($data);
-        $expense->recalculate();
+        $data = $this->validatedHeader($request);
+        $lines = $this->validatedLines($request);
 
-        if ($request->hasFile('receipt')) {
-            if ($expense->receipt_path) {
-                Storage::disk('public')->delete($expense->receipt_path);
+        DB::connection('tenant')->transaction(function () use ($request, $expense, $data, $lines) {
+            $expense->fill($data);
+
+            if ($request->hasFile('receipt')) {
+                if ($expense->receipt_path) {
+                    Storage::disk('public')->delete($expense->receipt_path);
+                }
+                $expense->receipt_path = $request->file('receipt')->store('receipts', 'public');
             }
-            $expense->receipt_path = $request->file('receipt')->store('receipts', 'public');
-        }
 
-        $expense->save();
+            $expense->save();
+            $this->syncLines($expense, $lines);
+            $expense->load('lines');
+            $expense->recalculateFromLines();
+            $expense->save();
+        });
 
         return redirect()->route('expenses.show', $expense)
             ->with('success', 'Expense updated.');
@@ -154,7 +193,6 @@ class ExpenseController extends Controller
             Storage::disk('public')->delete($expense->receipt_path);
         }
 
-        // Remove auto journal for paid expenses so Trial Balance stays clean.
         if ($expense->status === Expense::STATUS_PAID) {
             \App\Models\JournalEntry::query()
                 ->where('source', 'expense')
@@ -169,8 +207,6 @@ class ExpenseController extends Controller
 
         return redirect()->route('expenses.index')->with('success', 'Expense deleted.');
     }
-
-    // ---- Workflow actions ----
 
     public function submit(Expense $expense)
     {
@@ -191,33 +227,33 @@ class ExpenseController extends Controller
 
     public function approve(Expense $expense)
     {
-        // Legacy endpoint — flow is now Send for Approval → Mark as Paid.
         $this->assertCanManageExpenses();
 
         if ($expense->status !== Expense::STATUS_SUBMITTED) {
             return back()->with('error', 'Only submitted expenses can be approved.');
         }
         $expense->update([
-            'status'      => Expense::STATUS_APPROVED,
+            'status' => Expense::STATUS_APPROVED,
             'approved_at' => now(),
             'approved_by' => Auth::id(),
         ]);
+
         return back()->with('success', 'Expense approved.');
     }
 
     public function refuse(Request $request, Expense $expense)
     {
-        // Legacy endpoint — refuse is hidden from the simplified manager flow.
         $this->assertCanManageExpenses();
 
         $request->validate(['refuse_reason' => 'required|string|max:500']);
-        if (!in_array($expense->status, [Expense::STATUS_SUBMITTED, Expense::STATUS_APPROVED])) {
+        if (! in_array($expense->status, [Expense::STATUS_SUBMITTED, Expense::STATUS_APPROVED])) {
             return back()->with('error', 'Expense cannot be refused at this stage.');
         }
         $expense->update([
-            'status'        => Expense::STATUS_REFUSED,
+            'status' => Expense::STATUS_REFUSED,
             'refuse_reason' => $request->refuse_reason,
         ]);
+
         return back()->with('success', 'Expense refused.');
     }
 
@@ -244,8 +280,6 @@ class ExpenseController extends Controller
         return back()->with('success', 'Expense marked as paid.');
     }
 
-    // ---- Helpers ----
-
     private function assertCanManageExpenses(): void
     {
         $user = Auth::user();
@@ -255,18 +289,83 @@ class ExpenseController extends Controller
             'Only manager or admin can mark expenses as paid.'
         );
     }
-    private function validated(Request $request, ?int $ignoreId = null): array
+
+    private function validatedHeader(Request $request): array
     {
-        return $request->validate([
-            'category_id'  => 'nullable|exists:tenant.expense_categories,id',
-            'description'  => 'required|string|max:255',
+        $validated = $request->validate([
+            'category_id' => 'nullable|exists:tenant.expense_categories,id',
+            'description' => 'required|string|max:255',
             'expense_date' => 'required|date',
-            'qty'          => 'required|numeric|min:0.001',
-            'unit_amount'  => 'required|numeric|min:0',
-            'tax_percent'  => 'nullable|numeric|min:0|max:100',
-            'notes'        => 'nullable|string',
-            'receipt'      => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'notes' => 'nullable|string',
+            'receipt' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'lines' => 'required|array|min:1',
+            'lines.*.description' => 'required|string|max:255',
+            'lines.*.qty' => 'required|numeric|min:0.001',
+            'lines.*.unit_amount' => 'required|numeric|min:0',
+            'lines.*.tax_percent' => 'nullable|numeric|min:0|max:100',
+            'lines.*.line_total' => 'nullable|numeric|min:0',
         ]);
+
+        return [
+            'category_id' => $validated['category_id'] ?? null,
+            'description' => $validated['description'],
+            'expense_date' => $validated['expense_date'],
+            'notes' => $validated['notes'] ?? null,
+        ];
+    }
+
+    /**
+     * @return list<array{description: string, qty: float, unit_amount: float, tax_percent: float}>
+     */
+    private function validatedLines(Request $request): array
+    {
+        $raw = $request->input('lines', []);
+        $out = [];
+        foreach ($raw as $row) {
+            $qty = (float) ($row['qty'] ?? 0);
+            $unit = (float) ($row['unit_amount'] ?? 0);
+            $taxPct = (float) ($row['tax_percent'] ?? 0);
+            $desc = trim((string) ($row['description'] ?? ''));
+            if ($desc === '' || $qty <= 0) {
+                continue;
+            }
+            $out[] = [
+                'description' => $desc,
+                'qty' => $qty,
+                'unit_amount' => $unit,
+                'tax_percent' => $taxPct,
+            ];
+        }
+
+        if ($out === []) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'lines' => 'Kam az kam aik line add karein.',
+            ]);
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  list<array{description: string, qty: float, unit_amount: float, tax_percent: float}>  $lines
+     */
+    private function syncLines(Expense $expense, array $lines): void
+    {
+        ExpenseLine::query()->where('expense_id', $expense->id)->delete();
+
+        foreach ($lines as $i => $row) {
+            $line = new ExpenseLine([
+                'company_id' => $expense->company_id,
+                'expense_id' => $expense->id,
+                'description' => $row['description'],
+                'qty' => $row['qty'],
+                'unit_amount' => $row['unit_amount'],
+                'tax_percent' => $row['tax_percent'],
+                'sort_order' => $i,
+            ]);
+            $line->recalculate();
+            $line->save();
+        }
     }
 
     private function currentEmployee(): ?Employee

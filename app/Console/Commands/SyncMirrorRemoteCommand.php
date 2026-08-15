@@ -26,6 +26,7 @@ class SyncMirrorRemoteCommand extends Command
         'purchase_orders',
         'credit_ledger',
         'expense_items',
+        'expense_lines',
         'expenses',
     ];
 

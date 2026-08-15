@@ -871,6 +871,7 @@ class CloudSyncService
             'purchase_orders',
             'credit_ledger',
             'expense_items',
+            'expense_lines',
             'expenses',
         ];
 
@@ -1546,6 +1547,7 @@ class CloudSyncService
             'purchase_order_items',
             'credit_ledger',
             'expenses',
+            'expense_lines',
             'expense_items',
         ];
         if ($table === '' || ! in_array($table, $allowed, true) || $this->recorder->isExcluded($table)) {
