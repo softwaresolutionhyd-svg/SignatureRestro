@@ -18,6 +18,10 @@ final class StockCheckApprovalService
 {
     private const EPS = 0.000001;
 
+    public function __construct(
+        private readonly InventoryStockService $inventoryStock
+    ) {}
+
     public function approve(StockCheck $check, int $approverUserId): void
     {
         abort_unless($check->status === 'pending_approval', 422);
@@ -51,6 +55,8 @@ final class StockCheckApprovalService
         $delta = $target - $before;
 
         if (abs($delta) < self::EPS) {
+            $this->inventoryStock->applyStockCheckQuantity($product, $target);
+
             return;
         }
 
@@ -69,6 +75,7 @@ final class StockCheckApprovalService
                 'received_at' => now(),
             ]);
             $this->refreshProductCostFromLayers($product->id);
+            $this->inventoryStock->applyStockCheckQuantity($product->fresh(), $target);
 
             InventoryMove::create([
                 'product_id' => $product->id,
@@ -97,6 +104,7 @@ final class StockCheckApprovalService
             [$unitCost, $totalCost] = $this->consumeFifo($product->id, $out);
             $product->update(['qty_on_hand' => $target]);
             $this->refreshProductCostFromLayers($product->id);
+            $this->inventoryStock->applyStockCheckQuantity($product->fresh(), $target);
 
             InventoryMove::create([
                 'product_id' => $product->id,

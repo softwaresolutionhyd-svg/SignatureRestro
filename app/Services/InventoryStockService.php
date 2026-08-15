@@ -65,13 +65,23 @@ final class InventoryStockService
 
     public function addStock(int $productId, int $departmentId, float $qtyBase): InventoryProductStock
     {
+        $product = InventoryProduct::query()->withoutGlobalScopes()->find($productId);
+        $companyId = $product?->company_id ?? current_company_id();
+
         $row = InventoryProductStock::query()->firstOrCreate(
             [
                 'product_id' => $productId,
                 'department_id' => $departmentId,
             ],
-            ['qty_on_hand' => 0]
+            [
+                'qty_on_hand' => 0,
+                'company_id' => $companyId,
+            ]
         );
+
+        if ($row->company_id === null && $companyId !== null) {
+            $row->company_id = $companyId;
+        }
 
         $row->update([
             'qty_on_hand' => round((float) $row->qty_on_hand + $qtyBase, 3),
@@ -96,7 +106,11 @@ final class InventoryStockService
                     'product_id' => $productId,
                     'department_id' => $departmentId,
                 ],
-                ['qty_on_hand' => 0]
+                [
+                    'qty_on_hand' => 0,
+                    'company_id' => InventoryProduct::query()->withoutGlobalScopes()->find($productId)?->company_id
+                        ?? current_company_id(),
+                ]
             );
 
         $available = (float) $row->qty_on_hand;
@@ -225,5 +239,97 @@ final class InventoryStockService
             ->pluck('qty_on_hand', 'department_id')
             ->map(fn ($qty) => (float) $qty)
             ->all();
+    }
+
+    /**
+     * Physical stock check: counted qty lives in Warehouse; other dept rows reset to 0
+     * so Issue Stock / warehouse reports match the count (kitchen negatives are not "real" stock).
+     */
+    public function applyStockCheckQuantity(InventoryProduct $product, float $targetQty): void
+    {
+        $warehouse = $this->ensureWarehouseForCompany($product->company_id ? (int) $product->company_id : null);
+        $targetQty = round($targetQty, 3);
+
+        $rows = InventoryProductStock::query()
+            ->withoutGlobalScopes()
+            ->where('product_id', $product->id)
+            ->lockForUpdate()
+            ->get();
+
+        $warehouseRow = null;
+        foreach ($rows as $row) {
+            if ((int) $row->department_id === (int) $warehouse->id) {
+                $warehouseRow = $row;
+                continue;
+            }
+            if (abs((float) $row->qty_on_hand) > 0.000001) {
+                $row->update(['qty_on_hand' => 0]);
+            }
+        }
+
+        if (! $warehouseRow) {
+            $warehouseRow = InventoryProductStock::query()->withoutGlobalScopes()->create([
+                'company_id' => $product->company_id,
+                'product_id' => $product->id,
+                'department_id' => $warehouse->id,
+                'qty_on_hand' => $targetQty,
+            ]);
+
+            return;
+        }
+
+        if ($warehouseRow->company_id === null && $product->company_id !== null) {
+            $warehouseRow->company_id = $product->company_id;
+        }
+
+        $warehouseRow->update(['qty_on_hand' => $targetQty]);
+    }
+
+    /**
+     * Keep department rows in sync with product.qty_on_hand by putting the gap on Warehouse.
+     * Prefer applyStockCheckQuantity() after a physical count.
+     */
+    public function reconcileWarehouseToMatchProduct(InventoryProduct $product): void
+    {
+        $this->applyStockCheckQuantity($product, (float) $product->qty_on_hand);
+    }
+
+    public function ensureWarehouseForCompany(?int $companyId = null): InventoryDepartment
+    {
+        if ($companyId === null) {
+            return $this->ensureWarehouse();
+        }
+
+        $existing = InventoryDepartment::query()
+            ->withoutGlobalScopes()
+            ->where('company_id', $companyId)
+            ->where('is_warehouse', true)
+            ->first();
+        if ($existing) {
+            return $existing;
+        }
+
+        $byName = InventoryDepartment::query()
+            ->withoutGlobalScopes()
+            ->where('company_id', $companyId)
+            ->whereRaw('LOWER(name) = ?', ['warehouse'])
+            ->first();
+
+        if ($byName) {
+            $byName->update([
+                'is_warehouse' => true,
+                'active' => true,
+                'name' => 'Warehouse',
+            ]);
+
+            return $byName->fresh();
+        }
+
+        return InventoryDepartment::query()->create([
+            'company_id' => $companyId,
+            'name' => 'Warehouse',
+            'active' => true,
+            'is_warehouse' => true,
+        ]);
     }
 }
