@@ -68,41 +68,69 @@ class StockIssueController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'product_id' => ['required', 'integer', 'exists:tenant.inventory_products,id'],
             'to_department_id' => ['required', 'integer', 'exists:tenant.inventory_departments,id'],
-            'qty_uom' => ['required', 'numeric', 'gt:0'],
-            'uom' => ['required', 'string', 'max:30'],
             'note' => ['nullable', 'string', 'max:255'],
             'reference' => ['nullable', 'string', 'max:80'],
+            'lines' => ['required', 'array', 'min:1'],
+            'lines.*.product_id' => ['required', 'integer', 'exists:tenant.inventory_products,id'],
+            'lines.*.qty_uom' => ['required', 'numeric', 'gt:0'],
+            'lines.*.uom' => ['required', 'string', 'max:30'],
         ]);
 
-        $product = InventoryProduct::query()->findOrFail($data['product_id']);
         $toDepartment = InventoryDepartment::query()->findOrFail($data['to_department_id']);
-
         abort_if($toDepartment->is_warehouse, 422, 'Target department warehouse nahi ho sakta.');
 
-        $factor = $product->factorToBaseForUom((string) $data['uom']);
-        if ($factor === null || $factor <= 0) {
-            return back()->withErrors(['uom' => 'Invalid UOM for this product.'])->withInput();
+        $productIds = array_column($data['lines'], 'product_id');
+        if (count($productIds) !== count(array_unique($productIds))) {
+            return back()->withErrors(['lines' => 'Ek product ek hi dafa line mein aa sakta hai.'])->withInput();
         }
 
-        $qtyBase = round((float) $data['qty_uom'] * $factor, 3);
+        $issued = [];
 
-        $this->stockService->issueFromWarehouse(
-            $product,
-            $toDepartment,
-            $qtyBase,
-            (string) $data['uom'],
-            (float) $data['qty_uom'],
-            $factor,
-            (int) $request->user()?->id,
-            $data['note'] ?? null,
-            $data['reference'] ?? null
-        );
+        try {
+            \Illuminate\Support\Facades\DB::connection('tenant')->transaction(function () use ($request, $data, $toDepartment, &$issued) {
+                foreach ($data['lines'] as $row) {
+                    $product = InventoryProduct::query()->lockForUpdate()->findOrFail($row['product_id']);
+                    $factor = $product->factorToBaseForUom((string) $row['uom']);
+                    if ($factor === null || $factor <= 0) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'lines' => $product->sku.': invalid UOM.',
+                        ]);
+                    }
+
+                    $qtyBase = round((float) $row['qty_uom'] * $factor, 3);
+
+                    $this->stockService->issueFromWarehouse(
+                        $product,
+                        $toDepartment,
+                        $qtyBase,
+                        (string) $row['uom'],
+                        (float) $row['qty_uom'],
+                        $factor,
+                        (int) $request->user()?->id,
+                        $data['note'] ?? null,
+                        $data['reference'] ?? null
+                    );
+
+                    $issued[] = $product->name;
+                }
+            });
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $e) {
+            return back()->withErrors(['lines' => $e->getMessage()])->withInput();
+        } catch (\Throwable $e) {
+            return back()->withErrors(['lines' => $e->getMessage() ?: 'Issue failed.'])->withInput();
+        }
+
+        $count = count($issued);
+        $label = $count === 1
+            ? sprintf('Stock %s ko %s mein issue ho gaya.', $issued[0], $toDepartment->name)
+            : sprintf('%d products %s mein issue ho gaye.', $count, $toDepartment->name);
 
         return redirect()
             ->route('inventory.issues.index')
-            ->with('status', sprintf('Stock %s ko %s mein issue ho gaya.', $product->name, $toDepartment->name));
+            ->with('status', $label);
     }
 
     public function warehouseStockPrint()
