@@ -15,6 +15,19 @@
                 'uom' => old('uom', ''),
             ]];
         }
+
+        $productOptionsJs = $products->map(function ($p) {
+            $label = $p->sku.' — '.$p->name.' (Warehouse: '.fmt_num((float) ($p->warehouse_qty ?? 0), 3).' '.$p->uom.')';
+
+            return [
+                'id' => (string) $p->id,
+                'label' => $label,
+                'normalized' => mb_strtolower($label),
+                'search' => mb_strtolower(trim($p->sku.' '.$p->name)),
+                'uom' => (string) $p->uom,
+                'warehouseQty' => (float) ($p->warehouse_qty ?? 0),
+            ];
+        })->values()->all();
     @endphp
 
     <div class="card shadow-sm">
@@ -124,17 +137,7 @@
     const addBtn = document.getElementById('issueAddLineBtn');
     const sharedList = document.getElementById('issueProductSearchOptionsShared');
     const initialLines = @json($oldLines);
-
-    const productOptions = @json($products->map(function ($p) {
-        return [
-            'id' => (string) $p->id,
-            'label' => $p->sku.' — '.$p->name.' (Warehouse: '.fmt_num((float) ($p->warehouse_qty ?? 0), 3).' '.$p->uom.')',
-            'normalized' => mb_strtolower($p->sku.' — '.$p->name.' (Warehouse: '.fmt_num((float) ($p->warehouse_qty ?? 0), 3).' '.$p->uom.')'),
-            'search' => mb_strtolower(trim($p->sku.' '.$p->name)),
-            'uom' => (string) $p->uom,
-            'warehouseQty' => (float) ($p->warehouse_qty ?? 0),
-        ];
-    })->values());
+    const productOptions = @json($productOptionsJs);
 
     let idx = 0;
 
