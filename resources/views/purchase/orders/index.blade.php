@@ -66,8 +66,11 @@
                         </td>
                         <td class="text-end">{{ fmt_num((float)$o->grand_total, 2) }}</td>
                         <td class="text-end text-secondary small">{{ $o->updated_at->format('Y-m-d H:i') }}</td>
-                        <td class="text-end">
+                        <td class="text-end text-nowrap">
                             <a class="btn btn-sm btn-outline-primary" href="{{ route('purchase.orders.edit', $o) }}">Open</a>
+                            <a class="btn btn-sm btn-outline-secondary" href="{{ route('purchase.orders.print', $o) }}" target="_blank" rel="noopener">
+                                <i class="bi bi-printer"></i> Print
+                            </a>
                         </td>
                     </tr>
                 @empty

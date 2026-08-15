@@ -109,6 +109,21 @@ class OrderController extends Controller
         return view('purchase.orders.edit', compact('order', 'vendors', 'products', 'uomLibraryUnits'));
     }
 
+    public function print(PurchaseOrder $order)
+    {
+        $order->load([
+            'vendor:id,name,phone,email,address,tax_id',
+            'creator:id,name',
+            'lines.product:id,sku,name,uom',
+        ]);
+
+        $companyName = (string) Setting::get('company_name', config('app.name'));
+        $companyLogo = company_logo_url(Setting::get('company_logo'));
+        $currency = (string) Setting::get('currency_symbol', 'Rs');
+
+        return view('purchase.orders.print', compact('order', 'companyName', 'companyLogo', 'currency'));
+    }
+
     public function update(PurchaseOrderStoreRequest $request, PurchaseOrder $order)
     {
         abort_unless($order->status === 'rfq', 403);

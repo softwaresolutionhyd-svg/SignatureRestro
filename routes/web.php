@@ -247,6 +247,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
         Route::post('orders/quick-product', [PurchaseOrderController::class, 'quickAddProduct'])->name('orders.quick-product');
         Route::put('orders/quick-product/{product}', [PurchaseOrderController::class, 'quickEditProduct'])->name('orders.quick-product.update');
         Route::resource('orders', PurchaseOrderController::class)->except(['show', 'destroy']);
+        Route::get('orders/{order}/print', [PurchaseOrderController::class, 'print'])->name('orders.print');
         Route::post('orders/{order}/confirm', [PurchaseOrderController::class, 'confirm'])->name('orders.confirm');
         Route::post('orders/{order}/pay', [PurchaseOrderController::class, 'markPaid'])->name('orders.pay');
         });

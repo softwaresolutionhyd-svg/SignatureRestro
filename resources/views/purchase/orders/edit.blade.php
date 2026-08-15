@@ -31,6 +31,9 @@
                 </span>
             </div>
             <div class="d-flex flex-wrap gap-2">
+                <a href="{{ route('purchase.orders.print', $order) }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">
+                    <i class="bi bi-printer me-1"></i> Print
+                </a>
                 @if($order->status === 'rfq')
                     <form method="POST" action="{{ route('purchase.orders.confirm', $order) }}">
                         @csrf
