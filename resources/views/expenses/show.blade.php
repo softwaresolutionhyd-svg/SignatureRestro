@@ -30,6 +30,9 @@
     </div>
     <div class="d-flex flex-wrap gap-2">
         <a href="{{ route('expenses.index') }}" class="btn btn-outline-secondary btn-sm">← Back</a>
+        <a href="{{ route('expenses.print', $expense) }}" class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener">
+            <i class="bi bi-printer me-1"></i> Print
+        </a>
 
         {{-- Send for Approval (draft / refused only) --}}
         @if(in_array($expense->status, ['draft', 'refused'], true))

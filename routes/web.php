@@ -484,6 +484,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
         Route::get('/create',     [ExpenseController::class, 'create'])  ->name('create');
         Route::post('/',          [ExpenseController::class, 'store'])   ->name('store');
         Route::get('/{expense}',  [ExpenseController::class, 'show'])    ->name('show');
+        Route::get('/{expense}/print', [ExpenseController::class, 'print'])->name('print');
         Route::get('/{expense}/edit', [ExpenseController::class, 'edit'])->name('edit');
         Route::put('/{expense}',  [ExpenseController::class, 'update'])  ->name('update');
         Route::delete('/{expense}', [ExpenseController::class, 'destroy'])->name('destroy');

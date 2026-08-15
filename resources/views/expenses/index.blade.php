@@ -133,6 +133,9 @@
                                 <a href="{{ route('expenses.show', $expense) }}" class="btn btn-sm btn-outline-secondary py-0 px-2" title="View">
                                     <svg width="13" height="13" fill="none" viewBox="0 0 20 20"><path d="M1 10S4 4 10 4s9 6 9 6-3 6-9 6-9-6-9-6z" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/></svg>
                                 </a>
+                                <a href="{{ route('expenses.print', $expense) }}" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Print" target="_blank" rel="noopener">
+                                    <svg width="13" height="13" fill="none" viewBox="0 0 20 20"><path d="M5 7V3h10v4M5 13H4a2 2 0 01-2-2v-2a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2h-1M5 11h10v6H5v-6z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+                                </a>
                                 @if(in_array($expense->status, ['draft','refused']))
                                 <a href="{{ route('expenses.edit', $expense) }}" class="btn btn-sm btn-outline-primary py-0 px-2" title="Edit">
                                     <svg width="13" height="13" fill="none" viewBox="0 0 20 20"><path d="M14.5 3.5l2 2-10 10-3 1 1-3 10-10z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>

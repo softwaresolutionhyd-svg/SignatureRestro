@@ -91,6 +91,23 @@ class ExpenseController extends Controller
         return view('expenses.show', compact('expense', 'statusMap'));
     }
 
+    public function print(Expense $expense)
+    {
+        $expense->load(['category', 'approvedBy', 'employee:id,name,employee_no']);
+        $statusMap = Expense::statusLabel();
+        $companyName = (string) Setting::get('company_name', config('app.name'));
+        $companyLogo = company_logo_url(Setting::get('company_logo'));
+        $currency = (string) Setting::get('currency_symbol', 'Rs.');
+
+        return view('expenses.print', compact(
+            'expense',
+            'statusMap',
+            'companyName',
+            'companyLogo',
+            'currency'
+        ));
+    }
+
     public function edit(Expense $expense)
     {
         if (!in_array($expense->status, [Expense::STATUS_DRAFT, Expense::STATUS_REFUSED])) {
