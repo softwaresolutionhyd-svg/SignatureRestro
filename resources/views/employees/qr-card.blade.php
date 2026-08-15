@@ -325,6 +325,11 @@
                             <option value="{{ $des->id }}" @selected(($designationId ?? null) == $des->id)>{{ $des->name }}</option>
                         @endforeach
                     </select>
+                    <select name="photo" onchange="this.form.submit()" title="Photo filter">
+                        <option value="all" @selected(($photoFilter ?? 'all') === 'all')>All</option>
+                        <option value="with" @selected(($photoFilter ?? 'all') === 'with')>With pictures</option>
+                        <option value="without" @selected(($photoFilter ?? 'all') === 'without')>Without pictures</option>
+                    </select>
                     <label class="chk">
                         <input type="hidden" name="active_only" value="0">
                         <input type="checkbox" name="active_only" value="1" @checked($activeOnly ?? true) onchange="this.form.submit()">

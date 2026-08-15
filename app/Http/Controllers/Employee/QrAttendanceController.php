@@ -9,6 +9,7 @@ use App\Models\EmployeeStaffCategory;
 use App\Models\Setting;
 use App\Services\QrAttendanceService;
 use App\Support\ActivityLogger;
+use App\Support\EnsuresEmployeePhotoSchema;
 use App\Support\EnsuresEmployeeProfileSchema;
 use App\Support\LanServerUrl;
 use Illuminate\Http\JsonResponse;
@@ -18,6 +19,7 @@ use Illuminate\View\View;
 
 class QrAttendanceController extends Controller
 {
+    use EnsuresEmployeePhotoSchema;
     use EnsuresEmployeeProfileSchema;
 
     public function __construct(
@@ -93,11 +95,16 @@ class QrAttendanceController extends Controller
     public function cards(Request $request): View
     {
         $this->ensureEmployeeProfileSchema();
+        $this->ensureEmployeePhotoSchema();
         Employee::ensureQrTokenSchema();
 
         $activeOnly = $request->boolean('active_only', true);
         $staffCategoryId = $request->integer('staff_category_id') ?: null;
         $designationId = $request->integer('designation_id') ?: null;
+        $photoFilter = strtolower(trim((string) $request->query('photo', 'all')));
+        if (! in_array($photoFilter, ['all', 'with', 'without'], true)) {
+            $photoFilter = 'all';
+        }
 
         $query = Employee::query()
             ->excludeAdminAccounts()
@@ -112,6 +119,13 @@ class QrAttendanceController extends Controller
         }
         if ($designationId) {
             $query->where('designation_id', $designationId);
+        }
+        if ($photoFilter === 'with') {
+            $query->whereNotNull('photo_path')->where('photo_path', '!=', '');
+        } elseif ($photoFilter === 'without') {
+            $query->where(function ($q) {
+                $q->whereNull('photo_path')->orWhere('photo_path', '');
+            });
         }
 
         $employees = $query->get();
@@ -134,6 +148,7 @@ class QrAttendanceController extends Controller
                 'activeOnly' => $activeOnly,
                 'staffCategoryId' => $staffCategoryId,
                 'designationId' => $designationId,
+                'photoFilter' => $photoFilter,
                 'categories' => $categories,
                 'designations' => $designations,
                 'printedAt' => now()->timezone(config('app.timezone'))->format('d M Y, h:i A'),
