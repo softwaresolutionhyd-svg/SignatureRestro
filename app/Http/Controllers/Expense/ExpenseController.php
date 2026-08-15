@@ -71,16 +71,12 @@ class ExpenseController extends Controller
         $this->ensureExpenseLinesSchema();
 
         $employee = $this->currentEmployee();
-        if (! $employee) {
-            return back()->withInput()->with('error', 'Your user account is not linked to an employee. Contact admin.');
-        }
-
         $data = $this->validatedHeader($request);
         $lines = $this->validatedLines($request);
 
         $expense = DB::connection('tenant')->transaction(function () use ($request, $data, $lines, $employee) {
             $expense = new Expense($data);
-            $expense->employee_id = $employee->id;
+            $expense->employee_id = $employee?->id;
             $expense->status = Expense::STATUS_SUBMITTED;
             $expense->submitted_at = now();
             $expense->qty = 1;

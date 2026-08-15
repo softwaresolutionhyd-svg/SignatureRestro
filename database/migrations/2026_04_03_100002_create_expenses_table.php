@@ -16,7 +16,7 @@ return new class extends Migration
 
         Schema::create('expenses', function (Blueprint $table) use ($onTenant) {
             $table->id();
-            $table->foreignId('employee_id')->constrained('employees')->cascadeOnDelete();
+            $table->foreignId('employee_id')->nullable()->constrained('employees')->nullOnDelete();
             $table->foreignId('category_id')->nullable()->constrained('expense_categories')->nullOnDelete();
             $table->string('description', 255);
             $table->date('expense_date');
