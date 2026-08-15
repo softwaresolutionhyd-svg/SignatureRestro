@@ -4,6 +4,7 @@ namespace App\Services\Sync;
 
 use App\Support\EnsuresEmployeeLoanSchema;
 use App\Support\EnsuresEmployeeStaffCategorySchema;
+use App\Support\EnsuresExpenseLinesSchema;
 use App\Support\EnsuresKitchenAgentSchema;
 use App\Support\EnsuresPayrollSchema;
 use App\Support\EnsuresStockDemandSchema;
@@ -14,6 +15,7 @@ class SyncTargetSchemaService
 {
     use EnsuresEmployeeLoanSchema;
     use EnsuresEmployeeStaffCategorySchema;
+    use EnsuresExpenseLinesSchema;
     use EnsuresKitchenAgentSchema;
     use EnsuresPayrollSchema;
     use EnsuresStockDemandSchema;
@@ -28,6 +30,7 @@ class SyncTargetSchemaService
                 $this->ensureCreditLedgerPayrollColumn($connection);
                 $this->ensureKitchenAgentSchema($connection);
                 $this->ensureStockDemandSchema($connection);
+                $this->ensureExpenseLinesSchema($connection);
             } catch (\Throwable $e) {
                 Log::warning('sync.schema_ensure_failed', [
                     'connection' => $connection,

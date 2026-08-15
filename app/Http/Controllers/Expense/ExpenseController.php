@@ -76,7 +76,9 @@ class ExpenseController extends Controller
 
         $expense = DB::connection('tenant')->transaction(function () use ($request, $data, $lines, $employee) {
             $expense = new Expense($data);
-            $expense->employee_id = $employee?->id;
+            // Hosting may still require employee_id — prefer linked user, else any active staff.
+            $expense->employee_id = $employee?->id
+                ?? Employee::query()->excludeAdminAccounts()->where('active', true)->orderBy('id')->value('id');
             $expense->status = Expense::STATUS_SUBMITTED;
             $expense->submitted_at = now();
             $expense->qty = 1;
