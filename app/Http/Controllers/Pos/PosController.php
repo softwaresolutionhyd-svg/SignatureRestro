@@ -2087,7 +2087,16 @@ class PosController extends Controller
                 );
                 if ($cachedPaidId) {
                     $cachedPaid = PosOrder::query()->find((int) $cachedPaidId);
-                    if ($cachedPaid && $cachedPaid->status === 'paid' && $cachedPaid->type === 'sale') {
+                    if ($cachedPaid
+                        && $cachedPaid->status === 'paid'
+                        && $cachedPaid->type === 'sale'
+                        && ! $this->sameCartCustomerMismatch(
+                            $guestName,
+                            $roomNo,
+                            $cachedPaid->guest_name,
+                            $cachedPaid->room_no
+                        )
+                    ) {
                         $recentPaid = $cachedPaid;
                     }
                 }
@@ -2152,8 +2161,7 @@ class PosController extends Controller
             $lock = Cache::lock('pos:hold:lock:'.$itemsFp, 25);
 
             if (! $lock->block(8)) {
-                $existingDup = $this->findCachedHoldCreate($itemsCacheKey)
-                    ?: $this->findCachedHoldCreate($cacheKey);
+                $existingDup = $this->findCachedHoldCreateForCustomer($cacheKey, $itemsCacheKey, $guestName, $roomNo);
                 if ($existingDup !== null) {
                     $reusedDuplicateCreate = true;
 
@@ -2163,8 +2171,7 @@ class PosController extends Controller
             }
 
             try {
-                $existingDup = $this->findCachedHoldCreate($itemsCacheKey)
-                    ?: $this->findCachedHoldCreate($cacheKey);
+                $existingDup = $this->findCachedHoldCreateForCustomer($cacheKey, $itemsCacheKey, $guestName, $roomNo);
                 if ($existingDup !== null) {
                     $reusedDuplicateCreate = true;
 
@@ -4499,6 +4506,33 @@ class PosController extends Controller
             ->find((int) $id);
 
         return ($order && $order->status === 'draft') ? $order : null;
+    }
+
+    /**
+     * Items-only hold cache is for double-tap / kitchen-then-contact merge.
+     * Different delivery/takeaway customers with the same cart must still create a new bill.
+     */
+    private function findCachedHoldCreateForCustomer(
+        string $fullCacheKey,
+        string $itemsCacheKey,
+        ?string $guestName,
+        ?string $roomNo
+    ): ?PosOrder {
+        $byFull = $this->findCachedHoldCreate($fullCacheKey);
+        if ($byFull !== null) {
+            return $byFull;
+        }
+
+        $byItems = $this->findCachedHoldCreate($itemsCacheKey);
+        if ($byItems === null) {
+            return null;
+        }
+
+        if ($this->sameCartCustomerMismatch($guestName, $roomNo, $byItems->guest_name, $byItems->room_no)) {
+            return null;
+        }
+
+        return $byItems;
     }
 
     /**
