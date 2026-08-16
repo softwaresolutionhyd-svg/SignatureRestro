@@ -75,6 +75,11 @@ class EnsureUserHasModuleAccess
             return $next($request);
         }
 
+        // Attendance module: managers (team attendance) keep access even without matrix tick.
+        if ($module === 'attendance' && $user instanceof User && $user->canManageTeamAttendance()) {
+            return $next($request);
+        }
+
         $permissions = (array) ($user->permissions ?? []);
 
         // Non-admin users must have at least one allowed action somewhere

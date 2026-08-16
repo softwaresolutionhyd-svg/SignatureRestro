@@ -140,7 +140,7 @@
 @endpush
 
 @section('content')
-@include('hr.partials.subnav')
+@include('attendance.partials.subnav')
 @php
     $attEmployeeNoQs = $employeeNo !== '' ? '&employee_no='.urlencode($employeeNo) : '';
     $todayKey = now()->format('Y-m-d');
@@ -169,7 +169,7 @@
                 <span class="text-secondary small">— = not marked</span>
             </div>
             <div class="d-flex flex-wrap gap-2 align-items-center">
-                <form class="d-flex gap-2 align-items-center" method="GET" action="{{ route('employees.attendance.index') }}" id="attendanceFilterForm">
+                <form class="d-flex gap-2 align-items-center" method="GET" action="{{ route('attendance.index') }}" id="attendanceFilterForm">
                     <input type="hidden" name="month" value="{{ $month }}">
                     @if($activeOnly)
                         <input type="hidden" name="active_only" value="1">
@@ -177,29 +177,29 @@
                     <input type="text" name="employee_no" value="{{ $employeeNo }}" class="form-control form-control-sm" placeholder="ID ya naam" style="max-width: 170px;">
                     <button class="btn btn-sm btn-outline-primary" type="submit">Filter</button>
                     @if($employeeNo !== '')
-                        <a class="btn btn-sm btn-outline-secondary" href="{{ route('employees.attendance.index', array_filter(['month' => $month, 'active_only' => $activeOnly ? 1 : null])) }}">Clear</a>
+                        <a class="btn btn-sm btn-outline-secondary" href="{{ route('attendance.index', array_filter(['month' => $month, 'active_only' => $activeOnly ? 1 : null])) }}">Clear</a>
                     @endif
                 </form>
-                <a class="btn btn-sm btn-outline-secondary" href="{{ route('employees.attendance.index', array_filter(['month' => \Carbon\Carbon::createFromFormat('Y-m-d', $month.'-01')->subMonth()->format('Y-m'), 'active_only' => $activeOnly ? 1 : null, 'employee_no' => $employeeNo ?: null])) }}">
+                <a class="btn btn-sm btn-outline-secondary" href="{{ route('attendance.index', array_filter(['month' => \Carbon\Carbon::createFromFormat('Y-m-d', $month.'-01')->subMonth()->format('Y-m'), 'active_only' => $activeOnly ? 1 : null, 'employee_no' => $employeeNo ?: null])) }}">
                     <i class="bi bi-chevron-left"></i>
                 </a>
                 <input type="month" class="form-control form-control-sm" style="max-width: 150px;"
                        value="{{ $month }}"
-                       onchange="window.location='{{ route('employees.attendance.index') }}?month='+this.value+'&active_only={{ $activeOnly ? 1 : 0 }}{{ $attEmployeeNoQs }}'">
-                <a class="btn btn-sm btn-outline-secondary" href="{{ route('employees.attendance.index', array_filter(['month' => \Carbon\Carbon::createFromFormat('Y-m-d', $month.'-01')->addMonth()->format('Y-m'), 'active_only' => $activeOnly ? 1 : null, 'employee_no' => $employeeNo ?: null])) }}">
+                       onchange="window.location='{{ route('attendance.index') }}?month='+this.value+'&active_only={{ $activeOnly ? 1 : 0 }}{{ $attEmployeeNoQs }}'">
+                <a class="btn btn-sm btn-outline-secondary" href="{{ route('attendance.index', array_filter(['month' => \Carbon\Carbon::createFromFormat('Y-m-d', $month.'-01')->addMonth()->format('Y-m'), 'active_only' => $activeOnly ? 1 : null, 'employee_no' => $employeeNo ?: null])) }}">
                     <i class="bi bi-chevron-right"></i>
                 </a>
                 <div class="form-check form-check-inline small mb-0 ms-2">
                     <input class="form-check-input" type="checkbox" id="activeOnlyToggle"
                            @checked($activeOnly)
-                           onchange="window.location='{{ route('employees.attendance.index') }}?month={{ $month }}&active_only='+(this.checked?1:0)+'{{ $attEmployeeNoQs }}'">
+                           onchange="window.location='{{ route('attendance.index') }}?month={{ $month }}&active_only='+(this.checked?1:0)+'{{ $attEmployeeNoQs }}'">
                     <label class="form-check-label" for="activeOnlyToggle">Sirf active</label>
                 </div>
-                <a class="btn btn-sm btn-outline-success" href="{{ route('employees.attendance.scan') }}">
+                <a class="btn btn-sm btn-outline-success" href="{{ route('attendance.scan') }}">
                     <i class="bi bi-qr-code-scan me-1"></i> QR Scan
                 </a>
                 <a class="btn btn-sm btn-outline-dark"
-                   href="{{ route('employees.attendance.print-today', array_filter([
+                   href="{{ route('attendance.print-today', array_filter([
                        'date' => now()->format('Y-m-d'),
                        'active_only' => $activeOnly ? 1 : null,
                    ])) }}"
@@ -212,7 +212,7 @@
         </div>
     </div>
 
-    <form method="POST" action="{{ route('employees.attendance.grid') }}" id="attendanceGridForm">
+    <form method="POST" action="{{ route('attendance.grid') }}" id="attendanceGridForm">
         @csrf
         <input type="hidden" name="month" value="{{ $month }}">
         @if($activeOnly)
@@ -317,7 +317,7 @@
             <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <span class="small text-secondary">QR scan aur grid dono turant save hote hain — Save button ki zaroorat nahi. Payroll working days (P+H) se auto update hota hai.</span>
                 <a class="btn btn-sm btn-outline-dark"
-                   href="{{ route('employees.attendance.print-today', array_filter([
+                   href="{{ route('attendance.print-today', array_filter([
                        'date' => now()->format('Y-m-d'),
                        'active_only' => $activeOnly ? 1 : null,
                    ])) }}"
@@ -333,7 +333,7 @@
 @section('scripts')
 <script>
 (() => {
-    const cellUrl = @json(route('employees.attendance.cell'));
+    const cellUrl = @json(route('attendance.cell'));
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     const hint = document.getElementById('attendanceAutoSaveHint');
 

@@ -4,7 +4,7 @@
 @section('content')
 <div class="mb-4">
     <h4 class="fw-bold mb-0">{{ __('Human Resources') }}</h4>
-    <div class="text-secondary small">{{ __('Employees, attendance, leave & payroll') }}</div>
+    <div class="text-secondary small">{{ __('Employees, leave & payroll') }}</div>
 </div>
 
 @include('hr.partials.subnav')

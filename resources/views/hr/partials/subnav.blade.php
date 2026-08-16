@@ -13,14 +13,6 @@
         <a href="{{ route('employees.staff-categories.index') }}" class="btn btn-outline-primary {{ request()->routeIs('employees.staff-categories.*') ? 'active' : '' }}">
             <i class="bi bi-collection me-1"></i> {{ __('Staff Categories') }}
         </a>
-        @if($u->canManageTeamAttendance())
-        <a href="{{ route('employees.attendance.index') }}" class="btn btn-outline-primary {{ request()->routeIs('employees.attendance.index', 'employees.attendance.print-today') ? 'active' : '' }}">
-            <i class="bi bi-calendar-check me-1"></i> {{ __('Attendance') }}
-        </a>
-        @endif
-        <a href="{{ route('employees.attendance.scan') }}" class="btn btn-outline-primary {{ request()->routeIs('employees.attendance.scan') ? 'active' : '' }}">
-            <i class="bi bi-qr-code-scan me-1"></i> {{ __('QR Scan') }}
-        </a>
         <a href="{{ route('hr.leave.index') }}" class="btn btn-outline-primary {{ request()->routeIs('hr.leave.*') ? 'active' : '' }}">
             <i class="bi bi-calendar2-week me-1"></i> {{ __('Leave') }}
         </a>

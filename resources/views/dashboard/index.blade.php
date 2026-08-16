@@ -204,6 +204,20 @@
         </a>
         @endif
 
+        @if($u->canViewModule('attendance') || $u->canManageTeamAttendance())
+        <a class="odoo-app" href="{{ route('attendance.index') }}">
+            <div class="odoo-icon" style="--icon-color:#22c55e;">
+                <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="6" y="8" width="28" height="26" rx="3" stroke="currentColor" stroke-width="2.5"/>
+                    <path d="M6 16h28" stroke="currentColor" stroke-width="2"/>
+                    <path d="M14 5v6M26 5v6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                    <path d="M14 24l4 4 8-9" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <span class="odoo-label">{{ __('Attendance') }}</span>
+        </a>
+        @endif
+
         @if($u->canViewModule('contacts'))
         <a class="odoo-app" href="{{ route('contacts.index') }}">
             <div class="odoo-icon" style="--icon-color:#0ea5e9;">

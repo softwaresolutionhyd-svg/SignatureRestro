@@ -40,11 +40,11 @@
 <body>
     <div class="noprint">
         <button type="button" onclick="window.print()">Print</button>
-        <a href="{{ route('employees.attendance.index', array_filter([
+        <a href="{{ route('attendance.index', array_filter([
             'month' => \Carbon\Carbon::createFromFormat('Y-m-d', $dateKey)->format('Y-m'),
             'active_only' => $activeOnly ? 1 : null,
         ])) }}">Back</a>
-        <form method="GET" action="{{ route('employees.attendance.print-today') }}" style="display:inline-flex; gap:8px; align-items:center; margin-left:8px;">
+        <form method="GET" action="{{ route('attendance.print-today') }}" style="display:inline-flex; gap:8px; align-items:center; margin-left:8px;">
             <input type="date" name="date" value="{{ $dateKey }}" style="padding:6px 8px; border:1px solid #000;">
             <label style="display:inline-flex; gap:4px; align-items:center;">
                 <input type="checkbox" name="active_only" value="1" @checked($activeOnly)> Sirf active

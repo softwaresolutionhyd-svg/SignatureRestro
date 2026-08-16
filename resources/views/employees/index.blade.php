@@ -31,20 +31,12 @@
             </form>
 
             <div class="d-flex flex-wrap gap-2">
-                <a href="{{ route('employees.attendance.scan') }}" class="btn btn-outline-secondary">
-                    <i class="bi bi-qr-code-scan me-1"></i> QR Scan
-                </a>
                 <a href="{{ route('employees.qr-cards') }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">
                     <i class="bi bi-person-vcard me-1"></i> All ID Cards PDF
                 </a>
                 <a href="{{ route('employees.print-report') }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">
                     <i class="bi bi-file-earmark-pdf me-1"></i> Print Report
                 </a>
-                @if($u->canManageTeamAttendance())
-                    <a href="{{ route('employees.attendance.index') }}" class="btn btn-outline-secondary">
-                        <i class="bi bi-calendar-check me-1"></i> Attendance
-                    </a>
-                @endif
                 @if($u->canManagePayroll())
                     <a href="{{ route('employees.payroll.index') }}" class="btn btn-outline-secondary">
                         <i class="bi bi-cash-stack me-1"></i> Payroll

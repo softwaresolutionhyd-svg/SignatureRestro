@@ -55,6 +55,7 @@ final class AdminBreadcrumbs
             str_starts_with($name, 'order-taker.') => [$dash, ['label' => 'Order Taker', 'url' => $name === 'order-taker.index' ? null : route('order-taker.index')]],
             str_starts_with($name, 'kitchen.') => [$dash, ['label' => 'Kitchen', 'url' => $name === 'kitchen.index' ? null : route('kitchen.index')]],
             str_starts_with($name, 'hr.') => self::hr($name, $dash),
+            str_starts_with($name, 'attendance.') => self::attendance($name, $dash),
             str_starts_with($name, 'employees.') => self::employees($name, $dash),
             str_starts_with($name, 'notifications.') => [$dash, ['label' => 'Notifications', 'url' => null]],
             str_starts_with($name, 'profile.') => [$dash, ['label' => 'Profile', 'url' => null]],
@@ -265,18 +266,32 @@ final class AdminBreadcrumbs
      * @param  array{label: string, url: ?string}  $dash
      * @return list<array{label: string, url: ?string}>
      */
+    private static function attendance(string $name, array $dash): array
+    {
+        $hub = ['label' => 'Attendance', 'url' => $name === 'attendance.index' ? null : route('attendance.index')];
+
+        if ($name === 'attendance.index') {
+            return [$dash, $hub];
+        }
+
+        if ($name === 'attendance.print-today') {
+            return [$dash, $hub, ['label' => "Today's Attendance", 'url' => null]];
+        }
+
+        if ($name === 'attendance.scan') {
+            return [$dash, $hub, ['label' => 'QR Scan', 'url' => null]];
+        }
+
+        return [$dash, $hub];
+    }
+
+    /**
+     * @param  array{label: string, url: ?string}  $dash
+     * @return list<array{label: string, url: ?string}>
+     */
     private static function employees(string $name, array $dash): array
     {
         $hrHub = ['label' => 'HR', 'url' => route('hr.index')];
-
-        if (str_contains($name, '.attendance.')) {
-            $leaf = ['label' => 'Attendance', 'url' => $name === 'employees.attendance.index' ? null : route('employees.attendance.index')];
-            if ($name === 'employees.attendance.print-today') {
-                return [$dash, $hrHub, $leaf, ['label' => "Today's Attendance", 'url' => null]];
-            }
-
-            return [$dash, $hrHub, $leaf];
-        }
 
         if (str_contains($name, '.payroll.')) {
             $leaf = ['label' => 'Payroll', 'url' => $name === 'employees.payroll.index' ? null : route('employees.payroll.index')];

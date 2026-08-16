@@ -325,14 +325,23 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
         Route::delete('/leave/{leaveRequest}', [LeaveRequestController::class, 'destroy'])->name('leave.destroy');
     });
 
+    Route::prefix('attendance')->name('attendance.')->middleware('moduleAccess')->group(function () {
+        Route::get('/', [AttendanceController::class, 'index'])->name('index');
+        Route::get('/print-today', [AttendanceController::class, 'printToday'])->name('print-today');
+        Route::post('/grid', [AttendanceController::class, 'saveGrid'])->name('grid');
+        Route::post('/cell', [AttendanceController::class, 'saveCell'])->name('cell');
+        Route::get('/scan', [QrAttendanceController::class, 'scanKiosk'])->name('scan');
+    });
+
     Route::prefix('employees')->name('employees.')->group(function () {
-        Route::get('/attendance/scan', [QrAttendanceController::class, 'scanKiosk'])->name('attendance.scan');
+        // Legacy URLs → standalone Attendance module
+        Route::get('/attendance/scan', fn () => redirect()->route('attendance.scan'));
+        Route::get('/attendance', fn () => redirect()->route('attendance.index', request()->query()));
+        Route::get('/attendance/print-today', fn () => redirect()->route('attendance.print-today', request()->query()));
+        Route::post('/attendance/grid', [AttendanceController::class, 'saveGrid']);
+        Route::post('/attendance/cell', [AttendanceController::class, 'saveCell']);
 
         Route::middleware('moduleAccess')->group(function () {
-            Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance.index');
-            Route::get('/attendance/print-today', [AttendanceController::class, 'printToday'])->name('attendance.print-today');
-            Route::post('/attendance/grid', [AttendanceController::class, 'saveGrid'])->name('attendance.grid');
-            Route::post('/attendance/cell', [AttendanceController::class, 'saveCell'])->name('attendance.cell');
             Route::get('/qr-cards', [QrAttendanceController::class, 'cards'])->name('qr-cards');
             Route::get('/{employee}/qr.svg', [QrAttendanceController::class, 'svg'])->name('qr.svg');
             Route::get('/{employee}/qr-card', [QrAttendanceController::class, 'card'])->name('qr-card');

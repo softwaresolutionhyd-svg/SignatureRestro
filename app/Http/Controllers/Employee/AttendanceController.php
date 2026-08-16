@@ -23,7 +23,7 @@ class AttendanceController extends Controller
 
     public function index(Request $request)
     {
-        abort_unless($request->user()?->canManageTeamAttendance(), 403);
+        $this->assertAttendanceAccess($request);
 
         $month = $request->query('month', now()->format('Y-m'));
         if (! preg_match('/^\d{4}-\d{2}$/', $month)) {
@@ -102,7 +102,7 @@ class AttendanceController extends Controller
 
     public function printToday(Request $request): View
     {
-        abort_unless($request->user()?->canManageTeamAttendance(), 403);
+        $this->assertAttendanceAccess($request);
 
         $dateInput = trim((string) $request->query('date', ''));
         if ($dateInput !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateInput)) {
@@ -231,7 +231,7 @@ class AttendanceController extends Controller
 
     public function saveCell(Request $request)
     {
-        abort_unless($request->user()?->canManageTeamAttendance(), 403);
+        $this->assertAttendanceAccess($request);
 
         $data = $request->validate([
             'employee_id' => ['required', 'integer'],
@@ -273,7 +273,7 @@ class AttendanceController extends Controller
 
     public function saveGrid(Request $request)
     {
-        abort_unless($request->user()->canManageTeamAttendance(), 403);
+        $this->assertAttendanceAccess($request);
 
         $data = $request->validate([
             'month' => ['required', 'regex:/^\d{4}-\d{2}$/'],
@@ -330,7 +330,7 @@ class AttendanceController extends Controller
         ]);
 
         return redirect()
-            ->route('employees.attendance.index', array_filter([
+            ->route('attendance.index', array_filter([
                 'month' => $month,
                 'active_only' => $request->boolean('active_only', true) ? 1 : 0,
                 'employee_no' => trim((string) ($data['employee_no'] ?? '')),
@@ -388,5 +388,15 @@ class AttendanceController extends Controller
             'attendance_date' => $date,
             ...$payload,
         ]);
+    }
+
+    /** Managers always; others need Attendance module permission. */
+    private function assertAttendanceAccess(Request $request): void
+    {
+        $user = $request->user();
+        abort_unless(
+            $user && ($user->canManageTeamAttendance() || $user->canViewModule('attendance')),
+            403
+        );
     }
 }

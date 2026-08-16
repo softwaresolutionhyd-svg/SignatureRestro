@@ -14,6 +14,7 @@ final class ModuleAccess
         'kitchen' => 'Kitchen',
         'order-status' => 'Order Status',
         'hr' => 'HR',
+        'attendance' => 'Attendance',
         'manufacturing' => 'Manufacturing',
         'maintenance' => 'Maintenance',
         'demand' => 'Demand',
