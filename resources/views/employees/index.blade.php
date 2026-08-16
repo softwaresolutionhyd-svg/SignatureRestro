@@ -86,6 +86,7 @@
                     <th>Username</th>
                     <th>Phone</th>
                     <th>Join date</th>
+                    <th class="text-end">Salary</th>
                     <th>Status</th>
                     @if($u->moduleAllows('hr', 'edit') || $u->canDeleteEmployees())
                         <th class="text-end">Actions</th>
@@ -112,6 +113,13 @@
                         <td class="text-secondary">{{ $e->user?->loginUsername() ?: '—' }}</td>
                         <td class="text-secondary">{{ $e->phone ?: '—' }}</td>
                         <td class="text-secondary">{{ optional($e->join_date)->format('Y-m-d') ?: '—' }}</td>
+                        <td class="text-end text-secondary text-nowrap">
+                            @if((float) ($e->salary ?? 0) > 0)
+                                Rs. {{ number_format((float) $e->salary, 0) }}
+                            @else
+                                —
+                            @endif
+                        </td>
                         <td>
                             @if($e->active)
                                 <span class="badge text-bg-success">Active</span>
@@ -139,7 +147,7 @@
                         @endif
                     </tr>
                 @empty
-                    <tr><td colspan="{{ ($u->moduleAllows('hr', 'edit') || $u->canDeleteEmployees()) ? 10 : 9 }}" class="text-center text-secondary py-4">No employees yet.</td></tr>
+                    <tr><td colspan="{{ ($u->moduleAllows('hr', 'edit') || $u->canDeleteEmployees()) ? 11 : 10 }}" class="text-center text-secondary py-4">No employees yet.</td></tr>
                 @endforelse
                 </tbody>
             </table>
