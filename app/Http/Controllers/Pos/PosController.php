@@ -3482,6 +3482,7 @@ class PosController extends Controller
             }
 
             $subtotal += $lineSub;
+            $oid = (int) ($item['order_item_id'] ?? $item['id'] ?? 0);
             $rawLines[] = [
                 'product_id' => $pid,
                 'item_name' => $isCustom ? $itemName : null,
@@ -3495,6 +3496,7 @@ class PosController extends Controller
                 'kitchen_locked_qty' => array_key_exists('kitchen_locked_qty', $item)
                     ? max(0.0, (float) $item['kitchen_locked_qty'])
                     : null,
+                'order_item_id' => $oid > 0 ? $oid : null,
             ];
         }
 
@@ -3556,6 +3558,9 @@ class PosController extends Controller
             ];
             if ($raw['kitchen_locked_qty'] !== null) {
                 $line['kitchen_locked_qty'] = (float) $raw['kitchen_locked_qty'];
+            }
+            if (! empty($raw['order_item_id'])) {
+                $line['order_item_id'] = (int) $raw['order_item_id'];
             }
             $lines[] = $line;
         }

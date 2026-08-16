@@ -1327,10 +1327,9 @@
         if (!row) return;
 
         if (delta > 0) {
-            const locked = Number(row.kitchen_locked_qty) || 0;
             const qty = Number(row.qty) || 0;
-            // Fully kitchen-locked card pe + → alag New card (printed qty merge na ho).
-            if (!row.is_custom && locked > 0.0005 && qty <= locked + 0.0005) {
+            // Kitchen-sent card pe + → hamesha alag New card (printed qty isi line pe merge na ho).
+            if (!row.is_custom && isCartLineKitchenLocked(row)) {
                 addOrIncrementProduct(row.product_id);
                 if (resumeOrderId) {
                     saveResumedDraftChanges().catch((e) => alert(e.message || 'Order save nahi ho saki.'));
@@ -1422,8 +1421,7 @@
         const delta = Math.round((next - current) * 1000) / 1000;
         if (Math.abs(delta) < 0.0005) return;
         if (delta > 0) {
-            const locked = Number(row.kitchen_locked_qty) || 0;
-            if (!row.is_custom && locked > 0.0005 && current <= locked + 0.0005) {
+            if (!row.is_custom && isCartLineKitchenLocked(row)) {
                 // Locked card pe qty badhao → unlocked New card par add / create.
                 increaseProductQtyBy(row.product_id, delta);
                 renderAll();
@@ -4257,9 +4255,22 @@
             if (cartHasUnprintedKitchenLines()) {
                 alert('Warning: kuch items ab bhi Kitchen print pending hain (New tag). Kitchen Print dubara dabayein.');
             } else {
-                // Hold jaisa: order pending list mein reh jaye, cart nayi bill ke liye khali.
-                // keepLastHeld: same cart dubara punch = same bill update (no twin 036/037).
-                resetForNewBill({ keepLastHeld: true });
+                // Cart clear mat karo — kitchen print ke baad wahi bill pe locked items dikhte rahen
+                // (pay / addon / unpaid). Hold alag se cart khali karta hai.
+                if (order) {
+                    rememberHeldOrder(order);
+                    setResumeStateFromOrder(order);
+                } else if (orderId) {
+                    stampLastHeldFromCurrentCart(orderId);
+                    resumeOrderId = Number(orderId);
+                    lastHeldOrderId = Number(orderId);
+                    const form = $('#rpSubmitForm');
+                    if (form) {
+                        form.querySelector('[name="resume_order_id"]').value = String(orderId);
+                    }
+                }
+                renderAll();
+                updateCancelOrderButton();
             }
         } catch (e) {
             alert(e.message || 'Kitchen print failed.');

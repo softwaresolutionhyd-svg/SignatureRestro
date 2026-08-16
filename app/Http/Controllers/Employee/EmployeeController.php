@@ -38,10 +38,12 @@ class EmployeeController extends Controller
     {
         $this->ensureEmployeePhotoSchema();
         $this->ensureEmployeeProfileSchema();
+        $this->ensureEmployeeStaffCategorySchema();
         Employee::ensureQrTokenSchema();
 
         $q = trim((string) $request->query('q', ''));
         $employeeNo = trim((string) $request->query('employee_no', ''));
+        $staffCategoryId = $request->integer('staff_category_id') ?: null;
         $sort = strtolower(trim((string) $request->query('sort', '')));
         if (! in_array($sort, ['name_az', 'name_za', ''], true)) {
             $sort = '';
@@ -49,8 +51,9 @@ class EmployeeController extends Controller
 
         $employees = Employee::query()
             ->excludeAdminAccounts()
-            ->with(['designation:id,name', 'user:id,email'])
+            ->with(['designation:id,name', 'user:id,email', 'staffCategory:id,name'])
             ->when($employeeNo !== '', fn ($query) => $query->where('employee_no', 'like', "%{$employeeNo}%"))
+            ->when($staffCategoryId, fn ($query) => $query->where('staff_category_id', $staffCategoryId))
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($sub) use ($q) {
                     $sub->where('employee_no', 'like', "%{$q}%")
@@ -74,7 +77,12 @@ class EmployeeController extends Controller
             ->paginate(Setting::pageSize('employees_per_page', 20))
             ->withQueryString();
 
-        return view('employees.index', compact('employees', 'q', 'employeeNo', 'sort'));
+        $staffCategories = EmployeeStaffCategory::query()
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return view('employees.index', compact('employees', 'q', 'employeeNo', 'sort', 'staffCategories', 'staffCategoryId'));
     }
 
     /** A4 printable employees directory — staff category → designation. */
