@@ -216,6 +216,12 @@ class User extends Authenticatable
         return $this->hasManagerDesignationAccess();
     }
 
+    /** QR card scan → Present: Admin / Super Admin session only (any device). */
+    public function canAuthorizeQrAttendance(): bool
+    {
+        return in_array($this->role ?? null, ['super_admin', 'company_admin', 'admin'], true);
+    }
+
     /** Payroll view / print / mark paid — owner, admin, or manager designation. */
     public function canManagePayroll(): bool
     {

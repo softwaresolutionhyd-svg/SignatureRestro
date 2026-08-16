@@ -15,6 +15,11 @@ final class WebAuthSession
 
     public static function establish(Request $request, User $user, bool $remember = true): void
     {
+        // Keep post-login return URL across session regenerate (e.g. QR /a/{token} → login → Present).
+        $intended = $request->hasSession()
+            ? $request->session()->get('url.intended')
+            : null;
+
         Auth::logout();
 
         if ($request->hasSession()) {
@@ -32,6 +37,10 @@ final class WebAuthSession
         $request->session()->forget(['active_company_id', 'login_totp_token', 'login_totp_user_id']);
         $request->session()->put(self::BOUND_USER_ID, (int) $user->id);
         $request->session()->put(self::BOUND_USERNAME, $user->loginUsername() ?? $user->email);
+
+        if (is_string($intended) && $intended !== '') {
+            $request->session()->put('url.intended', $intended);
+        }
     }
 
     public static function destroy(Request $request): void

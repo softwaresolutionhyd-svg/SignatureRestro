@@ -157,7 +157,7 @@
         Har din <strong>P</strong> (Present), <strong>A</strong> (Absent), ya <strong>H</strong> (Holiday) select karein — <strong>turant auto-save</strong> ho jata hai, Save button nahi.
         <strong>Net salary = (Basic ÷ 30) × (Present + Holiday)</strong>.
         Absent aur blank din pay nahi milti.
-        QR card scan se Present bhi automatic save hoti hai.
+        QR card scan se Present tabhi lagti hai jab device pe Admin / Super Admin login ho.
     </div>
 
     <div class="card shadow-sm mb-3">
@@ -195,9 +195,11 @@
                            onchange="window.location='{{ route('attendance.index') }}?month={{ $month }}&active_only='+(this.checked?1:0)+'{{ $attEmployeeNoQs }}'">
                     <label class="form-check-label" for="activeOnlyToggle">Sirf active</label>
                 </div>
-                <a class="btn btn-sm btn-outline-success" href="{{ route('attendance.scan') }}">
-                    <i class="bi bi-qr-code-scan me-1"></i> QR Scan
-                </a>
+                @if(auth()->user()?->canAuthorizeQrAttendance())
+                    <a class="btn btn-sm btn-outline-success" href="{{ route('attendance.scan') }}">
+                        <i class="bi bi-qr-code-scan me-1"></i> QR Scan
+                    </a>
+                @endif
                 <a class="btn btn-sm btn-outline-dark"
                    href="{{ route('attendance.print-today', array_filter([
                        'date' => now()->format('Y-m-d'),

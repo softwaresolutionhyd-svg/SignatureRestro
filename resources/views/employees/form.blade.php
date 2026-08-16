@@ -171,7 +171,7 @@
                         {!! $qrSvg !!}
                     </div>
                 </div>
-                <div class="small text-secondary mb-2">Card print karke scan hone par aaj ki Present automatic lag jayegi. Attendance module khula hona zaroori nahi.</div>
+                <div class="small text-secondary mb-2">Card print karke scan hone par Present tabhi lagti hai jab us device pe Admin / Super Admin login ho. Warna login page khulega.</div>
                 <div class="d-grid gap-2">
                     <a class="btn btn-sm btn-outline-primary" href="{{ route('employees.qr-card', $employee) }}" target="_blank" rel="noopener">
                         <i class="bi bi-printer me-1"></i> Print ID card

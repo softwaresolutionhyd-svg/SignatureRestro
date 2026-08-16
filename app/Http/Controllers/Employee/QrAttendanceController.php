@@ -8,11 +8,14 @@ use App\Models\EmployeeDesignation;
 use App\Models\EmployeeStaffCategory;
 use App\Models\Setting;
 use App\Services\QrAttendanceService;
+use App\Models\User;
 use App\Support\ActivityLogger;
 use App\Support\EnsuresEmployeePhotoSchema;
 use App\Support\EnsuresEmployeeProfileSchema;
 use App\Support\LanServerUrl;
+use App\Support\WebAuthSession;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\View\View;
@@ -26,8 +29,13 @@ class QrAttendanceController extends Controller
         private readonly QrAttendanceService $qrAttendance
     ) {}
 
-    public function checkIn(Request $request, string $token): JsonResponse|View
+    public function checkIn(Request $request, string $token): JsonResponse|View|RedirectResponse
     {
+        $authGate = $this->ensureQrAttendanceAuthorized($request);
+        if ($authGate !== null) {
+            return $authGate;
+        }
+
         try {
             $result = $this->qrAttendance->markPresentByToken($token);
         } catch (\Throwable) {
@@ -64,13 +72,51 @@ class QrAttendanceController extends Controller
         return view('employees.qr-checkin-result', $result);
     }
 
-    public function scanKiosk(): View
+    public function scanKiosk(Request $request): View
     {
+        abort_unless($request->user()?->canAuthorizeQrAttendance(), 403);
+
         Employee::ensureQrTokenSchema();
 
         return view('employees.qr-scan', [
             'checkInBase' => url('/a'),
         ]);
+    }
+
+    /**
+     * QR Present only when Admin / Super Admin is logged in on this device.
+     * Guests (or other roles) → login; after login, intended URL completes check-in.
+     */
+    private function ensureQrAttendanceAuthorized(Request $request): JsonResponse|RedirectResponse|null
+    {
+        $user = $request->user();
+        $wantsJson = $request->expectsJson() || $request->query('format') === 'json';
+        $loginMessage = 'QR attendance ke liye pehle Admin ya Super Admin se login karein.';
+
+        if ($user instanceof User && $user->canAuthorizeQrAttendance()) {
+            return null;
+        }
+
+        if ($wantsJson) {
+            return response()->json([
+                'ok' => false,
+                'already' => false,
+                'title' => 'Login required',
+                'message' => $loginMessage,
+                'login_required' => true,
+                'login_url' => route('login'),
+                'time' => now()->format('h:i A'),
+                'date' => now()->format(app_date_format()),
+            ], 401);
+        }
+
+        if ($user) {
+            WebAuthSession::destroy($request);
+        }
+
+        return redirect()
+            ->guest(route('login'))
+            ->with('warning', $loginMessage);
     }
 
     public function svg(Employee $employee): Response

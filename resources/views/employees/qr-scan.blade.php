@@ -51,7 +51,7 @@
             <h1><i class="bi bi-qr-code-scan me-2"></i>QR Attendance</h1>
             <a class="btn btn-sm btn-outline-light" href="{{ url('/') }}">Home</a>
         </div>
-        <p class="mb-2">Camera ya USB scanner se employee card scan karein. Attendance grid khula hona zaroori nahi.</p>
+        <p class="mb-2">Camera ya USB scanner se employee card scan karein. Is kiosk pe Admin / Super Admin login hona zaroori hai.</p>
         <div class="cam-wrap">
             <video id="cam" playsinline muted autoplay></video>
         </div>
@@ -59,7 +59,7 @@
         <div class="result" id="resultBox">
             <div class="text-secondary">Waiting for QR…</div>
         </div>
-        <p class="hint">Phone camera se card scan karne par bhi Present automatic lag jayegi — QR attendance URL kholta hai.</p>
+        <p class="hint">Phone se card scan karne par bhi pehle Admin / Super Admin login chahiye — warna login page khulega, login ke baad Present lag jayegi.</p>
     </div>
 
     <script>
@@ -112,7 +112,14 @@
                     headers: { 'Accept': 'application/json' },
                     credentials: 'same-origin'
                 });
-                const data = await res.json();
+                const data = await res.json().catch(() => ({}));
+                if (res.status === 401 || res.status === 403 || data.login_required) {
+                    const loginUrl = data.login_url || @json(route('login'));
+                    show('fail', '<div class="name">Login required</div><div class="mt-1">' + (data.message || 'Admin / Super Admin se login karein.') + '</div>');
+                    beep(false);
+                    setTimeout(() => { window.location.href = loginUrl; }, 1200);
+                    return;
+                }
                 const already = !!(data.already || (data.ok && /already/i.test(String(data.message || data.title || ''))));
                 const name = (data.employee && data.employee.name) ? data.employee.name : '';
                 const no = (data.employee && data.employee.employee_no) ? data.employee.employee_no : '';
