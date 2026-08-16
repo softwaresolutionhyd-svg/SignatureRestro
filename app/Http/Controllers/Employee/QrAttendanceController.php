@@ -140,6 +140,8 @@ class QrAttendanceController extends Controller
 
     public function cards(Request $request): View
     {
+        abort_unless($request->user()?->canAuthorizeQrAttendance(), 403);
+
         $this->ensureEmployeeProfileSchema();
         $this->ensureEmployeePhotoSchema();
         Employee::ensureQrTokenSchema();

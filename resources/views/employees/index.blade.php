@@ -31,9 +31,11 @@
             </form>
 
             <div class="d-flex flex-wrap gap-2">
-                <a href="{{ route('employees.qr-cards') }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">
-                    <i class="bi bi-person-vcard me-1"></i> All ID Cards PDF
-                </a>
+                @if($u->canAuthorizeQrAttendance())
+                    <a href="{{ route('employees.qr-cards') }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">
+                        <i class="bi bi-person-vcard me-1"></i> All ID Cards PDF
+                    </a>
+                @endif
                 <a href="{{ route('employees.print-report') }}" class="btn btn-outline-secondary" target="_blank" rel="noopener">
                     <i class="bi bi-file-earmark-pdf me-1"></i> Print Report
                 </a>
