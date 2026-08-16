@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\EmployeeDesignation;
 use App\Models\EmployeeStaffCategory;
+use App\Models\EmployeeStaffSubCategory;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\EmployeeContactSyncService;
@@ -85,7 +86,7 @@ class EmployeeController extends Controller
         return view('employees.index', compact('employees', 'q', 'employeeNo', 'sort', 'staffCategories', 'staffCategoryId'));
     }
 
-    /** A4 printable employees directory — staff category → designation. */
+    /** A4 printable employees directory — staff category → sub category. */
     public function printReport(Request $request)
     {
         $this->ensureEmployeePhotoSchema();
@@ -103,6 +104,7 @@ class EmployeeController extends Controller
             ->with([
                 'designation:id,name',
                 'staffCategory:id,name,sort_order',
+                'staffSubCategory:id,name,sort_order,staff_category_id',
                 'user:id,email',
             ])
             ->orderBy('employee_no');
@@ -167,6 +169,7 @@ class EmployeeController extends Controller
             'phone' => ['nullable', 'string', 'max:60'],
             'designation_id' => ['nullable', 'integer', 'exists:tenant.employee_designations,id'],
             'staff_category_id' => ['nullable', 'integer', 'exists:tenant.employee_staff_categories,id'],
+            'staff_sub_category_id' => ['nullable', 'integer', 'exists:tenant.employee_staff_sub_categories,id'],
             'join_date' => ['nullable', 'date'],
             'salary' => ['nullable', 'numeric', 'min:0'],
             'father_name' => ['nullable', 'string', 'max:150'],
@@ -186,6 +189,10 @@ class EmployeeController extends Controller
         $data['salary'] = $data['salary'] ?? 0;
         $data['designation_id'] = isset($data['designation_id']) && $data['designation_id'] !== '' ? (int) $data['designation_id'] : null;
         $data['staff_category_id'] = isset($data['staff_category_id']) && $data['staff_category_id'] !== '' ? (int) $data['staff_category_id'] : null;
+        $data['staff_sub_category_id'] = $this->resolvedStaffSubCategoryId(
+            $data['staff_category_id'],
+            $data['staff_sub_category_id'] ?? null
+        );
         $data['employee_no'] = trim((string) ($data['employee_no'] ?? '')) !== ''
             ? trim((string) $data['employee_no'])
             : Employee::generateNextEmployeeNo($cid);
@@ -224,6 +231,7 @@ class EmployeeController extends Controller
                     'phone' => $data['phone'] ?? null,
                     'designation_id' => $data['designation_id'],
                     'staff_category_id' => $data['staff_category_id'],
+                    'staff_sub_category_id' => $data['staff_sub_category_id'],
                     'join_date' => $data['join_date'] ?? null,
                     'salary' => $data['salary'],
                     'father_name' => $data['father_name'] ?? null,
@@ -289,6 +297,7 @@ class EmployeeController extends Controller
             'phone' => ['nullable', 'string', 'max:60'],
             'designation_id' => ['nullable', 'integer', 'exists:tenant.employee_designations,id'],
             'staff_category_id' => ['nullable', 'integer', 'exists:tenant.employee_staff_categories,id'],
+            'staff_sub_category_id' => ['nullable', 'integer', 'exists:tenant.employee_staff_sub_categories,id'],
             'join_date' => ['nullable', 'date'],
             'salary' => ['nullable', 'numeric', 'min:0'],
             'father_name' => ['nullable', 'string', 'max:150'],
@@ -309,6 +318,10 @@ class EmployeeController extends Controller
         $data['salary'] = $data['salary'] ?? 0;
         $data['designation_id'] = isset($data['designation_id']) && $data['designation_id'] !== '' ? (int) $data['designation_id'] : null;
         $data['staff_category_id'] = isset($data['staff_category_id']) && $data['staff_category_id'] !== '' ? (int) $data['staff_category_id'] : null;
+        $data['staff_sub_category_id'] = $this->resolvedStaffSubCategoryId(
+            $data['staff_category_id'],
+            $data['staff_sub_category_id'] ?? null
+        );
 
         $employee->load('user');
         $user = $employee->user;
@@ -362,6 +375,7 @@ class EmployeeController extends Controller
             'phone' => $data['phone'] ?? null,
             'designation_id' => $data['designation_id'],
             'staff_category_id' => $data['staff_category_id'],
+            'staff_sub_category_id' => $data['staff_sub_category_id'],
             'join_date' => $data['join_date'] ?? null,
             'salary' => $data['salary'],
             'father_name' => $data['father_name'] ?? null,
@@ -470,6 +484,7 @@ class EmployeeController extends Controller
     private function groupEmployeesForPrintByCategory($employees): array
     {
         $categories = EmployeeStaffCategory::query()
+            ->with(['subCategories:id,staff_category_id,name,sort_order'])
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get(['id', 'name', 'sort_order']);
@@ -484,7 +499,7 @@ class EmployeeController extends Controller
             }
             $groups[] = [
                 'name' => (string) $category->name,
-                'subgroups' => $this->subgroupByDesignation($inCategory),
+                'subgroups' => $this->subgroupByStaffSubCategory($inCategory, $category),
             ];
         }
 
@@ -494,18 +509,88 @@ class EmployeeController extends Controller
         if ($unassigned->isNotEmpty()) {
             $groups[] = [
                 'name' => 'Unassigned',
-                'subgroups' => $this->subgroupByDesignation($unassigned),
+                'subgroups' => [[
+                    'name' => 'No sub category',
+                    'employees' => $unassigned->sortBy('employee_no', SORT_NATURAL)->values(),
+                ]],
             ];
         }
 
         if ($groups === [] && $employees->isNotEmpty()) {
             $groups[] = [
                 'name' => 'All Employees',
-                'subgroups' => $this->subgroupByDesignation($employees),
+                'subgroups' => [[
+                    'name' => '',
+                    'employees' => $employees->sortBy('employee_no', SORT_NATURAL)->values(),
+                ]],
             ];
         }
 
         return $groups;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Employee>  $employees
+     * @return list<array{name: string, employees: \Illuminate\Support\Collection<int, Employee>}>
+     */
+    private function subgroupByStaffSubCategory($employees, EmployeeStaffCategory $category): array
+    {
+        $out = [];
+        foreach ($category->subCategories as $sub) {
+            $inSub = $employees
+                ->where('staff_sub_category_id', $sub->id)
+                ->sortBy('employee_no', SORT_NATURAL)
+                ->values();
+            if ($inSub->isEmpty()) {
+                continue;
+            }
+            $out[] = [
+                'name' => (string) $sub->name,
+                'employees' => $inSub,
+            ];
+        }
+
+        $noSub = $employees
+            ->filter(fn (Employee $employee) => empty($employee->staff_sub_category_id))
+            ->sortBy('employee_no', SORT_NATURAL)
+            ->values();
+        if ($noSub->isNotEmpty()) {
+            $out[] = [
+                'name' => 'No sub category',
+                'employees' => $noSub,
+            ];
+        }
+
+        return $out;
+    }
+
+    private function resolvedStaffSubCategoryId(?int $categoryId, mixed $subCategoryId): ?int
+    {
+        $subId = isset($subCategoryId) && $subCategoryId !== '' ? (int) $subCategoryId : null;
+        if (! $categoryId || ! $subId) {
+            return null;
+        }
+
+        $ok = EmployeeStaffSubCategory::query()
+            ->whereKey($subId)
+            ->where('staff_category_id', $categoryId)
+            ->exists();
+
+        return $ok ? $subId : null;
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, EmployeeStaffCategory>
+     */
+    private function staffCategoriesForForm(int $companyId)
+    {
+        $this->seedDefaultStaffCategories($companyId);
+
+        return EmployeeStaffCategory::query()
+            ->with(['subCategories:id,staff_category_id,name,sort_order'])
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name']);
     }
 
     /**
@@ -576,18 +661,5 @@ class EmployeeController extends Controller
                 'account_username' => ['Ye login account pehle se kisi aur employee se linked hai.'],
             ]);
         }
-    }
-
-    /**
-     * @return \Illuminate\Support\Collection<int, EmployeeStaffCategory>
-     */
-    private function staffCategoriesForForm(int $companyId)
-    {
-        $this->seedDefaultStaffCategories($companyId);
-
-        return EmployeeStaffCategory::query()
-            ->orderBy('sort_order')
-            ->orderBy('name')
-            ->get(['id', 'name']);
     }
 }

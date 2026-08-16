@@ -24,10 +24,30 @@ trait EnsuresEmployeeStaffCategorySchema
             });
         }
 
+        if (! $schema->hasTable('employee_staff_sub_categories')) {
+            $schema->create('employee_staff_sub_categories', function (Blueprint $table) {
+                $table->id();
+                $table->unsignedBigInteger('company_id')->nullable()->index();
+                $table->unsignedBigInteger('staff_category_id')->index();
+                $table->string('name', 100);
+                $table->string('slug', 80);
+                $table->unsignedSmallInteger('sort_order')->default(0);
+                $table->timestamps();
+                $table->unique(['staff_category_id', 'slug'], 'emp_staff_sub_cat_slug_unique');
+            });
+        }
+
         if ($schema->hasTable('employees') && ! $schema->hasColumn('employees', 'staff_category_id')) {
             $schema->table('employees', function (Blueprint $table) {
                 $table->unsignedBigInteger('staff_category_id')->nullable()->after('designation_id');
                 $table->index('staff_category_id');
+            });
+        }
+
+        if ($schema->hasTable('employees') && ! $schema->hasColumn('employees', 'staff_sub_category_id')) {
+            $schema->table('employees', function (Blueprint $table) {
+                $table->unsignedBigInteger('staff_sub_category_id')->nullable()->after('staff_category_id');
+                $table->index('staff_sub_category_id');
             });
         }
     }

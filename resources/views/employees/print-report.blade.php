@@ -104,7 +104,7 @@
             <label>
                 Group by
                 <select name="group" onchange="this.form.submit()">
-                    <option value="category" @selected(($groupBy ?? '') === 'category')>Staff Category</option>
+                    <option value="category" @selected(($groupBy ?? '') === 'category')>Staff Category → Sub Category</option>
                     <option value="designation" @selected(($groupBy ?? '') === 'designation')>Designation</option>
                 </select>
             </label>
@@ -123,7 +123,7 @@
         <h1>{{ $companyName }}</h1>
         <h2>Employees Report</h2>
         <div class="meta">
-            {{ ($groupBy ?? '') === 'designation' ? 'Grouped by Designation' : 'Grouped by Staff Category → Designation' }}
+            {{ ($groupBy ?? '') === 'designation' ? 'Grouped by Designation' : 'Grouped by Staff Category → Sub Category' }}
             &nbsp;|&nbsp; Printed: <strong>{{ $printedAt }}</strong>
             &nbsp;|&nbsp; Total: <strong>{{ $totalCount }}</strong>
             (Active {{ $activeCount }})
@@ -148,11 +148,7 @@
                             <th class="num">#</th>
                             <th style="width:90px;">Employee #</th>
                             <th>Name</th>
-                            @if(($groupBy ?? '') === 'category')
-                                <th style="width:120px;">Designation</th>
-                            @else
-                                <th style="width:120px;">Category</th>
-                            @endif
+                            <th style="width:120px;">Designation</th>
                             <th style="width:110px;">Phone</th>
                             <th style="width:90px;">Join date</th>
                             <th class="status">Status</th>
@@ -165,11 +161,7 @@
                                 <td class="num">{{ $serial }}</td>
                                 <td>{{ $employee->employee_no }}</td>
                                 <td>{{ $employee->name }}</td>
-                                @if(($groupBy ?? '') === 'category')
-                                    <td>{{ $employee->designation?->name ?: '—' }}</td>
-                                @else
-                                    <td>{{ $employee->staffCategory?->name ?: '—' }}</td>
-                                @endif
+                                <td>{{ $employee->designation?->name ?: '—' }}</td>
                                 <td>{{ $employee->phone ?: '—' }}</td>
                                 <td>{{ optional($employee->join_date)->format('Y-m-d') ?: '—' }}</td>
                                 <td class="status">{{ $employee->active ? 'Active' : 'Inactive' }}</td>

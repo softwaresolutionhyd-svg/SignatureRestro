@@ -53,7 +53,7 @@
                     <label class="form-label mb-0">Staff Category</label>
                     <a class="small text-decoration-none" href="{{ route('employees.staff-categories.index') }}" target="_blank">Manage</a>
                 </div>
-                <select name="staff_category_id" class="form-select @error('staff_category_id') is-invalid @enderror">
+                <select name="staff_category_id" id="staffCategorySelect" class="form-select @error('staff_category_id') is-invalid @enderror">
                     <option value="">—</option>
                     @foreach($staffCategories ?? [] as $cat)
                         <option value="{{ $cat->id }}" @selected((string)old('staff_category_id', $employee->staff_category_id ?? '') === (string)$cat->id)>{{ $cat->name }}</option>
@@ -61,6 +61,47 @@
                 </select>
                 @error('staff_category_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
             </div>
+
+            <div class="col-12 col-md-4">
+                <label class="form-label">Sub Category</label>
+                <select name="staff_sub_category_id" id="staffSubCategorySelect" class="form-select @error('staff_sub_category_id') is-invalid @enderror">
+                    <option value="">—</option>
+                    @foreach($staffCategories ?? [] as $cat)
+                        @foreach($cat->subCategories ?? [] as $sub)
+                            <option value="{{ $sub->id }}"
+                                    data-category-id="{{ $cat->id }}"
+                                    @selected((string)old('staff_sub_category_id', $employee->staff_sub_category_id ?? '') === (string)$sub->id)>
+                                {{ $sub->name }}
+                            </option>
+                        @endforeach
+                    @endforeach
+                </select>
+                @error('staff_sub_category_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+
+            <script>
+            (() => {
+                const cat = document.getElementById('staffCategorySelect');
+                const sub = document.getElementById('staffSubCategorySelect');
+                if (!cat || !sub) return;
+                const sync = () => {
+                    const cid = String(cat.value || '');
+                    let keep = false;
+                    Array.from(sub.options).forEach((opt) => {
+                        if (!opt.value) {
+                            opt.hidden = false;
+                            return;
+                        }
+                        const match = String(opt.dataset.categoryId || '') === cid;
+                        opt.hidden = !match;
+                        if (match && opt.selected) keep = true;
+                    });
+                    if (!keep) sub.value = '';
+                };
+                cat.addEventListener('change', sync);
+                sync();
+            })();
+            </script>
 
             <div class="col-12 col-md-4">
                 <label class="form-label">Join Date</label>

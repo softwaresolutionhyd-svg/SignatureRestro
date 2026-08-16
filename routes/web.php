@@ -369,6 +369,10 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
             Route::get('/staff-categories', [EmployeeStaffCategoryController::class, 'index'])->name('staff-categories.index');
             Route::post('/staff-categories/{staffCategory}/assign', [EmployeeStaffCategoryController::class, 'assign'])->name('staff-categories.assign');
             Route::delete('/staff-categories/{staffCategory}/employees/{employee}', [EmployeeStaffCategoryController::class, 'removeEmployee'])->name('staff-categories.remove-employee');
+            Route::post('/staff-categories/{staffCategory}/sub-categories', [EmployeeStaffCategoryController::class, 'storeSubCategory'])->name('staff-categories.sub-categories.store');
+            Route::delete('/staff-categories/{staffCategory}/sub-categories/{subCategory}', [EmployeeStaffCategoryController::class, 'destroySubCategory'])->name('staff-categories.sub-categories.destroy');
+            Route::post('/staff-categories/{staffCategory}/sub-categories/{subCategory}/assign', [EmployeeStaffCategoryController::class, 'assignSubCategory'])->name('staff-categories.sub-categories.assign');
+            Route::delete('/staff-categories/{staffCategory}/sub-categories/{subCategory}/employees/{employee}', [EmployeeStaffCategoryController::class, 'removeSubCategoryEmployee'])->name('staff-categories.sub-categories.remove-employee');
 
             Route::get('/loans', [EmployeeLoanController::class, 'index'])->name('loans.index');
             Route::get('/loans/create', [EmployeeLoanController::class, 'create'])->name('loans.create');
