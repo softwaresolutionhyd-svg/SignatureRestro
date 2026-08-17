@@ -19,7 +19,7 @@
         .report-head h1 { font-size: 20px; }
         .report-head h2 { font-size: 14px; font-weight: 600; }
         .meta { color: #444; font-size: 11px; }
-        .dept-block { margin-bottom: 18px; page-break-inside: avoid; }
+        .dept-block { margin-bottom: 18px; }
         .dept-heading {
             background: #111;
             color: #fff;
@@ -28,9 +28,14 @@
             font-weight: 700;
             letter-spacing: 0.4px;
             text-transform: uppercase;
-            margin: 0 0 0;
+            margin: 0;
+            page-break-after: avoid;
+            break-after: avoid;
         }
-        table { width: 100%; border-collapse: collapse; }
+        table { width: 100%; border-collapse: collapse; page-break-inside: auto; }
+        thead { display: table-header-group; }
+        tfoot { display: table-footer-group; }
+        tr { page-break-inside: avoid; break-inside: avoid; }
         th, td { border: 1px solid #333; padding: 5px 7px; text-align: left; vertical-align: top; }
         th { background: #f3f4f6; font-size: 11px; }
         td.num, th.num { text-align: right; white-space: nowrap; }
@@ -54,7 +59,6 @@
             body { padding: 0; }
             .noprint { display: none !important; }
             @page { size: A4 portrait; margin: 12mm; }
-            .dept-block { break-inside: avoid; }
         }
     </style>
 </head>
