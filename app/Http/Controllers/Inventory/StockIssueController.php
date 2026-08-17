@@ -9,7 +9,9 @@ use App\Models\InventoryProduct;
 use App\Models\InventoryProductStock;
 use App\Models\Setting;
 use App\Services\InventoryStockService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 class StockIssueController extends Controller
 {
@@ -17,23 +19,16 @@ class StockIssueController extends Controller
         private readonly InventoryStockService $stockService
     ) {}
 
-    public function index()
+    public function index(Request $request)
     {
         $this->stockService->ensureWarehouse();
 
-        $issues = InventoryMove::query()
-            ->where('type', 'transfer')
-            ->with([
-                'product:id,sku,name,uom',
-                'user:id,name',
-            ])
-            ->with(['fromDepartment:id,name', 'toDepartment:id,name'])
-            ->latest()
-            ->paginate(Setting::pageSize('inventory_issues_per_page', 25));
-
+        $date = $this->parseIssueDate($request->input('date'));
+        $grouped = $this->issuesGroupedByDepartment($date);
         $warehouse = InventoryDepartment::query()->where('is_warehouse', true)->first();
+        $totalLines = $grouped->sum('count');
 
-        return view('inventory.issues.index', compact('issues', 'warehouse'));
+        return view('inventory.issues.index', compact('grouped', 'warehouse', 'date', 'totalLines'));
     }
 
     public function create()
@@ -175,5 +170,68 @@ class StockIssueController extends Controller
             'grandTotal',
             'currency'
         ));
+    }
+
+    public function dailyPrint(Request $request)
+    {
+        $date = $this->parseIssueDate($request->input('date'));
+        $grouped = $this->issuesGroupedByDepartment($date);
+        $companyName = (string) Setting::get('company_name', config('app.name'));
+        $companyLogo = company_logo_url(Setting::get('company_logo'));
+        $totalLines = $grouped->sum('count');
+
+        return view('inventory.issues.daily-print', compact(
+            'date',
+            'grouped',
+            'companyName',
+            'companyLogo',
+            'totalLines'
+        ));
+    }
+
+    private function parseIssueDate(mixed $date): string
+    {
+        try {
+            return Carbon::parse($date ?: now()->toDateString())->toDateString();
+        } catch (\Throwable) {
+            return now()->toDateString();
+        }
+    }
+
+    /**
+     * @return Collection<int, array{name: string, count: int, items: Collection<int, InventoryMove>}>
+     */
+    private function issuesGroupedByDepartment(string $date): Collection
+    {
+        $start = Carbon::parse($date)->startOfDay();
+        $end = Carbon::parse($date)->endOfDay();
+
+        $issues = InventoryMove::query()
+            ->where('type', 'transfer')
+            ->whereBetween('created_at', [$start, $end])
+            ->with([
+                'product:id,sku,name,uom',
+                'user:id,name',
+                'fromDepartment:id,name',
+                'toDepartment:id,name',
+            ])
+            ->orderBy('created_at')
+            ->get();
+
+        return $issues
+            ->groupBy(fn (InventoryMove $move) => (string) ($move->to_department_id ?: 0))
+            ->map(function (Collection $rows) {
+                $dept = $rows->first()?->toDepartment;
+
+                return [
+                    'name' => $dept?->name ?: 'Department',
+                    'count' => $rows->count(),
+                    'items' => $rows
+                        ->sortBy(fn (InventoryMove $move) => mb_strtolower((string) ($move->product?->name ?? '')))
+                        ->values(),
+                ];
+            })
+            ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
     }
 }

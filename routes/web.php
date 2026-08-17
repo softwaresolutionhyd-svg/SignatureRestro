@@ -171,6 +171,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
         Route::put('kitchen-agents', [\App\Http\Controllers\Inventory\KitchenAgentController::class, 'update'])->name('kitchen-agents.update');
         Route::get('issues', [StockIssueController::class, 'index'])->name('issues.index');
         Route::get('issues/warehouse-stock/print', [StockIssueController::class, 'warehouseStockPrint'])->name('issues.warehouse-stock-print');
+        Route::get('issues/daily-print', [StockIssueController::class, 'dailyPrint'])->name('issues.daily-print');
         Route::get('issues/create', [StockIssueController::class, 'create'])->name('issues.create');
         Route::post('issues', [StockIssueController::class, 'store'])->name('issues.store');
         Route::resource('moves', MoveController::class)->only(['index', 'create', 'store']);
