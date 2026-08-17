@@ -312,16 +312,17 @@ class OrderController extends Controller
         $taxTotal = 0.0;
 
         foreach ($lines as $l) {
-            $qty = (float) $l['qty'];
-            $price = (float) $l['unit_price'];
-            $taxPercent = isset($l['tax_percent']) ? (float) $l['tax_percent'] : 0.0;
+            $qty = round((float) $l['qty'], 3);
+            // DB column is decimal(14,2) — round price first so qty × unit = line total = subtotal.
+            $price = round((float) $l['unit_price'], 2);
+            $taxPercent = isset($l['tax_percent']) ? round((float) $l['tax_percent'], 3) : 0.0;
 
-            $lineSubtotal = $qty * $price;
-            $lineTax = $lineSubtotal * ($taxPercent / 100.0);
-            $lineTotal = $lineSubtotal + $lineTax;
+            $lineSubtotal = round($qty * $price, 2);
+            $lineTax = round($lineSubtotal * ($taxPercent / 100.0), 2);
+            $lineTotal = round($lineSubtotal + $lineTax, 2);
 
-            $subtotal += $lineSubtotal;
-            $taxTotal += $lineTax;
+            $subtotal = round($subtotal + $lineSubtotal, 2);
+            $taxTotal = round($taxTotal + $lineTax, 2);
 
             PurchaseOrderLine::create([
                 'company_id' => $order->company_id,
@@ -341,7 +342,7 @@ class OrderController extends Controller
         $order->update([
             'subtotal' => $subtotal,
             'tax_total' => $taxTotal,
-            'grand_total' => $subtotal + $taxTotal,
+            'grand_total' => round($subtotal + $taxTotal, 2),
         ]);
     }
 }

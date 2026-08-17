@@ -138,7 +138,7 @@
                 <td class="num">{{ fmt_num((float) $line->qty, 3) }} {{ $line->uom }}</td>
                 <td class="num">{{ $currency }} {{ fmt_num((float) $line->unit_price, 2) }}</td>
                 <td class="num">{{ fmt_num((float) $line->tax_percent, 3) }}</td>
-                <td class="num">{{ $currency }} {{ fmt_num((float) $line->total, 2) }}</td>
+                <td class="num">{{ $currency }} {{ fmt_num($line->computedTotal(), 2) }}</td>
             </tr>
         @empty
             <tr><td colspan="7" style="text-align:center;">No lines.</td></tr>
@@ -149,15 +149,15 @@
     <table class="totals">
         <tr>
             <th>Subtotal</th>
-            <td>{{ $currency }} {{ fmt_num((float) $order->subtotal, 2) }}</td>
+            <td>{{ $currency }} {{ fmt_num($order->computedSubtotal(), 2) }}</td>
         </tr>
         <tr>
             <th>Tax</th>
-            <td>{{ $currency }} {{ fmt_num((float) $order->tax_total, 2) }}</td>
+            <td>{{ $currency }} {{ fmt_num($order->computedTaxTotal(), 2) }}</td>
         </tr>
         <tr>
             <th>Grand total</th>
-            <td>{{ $currency }} {{ fmt_num((float) $order->grand_total, 2) }}</td>
+            <td>{{ $currency }} {{ fmt_num($order->computedGrandTotal(), 2) }}</td>
         </tr>
     </table>
 

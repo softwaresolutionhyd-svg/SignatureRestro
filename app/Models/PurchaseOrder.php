@@ -59,4 +59,30 @@ class PurchaseOrder extends Model
     {
         return $this->hasMany(PurchaseOrderLine::class, 'purchase_order_id');
     }
+
+    /** Sum of line qty × unit price (2 dp each), not the stored header which can drift. */
+    public function computedSubtotal(): float
+    {
+        $sum = 0.0;
+        foreach ($this->lines as $line) {
+            $sum = round($sum + $line->computedSubtotal(), 2);
+        }
+
+        return $sum;
+    }
+
+    public function computedTaxTotal(): float
+    {
+        $sum = 0.0;
+        foreach ($this->lines as $line) {
+            $sum = round($sum + $line->computedTaxAmount(), 2);
+        }
+
+        return $sum;
+    }
+
+    public function computedGrandTotal(): float
+    {
+        return round($this->computedSubtotal() + $this->computedTaxTotal(), 2);
+    }
 }

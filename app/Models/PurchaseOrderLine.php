@@ -46,4 +46,20 @@ class PurchaseOrderLine extends Model
     {
         return $this->belongsTo(InventoryProduct::class, 'product_id');
     }
+
+    /** Qty × stored unit price, rounded to paisa — matches printed unit price. */
+    public function computedSubtotal(): float
+    {
+        return round((float) $this->qty * (float) $this->unit_price, 2);
+    }
+
+    public function computedTaxAmount(): float
+    {
+        return round($this->computedSubtotal() * ((float) $this->tax_percent / 100), 2);
+    }
+
+    public function computedTotal(): float
+    {
+        return round($this->computedSubtotal() + $this->computedTaxAmount(), 2);
+    }
 }

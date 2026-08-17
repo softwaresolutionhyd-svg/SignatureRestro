@@ -314,7 +314,9 @@
         const total = lineTotalOf(tr);
         const unitInput = tr.querySelector('[name$="[unit_price]"]');
         if (!unitInput) return;
-        unitInput.value = qty > 0 ? Number((total / qty).toFixed(4)) : 0;
+        // 2 dp — same as DB. Then refresh line total so qty × unit = total = subtotal.
+        unitInput.value = qty > 0 ? (Math.round((total / qty) * 100) / 100) : 0;
+        setLineTotalFromUnit(tr);
     }
 
     function refreshSubtotal() {
