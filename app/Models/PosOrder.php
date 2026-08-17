@@ -416,6 +416,10 @@ class PosOrder extends Model
             return false;
         }
 
+        if (! $this->relationLoaded('items')) {
+            return false;
+        }
+
         $total = $this->items->count();
         if ($total === 0) {
             return false;

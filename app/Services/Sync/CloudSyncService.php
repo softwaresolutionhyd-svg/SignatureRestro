@@ -36,6 +36,24 @@ class CloudSyncService
         return (int) SyncQueueItem::query()->whereNull('synced_at')->count();
     }
 
+    /**
+     * Drop already-pushed outbox rows so POS/menu code never loads hundreds of MB of JSON.
+     */
+    public function pruneSyncedQueue(int $keepDays = 3, int $limit = 4000): int
+    {
+        if (! Schema::hasTable('sync_queue')) {
+            return 0;
+        }
+
+        $cutoff = now()->subDays(max(1, $keepDays));
+
+        return (int) DB::table('sync_queue')
+            ->whereNotNull('synced_at')
+            ->where('synced_at', '<', $cutoff)
+            ->limit($limit)
+            ->delete();
+    }
+
     public function remoteReachable(): bool
     {
         $url = config('sync.remote_url');
@@ -267,6 +285,12 @@ class CloudSyncService
         $this->setMeta('last_push_ok', $pushed > 0 ? '1' : '0');
 
         $pending = $this->pendingCount();
+
+        try {
+            $this->pruneSyncedQueue();
+        } catch (Throwable) {
+            // pruning must never fail a live push
+        }
 
         return [
             'ok' => $pending === 0 || $pushed > 0,

@@ -70,7 +70,16 @@ final class MenuCategory
         $menu = self::ensure();
         self::adoptLegacySubcategories($menu);
 
-        $updated = self::reclassifyPosProducts($menu, onlyMenuRoot: true, useHistory: true);
+        // Do not scan sync_queue unless products are actually stuck on the Menu root.
+        // Loading every inventory_products payload (~200MB here) exhausted PHP on POS open.
+        $stuckOnMenuRoot = InventoryProduct::query()
+            ->where('for_pos', true)
+            ->where('category_id', $menu->id)
+            ->exists();
+
+        $updated = $stuckOnMenuRoot
+            ? self::reclassifyPosProducts($menu, onlyMenuRoot: true, useHistory: true)
+            : 0;
         // Avoid re-running heavy reclassify on every POS page load.
         \Illuminate\Support\Facades\Cache::put($cacheKey, $updated, now()->addMinutes(30));
 
@@ -198,7 +207,11 @@ final class MenuCategory
             ->where('table_name', 'inventory_products')
             ->whereNotNull('payload')
             ->orderByDesc('id')
-            ->get(['record_key', 'payload']);
+            ->limit(4000)
+            ->get([
+                'record_key',
+                DB::raw("CAST(JSON_UNQUOTE(JSON_EXTRACT(payload, '$.category_id')) AS UNSIGNED) as category_id"),
+            ]);
 
         foreach ($rows as $row) {
             $productId = (int) $row->record_key;
@@ -206,11 +219,7 @@ final class MenuCategory
                 continue;
             }
 
-            $payload = is_string($row->payload)
-                ? json_decode($row->payload, true)
-                : (array) $row->payload;
-
-            $catId = (int) ($payload['category_id'] ?? 0);
+            $catId = (int) ($row->category_id ?? 0);
             if ($catId > 0 && isset($allowed[$catId])) {
                 $map[$productId] = $catId;
             }

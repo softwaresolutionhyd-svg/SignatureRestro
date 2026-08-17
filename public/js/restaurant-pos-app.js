@@ -3265,7 +3265,7 @@
 
         let order = (boot.pendingBillsDetail || []).find((o) => Number(o.id) === Number(orderId));
         if (!order?.items?.length) {
-            await pollSync();
+            await pollSync(orderId);
             order = (boot.pendingBillsDetail || []).find((o) => Number(o.id) === Number(orderId));
         }
         if (!order) {
@@ -3282,7 +3282,7 @@
     async function openPendingBillFast(orderId) {
         let order = (boot.pendingBillsDetail || []).find((o) => Number(o.id) === Number(orderId));
         if (!order?.items?.length) {
-            await pollSync();
+            await pollSync(orderId);
             order = (boot.pendingBillsDetail || []).find((o) => Number(o.id) === Number(orderId));
         }
         if (!order) {
@@ -4660,10 +4660,15 @@
         sanitizeCartKitchenLocks();
     }
 
-    async function pollSync() {
+    async function pollSync(explicitOrderId) {
         if (!routes.sync) return;
         try {
-            const res = await fetch(routes.sync, { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+            const url = new URL(routes.sync, window.location.origin);
+            const resumeId = Number(explicitOrderId || resumeOrderId || 0);
+            if (resumeId > 0) {
+                url.searchParams.set('resume_order_id', String(resumeId));
+            }
+            const res = await fetch(url.toString(), { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
             if (!res.ok) return;
             const data = await res.json();
             if (Array.isArray(data.pending)) {
@@ -4671,6 +4676,14 @@
             }
             if (Array.isArray(data.paid)) {
                 boot.paidBillsDetail = data.paid;
+            }
+            if (data.resumed && Number(data.resumed.id) > 0 && Array.isArray(data.resumed.items)) {
+                const list = Array.isArray(boot.pendingBillsDetail) ? [...boot.pendingBillsDetail] : [];
+                const idx = list.findIndex((o) => Number(o.id) === Number(data.resumed.id));
+                if (idx >= 0) {
+                    list[idx] = { ...list[idx], items: data.resumed.items };
+                    boot.pendingBillsDetail = list;
+                }
             }
             if (Array.isArray(data.pending) || Array.isArray(data.paid)) {
                 updateOrderTabCounts();
