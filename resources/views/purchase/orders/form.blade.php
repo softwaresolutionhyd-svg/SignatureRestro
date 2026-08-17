@@ -97,6 +97,7 @@
 </div>
 
 @error('lines')<div class="alert alert-danger py-2">{{ $message }}</div>@enderror
+<div class="text-secondary small mb-2">Quick add product inventory mein save hota hai — qty/total bhar ke neeche <strong>Save</strong> zaroor dabayein, warna line bill pe nahi aayegi.</div>
 
 <div class="table-responsive border rounded-3">
     <table class="table mb-0 align-middle" id="linesTable">
@@ -460,8 +461,6 @@
             const exact = findProductBySearchLabel(productSearch.value);
             if (exact) {
                 setProductSelection(exact);
-            } else {
-                productIdHidden.value = '';
             }
         });
         productSearch.addEventListener('blur', resolveTypedProduct);
@@ -612,7 +611,9 @@
 
             products.push(normalizeProductPayload(json.product));
             refreshProductDatalist();
-            addLine({ product_id: json.product.id, uom: json.product.base_uom, qty: '', unit_price: payload.cost || 0, tax_percent: 0 });
+            addLine({ product_id: json.product.id, uom: json.product.base_uom, qty: 1, unit_price: payload.cost || 0, tax_percent: 0 });
+            const qtyInput = body.querySelector('tr:last-child [name$="[qty]"]');
+            if (qtyInput) qtyInput.focus();
             quickModal?.hide();
         } catch (e) {
             showQuickAddError(e?.message || 'Product create failed.');

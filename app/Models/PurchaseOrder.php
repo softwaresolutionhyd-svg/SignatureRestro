@@ -75,4 +75,9 @@ class PurchaseOrder extends Model
     {
         return round((float) $this->grand_total, 2);
     }
+
+    public function isLineEditable(): bool
+    {
+        return in_array((string) $this->status, ['rfq', 'confirmed'], true);
+    }
 }

@@ -38,4 +38,32 @@ class PurchaseOrderStoreRequest extends FormRequest
             'lines.*.tax_percent' => ['nullable', 'numeric', 'min:0'],
         ];
     }
+
+    protected function prepareForValidation(): void
+    {
+        $lines = $this->input('lines', []);
+        if (! is_array($lines)) {
+            return;
+        }
+
+        $kept = [];
+        foreach ($lines as $line) {
+            if (! is_array($line)) {
+                continue;
+            }
+            $productId = (int) ($line['product_id'] ?? 0);
+            if ($productId <= 0) {
+                continue;
+            }
+            if (! isset($line['qty']) || $line['qty'] === '' || (float) $line['qty'] < 0.001) {
+                $line['qty'] = 1;
+            }
+            if (! isset($line['uom']) || trim((string) $line['uom']) === '') {
+                $line['uom'] = 'nos';
+            }
+            $kept[] = $line;
+        }
+
+        $this->merge(['lines' => $kept]);
+    }
 }

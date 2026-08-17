@@ -66,7 +66,7 @@
                     </a>
                 </div>
             @endif
-            @if($order->status === 'rfq')
+            @if($order->isLineEditable())
                 <form method="POST" action="{{ route('purchase.orders.update', $order) }}">
                     @method('PUT')
                     @include('purchase.orders.form')

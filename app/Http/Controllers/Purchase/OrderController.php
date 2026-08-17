@@ -137,27 +137,32 @@ class OrderController extends Controller
 
     public function update(PurchaseOrderStoreRequest $request, PurchaseOrder $order)
     {
-        abort_unless($order->status === 'rfq', 403);
+        abort_unless($order->isLineEditable(), 403);
 
         $data = $request->validated();
 
         DB::connection('tenant')->transaction(function () use ($order, $data) {
-            $order->update([
+            $payload = [
                 'vendor_id' => $data['vendor_id'],
                 'purchase_type' => $data['purchase_type'],
-                'payment_status' => $data['purchase_type'] === 'credit' ? 'unpaid' : 'paid',
                 'order_date' => $data['order_date'] ?? null,
                 'expected_date' => $data['expected_date'] ?? null,
-                'paid_at' => $data['purchase_type'] === 'credit' ? null : now(),
                 'note' => $data['note'] ?? null,
-            ]);
+            ];
+
+            if ($order->status === 'rfq') {
+                $payload['payment_status'] = $data['purchase_type'] === 'credit' ? 'unpaid' : 'paid';
+                $payload['paid_at'] = $data['purchase_type'] === 'credit' ? null : now();
+            }
+
+            $order->update($payload);
 
             $this->syncLinesAndTotals($order, $data['lines']);
         });
 
         $this->purchaseCreditLedger->syncForOrder($order->fresh('vendor'));
 
-        return redirect()->route('purchase.orders.edit', $order)->with('status', 'RFQ updated.');
+        return redirect()->route('purchase.orders.edit', $order)->with('status', 'Purchase updated.');
     }
 
     public function quickAddProduct(Request $request)
@@ -325,12 +330,22 @@ class OrderController extends Controller
         $taxTotal = 0.0;
 
         foreach ($lines as $l) {
+            $productId = (int) ($l['product_id'] ?? 0);
+            if ($productId <= 0) {
+                continue;
+            }
+
+            $qty = (float) ($l['qty'] ?? 0);
+            if ($qty < 0.001) {
+                $qty = 1.0;
+            }
+
             $postedTotal = array_key_exists('line_total', $l) && $l['line_total'] !== null && $l['line_total'] !== ''
                 ? (float) $l['line_total']
                 : null;
 
             $amounts = PurchaseOrderLine::amountsFromInput(
-                (float) $l['qty'],
+                $qty,
                 (float) ($l['unit_price'] ?? 0),
                 isset($l['tax_percent']) ? (float) $l['tax_percent'] : 0.0,
                 $postedTotal
@@ -342,9 +357,9 @@ class OrderController extends Controller
             PurchaseOrderLine::create([
                 'company_id' => $order->company_id,
                 'purchase_order_id' => $order->id,
-                'product_id' => $l['product_id'],
+                'product_id' => $productId,
                 'description' => $l['description'] ?? null,
-                'uom' => $l['uom'],
+                'uom' => $l['uom'] ?: 'nos',
                 'qty' => $amounts['qty'],
                 'unit_price' => $amounts['unit_price'],
                 'tax_percent' => $amounts['tax_percent'],
