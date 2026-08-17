@@ -13,6 +13,7 @@ use App\Models\PurchaseVendor;
 use App\Models\Setting;
 use App\Services\AutoJournalService;
 use App\Services\PurchaseCreditLedgerService;
+use App\Services\PurchaseTotalsReconciler;
 use App\Services\Sync\SyncAwareDelete;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,11 +24,14 @@ class OrderController extends Controller
 {
     public function __construct(
         private readonly AutoJournalService $autoJournal,
-        private readonly PurchaseCreditLedgerService $purchaseCreditLedger
+        private readonly PurchaseCreditLedgerService $purchaseCreditLedger,
+        private readonly PurchaseTotalsReconciler $purchaseTotals
     ) {}
 
     public function index(Request $request)
     {
+        $this->purchaseTotals->repairOnce();
+
         $status = $request->query('status');
 
         $orders = PurchaseOrder::query()
@@ -42,6 +46,7 @@ class OrderController extends Controller
 
     public function create()
     {
+        $this->purchaseTotals->ensureSchema();
         $vendors = PurchaseVendor::query()->where('active', true)->orderBy('name')->get(['id', 'name']);
         $uomLibraryUnits = Schema::hasTable('inventory_units')
             ? InventoryUnit::query()->orderBy('code')->get(['code', 'name'])
@@ -91,6 +96,9 @@ class OrderController extends Controller
 
     public function edit(PurchaseOrder $order)
     {
+        $this->purchaseTotals->repairOnce();
+        $this->purchaseTotals->repairOrder($order);
+
         $order->load(['vendor:id,name', 'lines.product:id,sku,name,uom']);
 
         $vendors = PurchaseVendor::query()->where('active', true)->orderBy('name')->get(['id', 'name']);
@@ -111,6 +119,9 @@ class OrderController extends Controller
 
     public function print(PurchaseOrder $order)
     {
+        $this->purchaseTotals->repairOnce();
+        $this->purchaseTotals->repairOrder($order);
+
         $order->load([
             'vendor:id,name,phone,email,address,tax_id',
             'creator:id,name',
@@ -304,6 +315,8 @@ class OrderController extends Controller
 
     private function syncLinesAndTotals(PurchaseOrder $order, array $lines): void
     {
+        $this->purchaseTotals->ensureSchema();
+
         SyncAwareDelete::query(
             PurchaseOrderLine::query()->where('purchase_order_id', $order->id)
         );
@@ -312,17 +325,19 @@ class OrderController extends Controller
         $taxTotal = 0.0;
 
         foreach ($lines as $l) {
-            $qty = round((float) $l['qty'], 3);
-            // DB column is decimal(14,2) — round price first so qty × unit = line total = subtotal.
-            $price = round((float) $l['unit_price'], 2);
-            $taxPercent = isset($l['tax_percent']) ? round((float) $l['tax_percent'], 3) : 0.0;
+            $postedTotal = array_key_exists('line_total', $l) && $l['line_total'] !== null && $l['line_total'] !== ''
+                ? (float) $l['line_total']
+                : null;
 
-            $lineSubtotal = round($qty * $price, 2);
-            $lineTax = round($lineSubtotal * ($taxPercent / 100.0), 2);
-            $lineTotal = round($lineSubtotal + $lineTax, 2);
+            $amounts = PurchaseOrderLine::amountsFromInput(
+                (float) $l['qty'],
+                (float) ($l['unit_price'] ?? 0),
+                isset($l['tax_percent']) ? (float) $l['tax_percent'] : 0.0,
+                $postedTotal
+            );
 
-            $subtotal = round($subtotal + $lineSubtotal, 2);
-            $taxTotal = round($taxTotal + $lineTax, 2);
+            $subtotal = round($subtotal + $amounts['subtotal'], 2);
+            $taxTotal = round($taxTotal + $amounts['tax_amount'], 2);
 
             PurchaseOrderLine::create([
                 'company_id' => $order->company_id,
@@ -330,12 +345,12 @@ class OrderController extends Controller
                 'product_id' => $l['product_id'],
                 'description' => $l['description'] ?? null,
                 'uom' => $l['uom'],
-                'qty' => $qty,
-                'unit_price' => $price,
-                'tax_percent' => $taxPercent,
-                'subtotal' => $lineSubtotal,
-                'tax_amount' => $lineTax,
-                'total' => $lineTotal,
+                'qty' => $amounts['qty'],
+                'unit_price' => $amounts['unit_price'],
+                'tax_percent' => $amounts['tax_percent'],
+                'subtotal' => $amounts['subtotal'],
+                'tax_amount' => $amounts['tax_amount'],
+                'total' => $amounts['total'],
             ]);
         }
 

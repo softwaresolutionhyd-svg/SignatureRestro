@@ -7,6 +7,7 @@ use App\Support\EnsuresEmployeeStaffCategorySchema;
 use App\Support\EnsuresExpenseLinesSchema;
 use App\Support\EnsuresKitchenAgentSchema;
 use App\Support\EnsuresPayrollSchema;
+use App\Support\EnsuresPurchaseOrderLinePriceSchema;
 use App\Support\EnsuresStockDemandSchema;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -18,6 +19,7 @@ class SyncTargetSchemaService
     use EnsuresExpenseLinesSchema;
     use EnsuresKitchenAgentSchema;
     use EnsuresPayrollSchema;
+    use EnsuresPurchaseOrderLinePriceSchema;
     use EnsuresStockDemandSchema;
 
     public function ensureAll(): void
@@ -31,6 +33,7 @@ class SyncTargetSchemaService
                 $this->ensureKitchenAgentSchema($connection);
                 $this->ensureStockDemandSchema($connection);
                 $this->ensureExpenseLinesSchema($connection);
+                $this->ensurePurchaseOrderLinePriceSchema($connection);
             } catch (\Throwable $e) {
                 Log::warning('sync.schema_ensure_failed', [
                     'connection' => $connection,

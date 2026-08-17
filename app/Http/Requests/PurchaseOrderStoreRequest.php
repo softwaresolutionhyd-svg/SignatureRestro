@@ -33,7 +33,8 @@ class PurchaseOrderStoreRequest extends FormRequest
             'lines.*.description' => ['nullable', 'string', 'max:255'],
             'lines.*.uom' => ['required', 'string', 'max:30'],
             'lines.*.qty' => ['required', 'numeric', 'min:0.001'],
-            'lines.*.unit_price' => ['required', 'numeric', 'min:0'],
+            'lines.*.unit_price' => ['nullable', 'numeric', 'min:0'],
+            'lines.*.line_total' => ['nullable', 'numeric', 'min:0'],
             'lines.*.tax_percent' => ['nullable', 'numeric', 'min:0'],
         ];
     }

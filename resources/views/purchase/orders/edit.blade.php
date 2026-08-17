@@ -83,7 +83,7 @@
                     </div>
                     <div class="col-12 col-lg-2">
                         <div class="text-secondary small">Total</div>
-                        <div class="fw-bold">{{ fmt_num($order->computedGrandTotal(), 2) }}</div>
+                        <div class="fw-bold">{{ fmt_num((float) $order->grand_total, 2) }}</div>
                     </div>
                     <div class="col-12 col-lg-3">
                         <div class="text-secondary small">Purchase type</div>
@@ -119,9 +119,9 @@
                                     <div class="text-secondary small">{{ $l->product->sku }}</div>
                                 </td>
                                 <td class="text-end">{{ fmt_num((float)$l->qty, 3) }} {{ $l->uom }}</td>
-                                <td class="text-end">{{ fmt_num((float)$l->unit_price, 2) }}</td>
+                                <td class="text-end">{{ fmt_num((float)$l->unit_price, 6) }}</td>
                                 <td class="text-end">{{ fmt_num((float)$l->tax_percent, 3) }}</td>
-                                <td class="text-end fw-semibold">{{ fmt_num($l->computedTotal(), 2) }}</td>
+                                <td class="text-end fw-semibold">{{ fmt_num((float)$l->total, 2) }}</td>
                             </tr>
                         @endforeach
                         </tbody>
@@ -133,16 +133,16 @@
                         <div class="border rounded-3 p-3 bg-light">
                             <div class="d-flex justify-content-between">
                                 <div class="text-secondary">Subtotal</div>
-                                <div class="fw-semibold">{{ fmt_num($order->computedSubtotal(), 2) }}</div>
+                                <div class="fw-semibold">{{ fmt_num((float) $order->subtotal, 2) }}</div>
                             </div>
                             <div class="d-flex justify-content-between mt-1">
                                 <div class="text-secondary">Tax</div>
-                                <div class="fw-semibold">{{ fmt_num($order->computedTaxTotal(), 2) }}</div>
+                                <div class="fw-semibold">{{ fmt_num((float) $order->tax_total, 2) }}</div>
                             </div>
                             <hr class="my-2">
                             <div class="d-flex justify-content-between">
                                 <div class="fw-semibold">Total</div>
-                                <div class="fw-bold">{{ fmt_num($order->computedGrandTotal(), 2) }}</div>
+                                <div class="fw-bold">{{ fmt_num((float) $order->grand_total, 2) }}</div>
                             </div>
                         </div>
                     </div>

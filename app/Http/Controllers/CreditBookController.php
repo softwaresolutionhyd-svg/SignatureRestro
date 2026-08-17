@@ -10,6 +10,7 @@ use App\Models\PurchaseVendor;
 use App\Models\Setting;
 use App\Services\AutoJournalService;
 use App\Services\PosCreditLedgerSync;
+use App\Services\PurchaseTotalsReconciler;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,7 @@ class CreditBookController extends Controller
     public function __construct(
         private readonly PosCreditLedgerSync $posCreditLedgerSync,
         private readonly AutoJournalService $autoJournal,
+        private readonly PurchaseTotalsReconciler $purchaseTotals,
     ) {}
 
     /** Master credit book — ledger contacts (settled + outstanding) until deleted */
@@ -97,6 +99,9 @@ class CreditBookController extends Controller
     public function showPurchase(Request $request, PurchaseOrder $order): View
     {
         abort_unless($order->purchase_type === 'credit', 404);
+
+        $this->purchaseTotals->repairOnce();
+        $this->purchaseTotals->repairOrder($order);
 
         $order->load(['lines.product:id,name,sku', 'vendor:id,name,phone', 'creator:id,name']);
 

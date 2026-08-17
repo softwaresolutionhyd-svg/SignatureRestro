@@ -50,7 +50,7 @@
                         </td>
                         <td class="text-end">{{ fmt_num((float) $line->qty, 3) }}</td>
                         <td>{{ $line->uom }}</td>
-                        <td class="text-end">{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $line->unit_price, 2) }}</td>
+                        <td class="text-end">{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $line->unit_price, 6) }}</td>
                         <td class="text-end">{{ fmt_num((float) $line->tax_amount, 2) }}</td>
                         <td class="text-end fw-semibold">{{ $settings['currency_symbol'] ?? 'Rs.' }}{{ fmt_num((float) $line->total, 2) }}</td>
                     </tr>

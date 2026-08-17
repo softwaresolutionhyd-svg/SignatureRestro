@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Purchase;
 use App\Http\Controllers\Controller;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseVendor;
+use App\Services\PurchaseTotalsReconciler;
 
 class PurchaseController extends Controller
 {
-    public function index()
+    public function index(PurchaseTotalsReconciler $purchaseTotals)
     {
+        $purchaseTotals->repairOnce();
         $kpis = [
             'vendors' => PurchaseVendor::query()->count(),
             'rfqs' => PurchaseOrder::query()->where('status', 'rfq')->count(),

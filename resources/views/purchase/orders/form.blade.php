@@ -30,6 +30,7 @@
                     'uom' => $l->uom,
                     'qty' => (float) $l->qty,
                     'unit_price' => (float) $l->unit_price,
+                    'line_total' => (float) $l->total,
                     'tax_percent' => (float) $l->tax_percent,
                 ];
             })->values()->toArray();
@@ -288,6 +289,21 @@
         return s === '-0' ? '0' : s;
     }
 
+    function roundMoney(n) {
+        return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+    }
+
+    function roundUnit(n) {
+        return Math.round((Number(n) + Number.EPSILON) * 1e6) / 1e6;
+    }
+
+    function fmtUnit(n) {
+        if (!Number.isFinite(n)) return '0';
+        let s = roundUnit(n).toFixed(6);
+        s = s.replace(/\.?0+$/, '');
+        return s === '-0' ? '0' : s;
+    }
+
     function escHtml(s) {
         return String(s ?? '')
             .replace(/&/g, '&amp;')
@@ -303,20 +319,18 @@
     function setLineTotalFromUnit(tr) {
         const qty = parseFloat(tr.querySelector('[name$="[qty]"]').value || '0') || 0;
         const unit = parseFloat(tr.querySelector('[name$="[unit_price]"]').value || '0') || 0;
-        const total = qty * unit;
+        const total = roundMoney(qty * unit);
         const input = tr.querySelector('.lineTotalInput');
-        if (input) input.value = total ? (Math.round(total * 100) / 100) : '';
+        if (input) input.value = total ? String(total) : '';
     }
 
-    // Total ÷ Qty => Unit price (reverse direction: user Total type kare, unit auto ban jaye).
+    // Total ÷ Qty => Unit price. Typed invoice total is kept (not overwritten).
     function setUnitFromLineTotal(tr) {
         const qty = parseFloat(tr.querySelector('[name$="[qty]"]').value || '0') || 0;
         const total = lineTotalOf(tr);
         const unitInput = tr.querySelector('[name$="[unit_price]"]');
         if (!unitInput) return;
-        // 2 dp — same as DB. Then refresh line total so qty × unit = total = subtotal.
-        unitInput.value = qty > 0 ? (Math.round((total / qty) * 100) / 100) : 0;
-        setLineTotalFromUnit(tr);
+        unitInput.value = qty > 0 ? fmtUnit(total / qty) : '0';
     }
 
     function refreshSubtotal() {
@@ -326,9 +340,7 @@
         document.getElementById('grandText').textContent = fmt(subtotal);
     }
 
-    // Sab lines ka total qty×unit se refresh karo (product select / load ke waqt).
     function computeTotals() {
-        [...body.querySelectorAll('tr')].forEach(tr => setLineTotalFromUnit(tr));
         refreshSubtotal();
     }
 
@@ -408,7 +420,7 @@
               <input class="form-control text-end" type="number" step="any" min="0" name="lines[${idx}][unit_price]" value="${line.unit_price ?? '0'}" required>
               <input type="hidden" name="lines[${idx}][tax_percent]" value="0">
             </td>
-            <td><input class="form-control text-end fw-semibold lineTotalInput" type="number" step="any" min="0" placeholder="0.00" value=""></td>
+            <td><input class="form-control text-end fw-semibold lineTotalInput" type="number" step="any" min="0" name="lines[${idx}][line_total]" placeholder="0.00" value="${line.line_total ?? ''}"></td>
             <td class="text-end">
               <button type="button" class="btn btn-sm btn-outline-secondary quickEditLineProduct">Quick edit</button>
               <button type="button" class="btn btn-sm btn-outline-danger removeLine">Remove</button>
@@ -427,7 +439,7 @@
             }
             const uomSel = tr.querySelector('[name$="[uom]"]');
             uomSel.innerHTML = uomOptions(pid, null);
-            computeTotals();
+            refreshSubtotal();
         }
 
         function resolveTypedProduct() {
@@ -485,11 +497,18 @@
                     el.name = el.name.replace(/lines\\[\\d+\\]/, `lines[${i}]`);
                 });
             });
-            computeTotals();
+            refreshSubtotal();
         });
 
         body.appendChild(tr);
-        computeTotals();
+        if (line.line_total != null && String(line.line_total) !== '') {
+            const input = tr.querySelector('.lineTotalInput');
+            if (input) input.value = line.line_total;
+            setUnitFromLineTotal(tr);
+        } else {
+            setLineTotalFromUnit(tr);
+        }
+        refreshSubtotal();
     }
 
     // Shared datalist for all line search inputs.
@@ -636,7 +655,7 @@
                 }
             }
         });
-        computeTotals();
+        refreshSubtotal();
     }
 
     async function saveQuickEditedProduct() {

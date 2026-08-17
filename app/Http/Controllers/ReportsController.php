@@ -21,6 +21,7 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderLine;
 use App\Models\PurchaseVendor;
 use App\Models\Setting;
+use App\Services\PurchaseTotalsReconciler;
 use App\Support\PosOrderMetrics;
 use App\Services\NetworkPrinterService;
 use App\Services\PosSessionSummaryService;
@@ -966,6 +967,8 @@ class ReportsController extends Controller
         $vendor   = $request->input('vendor');
         $status   = $request->input('status', '');
         $currency = Setting::get('currency_symbol', 'Rs.');
+
+        app(PurchaseTotalsReconciler::class)->repairOnce();
 
         $query = PurchaseOrder::with(['vendor', 'creator', 'lines.product'])
             ->whereBetween('order_date', [$from, $to]);

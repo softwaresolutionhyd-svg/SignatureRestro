@@ -23,7 +23,7 @@ return new class extends Migration
             $table->string('description', 255)->nullable();
             $table->string('uom', 30);
             $table->decimal('qty', 14, 3);
-            $table->decimal('unit_price', 14, 2)->default(0);
+            $table->decimal('unit_price', 14, 6)->default(0);
             $table->decimal('tax_percent', 6, 3)->default(0); // e.g. 17
 
             $table->decimal('subtotal', 14, 2)->default(0);
