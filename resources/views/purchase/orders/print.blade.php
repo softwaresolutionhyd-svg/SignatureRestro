@@ -123,7 +123,6 @@
             <th style="width:90px;">SKU</th>
             <th class="num" style="width:90px;">Qty</th>
             <th class="num" style="width:100px;">Unit price</th>
-            <th class="num" style="width:70px;">Tax %</th>
             <th class="num" style="width:110px;">Total</th>
         </tr>
         </thead>
@@ -137,11 +136,10 @@
                 <td>{{ $line->product?->sku ?: '—' }}</td>
                 <td class="num">{{ fmt_num((float) $line->qty, 3) }} {{ $line->uom }}</td>
                 <td class="num">{{ $currency }} {{ fmt_num((float) $line->unit_price, 6) }}</td>
-                <td class="num">{{ fmt_num((float) $line->tax_percent, 3) }}</td>
                 <td class="num">{{ $currency }} {{ fmt_num((float) $line->total, 2) }}</td>
             </tr>
         @empty
-            <tr><td colspan="7" style="text-align:center;">No lines.</td></tr>
+            <tr><td colspan="6" style="text-align:center;">No lines.</td></tr>
         @endforelse
         </tbody>
     </table>
@@ -151,10 +149,28 @@
             <th>Subtotal</th>
             <td>{{ $currency }} {{ fmt_num((float) $order->subtotal, 2) }}</td>
         </tr>
+        @if((float) ($order->discount_total ?? 0) > 0)
         <tr>
-            <th>Tax</th>
+            <th>
+                Discount
+                @if(($order->discount_mode ?? 'percent') === 'percent')
+                    ({{ fmt_num((float) $order->discount_value, 3) }}%)
+                @endif
+            </th>
+            <td>− {{ $currency }} {{ fmt_num((float) $order->discount_total, 2) }}</td>
+        </tr>
+        @endif
+        @if((float) ($order->tax_total ?? 0) > 0)
+        <tr>
+            <th>
+                TAX
+                @if(($order->tax_mode ?? 'percent') === 'percent' && (float) ($order->tax_value ?? 0) > 0)
+                    ({{ fmt_num((float) $order->tax_value, 3) }}%)
+                @endif
+            </th>
             <td>{{ $currency }} {{ fmt_num((float) $order->tax_total, 2) }}</td>
         </tr>
+        @endif
         <tr>
             <th>Grand total</th>
             <td>{{ $currency }} {{ fmt_num((float) $order->grand_total, 2) }}</td>

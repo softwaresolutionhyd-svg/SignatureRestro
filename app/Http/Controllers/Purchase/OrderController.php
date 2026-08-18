@@ -84,7 +84,7 @@ class OrderController extends Controller
                 'note' => $data['note'] ?? null,
             ]);
 
-            $this->syncLinesAndTotals($order, $data['lines']);
+            $this->syncLinesAndTotals($order, $data['lines'], $data);
 
             return $order;
         });
@@ -157,7 +157,7 @@ class OrderController extends Controller
 
             $order->update($payload);
 
-            $this->syncLinesAndTotals($order, $data['lines']);
+            $this->syncLinesAndTotals($order, $data['lines'], $data);
         });
 
         $this->purchaseCreditLedger->syncForOrder($order->fresh('vendor'));
@@ -318,7 +318,7 @@ class OrderController extends Controller
         return redirect()->route('purchase.orders.edit', $order)->with('status', 'Purchase marked as paid.');
     }
 
-    private function syncLinesAndTotals(PurchaseOrder $order, array $lines): void
+    private function syncLinesAndTotals(PurchaseOrder $order, array $lines, array $header = []): void
     {
         $this->purchaseTotals->ensureSchema();
 
@@ -326,8 +326,7 @@ class OrderController extends Controller
             PurchaseOrderLine::query()->where('purchase_order_id', $order->id)
         );
 
-        $subtotal = 0.0;
-        $taxTotal = 0.0;
+        $goodsSubtotal = 0.0;
 
         foreach ($lines as $l) {
             $productId = (int) ($l['product_id'] ?? 0);
@@ -347,12 +346,11 @@ class OrderController extends Controller
             $amounts = PurchaseOrderLine::amountsFromInput(
                 $qty,
                 (float) ($l['unit_price'] ?? 0),
-                isset($l['tax_percent']) ? (float) $l['tax_percent'] : 0.0,
+                0.0,
                 $postedTotal
             );
 
-            $subtotal = round($subtotal + $amounts['subtotal'], 2);
-            $taxTotal = round($taxTotal + $amounts['tax_amount'], 2);
+            $goodsSubtotal = round($goodsSubtotal + $amounts['total'], 2);
 
             PurchaseOrderLine::create([
                 'company_id' => $order->company_id,
@@ -362,17 +360,21 @@ class OrderController extends Controller
                 'uom' => $l['uom'] ?: 'nos',
                 'qty' => $amounts['qty'],
                 'unit_price' => $amounts['unit_price'],
-                'tax_percent' => $amounts['tax_percent'],
+                'tax_percent' => 0,
                 'subtotal' => $amounts['subtotal'],
-                'tax_amount' => $amounts['tax_amount'],
+                'tax_amount' => 0,
                 'total' => $amounts['total'],
             ]);
         }
 
-        $order->update([
-            'subtotal' => $subtotal,
-            'tax_total' => $taxTotal,
-            'grand_total' => round($subtotal + $taxTotal, 2),
-        ]);
+        $bill = PurchaseOrder::computeBillTotals(
+            $goodsSubtotal,
+            (string) ($header['discount_mode'] ?? 'percent'),
+            (float) ($header['discount_value'] ?? 0),
+            (string) ($header['tax_mode'] ?? 'percent'),
+            (float) ($header['tax_value'] ?? 0)
+        );
+
+        $order->update($bill);
     }
 }

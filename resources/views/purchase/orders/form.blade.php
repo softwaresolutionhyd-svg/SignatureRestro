@@ -115,13 +115,65 @@
     </table>
 </div>
 
+@php
+    $poDiscountMode = old('discount_mode', $order?->discount_mode ?? 'percent');
+    if (! in_array($poDiscountMode, ['percent', 'amount'], true)) {
+        $poDiscountMode = 'percent';
+    }
+    $poTaxMode = old('tax_mode', $order?->tax_mode ?? 'percent');
+    if (! in_array($poTaxMode, ['percent', 'amount'], true)) {
+        $poTaxMode = 'percent';
+    }
+    $poDiscountValue = old('discount_value', $order?->discount_value ?? 0);
+    $poTaxValue = old('tax_value', $order?->tax_value ?? 0);
+@endphp
+<style>
+    .po-adjust-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .po-adjust-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+    .po-mode-btn { min-width: 2.2rem; }
+    .po-mode-btn.active {
+        background: #4f46e5;
+        border-color: #4f46e5;
+        color: #fff;
+    }
+    .po-adjust-input { max-width: 7.5rem; }
+</style>
 <div class="row g-3 mt-2 justify-content-end">
-    <div class="col-12 col-md-6 col-lg-4">
+    <div class="col-12 col-md-7 col-lg-5">
         <div class="border rounded-3 p-3 bg-light">
             <div class="d-flex justify-content-between">
                 <div class="text-secondary">Subtotal</div>
                 <div class="fw-semibold" id="subtotalText">0.00</div>
             </div>
+
+            <div class="po-adjust-row mt-2">
+                <div class="po-adjust-left">
+                    <span class="text-secondary">Discount</span>
+                    <input type="hidden" name="discount_mode" id="poDiscountMode" value="{{ $poDiscountMode }}">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Discount Rs or percent">
+                        <button type="button" class="btn btn-outline-secondary po-mode-btn {{ $poDiscountMode === 'percent' ? 'active' : '' }}" data-adjust="discount" data-mode="percent">%</button>
+                        <button type="button" class="btn btn-outline-secondary po-mode-btn {{ $poDiscountMode === 'amount' ? 'active' : '' }}" data-adjust="discount" data-mode="amount">Rs</button>
+                    </div>
+                    <input type="number" step="0.001" min="0" class="form-control form-control-sm text-end po-adjust-input"
+                           name="discount_value" id="poDiscountValue" value="{{ $poDiscountValue }}" placeholder="0">
+                </div>
+                <div class="fw-semibold text-danger" id="discountText">0.00</div>
+            </div>
+
+            <div class="po-adjust-row mt-2">
+                <div class="po-adjust-left">
+                    <span class="text-secondary">TAX</span>
+                    <input type="hidden" name="tax_mode" id="poTaxMode" value="{{ $poTaxMode }}">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Tax Rs or percent">
+                        <button type="button" class="btn btn-outline-secondary po-mode-btn {{ $poTaxMode === 'percent' ? 'active' : '' }}" data-adjust="tax" data-mode="percent">%</button>
+                        <button type="button" class="btn btn-outline-secondary po-mode-btn {{ $poTaxMode === 'amount' ? 'active' : '' }}" data-adjust="tax" data-mode="amount">Rs</button>
+                    </div>
+                    <input type="number" step="0.001" min="0" class="form-control form-control-sm text-end po-adjust-input"
+                           name="tax_value" id="poTaxValue" value="{{ $poTaxValue }}" placeholder="0">
+                </div>
+                <div class="fw-semibold" id="taxText">0.00</div>
+            </div>
+
             <hr class="my-2">
             <div class="d-flex justify-content-between">
                 <div class="fw-semibold">Total</div>
@@ -337,13 +389,55 @@
     function refreshSubtotal() {
         let subtotal = 0;
         [...body.querySelectorAll('tr')].forEach(tr => { subtotal += lineTotalOf(tr); });
-        document.getElementById('subtotalText').textContent = fmt(subtotal);
-        document.getElementById('grandText').textContent = fmt(subtotal);
+        subtotal = roundMoney(subtotal);
+
+        const discountMode = document.getElementById('poDiscountMode')?.value === 'amount' ? 'amount' : 'percent';
+        const taxMode = document.getElementById('poTaxMode')?.value === 'amount' ? 'amount' : 'percent';
+        let discountValue = parseFloat(document.getElementById('poDiscountValue')?.value || '0') || 0;
+        let taxValue = parseFloat(document.getElementById('poTaxValue')?.value || '0') || 0;
+        if (discountValue < 0) discountValue = 0;
+        if (taxValue < 0) taxValue = 0;
+
+        let discountTotal = discountMode === 'percent'
+            ? roundMoney(subtotal * (Math.min(discountValue, 100) / 100))
+            : roundMoney(Math.min(discountValue, subtotal));
+        const afterDiscount = roundMoney(Math.max(0, subtotal - discountTotal));
+        const taxTotal = taxMode === 'percent'
+            ? roundMoney(afterDiscount * (Math.min(taxValue, 100) / 100))
+            : roundMoney(taxValue);
+        const grand = roundMoney(afterDiscount + taxTotal);
+
+        const subEl = document.getElementById('subtotalText');
+        const discEl = document.getElementById('discountText');
+        const taxEl = document.getElementById('taxText');
+        const grandEl = document.getElementById('grandText');
+        if (subEl) subEl.textContent = fmt(subtotal);
+        if (discEl) discEl.textContent = discountTotal ? ('−' + fmt(discountTotal)) : fmt(0);
+        if (taxEl) taxEl.textContent = taxTotal ? fmt(taxTotal) : fmt(0);
+        if (grandEl) grandEl.textContent = fmt(grand);
     }
 
     function computeTotals() {
         refreshSubtotal();
     }
+
+    function setAdjustMode(kind, mode) {
+        const next = mode === 'amount' ? 'amount' : 'percent';
+        const hidden = document.getElementById(kind === 'tax' ? 'poTaxMode' : 'poDiscountMode');
+        if (hidden) hidden.value = next;
+        document.querySelectorAll(`.po-mode-btn[data-adjust="${kind}"]`).forEach((btn) => {
+            btn.classList.toggle('active', btn.getAttribute('data-mode') === next);
+        });
+        refreshSubtotal();
+    }
+
+    document.querySelectorAll('.po-mode-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            setAdjustMode(btn.getAttribute('data-adjust'), btn.getAttribute('data-mode'));
+        });
+    });
+    document.getElementById('poDiscountValue')?.addEventListener('input', refreshSubtotal);
+    document.getElementById('poTaxValue')?.addEventListener('input', refreshSubtotal);
 
     function uomOptions(productId, selected) {
         const p = products.find(x => String(x.id) === String(productId));

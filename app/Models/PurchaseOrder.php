@@ -26,6 +26,11 @@ class PurchaseOrder extends Model
         'order_date',
         'expected_date',
         'subtotal',
+        'discount_mode',
+        'discount_value',
+        'discount_total',
+        'tax_mode',
+        'tax_value',
         'tax_total',
         'grand_total',
         'confirmed_at',
@@ -38,6 +43,9 @@ class PurchaseOrder extends Model
         'order_date' => 'date',
         'expected_date' => 'date',
         'subtotal' => 'decimal:2',
+        'discount_value' => 'decimal:3',
+        'discount_total' => 'decimal:2',
+        'tax_value' => 'decimal:3',
         'tax_total' => 'decimal:2',
         'grand_total' => 'decimal:2',
         'confirmed_at' => 'datetime',
@@ -60,7 +68,65 @@ class PurchaseOrder extends Model
         return $this->hasMany(PurchaseOrderLine::class, 'purchase_order_id');
     }
 
-    /** Header totals follow SUM(line.total). */
+    public static function normalizeAdjustMode(?string $mode): string
+    {
+        return $mode === 'amount' ? 'amount' : 'percent';
+    }
+
+    /**
+     * Bill-level discount then tax on (subtotal − discount).
+     *
+     * @return array{
+     *   subtotal: float,
+     *   discount_mode: string,
+     *   discount_value: float,
+     *   discount_total: float,
+     *   tax_mode: string,
+     *   tax_value: float,
+     *   tax_total: float,
+     *   grand_total: float
+     * }
+     */
+    public static function computeBillTotals(
+        float $goodsSubtotal,
+        ?string $discountMode,
+        float $discountValue,
+        ?string $taxMode,
+        float $taxValue
+    ): array {
+        $subtotal = round(max(0.0, $goodsSubtotal), 2);
+        $discountMode = self::normalizeAdjustMode($discountMode);
+        $taxMode = self::normalizeAdjustMode($taxMode);
+        $discountValue = max(0.0, $discountValue);
+        $taxValue = max(0.0, $taxValue);
+
+        if ($discountMode === 'percent') {
+            $discountTotal = round($subtotal * (min($discountValue, 100.0) / 100.0), 2);
+        } else {
+            $discountTotal = round(min($discountValue, $subtotal), 2);
+        }
+
+        $afterDiscount = round(max(0.0, $subtotal - $discountTotal), 2);
+
+        if ($taxMode === 'percent') {
+            $taxTotal = round($afterDiscount * (min($taxValue, 100.0) / 100.0), 2);
+        } else {
+            $taxTotal = round($taxValue, 2);
+        }
+
+        return [
+            'subtotal' => $subtotal,
+            'discount_mode' => $discountMode,
+            'discount_value' => round($discountValue, 3),
+            'discount_total' => $discountTotal,
+            'tax_mode' => $taxMode,
+            'tax_value' => round($taxValue, 3),
+            'tax_total' => $taxTotal,
+            'grand_total' => round($afterDiscount + $taxTotal, 2),
+        ];
+    }
+
+    /** Header totals follow SUM(line.total) then bill discount + tax. */
     public function computedSubtotal(): float
     {
         return round((float) $this->subtotal, 2);

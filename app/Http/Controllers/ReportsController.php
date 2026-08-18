@@ -984,6 +984,7 @@ class ReportsController extends Controller
 
         $totalAmount = $orders->sum('grand_total');
         $totalTax    = $orders->sum('tax_total');
+        $totalDiscount = $orders->sum('discount_total');
         $orderCount  = $orders->count();
 
         $purchaseLines = PurchaseOrderLine::query()
@@ -1059,7 +1060,7 @@ class ReportsController extends Controller
 
         return compact(
             'orders', 'from', 'to', 'vendor', 'status', 'currency',
-            'totalAmount', 'totalTax', 'orderCount',
+            'totalAmount', 'totalTax', 'totalDiscount', 'orderCount',
             'byVendor', 'byVendorProducts', 'vendors', 'chartLabels', 'chartData',
             'purchaseLines', 'byProduct', 'lineCount', 'productCount',
             'selectedVendor', 'statusLabel'

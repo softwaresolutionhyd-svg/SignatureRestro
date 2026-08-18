@@ -25,6 +25,44 @@ final class PurchaseTotalsReconciler
     public function ensureSchema(?string $connection = 'tenant'): void
     {
         $this->ensurePurchaseOrderLinePriceSchema($connection);
+        $this->ensurePurchaseOrderBillAdjustSchema($connection);
+    }
+
+    protected function ensurePurchaseOrderBillAdjustSchema(?string $connection = 'tenant'): void
+    {
+        $connection = $connection ?: 'tenant';
+        $schema = \Illuminate\Support\Facades\Schema::connection($connection);
+        if (! $schema->hasTable('purchase_orders')) {
+            return;
+        }
+
+        $columns = [
+            'discount_mode' => function ($table) {
+                $table->string('discount_mode', 16)->default('percent');
+            },
+            'discount_value' => function ($table) {
+                $table->decimal('discount_value', 14, 3)->default(0);
+            },
+            'discount_total' => function ($table) {
+                $table->decimal('discount_total', 14, 2)->default(0);
+            },
+            'tax_mode' => function ($table) {
+                $table->string('tax_mode', 16)->default('percent');
+            },
+            'tax_value' => function ($table) {
+                $table->decimal('tax_value', 14, 3)->default(0);
+            },
+        ];
+
+        foreach ($columns as $name => $define) {
+            if ($schema->hasColumn('purchase_orders', $name)) {
+                continue;
+            }
+            try {
+                $schema->table('purchase_orders', $define);
+            } catch (\Throwable) {
+            }
+        }
     }
 
     public function repairOnce(?string $connection = 'tenant'): void
@@ -134,14 +172,37 @@ final class PurchaseTotalsReconciler
             $grand = round($grand + $amounts['total'], 2);
         }
 
+        $discountValue = (float) ($order->discount_value ?? 0);
+        $taxValue = (float) ($order->tax_value ?? 0);
+        $hasBillAdjust = $discountValue > 0.0005 || $taxValue > 0.0005
+            || (float) ($order->discount_total ?? 0) > 0.009;
+
+        if ($hasBillAdjust) {
+            $bill = PurchaseOrder::computeBillTotals(
+                $grand,
+                (string) ($order->discount_mode ?? 'percent'),
+                $discountValue,
+                (string) ($order->tax_mode ?? 'percent'),
+                $taxValue
+            );
+            $subtotal = $bill['subtotal'];
+            $taxTotal = $bill['tax_total'];
+            $grand = $bill['grand_total'];
+            $discountTotal = $bill['discount_total'];
+        } else {
+            $discountTotal = round((float) ($order->discount_total ?? 0), 2);
+        }
+
         $oldGrand = round((float) $order->grand_total, 2);
         $headerDirty = abs((float) $order->subtotal - $subtotal) > 0.009
+            || abs((float) ($order->discount_total ?? 0) - $discountTotal) > 0.009
             || abs((float) $order->tax_total - $taxTotal) > 0.009
             || abs($oldGrand - $grand) > 0.009;
 
         if ($headerDirty) {
             $order->update([
                 'subtotal' => $subtotal,
+                'discount_total' => $discountTotal,
                 'tax_total' => $taxTotal,
                 'grand_total' => $grand,
             ]);

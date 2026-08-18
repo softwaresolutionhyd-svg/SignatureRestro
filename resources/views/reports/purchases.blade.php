@@ -56,6 +56,7 @@
         ['Orders', $orderCount, 'bi-file-text', '#22c55e'],
         ['Products', $productCount, 'bi-box-seam', '#0ea5e9'],
         ['Total Spend', $currency.' '.fmt_num($totalAmount,2), 'bi-cash-stack', '#7c3aed'],
+        ['Discount', $currency.' '.fmt_num($totalDiscount ?? 0,2), 'bi-tag', '#ef4444'],
         ['Tax', $currency.' '.fmt_num($totalTax,2), 'bi-percent', '#f97316'],
     ] as [$label,$val,$icon,$color])
     <div class="col-6 col-md-3">

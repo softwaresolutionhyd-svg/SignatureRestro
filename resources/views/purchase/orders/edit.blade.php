@@ -107,7 +107,6 @@
                             <th>Product</th>
                             <th class="text-end">Qty</th>
                             <th class="text-end">Unit price</th>
-                            <th class="text-end">Tax %</th>
                             <th class="text-end">Total</th>
                         </tr>
                         </thead>
@@ -120,7 +119,6 @@
                                 </td>
                                 <td class="text-end">{{ fmt_num((float)$l->qty, 3) }} {{ $l->uom }}</td>
                                 <td class="text-end">{{ fmt_num((float)$l->unit_price, 6) }}</td>
-                                <td class="text-end">{{ fmt_num((float)$l->tax_percent, 3) }}</td>
                                 <td class="text-end fw-semibold">{{ fmt_num((float)$l->total, 2) }}</td>
                             </tr>
                         @endforeach
@@ -135,10 +133,32 @@
                                 <div class="text-secondary">Subtotal</div>
                                 <div class="fw-semibold">{{ fmt_num((float) $order->subtotal, 2) }}</div>
                             </div>
+                            @if((float) ($order->discount_total ?? 0) > 0)
                             <div class="d-flex justify-content-between mt-1">
-                                <div class="text-secondary">Tax</div>
+                                <div class="text-secondary">
+                                    Discount
+                                    @if(($order->discount_mode ?? 'percent') === 'percent')
+                                        ({{ fmt_num((float) $order->discount_value, 3) }}%)
+                                    @else
+                                        (Rs)
+                                    @endif
+                                </div>
+                                <div class="fw-semibold text-danger">−{{ fmt_num((float) $order->discount_total, 2) }}</div>
+                            </div>
+                            @endif
+                            @if((float) ($order->tax_total ?? 0) > 0)
+                            <div class="d-flex justify-content-between mt-1">
+                                <div class="text-secondary">
+                                    TAX
+                                    @if(($order->tax_mode ?? 'percent') === 'percent' && (float) ($order->tax_value ?? 0) > 0)
+                                        ({{ fmt_num((float) $order->tax_value, 3) }}%)
+                                    @elseif(($order->tax_mode ?? '') === 'amount')
+                                        (Rs)
+                                    @endif
+                                </div>
                                 <div class="fw-semibold">{{ fmt_num((float) $order->tax_total, 2) }}</div>
                             </div>
+                            @endif
                             <hr class="my-2">
                             <div class="d-flex justify-content-between">
                                 <div class="fw-semibold">Total</div>

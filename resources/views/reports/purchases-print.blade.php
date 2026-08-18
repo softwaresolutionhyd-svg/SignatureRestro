@@ -45,6 +45,7 @@
         <tr><th>Orders</th><td class="num">{{ $orderCount }}</td></tr>
         <tr><th>Products</th><td class="num">{{ $productCount }}</td></tr>
         <tr><th>Total Spend</th><td class="num">{{ $currency }} {{ fmt_num($totalAmount, 2) }}</td></tr>
+        <tr><th>Discount</th><td class="num">{{ $currency }} {{ fmt_num($totalDiscount ?? 0, 2) }}</td></tr>
         <tr><th>Tax</th><td class="num">{{ $currency }} {{ fmt_num($totalTax, 2) }}</td></tr>
     </table>
 

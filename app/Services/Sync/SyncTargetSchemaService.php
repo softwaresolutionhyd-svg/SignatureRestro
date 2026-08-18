@@ -34,6 +34,7 @@ class SyncTargetSchemaService
                 $this->ensureStockDemandSchema($connection);
                 $this->ensureExpenseLinesSchema($connection);
                 $this->ensurePurchaseOrderLinePriceSchema($connection);
+                app(\App\Services\PurchaseTotalsReconciler::class)->ensureSchema($connection);
             } catch (\Throwable $e) {
                 Log::warning('sync.schema_ensure_failed', [
                     'connection' => $connection,

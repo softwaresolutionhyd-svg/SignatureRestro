@@ -27,6 +27,10 @@ class PurchaseOrderStoreRequest extends FormRequest
             'expected_date' => ['nullable', 'date'],
             'note' => ['nullable', 'string', 'max:255'],
             'purchase_type' => ['required', 'in:debit,credit'],
+            'discount_mode' => ['nullable', 'in:percent,amount'],
+            'discount_value' => ['nullable', 'numeric', 'min:0'],
+            'tax_mode' => ['nullable', 'in:percent,amount'],
+            'tax_value' => ['nullable', 'numeric', 'min:0'],
 
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.product_id' => ['required', 'integer', 'exists:tenant.inventory_products,id'],
