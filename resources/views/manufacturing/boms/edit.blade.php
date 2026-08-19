@@ -125,6 +125,18 @@
                     <tbody id="linesBody"></tbody>
                 </table>
             </div>
+            <div class="border-top px-3 py-2 bg-light">
+                <div class="d-flex flex-wrap justify-content-end gap-4 small">
+                    <div class="text-end">
+                        <div class="text-secondary">Total recipe cost / batch</div>
+                        <div class="fw-bold" id="bomBatchCostBottom">—</div>
+                    </div>
+                    <div class="text-end">
+                        <div class="text-secondary">Cost / finished unit</div>
+                        <div class="fw-bold text-primary" id="bomStdCostBottom">—</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -303,9 +315,17 @@
         });
         const elB = document.getElementById('bomBatchCostLive');
         const elU = document.getElementById('bomStdCostLive');
+        const elBBottom = document.getElementById('bomBatchCostBottom');
+        const elUBottom = document.getElementById('bomStdCostBottom');
         if (elB) elB.textContent = Number.isFinite(sum) ? fmtNum(sum, 2) : '—';
+        if (elBBottom) elBBottom.textContent = Number.isFinite(sum) ? fmtNum(sum, 2) : '—';
         if (elU) {
             elU.textContent = (Number.isFinite(batchQty) && batchQty > 0 && Number.isFinite(sum))
+                ? fmtNum(sum / batchQty, 4)
+                : '—';
+        }
+        if (elUBottom) {
+            elUBottom.textContent = (Number.isFinite(batchQty) && batchQty > 0 && Number.isFinite(sum))
                 ? fmtNum(sum / batchQty, 4)
                 : '—';
         }
