@@ -21,6 +21,7 @@ class PayrollEntry extends Model
         'deduction',
         'food_bill',
         'loan',
+        'advance',
         'net_pay',
         'status',
         'paid_at',
@@ -34,6 +35,7 @@ class PayrollEntry extends Model
         'deduction' => 'decimal:2',
         'food_bill' => 'decimal:2',
         'loan' => 'decimal:2',
+        'advance' => 'decimal:2',
         'net_pay' => 'decimal:2',
         'paid_at' => 'datetime',
     ];
@@ -55,7 +57,8 @@ class PayrollEntry extends Model
             + (float) $this->bonus
             - (float) $this->deduction
             - (float) ($this->food_bill ?? 0)
-            - (float) ($this->loan ?? 0),
+            - (float) ($this->loan ?? 0)
+            - (float) ($this->advance ?? 0),
             2
         );
     }

@@ -8,6 +8,7 @@ use App\Models\Setting;
 use App\Support\ActivityLogger;
 use App\Support\EnsuresPayrollSchema;
 use App\Services\AutoJournalService;
+use App\Services\EmployeeAdvanceService;
 use App\Services\EmployeeLoanService;
 use App\Services\PayrollFoodBillSettlementService;
 use App\Services\PayrollPaidExpenseService;
@@ -27,6 +28,7 @@ class PayrollController extends Controller
         private readonly PayrollSalaryService $payrollSalary,
         private readonly PayrollFoodBillSettlementService $foodBillSettlement,
         private readonly EmployeeLoanService $loanService,
+        private readonly EmployeeAdvanceService $advanceService,
         private readonly CloudSyncService $cloudSync,
         private readonly SyncPayrollQueueService $syncPayrollQueue,
         private readonly PayrollPaidExpenseService $payrollPaidExpense,
@@ -165,6 +167,7 @@ class PayrollController extends Controller
         $payrollEntry->loadMissing('employee');
         if ($payrollEntry->employee) {
             $this->loanService->syncLoanDeductionForPayroll($payrollEntry, $payrollEntry->employee, $payrollEntry->period);
+            $this->advanceService->syncAdvanceDeductionForPayroll($payrollEntry, $payrollEntry->employee, $payrollEntry->period);
         }
         $payrollEntry->notes = $data['notes'] ?? null;
         $payrollEntry->recalculateNet();
@@ -195,6 +198,7 @@ class PayrollController extends Controller
 
         $this->foodBillSettlement->settle($payrollEntry, auth()->id());
         $this->loanService->recordPaymentOnPaid($payrollEntry, auth()->id());
+        $this->advanceService->settleOnPaid($payrollEntry, auth()->id());
         $this->autoJournal->postPayrollPaid($payrollEntry);
 
         if ($this->cloudSync->isLocalRole()) {

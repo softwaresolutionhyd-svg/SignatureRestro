@@ -38,7 +38,7 @@
             </div>
         </div>
         <div class="card-footer bg-white small text-secondary py-2">
-            Net = <strong>(Base ÷ 30) × Days</strong> + Bonus − Food − Loan.
+            Net = <strong>(Base ÷ 30) × Days</strong> + Bonus − Food − Loan − Advance.
             Days = Present + Holiday. Generate / Refresh attendance se sync karta hai.
         </div>
     </div>
@@ -55,6 +55,7 @@
                     <th>Deduction</th>
                     <th>Food Bill</th>
                     <th>Loan</th>
+                    <th>Advance</th>
                     <th>Bonus</th>
                     <th>Net</th>
                     <th>Status</th>
@@ -82,6 +83,11 @@
                                 <input type="text" readonly class="form-control form-control-sm bg-light"
                                        value="{{ number_format((float)($entry->loan ?? 0), 2) }}"
                                        title="Auto from Employee Loan — monthly instalment">
+                            </td>
+                            <td style="min-width: 95px;">
+                                <input type="text" readonly class="form-control form-control-sm bg-light"
+                                       value="{{ number_format((float)($entry->advance ?? 0), 2) }}"
+                                       title="Auto from Employee Advance — full month deduction">
                             </td>
                             <td style="min-width: 95px;">
                                 <input type="number" step="0.01" min="0" name="bonus" form="{{ $pf }}" value="{{ old('bonus', $entry->bonus) }}" class="form-control form-control-sm">
@@ -117,6 +123,7 @@
                             <td>{{ number_format((float)$entry->deduction, 2) }}</td>
                             <td>{{ number_format((float)($entry->food_bill ?? 0), 2) }}</td>
                             <td>{{ number_format((float)($entry->loan ?? 0), 2) }}</td>
+                            <td>{{ number_format((float)($entry->advance ?? 0), 2) }}</td>
                             <td>{{ number_format((float)$entry->bonus, 2) }}</td>
                             <td class="fw-semibold">{{ number_format((float)$entry->net_pay, 2) }}</td>
                             <td>
@@ -134,7 +141,7 @@
                         </tr>
                     @endif
                 @empty
-                    <tr><td colspan="10" class="text-center text-secondary py-4">No payroll rows. Generate / Refresh for this period.</td></tr>
+                    <tr><td colspan="11" class="text-center text-secondary py-4">No payroll rows. Generate / Refresh for this period.</td></tr>
                 @endforelse
                 </tbody>
             </table>

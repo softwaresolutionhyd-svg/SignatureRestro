@@ -11,7 +11,7 @@ trait EnsuresPayrollSchema
     protected function ensurePayrollSchema(?string $connection = null): void
     {
         $conn = $connection ?? 'tenant';
-        $cacheKey = 'payroll_schema:ensured:v1:'.$conn;
+        $cacheKey = 'payroll_schema:ensured:v2:'.$conn;
 
         try {
             if (Cache::get($cacheKey)) {
@@ -46,6 +46,12 @@ trait EnsuresPayrollSchema
         if (! $schema->hasColumn('payroll_entries', 'loan')) {
             $schema->table('payroll_entries', function (Blueprint $table) {
                 $table->decimal('loan', 14, 2)->default(0)->after('food_bill');
+            });
+        }
+
+        if (! $schema->hasColumn('payroll_entries', 'advance')) {
+            $schema->table('payroll_entries', function (Blueprint $table) {
+                $table->decimal('advance', 14, 2)->default(0)->after('loan');
             });
         }
 

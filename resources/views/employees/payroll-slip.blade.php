@@ -170,6 +170,9 @@
             <div class="slip-row"><span class="slip-label">Days Deduction (30 − working)</span><span class="slip-value">{{ number_format($row['deduction'], 2) }}</span></div>
             <div class="slip-row"><span class="slip-label">Food Bill (Credit)</span><span class="slip-value">{{ number_format($row['food_bill'], 2) }}</span></div>
             <div class="slip-row"><span class="slip-label">Loan</span><span class="slip-value">{{ number_format($row['loan'], 2) }}</span></div>
+            @if(($row['advance'] ?? 0) > 0)
+            <div class="slip-row"><span class="slip-label">Advance</span><span class="slip-value">{{ number_format($row['advance'], 2) }}</span></div>
+            @endif
             @if($row['bonus'] > 0)
             <div class="slip-row"><span class="slip-label">Bonus</span><span class="slip-value">{{ number_format($row['bonus'], 2) }}</span></div>
             @endif

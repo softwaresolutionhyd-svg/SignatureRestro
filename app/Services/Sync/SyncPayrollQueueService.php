@@ -5,6 +5,7 @@ namespace App\Services\Sync;
 use App\Models\Contact;
 use App\Models\CreditLedger;
 use App\Models\Employee;
+use App\Models\EmployeeAdvance;
 use App\Models\EmployeeLoan;
 use App\Models\EmployeeLoanPayment;
 use App\Models\EmployeeAttendance;
@@ -24,6 +25,13 @@ class SyncPayrollQueueService
         }
 
         $queued = 0;
+
+        EmployeeAdvance::withoutGlobalScope('company')
+            ->orderBy('id')
+            ->each(function (EmployeeAdvance $row) use (&$queued) {
+                $this->recorder->recordModel($row, 'upsert');
+                $queued++;
+            });
 
         EmployeeLoan::withoutGlobalScope('company')
             ->orderBy('id')

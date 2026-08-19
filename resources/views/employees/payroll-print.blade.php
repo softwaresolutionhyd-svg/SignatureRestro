@@ -90,6 +90,7 @@
                     <th class="num">Deduction</th>
                     <th class="num">Food Bill</th>
                     <th class="num">Loan</th>
+                    <th class="num">Advance</th>
                     <th class="num">Final Salary</th>
                     <th>Status</th>
                 </tr>
@@ -105,6 +106,7 @@
                         <td class="num">{{ number_format($row['deduction'], 2) }}</td>
                         <td class="num">{{ number_format($row['food_bill'], 2) }}</td>
                         <td class="num">{{ number_format($row['loan'], 2) }}</td>
+                        <td class="num">{{ number_format($row['advance'] ?? 0, 2) }}</td>
                         <td class="num">{{ number_format($row['final_salary'], 2) }}</td>
                         <td class="{{ $row['status_key'] === 'paid' ? 'status-paid' : 'status-unpaid' }}">{{ $row['status'] }}</td>
                     </tr>
@@ -116,6 +118,7 @@
                     <td class="num">{{ number_format(collect($group['rows'])->sum('deduction'), 2) }}</td>
                     <td class="num">{{ number_format(collect($group['rows'])->sum('food_bill'), 2) }}</td>
                     <td class="num">{{ number_format(collect($group['rows'])->sum('loan'), 2) }}</td>
+                    <td class="num">{{ number_format(collect($group['rows'])->sum('advance'), 2) }}</td>
                     <td class="num">{{ number_format(collect($group['rows'])->sum('final_salary'), 2) }}</td>
                     <td></td>
                 </tr>
@@ -134,6 +137,7 @@
                 <th class="num">Deduction</th>
                 <th class="num">Food Bill</th>
                 <th class="num">Loan</th>
+                <th class="num">Advance</th>
                 <th class="num">Final Salary</th>
                 <th></th>
             </tr>
@@ -146,6 +150,7 @@
                 <th class="num">{{ number_format(collect($rows)->sum('deduction'), 2) }}</th>
                 <th class="num">{{ number_format(collect($rows)->sum('food_bill'), 2) }}</th>
                 <th class="num">{{ number_format(collect($rows)->sum('loan'), 2) }}</th>
+                <th class="num">{{ number_format(collect($rows)->sum('advance'), 2) }}</th>
                 <th class="num">{{ number_format(collect($rows)->sum('final_salary'), 2) }}</th>
                 <th></th>
             </tr>

@@ -29,6 +29,7 @@ use App\Http\Controllers\Employee\AttendanceController;
 use App\Http\Controllers\Employee\QrAttendanceController;
 use App\Http\Controllers\Employee\DepartmentController;
 use App\Http\Controllers\Employee\DesignationController;
+use App\Http\Controllers\Employee\EmployeeAdvanceController;
 use App\Http\Controllers\Employee\EmployeeController;
 use App\Http\Controllers\Employee\EmployeeLoanController;
 use App\Http\Controllers\Employee\EmployeeStaffCategoryController;
@@ -381,6 +382,13 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
             Route::get('/loans/{loan}/edit', [EmployeeLoanController::class, 'edit'])->name('loans.edit');
             Route::put('/loans/{loan}', [EmployeeLoanController::class, 'update'])->name('loans.update');
             Route::delete('/loans/{loan}', [EmployeeLoanController::class, 'destroy'])->name('loans.destroy');
+
+            Route::get('/advances', [EmployeeAdvanceController::class, 'index'])->name('advances.index');
+            Route::get('/advances/create', [EmployeeAdvanceController::class, 'create'])->name('advances.create');
+            Route::post('/advances', [EmployeeAdvanceController::class, 'store'])->name('advances.store');
+            Route::get('/advances/{advance}/edit', [EmployeeAdvanceController::class, 'edit'])->name('advances.edit');
+            Route::put('/advances/{advance}', [EmployeeAdvanceController::class, 'update'])->name('advances.update');
+            Route::delete('/advances/{advance}', [EmployeeAdvanceController::class, 'destroy'])->name('advances.destroy');
 
             Route::get('/payroll', [PayrollController::class, 'index'])->name('payroll.index');
             Route::get('/payroll/print', [PayrollController::class, 'printSalaryRecord'])->name('payroll.print');

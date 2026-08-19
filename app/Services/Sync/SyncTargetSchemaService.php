@@ -3,6 +3,7 @@
 namespace App\Services\Sync;
 
 use App\Support\EnsuresEmployeeLoanSchema;
+use App\Support\EnsuresEmployeeAdvanceSchema;
 use App\Support\EnsuresEmployeeStaffCategorySchema;
 use App\Support\EnsuresExpenseLinesSchema;
 use App\Support\EnsuresKitchenAgentSchema;
@@ -15,6 +16,7 @@ use Illuminate\Support\Facades\Schema;
 class SyncTargetSchemaService
 {
     use EnsuresEmployeeLoanSchema;
+    use EnsuresEmployeeAdvanceSchema;
     use EnsuresEmployeeStaffCategorySchema;
     use EnsuresExpenseLinesSchema;
     use EnsuresKitchenAgentSchema;
@@ -27,6 +29,7 @@ class SyncTargetSchemaService
         foreach ($this->connectionNames() as $connection) {
             try {
                 $this->ensurePayrollSchema($connection);
+                $this->ensureEmployeeAdvanceSchema($connection);
                 $this->ensureEmployeeLoanSchema($connection);
                 $this->ensureEmployeeStaffCategorySchema($connection);
                 $this->ensureCreditLedgerPayrollColumn($connection);

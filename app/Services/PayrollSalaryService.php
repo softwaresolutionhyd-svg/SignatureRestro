@@ -7,16 +7,19 @@ use App\Models\Employee;
 use App\Models\PayrollEntry;
 use App\Services\Sync\CloudSyncService;
 use App\Support\EnsuresPayrollSchema;
+use App\Support\EnsuresEmployeeAdvanceSchema;
 use Carbon\Carbon;
 
 class PayrollSalaryService
 {
     use EnsuresPayrollSchema;
+    use EnsuresEmployeeAdvanceSchema;
 
     public function __construct(
         private readonly AttendancePayrollService $attendancePayroll,
         private readonly EmployeeContactSyncService $contactSync,
         private readonly EmployeeLoanService $loanService,
+        private readonly EmployeeAdvanceService $advanceService,
     ) {}
 
     /**
@@ -67,6 +70,7 @@ class PayrollSalaryService
         ?float $foodBill = null,
     ): PayrollEntry {
         $base = (float) ($employee->salary ?? 0);
+        $this->ensureEmployeeAdvanceSchema();
         $workingDays = $workingDays ?? $this->workingDaysForEmployee($employee->id, $period);
         // Net base = (salary ÷ 30) × (Present + Holiday). Rest goes into deduction.
         $deduction = $this->attendancePayroll->workingDaysDeductionAmount($base, $workingDays);
@@ -90,6 +94,7 @@ class PayrollSalaryService
                 'base_salary' => $base,
                 'bonus' => 0,
                 'loan' => 0,
+                'advance' => 0,
                 'status' => 'draft',
                 'created_by' => $createdBy,
             ]);
@@ -99,6 +104,7 @@ class PayrollSalaryService
         $entry->deduction = $deduction;
         $entry->food_bill = $foodBill;
         $this->loanService->syncLoanDeductionForPayroll($entry, $employee, $period);
+        $this->advanceService->syncAdvanceDeductionForPayroll($entry, $employee, $period);
         $entry->bonus = (float) ($entry->bonus ?? 0);
         $entry->recalculateNet();
         $entry->save();
@@ -274,6 +280,7 @@ class PayrollSalaryService
             'deduction' => (float) $entry->deduction,
             'food_bill' => (float) $entry->food_bill,
             'loan' => (float) $entry->loan,
+            'advance' => (float) ($entry->advance ?? 0),
             'bonus' => (float) $entry->bonus,
             'final_salary' => (float) $entry->net_pay,
             'status' => $entry->status === 'paid' ? 'Paid' : 'Unpaid',
