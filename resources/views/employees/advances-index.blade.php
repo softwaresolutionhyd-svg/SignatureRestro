@@ -70,6 +70,9 @@
                             @endif
                         </td>
                         <td class="text-end">
+                            <a class="btn btn-sm btn-outline-danger" href="{{ route('employees.advances.print', $advance) }}" target="_blank" rel="noopener" title="Print advance receipt">
+                                <i class="bi bi-printer"></i> Print
+                            </a>
                             <a class="btn btn-sm btn-outline-primary" href="{{ route('employees.advances.edit', $advance) }}">View / Edit</a>
                             <form class="d-inline" method="POST" action="{{ route('employees.advances.destroy', $advance) }}" onsubmit="return confirm('Is advance ki record delete ho jayegi. Continue?');">
                                 @csrf

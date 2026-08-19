@@ -22,15 +22,10 @@
 
                         @if(!$advance->exists)
                             <div class="mb-3">
-                                <label class="form-label">Employee <span class="text-danger">*</span></label>
-                                <select name="employee_id" class="form-select" required>
-                                    <option value="">Select employee…</option>
-                                    @foreach($employees as $employee)
-                                        <option value="{{ $employee->id }}" @selected(old('employee_id') == $employee->id)>
-                                            {{ $employee->employee_no }} — {{ $employee->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
+                                @include('employees.partials.employee-search-select', [
+                                    'employees' => $employees,
+                                    'fieldId' => 'advanceEmployeePicker',
+                                ])
                             </div>
                         @else
                             <div class="mb-3">
@@ -76,8 +71,13 @@
                             <textarea name="notes" class="form-control" rows="2">{{ old('notes', $advance->notes) }}</textarea>
                         </div>
 
-                        <div class="d-flex gap-2">
+                        <div class="d-flex gap-2 flex-wrap">
                             <button type="submit" class="btn btn-primary">Save</button>
+                            @if($advance->exists)
+                                <a class="btn btn-outline-danger" href="{{ route('employees.advances.print', $advance) }}" target="_blank" rel="noopener">
+                                    <i class="bi bi-printer me-1"></i> Print Receipt
+                                </a>
+                            @endif
                             <a href="{{ route('employees.advances.index') }}" class="btn btn-outline-secondary">Cancel</a>
                         </div>
                     </form>

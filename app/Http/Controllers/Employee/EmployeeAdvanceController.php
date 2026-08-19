@@ -97,7 +97,21 @@ class EmployeeAdvanceController extends Controller
 
         ActivityLogger::log('employee_advance.created', 'Employee advance created', $advance);
 
-        return redirect()->route('employees.advances.index')->with('status', 'Advance record created.');
+        return redirect()
+            ->route('employees.advances.print', ['advance' => $advance, 'auto' => 1])
+            ->with('status', 'Advance record created.');
+    }
+
+    public function print(EmployeeAdvance $advance)
+    {
+        abort_unless(auth()->user()?->canManagePayroll(), 403);
+        $this->ensureEmployeeAdvanceSchema();
+
+        $advance->load(['employee:id,name,employee_no,designation_id', 'employee.designation:id,name']);
+
+        $companyName = app(\App\Services\PayrollSalaryService::class)->brandName();
+
+        return view('employees.advance-print', compact('advance', 'companyName'));
     }
 
     public function edit(EmployeeAdvance $advance)
