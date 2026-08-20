@@ -38,8 +38,11 @@ final class PurchaseCreditLedgerService
             && (float) $order->grand_total > 0;
 
         if (! $shouldOwe) {
-            // Not a live credit anymore (debit, cancelled, or zero) and not yet paid.
-            if ($order->payment_status !== 'paid') {
+            // Debit / cancelled / zero / not credit: drop purchase-linked ledger rows.
+            // (Paid credit keeps both credit + payment rows via registerPayment.)
+            if ($order->purchase_type !== 'credit' || $order->status === 'cancelled' || (float) $order->grand_total <= 0) {
+                $this->removeEntriesForOrder($order->id);
+            } elseif ($order->payment_status !== 'paid') {
                 $this->removeEntriesForOrder($order->id);
             }
 
@@ -51,6 +54,13 @@ final class PurchaseCreditLedgerService
             return;
         }
 
+        // Unpaid credit: ensure credit row, clear any payment row left from a prior mark-paid.
+        \App\Services\Sync\SyncAwareDelete::query(
+            CreditLedger::query()
+                ->where('purchase_order_id', $order->id)
+                ->where('type', 'payment')
+        );
+
         $this->writeEntry(
             $order->id,
             (int) $contact->id,
@@ -58,7 +68,8 @@ final class PurchaseCreditLedgerService
             (float) $order->grand_total,
             'Purchase Credit — '.$order->number.' · '.$vendor->name,
             $this->orderDate($order),
-            (int) ($order->created_by ?: Auth::id())
+            (int) ($order->created_by ?: Auth::id()),
+            (int) ($contact->company_id ?: $order->company_id ?: $vendor->company_id ?: 0)
         );
     }
 
@@ -80,6 +91,8 @@ final class PurchaseCreditLedgerService
             return;
         }
 
+        $companyId = (int) ($contact->company_id ?: $order->company_id ?: $vendor->company_id ?: 0);
+
         // Make sure the credit side exists (in case it was a credit created before this feature).
         $this->writeEntry(
             $order->id,
@@ -88,7 +101,8 @@ final class PurchaseCreditLedgerService
             (float) $order->grand_total,
             'Purchase Credit — '.$order->number.' · '.$vendor->name,
             $this->orderDate($order),
-            (int) ($order->created_by ?: Auth::id())
+            (int) ($order->created_by ?: Auth::id()),
+            $companyId
         );
 
         $paidDate = $order->paid_at
@@ -102,11 +116,12 @@ final class PurchaseCreditLedgerService
             (float) $order->grand_total,
             'Purchase Payment — '.$order->number.' · '.$vendor->name,
             $paidDate,
-            (int) Auth::id()
+            (int) Auth::id(),
+            $companyId
         );
     }
 
-    private function writeEntry(int $orderId, int $contactId, string $type, float $amount, string $description, string $entryDate, int $createdBy): void
+    private function writeEntry(int $orderId, int $contactId, string $type, float $amount, string $description, string $entryDate, int $createdBy, int $companyId = 0): void
     {
         $existing = CreditLedger::query()
             ->where('purchase_order_id', $orderId)
@@ -118,16 +133,22 @@ final class PurchaseCreditLedgerService
             ? round($balanceAfter + $amount, 2)
             : round($balanceAfter - $amount, 2);
 
+        $payload = [
+            'contact_id' => $contactId,
+            'description' => $description,
+            'amount' => round($amount, 2),
+            'balance_after' => $balanceAfter,
+            'entry_date' => $entryDate,
+            'created_by' => $createdBy ?: null,
+        ];
+
+        if ($companyId > 0) {
+            $payload['company_id'] = $companyId;
+        }
+
         CreditLedger::updateOrCreate(
             ['purchase_order_id' => $orderId, 'type' => $type],
-            [
-                'contact_id' => $contactId,
-                'description' => $description,
-                'amount' => round($amount, 2),
-                'balance_after' => $balanceAfter,
-                'entry_date' => $entryDate,
-                'created_by' => $createdBy ?: null,
-            ]
+            $payload
         );
     }
 

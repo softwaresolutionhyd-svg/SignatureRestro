@@ -142,17 +142,25 @@ class OrderController extends Controller
         $data = $request->validated();
 
         DB::connection('tenant')->transaction(function () use ($order, $data) {
+            $nextType = (string) $data['purchase_type'];
             $payload = [
                 'vendor_id' => $data['vendor_id'],
-                'purchase_type' => $data['purchase_type'],
+                'purchase_type' => $nextType,
                 'order_date' => $data['order_date'] ?? null,
                 'expected_date' => $data['expected_date'] ?? null,
                 'note' => $data['note'] ?? null,
             ];
 
-            if ($order->status === 'rfq') {
-                $payload['payment_status'] = $data['purchase_type'] === 'credit' ? 'unpaid' : 'paid';
-                $payload['paid_at'] = $data['purchase_type'] === 'credit' ? null : now();
+            // Keep payment flags aligned with type on RFQ and confirmed POs
+            // (so Debit↔Credit mistakes can be corrected before receive).
+            if ($order->purchase_type !== $nextType || $order->status === 'rfq') {
+                if ($nextType === 'credit') {
+                    $payload['payment_status'] = 'unpaid';
+                    $payload['paid_at'] = null;
+                } else {
+                    $payload['payment_status'] = 'paid';
+                    $payload['paid_at'] = $order->paid_at ?? now();
+                }
             }
 
             $order->update($payload);
