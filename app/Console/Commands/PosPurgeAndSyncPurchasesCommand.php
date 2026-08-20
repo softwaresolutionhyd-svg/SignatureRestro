@@ -195,24 +195,6 @@ class PosPurgeAndSyncPurchasesCommand extends Command
 
     private function refreshProductCostFromLayers(int $productId): void
     {
-        $product = InventoryProduct::query()->find($productId);
-        if (! $product) {
-            return;
-        }
-
-        $layer = InventoryCostLayer::query()
-            ->where('product_id', $productId)
-            ->where('qty_remaining', '>', self::EPS)
-            ->orderByRaw('COALESCE(received_at, created_at) asc')
-            ->orderBy('id')
-            ->first();
-
-        if ($layer) {
-            $product->cost = (float) $layer->unit_cost;
-        } else {
-            $product->cost = 0;
-        }
-
-        $product->save();
+        InventoryCostLayer::refreshProductUnitCost($productId, self::EPS);
     }
 }

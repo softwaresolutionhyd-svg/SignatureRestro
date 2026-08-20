@@ -1094,15 +1094,9 @@ class ProductController extends Controller
                 $closestLayer->save();
             }
 
-            $activeLayer = InventoryCostLayer::query()
-                ->where('product_id', $product->id)
-                ->where('qty_remaining', '>', 0.000001)
-                ->orderByRaw('COALESCE(received_at, created_at) asc')
-                ->first();
             $lockedProduct = InventoryProduct::query()->lockForUpdate()->find($product->id);
             if ($lockedProduct) {
-                $lockedProduct->cost = $activeLayer ? (float) $activeLayer->unit_cost : $newUnitCostBase;
-                $lockedProduct->save();
+                InventoryCostLayer::refreshProductUnitCost((int) $product->id);
             }
         });
 

@@ -3909,19 +3909,8 @@ class PosController extends Controller
 
     private function refreshProductCostFromLayers(InventoryProduct $product): void
     {
-        $layer = InventoryCostLayer::query()
-            ->where('product_id', $product->id)
-            ->where('qty_remaining', '>', self::FIFO_EPSILON)
-            ->orderBy('received_at')
-            ->orderBy('id')
-            ->first();
-
-        if ($layer) {
-            $product->update(['cost' => (float) $layer->unit_cost]);
-            return;
-        }
-
-        $product->update(['cost' => 0]);
+        InventoryCostLayer::refreshProductUnitCost((int) $product->id, self::FIFO_EPSILON);
+        $product->refresh();
     }
 
     /**

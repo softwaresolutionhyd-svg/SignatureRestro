@@ -98,24 +98,7 @@ final class PurchaseOrderReceiveService
     private function refreshProductCostsFromLayers(array $productIds): void
     {
         foreach ($productIds as $pid) {
-            $product = InventoryProduct::query()->find($pid);
-            if (! $product) {
-                continue;
-            }
-
-            $layer = InventoryCostLayer::query()
-                ->where('product_id', $pid)
-                ->where('qty_remaining', '>', self::FIFO_EPSILON)
-                ->orderByRaw('COALESCE(received_at, created_at) asc')
-                ->first();
-
-            if ($layer) {
-                $product->cost = (float) $layer->unit_cost;
-            } else {
-                $product->cost = 0;
-            }
-
-            $product->save();
+            InventoryCostLayer::refreshProductUnitCost((int) $pid, self::FIFO_EPSILON);
         }
     }
 }

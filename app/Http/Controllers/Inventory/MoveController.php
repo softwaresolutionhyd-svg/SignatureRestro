@@ -214,25 +214,6 @@ class MoveController extends Controller
 
     private function refreshProductCostFromLayers(int $productId): void
     {
-        $product = InventoryProduct::query()->find($productId);
-        if (!$product) {
-            return;
-        }
-
-        $layer = InventoryCostLayer::query()
-            ->where('product_id', $productId)
-            ->where('qty_remaining', '>', self::FIFO_EPSILON)
-            ->orderByRaw('COALESCE(received_at, created_at) asc')
-            ->first();
-
-        if ($layer) {
-            $product->cost = (float) $layer->unit_cost;
-            $product->save();
-
-            return;
-        }
-
-        $product->cost = 0;
-        $product->save();
+        InventoryCostLayer::refreshProductUnitCost($productId, self::FIFO_EPSILON);
     }
 }
