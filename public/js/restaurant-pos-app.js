@@ -677,22 +677,28 @@
 
     function kitchenLockedFromResume(ri) {
         const qty = parseOrderQty(ri.qty);
-        // Printed / served / already queued for kitchen → lock (cashier × hide).
-        if (ri.kitchen_locked || ri.kitchen_served || ri.kitchen_printed || ri.kitchen_pending) {
+        // Lock only after kitchen slip is printed / served — pending queue stays editable.
+        if (ri.kitchen_locked || ri.kitchen_served || ri.kitchen_printed) {
             return qty;
+        }
+        const lockedQty = Number(ri.kitchen_locked_qty) || 0;
+        if (lockedQty > 0.0005) {
+            return Math.max(qty, lockedQty);
         }
         return 0;
     }
 
     function sanitizeCartKitchenLocks() {
         cart.forEach((r) => {
-            if (r.kitchen_locked || r.kitchen_served || r.kitchen_printed || r.kitchen_pending) {
+            if (r.kitchen_locked || r.kitchen_served || r.kitchen_printed) {
                 const qty = Number(r.qty) || 0;
                 r.kitchen_locked_qty = Math.max(Number(r.kitchen_locked_qty) || 0, qty);
+                r.kitchen_locked = true;
                 return;
             }
-            // Hold-only lines (no kitchen queue yet) — free edit/remove.
+            // Unprinted (even if kitchen_pending) — cashier free edit/remove.
             r.kitchen_locked_qty = 0;
+            r.kitchen_locked = false;
         });
     }
 
@@ -709,17 +715,17 @@
         if (!row) {
             return false;
         }
+        if (row.kitchen_printed || row.kitchen_served) {
+            return true;
+        }
         if (row.kitchen_locked === true || row.kitchen_locked === 1) {
             return true;
         }
         if ((Number(row.kitchen_locked_qty) || 0) > 0.0005) {
             return true;
         }
-        if (row.kitchen_printed || row.kitchen_served || row.kitchen_pending) {
-            return true;
-        }
         const item = pendingResumeItem(row);
-        if (item && (item.kitchen_locked || item.kitchen_printed || item.kitchen_served || item.kitchen_pending)) {
+        if (item && (item.kitchen_locked || item.kitchen_printed || item.kitchen_served)) {
             return true;
         }
         return false;
@@ -3360,11 +3366,12 @@
             ? new Set(printedIds.map((id) => Number(id)).filter((id) => id > 0))
             : null;
         let changed = false;
+        const lockedOrderItemIds = new Set();
         cart.forEach((r) => {
             const qty = Number(r.qty) || 0;
             if (qty <= 0.0005) return;
             const locked = Number(r.kitchen_locked_qty) || 0;
-            if (locked >= qty - 0.0005) return;
+            if (locked >= qty - 0.0005 && (r.kitchen_printed || r.kitchen_locked)) return;
             if (idSet) {
                 const oid = Number(r.order_item_id) || 0;
                 if (!oid || !idSet.has(oid)) return;
@@ -3374,8 +3381,29 @@
             r.kitchen_served = false;
             r.kitchen_locked = true;
             r.kitchen_locked_qty = qty;
+            const oid = Number(r.order_item_id) || 0;
+            if (oid > 0) lockedOrderItemIds.add(oid);
             changed = true;
         });
+        // Keep pending-bill cache in sync so resume/reload does not unlock cashier edits.
+        if (changed && resumeOrderId) {
+            const order = (boot.pendingBillsDetail || []).find((o) => Number(o.id) === Number(resumeOrderId));
+            if (order && Array.isArray(order.items)) {
+                order.items = order.items.map((item) => {
+                    const iid = Number(item.id) || 0;
+                    if (iid > 0 && (lockedOrderItemIds.has(iid) || !idSet)) {
+                        return {
+                            ...item,
+                            kitchen_printed: true,
+                            kitchen_pending: true,
+                            kitchen_locked: true,
+                            kitchen_served: false,
+                        };
+                    }
+                    return item;
+                });
+            }
+        }
         if (changed) {
             renderAll();
         }
@@ -3394,11 +3422,16 @@
         const maxAttempts = 2;
         const netUrl = (routes.kitchenPrint || '').replace('__ID__', String(orderId));
 
-        const applyOrder = (order) => {
-            if (!order) return;
-            upsertPendingBill(order, true);
-            reloadCartFromOrder(order);
-            setResumeStateFromOrder(order);
+        const applyOrder = (order, { lockPrinted = false, printedIds = null } = {}) => {
+            if (order) {
+                upsertPendingBill(order, true);
+                reloadCartFromOrder(order);
+                setResumeStateFromOrder(order);
+            }
+            // Always lock after a successful kitchen slip — never trust a stale pre-print payload.
+            if (lockPrinted) {
+                markUnlockedCartLinesKitchenPrinted(printedIds);
+            }
         };
 
         if (netUrl && csrf) {
@@ -3416,13 +3449,13 @@
                 // No network printers configured → browser slip (marks remaining pending).
                 if (data.fallback) {
                     await browserPrintKitchenSlip(orderId);
-                    applyOrder(data.order);
-                    if (!data.order) markUnlockedCartLinesKitchenPrinted();
+                    // data.order is often pre-print (kitchen_printed still false) — lock cart explicitly.
+                    applyOrder(data.order, { lockPrinted: true, printedIds: null });
                     return true;
                 }
 
                 if (data.empty_pending) {
-                    applyOrder(data.order);
+                    applyOrder(data.order, { lockPrinted: cartHasUnprintedKitchenLines() });
                     // If cart still shows New lines, save/print desync — force browser once.
                     if (cartHasUnprintedKitchenLines() && attempt < maxAttempts) {
                         await browserPrintKitchenSlip(orderId);
@@ -3437,17 +3470,19 @@
 
                 if (gotSomething) {
                     // Unrouted (no dept printer): browser slip so those items are never missed.
-                    if (Number(data.unrouted || 0) > 0) {
+                    const hadUnrouted = Number(data.unrouted || 0) > 0;
+                    if (hadUnrouted) {
                         try {
                             await browserPrintKitchenSlip(orderId);
                         } catch (brErr) {
                             console.warn('Unrouted kitchen browser slip failed', brErr);
                         }
                     }
-                    applyOrder(data.order);
-                    if (!data.order) {
-                        markUnlockedCartLinesKitchenPrinted(data.printed_item_ids || null);
-                    }
+                    applyOrder(data.order, {
+                        lockPrinted: true,
+                        // Unrouted browser slip marks remaining — lock all unlocked lines.
+                        printedIds: hadUnrouted ? null : (data.printed_item_ids || null),
+                    });
                     if (stillPrinter > 0 && attempt < maxAttempts) {
                         await new Promise((r) => setTimeout(r, 200));
                         return printKitchenSlip(orderId, attempt + 1);
@@ -4246,11 +4281,25 @@
             // Hold request already sent tickets — skip second LAN round-trip unless leftover.
             if (!kitchenPrintedOnHold(lastHoldKitchenPrint)) {
                 await printKitchenSlip(orderId);
+            } else {
+                // Hold already printed on server — still lock local cart (response can lag flags).
+                markUnlockedCartLinesKitchenPrinted(
+                    lastHoldKitchenPrint?.printed_item_ids || null
+                );
             }
 
             // Final safety: agar ab bhi New/unprinted lines hain to ek aur forced pass.
             if (hadNewBeforePrint && cartHasUnprintedKitchenLines()) {
                 await printKitchenSlip(orderId, 1);
+            }
+            if (cartHasUnprintedKitchenLines()) {
+                // Force browser slip so server kitchen_printed_at is set (cashier lock source of truth).
+                try {
+                    await browserPrintKitchenSlip(orderId);
+                } catch (brErr) {
+                    console.warn('Final kitchen mark slip failed', brErr);
+                }
+                markUnlockedCartLinesKitchenPrinted();
             }
             if (cartHasUnprintedKitchenLines()) {
                 alert('Warning: kuch items ab bhi Kitchen print pending hain (New tag). Kitchen Print dubara dabayein.');
@@ -4269,6 +4318,7 @@
                         form.querySelector('[name="resume_order_id"]').value = String(orderId);
                     }
                 }
+                sanitizeCartKitchenLocks();
                 renderAll();
                 updateCancelOrderButton();
             }
