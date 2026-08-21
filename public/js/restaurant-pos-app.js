@@ -1021,6 +1021,8 @@
                         if (row.qty <= 0.0005) cart.splice(idx, 1);
                     }
                 }
+                // Exact cancelled line only — never strip a fresh re-add of the same product.
+                return;
             }
 
             if (left <= 0.0005) return;
@@ -1033,6 +1035,12 @@
                 if (Number(row.product_id) !== wantPid) continue;
                 if (!!row.is_custom !== wantCustom) continue;
                 if (String(row.uom || '').trim().toLowerCase() !== wantUom) continue;
+                // Legacy voids without order_item_id: only touch kitchen-locked lines.
+                // Unlocked rows are new adds after cancel and must stay.
+                if (!row.kitchen_printed && !row.kitchen_served && !row.kitchen_locked
+                    && (Number(row.kitchen_locked_qty) || 0) <= 0.0005) {
+                    continue;
+                }
                 const take = Math.min(Number(row.qty) || 0, left);
                 if (take <= 0.0005) continue;
                 row.qty = Math.round(((Number(row.qty) || 0) - take) * 1000) / 1000;
