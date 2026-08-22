@@ -145,4 +145,64 @@ class KitchenVoidAppendTest extends TestCase
         $this->assertCount(1, $out);
         $this->assertSame(99, (int) $out[0]['product_id']);
     }
+
+    public function test_reduce_normalized_by_voids_keeps_fresh_readd_after_item_specific_void(): void
+    {
+        $kitchen = new KitchenService;
+
+        $normalized = [[
+            'product_id' => 42,
+            'uom' => 'nos',
+            'qty' => 1,
+            'is_custom' => false,
+            'kitchen_locked_qty' => 0,
+        ]];
+
+        $voids = [[
+            'product_id' => 42,
+            'uom' => 'nos',
+            'qty' => 1,
+            'is_custom' => false,
+            'order_item_id' => 501,
+        ]];
+
+        $out = $kitchen->reduceNormalizedByVoids($normalized, $voids);
+
+        $this->assertCount(1, $out);
+        $this->assertSame(42, (int) $out[0]['product_id']);
+        $this->assertSame(1.0, (float) $out[0]['qty']);
+    }
+
+    public function test_reduce_normalized_by_fingerprint_void_skips_unlocked_readd(): void
+    {
+        $kitchen = new KitchenService;
+
+        $normalized = [[
+            'product_id' => 42,
+            'uom' => 'nos',
+            'qty' => 1,
+            'is_custom' => false,
+            'kitchen_locked_qty' => 0,
+        ], [
+            'product_id' => 42,
+            'uom' => 'nos',
+            'qty' => 1,
+            'is_custom' => false,
+            'kitchen_locked_qty' => 1,
+        ]];
+
+        $voids = [[
+            'product_id' => 42,
+            'uom' => 'nos',
+            'qty' => 1,
+            'is_custom' => false,
+            'order_item_id' => null,
+        ]];
+
+        $out = $kitchen->reduceNormalizedByVoids($normalized, $voids);
+
+        $this->assertCount(1, $out);
+        $this->assertSame(0.0, (float) $out[0]['kitchen_locked_qty']);
+        $this->assertSame(1.0, (float) $out[0]['qty']);
+    }
 }

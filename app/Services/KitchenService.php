@@ -416,6 +416,8 @@ final class KitchenService
             $id = (int) ($void['order_item_id'] ?? 0);
             if ($id > 0) {
                 $voidByItemId[$id] = ($voidByItemId[$id] ?? 0.0) + $qty;
+
+                continue;
             }
             $fp = $this->voidMatchFingerprint($void);
             $voidByFp[$fp] = ($voidByFp[$fp] ?? 0.0) + $qty;
@@ -436,13 +438,14 @@ final class KitchenService
             if ($id > 0 && isset($voidByItemId[$id]) && $voidByItemId[$id] > 0.0005) {
                 $take = min($qty, (float) $voidByItemId[$id]);
                 $voidByItemId[$id] = max(0.0, (float) $voidByItemId[$id] - $take);
-                $fp = $this->voidMatchFingerprint($item);
-                $voidByFp[$fp] = max(0.0, ($voidByFp[$fp] ?? 0.0) - $take);
             } else {
-                $fp = $this->voidMatchFingerprint($item);
-                if (($voidByFp[$fp] ?? 0.0) > 0.0005) {
-                    $take = min($qty, (float) $voidByFp[$fp]);
-                    $voidByFp[$fp] = max(0.0, (float) $voidByFp[$fp] - $take);
+                $lockedHint = max(0.0, (float) ($item['kitchen_locked_qty'] ?? 0));
+                if ($lockedHint > 0.0005) {
+                    $fp = $this->voidMatchFingerprint($item);
+                    if (($voidByFp[$fp] ?? 0.0) > 0.0005) {
+                        $take = min($qty, (float) $voidByFp[$fp], $lockedHint);
+                        $voidByFp[$fp] = max(0.0, (float) $voidByFp[$fp] - $take);
+                    }
                 }
             }
 

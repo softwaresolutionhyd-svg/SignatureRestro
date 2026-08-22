@@ -969,7 +969,7 @@
             seen.add(key);
             out.push(v);
         };
-        sessionPersistedKitchenVoids.forEach(push);
+        // Only new voids in this submit — persisted voids live server-side (cache + activity log).
         kitchenVoids.forEach(push);
         return out;
     }
@@ -1098,6 +1098,11 @@
 
         if (voidQty > 0.0005 && reasonText) {
             kitchenVoids.push(buildReductionEntry(row, voidQty, reasonText));
+        }
+        // Pre-kitchen: qty > 1 → minus one; qty 1 → remove line.
+        if (voidQty <= 0.0005 && (Number(row.qty) || 0) > 1.0005) {
+            changeCartLineQty(index, -1);
+            return;
         }
         // Pre-kitchen deletions: no reason log required.
         cart.splice(index, 1);
@@ -3966,7 +3971,7 @@
                     return null;
                 }
 
-                const voidsSnapshot = mergeKitchenVoidsForSubmit();
+                const newKitchenVoids = kitchenVoids.slice();
                 const formData = buildHoldFormData(sendToKitchen, null, {
                     // Kitchen update: contact optional. Unpaid/hold update: contact zaroori.
                     requireGuestMeta: !sendToKitchen,
@@ -4001,22 +4006,22 @@
                 if (gen !== cartSaveGeneration) {
                     // A newer edit happened while request was in flight — keep session voids.
                     lastHoldKitchenPrint = data.kitchen_print || lastHoldKitchenPrint;
-                    if (voidsSnapshot.length) {
-                        rememberSessionKitchenVoids(voidsSnapshot);
+                    if (newKitchenVoids.length) {
+                        rememberSessionKitchenVoids(newKitchenVoids);
                     }
                     return data.order || null;
                 }
 
-                const hadKitchenVoids = voidsSnapshot.length > 0;
+                const hadKitchenVoids = newKitchenVoids.length > 0;
                 if (hadKitchenVoids) {
-                    rememberSessionKitchenVoids(voidsSnapshot);
+                    rememberSessionKitchenVoids(newKitchenVoids);
                 }
                 if (data.order) {
                     upsertPendingBill(data.order, true);
                     // Always reload from server so kitchen-locked lines never vanish from cart UI.
                     reloadCartFromOrder(data.order);
-                    // Cancelled kitchen lines must not reappear (server + client guards).
-                    if (hadKitchenVoids && applyKitchenVoidsToCart(voidsSnapshot)) {
+                    // Apply only voids from this save — not historical persisted voids (prevents re-add wipe).
+                    if (hadKitchenVoids && applyKitchenVoidsToCart(newKitchenVoids)) {
                         renderAll();
                     }
                     setResumeStateFromOrder(data.order);
