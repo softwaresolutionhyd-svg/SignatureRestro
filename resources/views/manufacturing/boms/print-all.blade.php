@@ -69,7 +69,22 @@
             vertical-align: top;
         }
         th { background: #f3f4f6; text-align: left; font-weight: 700; }
-        td.qty, th.qty { text-align: right; white-space: nowrap; width: 140px; }
+        td.qty, th.qty { text-align: right; white-space: nowrap; width: 110px; }
+        td.rate, th.rate { text-align: right; white-space: nowrap; width: 120px; }
+        td.amount, th.amount { text-align: right; white-space: nowrap; width: 100px; }
+        tfoot th, tfoot td { background: #f9fafb; font-weight: 700; }
+        .recipe-total {
+            margin-top: 8px;
+            text-align: right;
+            font-size: 13px;
+            font-weight: 700;
+        }
+        .recipe-total .per-unit {
+            font-size: 11px;
+            font-weight: 600;
+            color: #444;
+            margin-top: 2px;
+        }
         .empty-ing { color: #666; font-style: italic; padding: 8px 0; }
         @media print {
             body { padding: 0; background: #fff; }
@@ -99,6 +114,12 @@
         </header>
 
         @forelse($boms as $bom)
+            @php
+                $materialPerBatch = (float) $bom->materialCostPerBatch();
+                $batchQty = (float) $bom->batch_qty;
+                $standardPerUnit = $batchQty > 0 ? ($materialPerBatch / $batchQty) : 0.0;
+                $finishedUom = (string) ($bom->finishedProduct?->uom ?? '');
+            @endphp
             <section class="recipe">
                 <h2 class="dish-name">{{ $bom->finishedProduct?->name ?? '—' }}</h2>
 
@@ -110,17 +131,39 @@
                             <tr>
                                 <th>Ingredient</th>
                                 <th class="qty">Quantity</th>
+                                <th class="rate">Rate</th>
+                                <th class="amount">Amount</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach($bom->lines as $line)
+                                @php
+                                    $qty = (float) $line->qty;
+                                    $uom = $line->effectiveUom();
+                                    $lineAmount = (float) $line->lineMaterialCostPerBatch();
+                                    $ratePerQtyUom = $qty > 0 ? ($lineAmount / $qty) : (float) ($line->component?->cost ?? 0);
+                                @endphp
                                 <tr>
                                     <td>{{ $line->component?->name ?? '—' }}</td>
-                                    <td class="qty">{{ fmt_num((float) $line->qty, 3) }} {{ $line->effectiveUom() }}</td>
+                                    <td class="qty">{{ fmt_num($qty, 3) }} {{ $uom }}</td>
+                                    <td class="rate">{{ fmt_num($ratePerQtyUom, 2) }}/{{ $uom }}</td>
+                                    <td class="amount">{{ fmt_num($lineAmount, 2) }}</td>
                                 </tr>
                             @endforeach
                         </tbody>
+                        <tfoot>
+                            <tr>
+                                <th colspan="3" class="text-end" style="text-align:right;">Total recipe cost</th>
+                                <th class="amount">{{ fmt_num($materialPerBatch, 2) }}</th>
+                            </tr>
+                        </tfoot>
                     </table>
+                    @if($batchQty > 0 && $finishedUom !== '')
+                        <div class="recipe-total per-unit">
+                            Cost per {{ $finishedUom }}: {{ fmt_num($standardPerUnit, 2) }}
+                            (batch {{ fmt_num($batchQty, 3) }} {{ $finishedUom }})
+                        </div>
+                    @endif
                 @endif
             </section>
         @empty

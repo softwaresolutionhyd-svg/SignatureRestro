@@ -165,7 +165,9 @@ class BomController extends Controller
             ->with([
                 'finishedProduct:id,sku,name,uom',
                 'lines' => fn ($query) => $query->orderBy('sort_order'),
-                'lines.component' => fn ($query) => $query->with([
+                'lines.component' => fn ($query) => $query->select([
+                    'id', 'sku', 'name', 'uom', 'cost', 'qty_on_hand',
+                ])->with([
                     'uomConversions' => fn ($c) => $c->where('active', true),
                 ]),
             ])
