@@ -106,6 +106,7 @@
                 'inner_uom' => $p->hasPackageContents() ? (string) $p->package_contents_uom : null,
             ]];
         });
+        $productStockUrlTemplate = preg_replace('/\/\d+$/', '/__ID__', route('inventory.moves.product-stock', ['product' => 0]));
     @endphp
 
     <script>
@@ -123,7 +124,7 @@
         const wastageReasonHint = document.getElementById('wastageReasonHint');
         const departmentStockPanel = document.getElementById('departmentStockPanel');
         const departmentStockList = document.getElementById('departmentStockList');
-        const productStockUrlTemplate = @json(preg_replace('/\/\d+$/', '/__ID__', route('inventory.moves.product-stock', ['product' => 0])));
+        const productStockUrlTemplate = @json($productStockUrlTemplate);
 
         const initialProductId = @json(old('product_id'));
         const initialUom = @json(old('uom'));
