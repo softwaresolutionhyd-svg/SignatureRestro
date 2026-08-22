@@ -55,6 +55,15 @@
         <div class="col-12 col-md-6 col-xl-3">
             <div class="card kpi-card shadow-sm">
                 <div class="card-body">
+                    <div class="kpi-label">Consumed This Month</div>
+                    <div class="kpi-value">{{ fmt_num((float)$purchaseSummary['consume_month_qty_base'], 3) }}</div>
+                    <div class="small text-secondary">{{ $purchaseSummary['base_uom'] }} (Cost: {{ fmt_num((float)$purchaseSummary['consume_month_amount'], 2) }})</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-xl-3">
+            <div class="card kpi-card shadow-sm">
+                <div class="card-body">
                     <div class="kpi-label">Total Sale This Month</div>
                     <div class="kpi-value">{{ fmt_num((float)$purchaseSummary['sale_month_qty_base'], 3) }}</div>
                     <div class="small text-secondary">{{ $purchaseSummary['base_uom'] }} (Amount: {{ fmt_num((float)$purchaseSummary['sale_month_amount'], 2) }})</div>

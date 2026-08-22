@@ -455,12 +455,22 @@ class ProductController extends Controller
             $salesMonthAmount += (float) $row->total;
         }
 
+        $consumeMonthAgg = InventoryMove::query()
+            ->where('product_id', $product->id)
+            ->where('type', 'out')
+            ->whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()])
+            ->selectRaw('COALESCE(SUM(qty), 0) as qty_sum, COALESCE(SUM(total_cost), 0) as cost_sum, COUNT(*) as move_count')
+            ->first();
+
         $purchaseSummary = [
             'month_qty_base' => $monthQtyBase,
             'month_avg_rate_base' => $monthAvgRateBase,
             'last_rate_base' => $lastRateBase,
             'base_uom' => $product->uom,
             'rows_count_this_month' => $monthRows->count(),
+            'consume_month_qty_base' => (float) ($consumeMonthAgg->qty_sum ?? 0),
+            'consume_month_amount' => (float) ($consumeMonthAgg->cost_sum ?? 0),
+            'consume_month_moves' => (int) ($consumeMonthAgg->move_count ?? 0),
             'sale_month_qty_base' => $salesMonthQtyBase,
             'sale_month_amount' => $salesMonthAmount,
         ];
