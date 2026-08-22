@@ -345,7 +345,11 @@ class ProductController extends Controller
         $data['for_pos']       = $request->boolean('for_pos');
         $data['for_purchase']  = $request->boolean('for_purchase');
         $data['active']        = (bool) ($data['active'] ?? false);
-        $data['cost']          = isset($data['cost']) ? (float) $data['cost'] : 0.0;
+        if ($data['for_purchase']) {
+            $data['cost'] = 0.0;
+        } else {
+            $data['cost'] = isset($data['cost']) ? (float) $data['cost'] : 0.0;
+        }
         $data['gas_charges']   = (float) ($data['gas_charges'] ?? 0);
         $data['service_charges'] = 0;
         $data['extra_costs']   = $data['extra_costs'] ?? [];
@@ -358,6 +362,7 @@ class ProductController extends Controller
 
         $product = InventoryProduct::create($data);
         $this->syncProductDepartments($product, $this->validatedDepartmentIds($request));
+        $this->syncPurchaseProductCostFromFifo($product);
 
         if ($request->hasFile('image')) {
             $product->update([
@@ -494,6 +499,8 @@ class ProductController extends Controller
             $product->refresh();
         }
         $bomStandardCost = $activeBom ? (float) $activeBom->standardCostPerFinishedUnit() : null;
+
+        $this->syncPurchaseProductCostFromFifo($product);
 
         [$uomLibraryUnits, $uomLibraryRules] = $this->uomLibraryForProductForm();
         $productReturnPath = $this->safeInternalReturnUrl($request->query('return'));
@@ -774,6 +781,15 @@ class ProductController extends Controller
         $cost = isset($data['cost']) ? (float) $data['cost'] : 0.0;
         $submittedPrice = isset($data['price']) ? (float) $data['price'] : 0.0;
         $isIngredient = $request->boolean('for_purchase');
+        if ($isIngredient) {
+            $data['service_charges'] = 0.0;
+            $data['extra_costs'] = [];
+            $data['gas_charges'] = 0.0;
+            $data['price'] = round(max($submittedPrice, 0), 2);
+
+            return;
+        }
+
         $costing = ProductCosting::computeFromCost(
             $cost,
             $submittedPrice,
@@ -929,13 +945,19 @@ class ProductController extends Controller
         $data['for_pos']       = $request->boolean('for_pos');
         $data['for_purchase']  = $request->boolean('for_purchase');
         $data['active']        = (bool) ($data['active'] ?? false);
-        $data['cost']          = isset($data['cost']) ? (float) $data['cost'] : 0.0;
+        if ($data['for_purchase'] && ! $recipeApplied) {
+            unset($data['cost']);
+        } else {
+            $data['cost'] = isset($data['cost']) ? (float) $data['cost'] : 0.0;
+        }
         $data['gas_charges']   = (float) ($data['gas_charges'] ?? 0);
         $data['service_charges'] = 0;
         $data['extra_costs']   = $data['extra_costs'] ?? [];
         $data['price']         = isset($data['price']) ? (float) $data['price'] : 0.0;
-        $effectiveCost         = (float) $data['cost'] + (float) collect((array) ($data['extra_costs'] ?? []))->sum();
-        $data['profit']        = isset($data['profit']) ? (float) $data['profit'] : round((float) $data['price'] - $effectiveCost, 2);
+        if (isset($data['cost'])) {
+            $effectiveCost = (float) $data['cost'] + (float) collect((array) ($data['extra_costs'] ?? []))->sum();
+            $data['profit'] = isset($data['profit']) ? (float) $data['profit'] : round((float) $data['price'] - $effectiveCost, 2);
+        }
         $data['reorder_level'] = $data['for_purchase'] ? ($data['reorder_level'] ?? 0) : 0;
 
         if ($request->boolean('remove_image')) {
@@ -980,6 +1002,8 @@ class ProductController extends Controller
             if ($this->inventoryProductsHavePackageColumns()) {
                 $this->syncPackageContentsConversion($product);
             }
+
+            $this->syncPurchaseProductCostFromFifo($product);
         });
 
         return $this->redirectAfterProduct($request, 'Product updated.');
@@ -1273,5 +1297,31 @@ class ProductController extends Controller
         }
 
         return null;
+    }
+
+    /** Purchase / stock items: cost always from FIFO layers (purchase receive), not manual form. */
+    private function syncPurchaseProductCostFromFifo(InventoryProduct $product): void
+    {
+        if (! ($product->for_purchase ?? false)) {
+            return;
+        }
+
+        $hasActiveFinishedBom = ManufacturingBom::query()
+            ->where('finished_product_id', $product->id)
+            ->where('active', true)
+            ->exists();
+        if ($hasActiveFinishedBom) {
+            return;
+        }
+
+        InventoryCostLayer::refreshProductUnitCost((int) $product->id);
+        $product->refresh();
+
+        $cost = round((float) $product->cost, 2);
+        $price = round((float) $product->price, 2);
+        $profit = round($price - $cost, 2);
+        if (abs((float) $product->profit - $profit) >= 0.0000001) {
+            $product->update(['profit' => $profit]);
+        }
     }
 }

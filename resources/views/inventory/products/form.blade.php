@@ -9,6 +9,8 @@
         ? ($bomStandardCost !== null && $bomStandardCost > 0 ? round($bomStandardCost, 2) : (float) ($product->cost ?? 0))
         : 0;
     $productCostValue = old('cost', $productCostDefault);
+    $isPurchaseIngredient = (bool) old('for_purchase', isset($product) && $product ? $product->for_purchase : true);
+    $fifoDrivenCost = $isPurchaseIngredient && ! ($bomStandardCost !== null && $bomStandardCost > 0);
     $extraCostDefinitions = \App\Models\Setting::productExtraCostFieldDefinitions();
     $keyToLabel = [];
     foreach ($extraCostDefinitions as $i => &$extraCostDefRow) {
@@ -298,13 +300,18 @@
     </div>
 
     <div class="col-12 col-md-4">
-        <label class="form-label">Cost</label>
-        <input type="number" step="0.01" min="0" name="cost" id="productCostInput" value="{{ $productCostValue }}"
-               class="form-control @error('cost') is-invalid @enderror"
-               @if($bomStandardCost !== null && $bomStandardCost > 0) data-bom-driven="1" @endif>
+        <label class="form-label">Cost @if($fifoDrivenCost)<span class="text-secondary small">(FIFO auto)</span>@endif</label>
+        <input type="number" step="0.01" min="0" @if(!$fifoDrivenCost) name="cost" @endif id="productCostInput" value="{{ $productCostValue }}"
+               class="form-control @error('cost') is-invalid @enderror @if($fifoDrivenCost) bg-light @endif"
+               @if($bomStandardCost !== null && $bomStandardCost > 0) data-bom-driven="1" @endif
+               @if($fifoDrivenCost) readonly @endif>
         @if($bomStandardCost !== null && $bomStandardCost > 0)
             <div class="form-text small text-secondary">
                 Recipe se auto: <strong>{{ fmt_num($bomStandardCost, 4) }}</strong> — cost recipe se update hoti hai; sale price aap jo likhen wahi save hoti hai
+            </div>
+        @elseif($fifoDrivenCost)
+            <div class="form-text small text-secondary">
+                Purchase <strong>Stock in</strong> receive par FIFO se auto update — manual cost edit nahi hoti.
             </div>
         @else
             <div class="form-text small text-secondary">Manual entry — active recipe ho to cost auto set hoti hai.</div>
@@ -626,6 +633,22 @@
             }
             if (reorderInput) {
                 reorderInput.disabled = !show;
+            }
+            syncPurchaseCostField();
+        }
+
+        function syncPurchaseCostField() {
+            const costInput = document.getElementById('productCostInput');
+            if (!costInput) return;
+            const isPurchase = !!forPurchaseSwitch?.checked;
+            const bomDriven = costInput.dataset.bomDriven === '1';
+            const fifo = isPurchase && !bomDriven;
+            costInput.readOnly = fifo;
+            costInput.classList.toggle('bg-light', fifo);
+            if (fifo) {
+                costInput.removeAttribute('name');
+            } else {
+                costInput.setAttribute('name', 'cost');
             }
         }
 
