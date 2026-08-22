@@ -261,11 +261,43 @@ final class InventoryStockService
 
         return $departments->map(function (InventoryDepartment $dept) use ($qtyByDept) {
             return [
+                'id' => (int) $dept->id,
                 'name' => (string) $dept->name,
                 'is_warehouse' => (bool) $dept->is_warehouse,
                 'qty' => (float) ($qtyByDept[$dept->id] ?? 0),
             ];
         })->values()->all();
+    }
+
+    /** @return array{0: float, 1: float} [before, after] */
+    public function setDepartmentQuantity(int $productId, int $departmentId, float $targetQtyBase): array
+    {
+        $product = InventoryProduct::query()->withoutGlobalScopes()->find($productId);
+        $companyId = $product?->company_id ?? current_company_id();
+
+        $row = InventoryProductStock::query()
+            ->lockForUpdate()
+            ->firstOrCreate(
+                [
+                    'product_id' => $productId,
+                    'department_id' => $departmentId,
+                ],
+                [
+                    'qty_on_hand' => 0,
+                    'company_id' => $companyId,
+                ]
+            );
+
+        $before = (float) $row->qty_on_hand;
+        $after = round($targetQtyBase, 3);
+
+        if ($row->company_id === null && $companyId !== null) {
+            $row->company_id = $companyId;
+        }
+
+        $row->update(['qty_on_hand' => $after]);
+
+        return [$before, $after];
     }
 
     /**

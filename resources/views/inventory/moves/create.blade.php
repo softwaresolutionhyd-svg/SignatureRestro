@@ -13,8 +13,8 @@
                 @csrf
 
                 <div class="row g-3">
-                    <div class="col-12 col-lg-6">
-                        <label class="form-label">Product</label>
+                    <div class="col-12 col-lg-5">
+                        <label class="form-label">Product <span class="text-secondary small">(ingredients only)</span></label>
                         <input
                             type="text"
                             id="productSearchInput"
@@ -37,6 +37,22 @@
                     </div>
 
                     <div class="col-12 col-lg-3">
+                        <label class="form-label">Department</label>
+                        @php
+                            $defaultDepartmentId = old('department_id', $warehouse->id ?? null);
+                        @endphp
+                        <select id="departmentSelect" name="department_id" class="form-select @error('department_id') is-invalid @enderror" required>
+                            @foreach($departments as $dept)
+                                <option value="{{ $dept->id }}" @selected((string) $defaultDepartmentId === (string) $dept->id)>
+                                    {{ $dept->name }}@if($dept->is_warehouse) (Warehouse) @endif
+                                </option>
+                            @endforeach
+                        </select>
+                        <div class="form-text">Stock is adjusted in the selected department.</div>
+                        @error('department_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+
+                    <div class="col-12 col-lg-2">
                         <label class="form-label">Type</label>
                         @php $defaultMoveType = old('type', request()->query('type')); @endphp
                         <select id="moveTypeSelect" name="type" class="form-select @error('type') is-invalid @enderror" required>
@@ -48,12 +64,12 @@
                         @error('type')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
 
-                    <div class="col-12 col-lg-3">
+                    <div class="col-12 col-lg-2">
                         <label class="form-label">Quantity</label>
-                        <input type="number" step="0.001" min="0.001" name="qty_uom" value="{{ old('qty_uom') }}"
+                        <input type="number" step="0.001" min="0" name="qty_uom" value="{{ old('qty_uom') }}"
                                class="form-control @error('qty_uom') is-invalid @enderror" required>
                         @error('qty_uom')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        <div class="form-text">For ADJUST, this becomes the new on-hand quantity.</div>
+                        <div class="form-text" id="qtyHelpText">For ADJUST, this becomes the new on-hand quantity in the selected department.</div>
                     </div>
 
                     <div class="col-12 col-lg-4">
@@ -124,10 +140,13 @@
         const wastageReasonHint = document.getElementById('wastageReasonHint');
         const departmentStockPanel = document.getElementById('departmentStockPanel');
         const departmentStockList = document.getElementById('departmentStockList');
+        const departmentSelect = document.getElementById('departmentSelect');
+        const qtyHelpText = document.getElementById('qtyHelpText');
         const productStockUrlTemplate = @json($productStockUrlTemplate);
 
         const initialProductId = @json(old('product_id'));
         const initialUom = @json(old('uom'));
+        let lastDepartmentStock = null;
 
         const productOptions = Array.from(productSelect.options)
             .filter((opt) => !!opt.value)
@@ -144,6 +163,27 @@
             });
         }
 
+        function getSelectedDepartmentId() {
+            return departmentSelect?.value ? String(departmentSelect.value) : '';
+        }
+
+        function getSelectedDepartmentStock() {
+            const deptId = getSelectedDepartmentId();
+            if (!lastDepartmentStock || !deptId) {
+                return null;
+            }
+            return (lastDepartmentStock.departments || []).find((row) => String(row.id) === deptId) ?? null;
+        }
+
+        function selectedDepartmentQtyBase(productId) {
+            const deptRow = getSelectedDepartmentStock();
+            if (deptRow) {
+                return Number(deptRow.qty || 0);
+            }
+            const product = productMap[productId];
+            return product ? Number(product.qty_on_hand || 0) : 0;
+        }
+
         function setUomStockHint(productId) {
             const product = productMap[productId];
             if (!product) {
@@ -151,8 +191,14 @@
                 return;
             }
 
-            const baseText = `Available: ${formatQty(product.qty_on_hand)} ${product.base_uom}`;
-            const innerText = product.inner_uom
+            const deptRow = getSelectedDepartmentStock();
+            const deptQty = selectedDepartmentQtyBase(productId);
+            const deptLabel = deptRow
+                ? (deptRow.is_warehouse ? `${deptRow.name} (Warehouse)` : deptRow.name)
+                : 'Selected department';
+
+            const baseText = `${deptLabel}: ${formatQty(deptQty)} ${product.base_uom}`;
+            const innerText = product.inner_uom && deptRow?.is_warehouse
                 ? ` | Inner stock: ${formatQty(product.inner_qty_on_hand)} ${product.inner_uom}`
                 : '';
             uomStockHint.textContent = `${baseText}${innerText}`;
@@ -190,8 +236,10 @@
                     return;
                 }
 
+                lastDepartmentStock = data;
                 const departments = Array.isArray(data.departments) ? data.departments : [];
                 const baseUom = data.base_uom || '';
+                const selectedDeptId = getSelectedDepartmentId();
 
                 if (departments.length === 0) {
                     departmentStockList.innerHTML = '<span class="text-secondary small">No department stock found.</span>';
@@ -202,11 +250,18 @@
                     const qty = formatQty(row.qty);
                     const label = row.is_warehouse ? `${row.name} (Warehouse)` : row.name;
                     const qtyClass = Number(row.qty) < 0 ? 'text-danger' : (Number(row.qty) > 0 ? 'text-primary' : 'text-secondary');
-                    return `<span class="badge bg-white border text-dark px-3 py-2">
+                    const isSelected = selectedDeptId && String(row.id) === selectedDeptId;
+                    return `<span class="badge ${isSelected ? 'bg-primary bg-opacity-10 border-primary' : 'bg-white border'} text-dark px-3 py-2">
                         <span class="fw-semibold">${label}</span>:
                         <span class="${qtyClass}">${qty} ${baseUom}</span>
                     </span>`;
                 }).join('');
+
+                const productId = productIdInput.value;
+                if (productId) {
+                    setUomStockHint(productId);
+                    refreshUomOptions(productId);
+                }
             } catch (error) {
                 if (requestId !== departmentStockRequestId) {
                     return;
@@ -215,22 +270,34 @@
             }
         }
 
-        function setUoms(productId) {
+        function refreshUomOptions(productId, preferUom = null) {
             const product = productMap[productId];
             const list = product?.uoms ?? [];
+            const deptQtyBase = selectedDepartmentQtyBase(productId);
+            const currentUom = preferUom || uomSelect.value;
+
             uomSelect.innerHTML = '<option value="">Select UOM...</option>' + list.map(u => {
-                const stockInThisUom = u.factor > 0 ? (product.qty_on_hand / u.factor) : 0;
+                const stockInThisUom = u.factor > 0 ? (deptQtyBase / u.factor) : 0;
                 const label = u.factor === 1
                     ? `${u.uom} (base, stock: ${formatQty(stockInThisUom)} ${u.uom})`
                     : `${u.uom} (stock: ${formatQty(stockInThisUom)} ${u.uom})`;
-                const selected = (initialUom && initialUom === u.uom) ? 'selected' : '';
+                const selected = currentUom === u.uom ? 'selected' : '';
                 return `<option value="${u.uom}" ${selected}>${label}</option>`;
             }).join('');
 
-            if ((!initialUom || initialUom === '') && list.length > 0) {
+            if (currentUom) {
+                uomSelect.value = currentUom;
+            } else if (list.length > 0) {
                 uomSelect.value = list[0].uom;
             }
+        }
 
+        let preferInitialUom = true;
+
+        function setUoms(productId) {
+            const uomPreference = preferInitialUom ? (initialUom || null) : null;
+            preferInitialUom = false;
+            refreshUomOptions(productId, uomPreference);
             setUomStockHint(productId);
             loadDepartmentStock(productId);
         }
@@ -322,13 +389,33 @@
             });
         }
 
+        function syncQtyHelpText() {
+            if (!qtyHelpText || !moveTypeSelect) return;
+            const isAdjust = moveTypeSelect.value === 'adjust';
+            qtyHelpText.textContent = isAdjust
+                ? 'For ADJUST, this becomes the new quantity in the selected department.'
+                : 'Enter quantity in the selected UOM for the selected department.';
+        }
+
         function syncWastageReasonRequirement() {
             if (!moveTypeSelect || !moveNoteInput || !moveNoteLabel) return;
             const isWastage = moveTypeSelect.value === 'wastage';
             moveNoteInput.required = isWastage;
             moveNoteLabel.textContent = isWastage ? 'Reason' : 'Note';
             wastageReasonHint?.classList.toggle('d-none', !isWastage);
+            syncQtyHelpText();
         }
+
+        departmentSelect?.addEventListener('change', () => {
+            const productId = productIdInput.value;
+            if (productId) {
+                setUomStockHint(productId);
+                refreshUomOptions(productId);
+                if (lastDepartmentStock) {
+                    loadDepartmentStock(productId);
+                }
+            }
+        });
 
         moveTypeSelect?.addEventListener('change', syncWastageReasonRequirement);
         setupProductSearch();
@@ -341,9 +428,11 @@
             } else {
                 setUoms(pid);
             }
+        } else {
+            setUomStockHint('');
         }
-        else setUomStockHint('');
         syncWastageReasonRequirement();
+        syncQtyHelpText();
     </script>
 @endsection
 
