@@ -16,6 +16,7 @@ class ExpenseLine extends Model
         'company_id',
         'expense_id',
         'description',
+        'category_id',
         'qty',
         'unit_amount',
         'tax_percent',
@@ -38,6 +39,11 @@ class ExpenseLine extends Model
     public function expense(): BelongsTo
     {
         return $this->belongsTo(Expense::class);
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(ExpenseCategory::class, 'category_id');
     }
 
     public function recalculate(): void

@@ -108,7 +108,7 @@ class ExpenseController extends Controller
     public function show(Expense $expense)
     {
         $this->ensureExpenseLinesSchema();
-        $expense->load(['category', 'approvedBy', 'lines']);
+        $expense->load(['category', 'approvedBy', 'lines.category']);
         $statusMap = Expense::statusLabel();
 
         return view('expenses.show', compact('expense', 'statusMap'));
@@ -117,7 +117,7 @@ class ExpenseController extends Controller
     public function print(Expense $expense)
     {
         $this->ensureExpenseLinesSchema();
-        $expense->load(['category', 'approvedBy', 'employee:id,name,employee_no', 'lines']);
+        $expense->load(['category', 'approvedBy', 'employee:id,name,employee_no', 'lines.category']);
         $statusMap = Expense::statusLabel();
         $companyName = (string) Setting::get('company_name', config('app.name'));
         $companyLogo = company_logo_url(Setting::get('company_logo'));
@@ -291,29 +291,50 @@ class ExpenseController extends Controller
     private function validatedHeader(Request $request): array
     {
         $validated = $request->validate([
-            'category_id' => 'nullable|exists:tenant.expense_categories,id',
-            'description' => 'required|string|max:255',
+            'payment_type' => 'required|in:debit,credit',
             'expense_date' => 'required|date',
             'notes' => 'nullable|string',
             'receipt' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
             'lines' => 'required|array|min:1',
             'lines.*.description' => 'required|string|max:255',
+            'lines.*.category_id' => 'nullable|exists:tenant.expense_categories,id',
             'lines.*.qty' => 'required|numeric|min:0.001',
             'lines.*.unit_amount' => 'required|numeric|min:0',
             'lines.*.tax_percent' => 'nullable|numeric|min:0|max:100',
             'lines.*.line_total' => 'nullable|numeric|min:0',
         ]);
 
+        $lines = $request->input('lines', []);
+        $firstDesc = '';
+        $firstCategory = null;
+        foreach ($lines as $row) {
+            $desc = trim((string) ($row['description'] ?? ''));
+            if ($desc === '') {
+                continue;
+            }
+            $firstDesc = $desc;
+            $cat = $row['category_id'] ?? null;
+            $firstCategory = ($cat !== null && $cat !== '') ? (int) $cat : null;
+            break;
+        }
+
+        if ($firstDesc === '') {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'lines' => 'Kam az kam aik line add karein.',
+            ]);
+        }
+
         return [
-            'category_id' => $validated['category_id'] ?? null,
-            'description' => $validated['description'],
+            'payment_type' => $validated['payment_type'],
+            'category_id' => $firstCategory,
+            'description' => $firstDesc,
             'expense_date' => $validated['expense_date'],
             'notes' => $validated['notes'] ?? null,
         ];
     }
 
     /**
-     * @return list<array{description: string, qty: float, unit_amount: float, tax_percent: float}>
+     * @return list<array{description: string, category_id: ?int, qty: float, unit_amount: float, tax_percent: float}>
      */
     private function validatedLines(Request $request): array
     {
@@ -324,11 +345,13 @@ class ExpenseController extends Controller
             $unit = (float) ($row['unit_amount'] ?? 0);
             $taxPct = (float) ($row['tax_percent'] ?? 0);
             $desc = trim((string) ($row['description'] ?? ''));
+            $cat = $row['category_id'] ?? null;
             if ($desc === '' || $qty <= 0) {
                 continue;
             }
             $out[] = [
                 'description' => $desc,
+                'category_id' => ($cat !== null && $cat !== '') ? (int) $cat : null,
                 'qty' => $qty,
                 'unit_amount' => $unit,
                 'tax_percent' => $taxPct,
@@ -345,7 +368,7 @@ class ExpenseController extends Controller
     }
 
     /**
-     * @param  list<array{description: string, qty: float, unit_amount: float, tax_percent: float}>  $lines
+     * @param  list<array{description: string, category_id: ?int, qty: float, unit_amount: float, tax_percent: float}>  $lines
      */
     private function syncLines(Expense $expense, array $lines): void
     {
@@ -356,6 +379,7 @@ class ExpenseController extends Controller
                 'company_id' => $expense->company_id,
                 'expense_id' => $expense->id,
                 'description' => $row['description'],
+                'category_id' => $row['category_id'],
                 'qty' => $row['qty'],
                 'unit_amount' => $row['unit_amount'],
                 'tax_percent' => $row['tax_percent'],

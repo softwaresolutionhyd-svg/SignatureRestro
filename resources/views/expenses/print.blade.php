@@ -97,10 +97,10 @@
 
     <div class="meta">
         <div>
-            <div class="lbl">Category</div>
-            <div class="val">{{ $expense->category?->name ?: '—' }}</div>
-            <div class="lbl" style="margin-top:8px;">Description</div>
-            <div class="val">{{ $expense->description }}</div>
+            <div class="lbl">Debit / Credit</div>
+            <div class="val">{{ strtoupper($expense->payment_type ?? 'debit') }}</div>
+            <div class="lbl" style="margin-top:8px;">Date</div>
+            <div class="val">{{ $expense->expense_date?->format('d M Y') ?? '—' }}</div>
         </div>
         <div>
             @if($expense->employee)
@@ -122,10 +122,9 @@
         <thead>
         <tr>
             <th>Description</th>
+            <th style="width:140px;">Category</th>
             <th class="num" style="width:80px;">Qty</th>
             <th class="num" style="width:110px;">Unit cost</th>
-            <th class="num" style="width:110px;">Subtotal</th>
-            <th class="num" style="width:100px;">Tax</th>
             <th class="num" style="width:110px;">Total</th>
         </tr>
         </thead>
@@ -135,6 +134,7 @@
                 ? $expense->lines
                 : collect([(object) [
                     'description' => $expense->description,
+                    'category' => $expense->category,
                     'qty' => $expense->qty,
                     'unit_amount' => $expense->unit_amount,
                     'tax_percent' => $expense->tax_percent,
@@ -146,10 +146,9 @@
         @foreach($displayLines as $line)
         <tr>
             <td>{{ $line->description }}</td>
+            <td>{{ $line->category?->name ?? '—' }}</td>
             <td class="num">{{ fmt_num((float) $line->qty, 3) }}</td>
             <td class="num">{{ $currency }} {{ fmt_num((float) $line->unit_amount, 2) }}</td>
-            <td class="num">{{ $currency }} {{ fmt_num((float) $line->total_amount, 2) }}</td>
-            <td class="num">{{ $currency }} {{ fmt_num((float) $line->tax_amount, 2) }}</td>
             <td class="num">{{ $currency }} {{ fmt_num((float) ($line->line_total ?? ((float)$line->total_amount + (float)$line->tax_amount)), 2) }}</td>
         </tr>
         @endforeach
@@ -157,14 +156,6 @@
     </table>
 
     <table class="totals">
-        <tr>
-            <th>Subtotal</th>
-            <td>{{ $currency }} {{ fmt_num((float) $expense->total_amount, 2) }}</td>
-        </tr>
-        <tr>
-            <th>Tax</th>
-            <td>{{ $currency }} {{ fmt_num((float) $expense->tax_amount, 2) }}</td>
-        </tr>
         <tr>
             <th>Grand total</th>
             <td>{{ $currency }} {{ fmt_num((float) $expense->grand_total, 2) }}</td>

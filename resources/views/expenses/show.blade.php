@@ -119,14 +119,15 @@
             <div class="card-header bg-white fw-semibold py-3">Expense Details</div>
             <div class="card-body">
                 <dl class="row mb-0">
-                    <dt class="col-sm-4 text-secondary fw-normal">Category</dt>
-                    <dd class="col-sm-8">{{ $expense->category?->name ?? '—' }}</dd>
-
                     <dt class="col-sm-4 text-secondary fw-normal">Date</dt>
                     <dd class="col-sm-8">{{ $expense->expense_date?->format('d M Y') }}</dd>
 
-                    <dt class="col-sm-4 text-secondary fw-normal">Description</dt>
-                    <dd class="col-sm-8">{{ $expense->description }}</dd>
+                    <dt class="col-sm-4 text-secondary fw-normal">Debit / Credit</dt>
+                    <dd class="col-sm-8">
+                        <span class="badge text-bg-{{ ($expense->payment_type ?? 'debit') === 'credit' ? 'warning' : 'info' }}">
+                            {{ strtoupper($expense->payment_type ?? 'debit') }}
+                        </span>
+                    </dd>
 
                     @if($expense->notes)
                     <dt class="col-sm-4 text-secondary fw-normal">Notes</dt>
@@ -144,10 +145,9 @@
                     <thead class="table-light">
                         <tr>
                             <th class="ps-3">Description</th>
+                            <th>Category</th>
                             <th class="text-end">Qty</th>
                             <th class="text-end">Unit Cost</th>
-                            <th class="text-end">Subtotal</th>
-                            <th class="text-end pe-3">Tax</th>
                             <th class="text-end pe-3">Total</th>
                         </tr>
                     </thead>
@@ -157,6 +157,7 @@
                                 ? $expense->lines
                                 : collect([(object) [
                                     'description' => $expense->description,
+                                    'category' => $expense->category,
                                     'qty' => $expense->qty,
                                     'unit_amount' => $expense->unit_amount,
                                     'tax_percent' => $expense->tax_percent,
@@ -168,17 +169,16 @@
                         @foreach($displayLines as $line)
                         <tr>
                             <td class="ps-3">{{ $line->description }}</td>
+                            <td>{{ $line->category?->name ?? '—' }}</td>
                             <td class="text-end">{{ fmt_num((float) $line->qty, 3) }}</td>
                             <td class="text-end">{{ fmt_num((float) $line->unit_amount, 2) }}</td>
-                            <td class="text-end">{{ fmt_num((float) $line->total_amount, 2) }}</td>
-                            <td class="text-end pe-3">{{ fmt_num((float) $line->tax_amount, 2) }}@if((float)($line->tax_percent ?? 0) > 0) <span class="text-secondary small">({{ fmt_num((float)$line->tax_percent, 3) }}%)</span>@endif</td>
-                            <td class="text-end pe-3 fw-semibold">{{ fmt_num((float) ($line->line_total ?? $line->total_amount + $line->tax_amount), 2) }}</td>
+                            <td class="text-end pe-3 fw-semibold">{{ fmt_num((float) ($line->line_total ?? ((float)$line->total_amount + (float)$line->tax_amount)), 2) }}</td>
                         </tr>
                         @endforeach
                     </tbody>
                     <tfoot class="table-light">
                         <tr>
-                            <td colspan="5" class="text-end fw-bold ps-3">Grand Total</td>
+                            <td colspan="4" class="text-end fw-bold ps-3">Grand Total</td>
                             <td class="text-end pe-3 fw-bold fs-5" style="color:#14b8a6;">
                                 {{ fmt_num($expense->grand_total, 2) }}
                             </td>

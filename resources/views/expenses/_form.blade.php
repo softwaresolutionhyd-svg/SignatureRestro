@@ -5,27 +5,31 @@
 @endif
 
 @php
+    $categoryOptions = $categories->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])->values()->all();
     $oldLines = old('lines');
     if (! is_array($oldLines)) {
         if ($expense && $expense->relationLoaded('lines') && $expense->lines->isNotEmpty()) {
             $oldLines = $expense->lines->map(fn ($l) => [
                 'description' => $l->description,
+                'category_id' => $l->category_id,
                 'qty' => (float) $l->qty,
                 'unit_amount' => (float) $l->unit_amount,
-                'tax_percent' => (float) $l->tax_percent,
+                'tax_percent' => 0,
                 'line_total' => (float) $l->line_total,
             ])->values()->all();
         } elseif ($expense) {
             $oldLines = [[
                 'description' => (string) $expense->description,
+                'category_id' => $expense->category_id,
                 'qty' => (float) ($expense->qty ?? 1),
                 'unit_amount' => (float) ($expense->unit_amount ?? 0),
-                'tax_percent' => (float) ($expense->tax_percent ?? 0),
+                'tax_percent' => 0,
                 'line_total' => (float) ($expense->grand_total ?? 0),
             ]];
         } else {
             $oldLines = [[
-                'description' => old('description', ''),
+                'description' => '',
+                'category_id' => null,
                 'qty' => 1,
                 'unit_amount' => 0,
                 'tax_percent' => 0,
@@ -40,33 +44,20 @@
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-white fw-semibold py-3">Expense Details</div>
             <div class="card-body">
-                <div class="mb-3">
-                    <label class="form-label">Description <span class="text-danger">*</span></label>
-                    <input type="text" name="description" id="expenseTitle" class="form-control @error('description') is-invalid @enderror"
-                        value="{{ old('description', $expense?->description) }}"
-                        placeholder="e.g. Client lunch, Travel to HQ" required>
-                    @error('description')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                </div>
-
                 <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label">Category</label>
-                        <select name="category_id" class="form-select @error('category_id') is-invalid @enderror">
-                            <option value="">— None —</option>
-                            @foreach($categories as $cat)
-                                <option value="{{ $cat->id }}"
-                                    {{ old('category_id', $expense?->category_id) == $cat->id ? 'selected' : '' }}>
-                                    {{ $cat->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                        @error('category_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    </div>
                     <div class="col-md-6">
                         <label class="form-label">Expense Date <span class="text-danger">*</span></label>
                         <input type="date" name="expense_date" class="form-control @error('expense_date') is-invalid @enderror"
                             value="{{ old('expense_date', $expense?->expense_date?->format('Y-m-d') ?? date('Y-m-d')) }}" required>
                         @error('expense_date')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Debit / Credit <span class="text-danger">*</span></label>
+                        <select name="payment_type" class="form-select @error('payment_type') is-invalid @enderror" required>
+                            <option value="debit" {{ old('payment_type', $expense?->payment_type ?? 'debit') === 'debit' ? 'selected' : '' }}>Debit</option>
+                            <option value="credit" {{ old('payment_type', $expense?->payment_type ?? 'debit') === 'credit' ? 'selected' : '' }}>Credit</option>
+                        </select>
+                        @error('payment_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
                 </div>
 
@@ -85,10 +76,10 @@
                         <thead class="table-light">
                         <tr>
                             <th>Description</th>
-                            <th style="width:100px;">Qty</th>
+                            <th style="width:160px;">Category</th>
+                            <th style="width:90px;">Qty</th>
                             <th style="width:120px;">Unit Cost</th>
-                            <th style="width:100px;">Tax %</th>
-                            <th style="width:130px;">Total</th>
+                            <th style="width:120px;">Total</th>
                             <th style="width:44px;"></th>
                         </tr>
                         </thead>
@@ -131,14 +122,11 @@
             <div class="card-body">
                 <div class="text-secondary small mb-3">Amount Summary</div>
                 <div class="d-flex justify-content-between small mb-1">
-                    <span>Subtotal</span><span id="sumSubtotal">0.00</span>
-                </div>
-                <div class="d-flex justify-content-between small mb-1">
-                    <span>Tax</span><span id="sumTax">0.00</span>
+                    <span>Subtotal</span><span id="sumSubtotal">0</span>
                 </div>
                 <hr class="my-2">
                 <div class="d-flex justify-content-between fw-bold">
-                    <span>Total</span><span id="sumTotal" style="color:#14b8a6;">0.00</span>
+                    <span>Total</span><span id="sumTotal" style="color:#14b8a6;">0</span>
                 </div>
             </div>
         </div>
@@ -149,15 +137,18 @@
     <tr class="exp-line-row">
         <td>
             <input type="text" name="lines[__i__][description]" class="form-control form-control-sm exp-desc" placeholder="Line description" required>
+            <input type="hidden" name="lines[__i__][tax_percent]" class="exp-tax" value="0">
+        </td>
+        <td>
+            <select name="lines[__i__][category_id]" class="form-select form-select-sm exp-category">
+                <option value="">— None —</option>
+            </select>
         </td>
         <td>
             <input type="number" name="lines[__i__][qty]" class="form-control form-control-sm exp-qty" step="0.001" min="0.001" value="1" required>
         </td>
         <td>
             <input type="number" name="lines[__i__][unit_amount]" class="form-control form-control-sm exp-unit" step="0.01" min="0" value="0" required>
-        </td>
-        <td>
-            <input type="number" name="lines[__i__][tax_percent]" class="form-control form-control-sm exp-tax" step="0.001" min="0" max="100" value="0">
         </td>
         <td>
             <input type="number" name="lines[__i__][line_total]" class="form-control form-control-sm exp-total" step="0.01" min="0" value="0">
@@ -168,13 +159,13 @@
     </tr>
 </template>
 
-@section('scripts')
+@push('scripts')
 <script>
 (function () {
     const body = document.getElementById('expLinesBody');
     const tpl = document.getElementById('expLineRowTpl');
     const addBtn = document.getElementById('expAddLineBtn');
-    const titleInput = document.getElementById('expenseTitle');
+    const categories = @json($categoryOptions);
     const initial = @json($oldLines);
     let idx = 0;
 
@@ -185,20 +176,27 @@
         return s === '-0' ? '0' : s;
     }
 
+    function fillCategories(select, selectedId) {
+        select.innerHTML = '<option value="">— None —</option>';
+        categories.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = String(c.id);
+            opt.textContent = c.name;
+            if (selectedId != null && String(selectedId) === String(c.id)) {
+                opt.selected = true;
+            }
+            select.appendChild(opt);
+        });
+    }
+
     function paintSummary() {
-        let sub = 0, tax = 0, tot = 0;
+        let tot = 0;
         body.querySelectorAll('.exp-line-row').forEach(row => {
             const q = parseFloat(row.querySelector('.exp-qty').value) || 0;
             const u = parseFloat(row.querySelector('.exp-unit').value) || 0;
-            const t = parseFloat(row.querySelector('.exp-tax').value) || 0;
-            const s = q * u;
-            const tx = s * t / 100;
-            sub += s;
-            tax += tx;
-            tot += s + tx;
+            tot += q * u;
         });
-        document.getElementById('sumSubtotal').textContent = fmtMoney(sub);
-        document.getElementById('sumTax').textContent = fmtMoney(tax);
+        document.getElementById('sumSubtotal').textContent = fmtMoney(tot);
         document.getElementById('sumTotal').textContent = fmtMoney(tot);
     }
 
@@ -206,29 +204,23 @@
         if (row._editingTotal) return;
         const q = parseFloat(row.querySelector('.exp-qty').value) || 0;
         const u = parseFloat(row.querySelector('.exp-unit').value) || 0;
-        const t = parseFloat(row.querySelector('.exp-tax').value) || 0;
-        const s = q * u;
-        const tot = s + (s * t / 100);
-        row.querySelector('.exp-total').value = fmtMoney(tot);
+        row.querySelector('.exp-total').value = fmtMoney(q * u);
         paintSummary();
     }
 
     function recalcRowFromTotal(row) {
         row._editingTotal = true;
         const q = parseFloat(row.querySelector('.exp-qty').value) || 0;
-        const t = parseFloat(row.querySelector('.exp-tax').value) || 0;
         const tot = parseFloat(row.querySelector('.exp-total').value) || 0;
         if (q > 0) {
-            const factor = 1 + (t / 100);
-            const sub = factor > 0 ? (tot / factor) : tot;
-            row.querySelector('.exp-unit').value = fmtMoney(Math.max(0, sub / q));
+            row.querySelector('.exp-unit').value = fmtMoney(Math.max(0, tot / q));
         }
         row._editingTotal = false;
         paintSummary();
     }
 
     function bindRow(row) {
-        row.querySelectorAll('.exp-qty, .exp-unit, .exp-tax').forEach(el => {
+        row.querySelectorAll('.exp-qty, .exp-unit').forEach(el => {
             el.addEventListener('input', () => recalcRowFromUnit(row));
         });
         const total = row.querySelector('.exp-total');
@@ -245,11 +237,11 @@
         const html = tpl.innerHTML.replaceAll('__i__', String(idx++));
         body.insertAdjacentHTML('beforeend', html);
         const row = body.lastElementChild;
+        fillCategories(row.querySelector('.exp-category'), data?.category_id ?? null);
         if (data) {
             row.querySelector('.exp-desc').value = data.description || '';
             row.querySelector('.exp-qty').value = data.qty ?? 1;
             row.querySelector('.exp-unit').value = data.unit_amount ?? 0;
-            row.querySelector('.exp-tax').value = data.tax_percent ?? 0;
             if (data.line_total != null) {
                 row.querySelector('.exp-total').value = data.line_total;
             }
@@ -262,8 +254,7 @@
     (initial.length ? initial : [{}]).forEach(addRow);
 
     addBtn?.addEventListener('click', () => {
-        const title = (titleInput?.value || '').trim();
-        addRow({ description: title, qty: 1, unit_amount: 0, tax_percent: 0 });
+        addRow({ description: '', category_id: null, qty: 1, unit_amount: 0, tax_percent: 0 });
     });
 
     document.getElementById('receiptInput')?.addEventListener('change', function () {
@@ -278,4 +269,4 @@
     });
 })();
 </script>
-@endsection
+@endpush

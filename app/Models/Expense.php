@@ -16,7 +16,7 @@ class Expense extends Model
 
     protected $fillable = [
         'company_id',
-        'employee_id', 'category_id', 'description', 'expense_date',
+        'employee_id', 'category_id', 'description', 'expense_date', 'payment_type',
         'qty', 'unit_amount', 'tax_percent', 'tax_amount',
         'total_amount', 'grand_total', 'notes', 'receipt_path',
         'status', 'submitted_at', 'approved_at', 'approved_by',
