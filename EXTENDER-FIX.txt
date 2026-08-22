@@ -9,7 +9,7 @@ Agar router/extender WiFi ko wired LAN se block karta hai to phone refuse/timeou
 
 Browser address bar mein poora likho:
 
-    http://192.168.1.15/lan-test.html
+    http://192.168.1.105/lan-test.html
 
 Zaroori:
   - http:// likho (https:// NAHI)
@@ -17,8 +17,8 @@ Zaroori:
   - Chrome agar https laga de to Firefox try karo
 
 Test pass ho jaye to:
-    http://192.168.1.15/login
-    http://192.168.1.15/restaurant-pos
+    http://192.168.1.105/login
+    http://192.168.1.105/restaurant-pos
 
 ## STEP 2 — Dono extenders par settings
 
