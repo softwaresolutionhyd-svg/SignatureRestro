@@ -175,6 +175,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
         Route::get('issues/daily-print', [StockIssueController::class, 'dailyPrint'])->name('issues.daily-print');
         Route::get('issues/create', [StockIssueController::class, 'create'])->name('issues.create');
         Route::post('issues', [StockIssueController::class, 'store'])->name('issues.store');
+        Route::get('moves/product-stock/{product}', [MoveController::class, 'productStock'])->name('moves.product-stock');
         Route::resource('moves', MoveController::class)->only(['index', 'create', 'store']);
         Route::get('/stock-in', [StockInController::class, 'index'])->name('stock-in.index');
         Route::post('/stock-in/{order}/receive', [StockInController::class, 'receive'])->name('stock-in.receive');

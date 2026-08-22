@@ -79,6 +79,13 @@
                         <div class="form-text d-none" id="wastageReasonHint">Wastage type par reason required hai.</div>
                         @error('note')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
+
+                    <div class="col-12 d-none" id="departmentStockPanel">
+                        <div class="border rounded bg-light p-3">
+                            <div class="fw-semibold small text-secondary mb-2">Stock by department</div>
+                            <div id="departmentStockList" class="d-flex flex-wrap gap-2"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="d-flex gap-2 mt-4">
@@ -114,6 +121,9 @@
         const moveNoteInput = document.getElementById('moveNoteInput');
         const moveNoteLabel = document.getElementById('moveNoteLabel');
         const wastageReasonHint = document.getElementById('wastageReasonHint');
+        const departmentStockPanel = document.getElementById('departmentStockPanel');
+        const departmentStockList = document.getElementById('departmentStockList');
+        const productStockUrlTemplate = @json(preg_replace('/\/\d+$/', '/__ID__', route('inventory.moves.product-stock', ['product' => 0])));
 
         const initialProductId = @json(old('product_id'));
         const initialUom = @json(old('uom'));
@@ -147,6 +157,63 @@
             uomStockHint.textContent = `${baseText}${innerText}`;
         }
 
+        let departmentStockRequestId = 0;
+
+        async function loadDepartmentStock(productId) {
+            if (!departmentStockPanel || !departmentStockList) {
+                return;
+            }
+
+            if (!productId) {
+                departmentStockPanel.classList.add('d-none');
+                departmentStockList.innerHTML = '';
+                return;
+            }
+
+            const requestId = ++departmentStockRequestId;
+            departmentStockPanel.classList.remove('d-none');
+            departmentStockList.innerHTML = '<span class="text-secondary small">Loading department stock...</span>';
+
+            try {
+                const url = productStockUrlTemplate.replace('__ID__', encodeURIComponent(productId));
+                const response = await fetch(url, {
+                    headers: { 'Accept': 'application/json' },
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load department stock');
+                }
+
+                const data = await response.json();
+                if (requestId !== departmentStockRequestId) {
+                    return;
+                }
+
+                const departments = Array.isArray(data.departments) ? data.departments : [];
+                const baseUom = data.base_uom || '';
+
+                if (departments.length === 0) {
+                    departmentStockList.innerHTML = '<span class="text-secondary small">No department stock found.</span>';
+                    return;
+                }
+
+                departmentStockList.innerHTML = departments.map((row) => {
+                    const qty = formatQty(row.qty);
+                    const label = row.is_warehouse ? `${row.name} (Warehouse)` : row.name;
+                    const qtyClass = Number(row.qty) < 0 ? 'text-danger' : (Number(row.qty) > 0 ? 'text-primary' : 'text-secondary');
+                    return `<span class="badge bg-white border text-dark px-3 py-2">
+                        <span class="fw-semibold">${label}</span>:
+                        <span class="${qtyClass}">${qty} ${baseUom}</span>
+                    </span>`;
+                }).join('');
+            } catch (error) {
+                if (requestId !== departmentStockRequestId) {
+                    return;
+                }
+                departmentStockList.innerHTML = '<span class="text-danger small">Could not load department stock.</span>';
+            }
+        }
+
         function setUoms(productId) {
             const product = productMap[productId];
             const list = product?.uoms ?? [];
@@ -164,6 +231,7 @@
             }
 
             setUomStockHint(productId);
+            loadDepartmentStock(productId);
         }
 
         function findProductByLabel(label) {
@@ -187,6 +255,7 @@
                 productIdInput.value = '';
                 productSelect.value = '';
                 setUoms('');
+                loadDepartmentStock('');
                 return;
             }
 

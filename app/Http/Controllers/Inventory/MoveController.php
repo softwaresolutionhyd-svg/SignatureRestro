@@ -51,6 +51,14 @@ class MoveController extends Controller
         return view('inventory.moves.create', compact('products'));
     }
 
+    public function productStock(InventoryProduct $product)
+    {
+        return response()->json([
+            'base_uom' => (string) $product->uom,
+            'departments' => $this->inventoryStock->departmentStockBreakdown((int) $product->id),
+        ]);
+    }
+
     public function store(InventoryMoveStoreRequest $request)
     {
         $data = $request->all();

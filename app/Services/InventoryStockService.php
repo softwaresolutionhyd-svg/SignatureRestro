@@ -243,6 +243,32 @@ final class InventoryStockService
     }
 
     /**
+     * @return list<array{name: string, is_warehouse: bool, qty: float}>
+     */
+    public function departmentStockBreakdown(int $productId): array
+    {
+        $departments = InventoryDepartment::query()
+            ->where('active', true)
+            ->orderByDesc('is_warehouse')
+            ->orderBy('name')
+            ->get(['id', 'name', 'is_warehouse']);
+
+        $qtyByDept = InventoryProductStock::query()
+            ->where('product_id', $productId)
+            ->pluck('qty_on_hand', 'department_id')
+            ->map(fn ($qty) => (float) $qty)
+            ->all();
+
+        return $departments->map(function (InventoryDepartment $dept) use ($qtyByDept) {
+            return [
+                'name' => (string) $dept->name,
+                'is_warehouse' => (bool) $dept->is_warehouse,
+                'qty' => (float) ($qtyByDept[$dept->id] ?? 0),
+            ];
+        })->values()->all();
+    }
+
+    /**
      * Physical stock check: counted qty lives in Warehouse; other dept rows reset to 0
      * so Issue Stock / warehouse reports match the count (kitchen negatives are not "real" stock).
      */
