@@ -630,7 +630,10 @@
         }
 
         if (forPurchaseSwitch) {
-            forPurchaseSwitch.addEventListener('change', syncReorderLevelVisibility);
+            forPurchaseSwitch.addEventListener('change', () => {
+                syncReorderLevelVisibility();
+                syncCostingFields(false);
+            });
             syncReorderLevelVisibility();
         }
 
@@ -704,6 +707,10 @@
             if (!costInput) return;
             const cost = parseFloat(costInput.value || '0');
             const safeCost = Number.isFinite(cost) && cost > 0 ? cost : 0;
+            const ingredientMode = !!forPurchaseSwitch?.checked;
+            document.querySelectorAll('[data-extra-cost-row]').forEach((row) => {
+                row.classList.toggle('d-none', ingredientMode);
+            });
             const sourcePriceRaw = hasPriceTargetRule
                 ? (priceInput?.dataset.basePrice ?? priceInput?.value ?? '0')
                 : (priceInput?.value ?? '0');
@@ -713,6 +720,7 @@
             let runningEffective = safeCost;
             let runningPrice = safePrice;
             let extraTotal = 0;
+            if (!ingredientMode) {
             (costFieldDefs || []).forEach((def) => {
                 let baseVal = safeCost;
                 if (def.base === 'effective_cost') {
@@ -750,13 +758,23 @@
                     extraInput.value = value.toFixed(2);
                 }
             });
+            } else {
+                (costFieldDefs || []).forEach((def) => {
+                    const extraInput = document.querySelector(`input[name="extra_costs[${def.key}]"]`);
+                    if (extraInput) {
+                        extraInput.value = '0.00';
+                    }
+                });
+            }
             if (effectiveCostInput) {
-                effectiveCostInput.value = (safeCost + extraTotal).toFixed(2);
+                effectiveCostInput.value = ingredientMode
+                    ? safeCost.toFixed(2)
+                    : (safeCost + extraTotal).toFixed(2);
             }
             if (priceInput && hasPriceTargetRule && recalcSalePrice) {
                 priceInput.value = runningPrice.toFixed(2);
             }
-            const finalEffective = safeCost + extraTotal;
+            const finalEffective = ingredientMode ? safeCost : (safeCost + extraTotal);
             const finalPrice = priceInput ? (parseFloat(priceInput.value || '0') || 0) : runningPrice;
             if (profitInput) {
                 profitInput.value = (finalPrice - finalEffective).toFixed(2);

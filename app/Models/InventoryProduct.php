@@ -79,9 +79,13 @@ class InventoryProduct extends Model
         return sprintf('%s-%s', $prefix, strtoupper(substr(sha1((string) microtime(true)), 0, 8)));
     }
 
-    /** Total cost line = base cost + settings-based extra charges. */
+    /** Total cost line = base cost + settings-based extra charges. Ingredients use cost only (no gas markup). */
     public function getTotalAttribute(): float
     {
+        if ($this->for_purchase ?? false) {
+            return round((float) $this->cost, 2);
+        }
+
         $extraCosts = (array) ($this->extra_costs ?? []);
         $targets = self::extraCostTargets();
 

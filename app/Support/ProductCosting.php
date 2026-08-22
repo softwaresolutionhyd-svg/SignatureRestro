@@ -21,6 +21,7 @@ final class ProductCosting
         float $seedPrice = 0.0,
         bool $recipeDriven = false,
         ?float $previousEffectiveCost = null,
+        bool $applyExtraCostRules = true,
     ): array {
         $cost = max($cost, 0.0);
         $extraCosts = [];
@@ -29,7 +30,8 @@ final class ProductCosting
         $runningPrice = $recipeDriven ? $cost : max($seedPrice, 0.0);
         $priceTouchedByRules = false;
 
-        foreach (Setting::productExtraCostFieldDefinitions() as $field) {
+        if ($applyExtraCostRules) {
+            foreach (Setting::productExtraCostFieldDefinitions() as $field) {
             $key = (string) ($field['key'] ?? '');
             if ($key === '') {
                 continue;
@@ -71,6 +73,7 @@ final class ProductCosting
                 $effectiveCost += $amount;
             }
         }
+        }
 
         $effectiveCost = round($effectiveCost, 2);
 
@@ -108,6 +111,7 @@ final class ProductCosting
             $existingPrice,
             recipeDriven: true,
             previousEffectiveCost: (float) $product->total,
+            applyExtraCostRules: ! ($product->for_purchase ?? false),
         );
 
         $newProfit = round($existingPrice - $costing['effective_cost'], 2);

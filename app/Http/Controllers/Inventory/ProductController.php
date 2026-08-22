@@ -773,7 +773,13 @@ class ProductController extends Controller
 
         $cost = isset($data['cost']) ? (float) $data['cost'] : 0.0;
         $submittedPrice = isset($data['price']) ? (float) $data['price'] : 0.0;
-        $costing = ProductCosting::computeFromCost($cost, $submittedPrice, recipeDriven: false);
+        $isIngredient = $request->boolean('for_purchase');
+        $costing = ProductCosting::computeFromCost(
+            $cost,
+            $submittedPrice,
+            recipeDriven: false,
+            applyExtraCostRules: ! $isIngredient,
+        );
 
         $data['service_charges'] = 0.0;
         $data['extra_costs'] = $costing['extra_costs'];
@@ -806,6 +812,7 @@ class ProductController extends Controller
             $submittedPrice,
             recipeDriven: true,
             previousEffectiveCost: (float) $product->total,
+            applyExtraCostRules: ! ($product->for_purchase ?? false),
         );
 
         $data['cost'] = $recipeCost;
