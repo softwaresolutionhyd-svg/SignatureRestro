@@ -136,8 +136,8 @@ class ExpenseController extends Controller
     {
         $this->ensureExpenseLinesSchema();
 
-        if (! in_array($expense->status, [Expense::STATUS_DRAFT, Expense::STATUS_REFUSED])) {
-            return back()->with('error', 'Only Draft or Refused expenses can be edited.');
+        if ($expense->status === Expense::STATUS_PAID) {
+            return back()->with('error', 'Paid expenses cannot be edited.');
         }
         $expense->load('lines');
         $categories = ExpenseCategory::where('active', true)->orderBy('name')->get();
@@ -149,8 +149,8 @@ class ExpenseController extends Controller
     {
         $this->ensureExpenseLinesSchema();
 
-        if (! in_array($expense->status, [Expense::STATUS_DRAFT, Expense::STATUS_REFUSED])) {
-            return back()->with('error', 'Only Draft or Refused expenses can be edited.');
+        if ($expense->status === Expense::STATUS_PAID) {
+            return back()->with('error', 'Paid expenses cannot be edited.');
         }
 
         $data = $this->validatedHeader($request);

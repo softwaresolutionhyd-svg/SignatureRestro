@@ -52,8 +52,8 @@
         </form>
         @endif
 
-        {{-- Edit --}}
-        @if(in_array($expense->status, ['draft', 'refused']))
+        {{-- Edit (until paid) --}}
+        @if(in_array($expense->status, ['draft', 'refused', 'submitted', 'approved'], true))
         <a href="{{ route('expenses.edit', $expense) }}" class="btn btn-outline-primary btn-sm">Edit</a>
         @endif
 
