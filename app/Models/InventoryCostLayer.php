@@ -81,11 +81,64 @@ class InventoryCostLayer extends Model
             $cost = 0.0;
         }
 
+        if ($cost <= $epsilon && ($product->for_purchase ?? false)) {
+            $fallback = static::lastPurchaseUnitCostBase($product, $epsilon);
+            if ($fallback > $epsilon) {
+                $cost = $fallback;
+            }
+        }
+
         if (abs((float) $product->cost - $cost) >= 0.0000001) {
             $product->cost = $cost;
             $product->save();
         }
 
         return $cost;
+    }
+
+    /**
+     * When FIFO stock is fully consumed, keep the last known purchase rate on the product.
+     */
+    public static function lastPurchaseUnitCostBase(InventoryProduct $product, float $epsilon = 0.000001): float
+    {
+        $productId = (int) $product->id;
+
+        $layerCost = static::query()
+            ->where('product_id', $productId)
+            ->where('unit_cost', '>', $epsilon)
+            ->orderByRaw('COALESCE(received_at, created_at) DESC')
+            ->orderByDesc('id')
+            ->value('unit_cost');
+        if ($layerCost !== null && (float) $layerCost > $epsilon) {
+            return round((float) $layerCost, 6);
+        }
+
+        $moveCost = InventoryMove::query()
+            ->where('product_id', $productId)
+            ->where('type', 'in')
+            ->where('unit_cost', '>', $epsilon)
+            ->where('note', 'Received from vendor')
+            ->orderByDesc('id')
+            ->value('unit_cost');
+        if ($moveCost !== null && (float) $moveCost > $epsilon) {
+            return round((float) $moveCost, 6);
+        }
+
+        $line = PurchaseOrderLine::query()
+            ->where('product_id', $productId)
+            ->whereHas('order', fn ($q) => $q->where('status', 'received'))
+            ->orderByDesc('id')
+            ->first(['unit_price', 'uom']);
+
+        if ($line) {
+            $factor = $product->factorToBaseForUom((string) $line->uom);
+            $factor = ($factor !== null && $factor > 0) ? $factor : 1.0;
+            $base = (float) $line->unit_price / $factor;
+            if ($base > $epsilon) {
+                return round($base, 6);
+            }
+        }
+
+        return 0.0;
     }
 }
