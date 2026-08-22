@@ -40,12 +40,17 @@
         }
         td.num, th.num { text-align: right; white-space: nowrap; }
         td.center { text-align: center; }
-        tfoot td {
+        .item-name { font-weight: 600; }
+        .item-sku { font-size: 11px; color: #555; }
+        .grand-total-wrap {
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+        .grand-total-wrap td {
             font-weight: 700;
             background: #f9fafb;
         }
-        .item-name { font-weight: 600; }
-        .item-sku { font-size: 11px; color: #555; }
+        tbody tr { page-break-inside: avoid; break-inside: avoid; }
         .noprint {
             margin-bottom: 16px;
             display: flex;
@@ -71,6 +76,7 @@
             body { padding: 0; }
             .noprint { display: none !important; }
             @page { size: A4 portrait; margin: 12mm; }
+            thead { display: table-header-group; }
         }
     </style>
 </head>
@@ -121,15 +127,29 @@
             </tr>
         @endforelse
         </tbody>
-        @if($lines->isNotEmpty())
-        <tfoot>
-        <tr>
-            <td colspan="5" class="num">Grand Total</td>
-            <td class="num">{{ $currency }} {{ fmt_num($grandTotal, 2) }}</td>
-        </tr>
-        </tfoot>
-        @endif
     </table>
+
+    @if($lines->isNotEmpty())
+        <div class="grand-total-wrap">
+            <table>
+                <colgroup>
+                    <col style="width:36px">
+                    <col>
+                    <col style="width:52px">
+                    <col style="width:90px">
+                    <col style="width:100px">
+                    <col style="width:110px">
+                </colgroup>
+                <tbody>
+                <tr>
+                    <td colspan="4"></td>
+                    <td class="num">Grand Total</td>
+                    <td class="num">{{ $currency }} {{ fmt_num($grandTotal, 2) }}</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    @endif
 
     <p style="margin-top:12px;font-size:11px;color:#666;">
         Per Price = product cost (base UOM). Amount = Quantity × Per Price.
