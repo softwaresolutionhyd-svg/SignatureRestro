@@ -6,91 +6,95 @@
     <title>All Recipes — {{ $companyName }}</title>
     <style>
         * { box-sizing: border-box; }
-        @page { size: A4 portrait; margin: 12mm; }
+        @page { size: A4 portrait; margin: 7mm 8mm; }
         body {
             margin: 0;
-            padding: 16px;
+            padding: 10px;
             font-family: Arial, Helvetica, sans-serif;
-            font-size: 12px;
+            font-size: 9px;
+            line-height: 1.25;
             color: #111;
             background: #f8fafc;
         }
-        .noprint { margin-bottom: 14px; text-align: center; }
+        .noprint { margin-bottom: 10px; text-align: center; }
         .noprint button, .noprint a {
             display: inline-block;
-            padding: 8px 14px;
+            padding: 6px 12px;
             margin: 0 4px;
             border: 1px solid #666;
-            border-radius: 6px;
+            border-radius: 4px;
             background: #fff;
             color: #111;
             cursor: pointer;
             text-decoration: none;
-            font-size: 13px;
+            font-size: 12px;
         }
         .sheet {
             max-width: 210mm;
             margin: 0 auto;
             background: #fff;
-            padding: 10mm 12mm;
+            padding: 6mm 8mm;
             border: 1px solid #ddd;
         }
         .doc-head {
             text-align: center;
-            margin-bottom: 16px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #111;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #333;
         }
-        .doc-head h1 { margin: 0 0 4px; font-size: 20px; }
-        .doc-head .sub { margin: 0; font-size: 13px; color: #444; }
-        .doc-head .meta { margin: 6px 0 0; font-size: 11px; color: #666; }
-        .recipe {
-            margin-bottom: 20px;
-            padding-bottom: 12px;
-            border-bottom: 1px dashed #bbb;
-            page-break-inside: avoid;
-            break-inside: avoid;
-        }
-        .recipe:last-child { border-bottom: none; margin-bottom: 0; }
-        .dish-name {
-            margin: 0 0 8px;
-            font-size: 16px;
-            font-weight: 700;
-            letter-spacing: 0.2px;
-        }
-        table {
+        .doc-head h1 { margin: 0; font-size: 14px; line-height: 1.2; }
+        .doc-head .meta { margin: 3px 0 0; font-size: 8px; color: #555; }
+        .recipe-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 12px;
+            font-size: 8.5px;
+            table-layout: fixed;
         }
-        th, td {
-            border: 1px solid #333;
-            padding: 5px 8px;
+        .recipe-table th,
+        .recipe-table td {
+            border: 1px solid #666;
+            padding: 2px 4px;
             vertical-align: top;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
-        th { background: #f3f4f6; text-align: left; font-weight: 700; }
-        td.qty, th.qty { text-align: right; white-space: nowrap; width: 110px; }
-        td.rate, th.rate { text-align: right; white-space: nowrap; width: 120px; }
-        td.amount, th.amount { text-align: right; white-space: nowrap; width: 100px; }
-        tfoot th, tfoot td { background: #f9fafb; font-weight: 700; }
-        .recipe-total {
-            margin-top: 8px;
-            text-align: right;
-            font-size: 13px;
+        .recipe-table thead th {
+            background: #e5e7eb;
             font-weight: 700;
+            font-size: 8px;
+            padding: 3px 4px;
         }
-        .recipe-total .per-unit {
-            font-size: 11px;
-            font-weight: 600;
-            color: #444;
-            margin-top: 2px;
+        .col-dish { width: 22%; }
+        .col-ing { width: 30%; }
+        .col-qty { width: 16%; text-align: right; white-space: nowrap; }
+        .col-rate { width: 16%; text-align: right; white-space: nowrap; }
+        .col-amt { width: 16%; text-align: right; white-space: nowrap; }
+        tr.dish-row td {
+            background: #f3f4f6;
+            font-weight: 700;
+            font-size: 9px;
+            padding: 3px 4px;
+            border-top: 1.5px solid #333;
         }
-        .empty-ing { color: #666; font-style: italic; padding: 8px 0; }
+        tr.dish-row:first-child td { border-top: 1px solid #666; }
+        tr.total-row td {
+            background: #fafafa;
+            font-weight: 700;
+            font-size: 8px;
+            padding: 2px 4px 4px;
+            border-bottom: 1.5px solid #999;
+        }
+        tr.total-row .col-amt { font-size: 8.5px; }
+        tr.ing-row td.col-dish { color: transparent; font-size: 0; border-top-color: #ddd; }
+        tr.empty-row td { font-style: italic; color: #666; font-size: 8px; }
         @media print {
-            body { padding: 0; background: #fff; }
+            body { padding: 0; background: #fff; font-size: 8.5px; }
             .noprint { display: none !important; }
             .sheet { max-width: none; border: none; padding: 0; }
-            .recipe { page-break-inside: avoid; }
+            .recipe-table { font-size: 8px; }
+            .recipe-table thead { display: table-header-group; }
+            tr.dish-row { page-break-after: avoid; break-after: avoid-page; }
+            tr.total-row { page-break-after: avoid; break-after: avoid-page; }
         }
     </style>
 </head>
@@ -102,40 +106,45 @@
 
     <div class="sheet">
         <header class="doc-head">
-            <h1>{{ $companyName }}</h1>
-            <p class="sub">All Recipes</p>
+            <h1>{{ $companyName }} — All Recipes</h1>
             <p class="meta">
-                Printed {{ now()->timezone(config('app.timezone'))->format('d M Y, h:i A') }}
-                · {{ $boms->count() }} recipe{{ $boms->count() === 1 ? '' : 's' }}
+                {{ now()->timezone(config('app.timezone'))->format('d M Y, h:i A') }}
+                · {{ $boms->count() }} recipes
                 @if(($q ?? '') !== '')
-                    · Filter: “{{ $q }}”
+                    · “{{ $q }}”
                 @endif
             </p>
         </header>
 
-        @forelse($boms as $bom)
-            @php
-                $materialPerBatch = (float) $bom->materialCostPerBatch();
-                $batchQty = (float) $bom->batch_qty;
-                $standardPerUnit = $batchQty > 0 ? ($materialPerBatch / $batchQty) : 0.0;
-                $finishedUom = (string) ($bom->finishedProduct?->uom ?? '');
-            @endphp
-            <section class="recipe">
-                <h2 class="dish-name">{{ $bom->finishedProduct?->name ?? '—' }}</h2>
+        @if($boms->isEmpty())
+            <p style="text-align:center;color:#666;padding:16px 0;">No recipes found.</p>
+        @else
+            <table class="recipe-table">
+                <thead>
+                    <tr>
+                        <th class="col-dish">Dish</th>
+                        <th class="col-ing">Ingredient</th>
+                        <th class="col-qty">Qty</th>
+                        <th class="col-rate">Rate</th>
+                        <th class="col-amt">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($boms as $bom)
+                        @php
+                            $dishName = $bom->finishedProduct?->name ?? '—';
+                            $materialPerBatch = (float) $bom->materialCostPerBatch();
+                            $batchQty = (float) $bom->batch_qty;
+                            $standardPerUnit = $batchQty > 0 ? ($materialPerBatch / $batchQty) : 0.0;
+                            $finishedUom = (string) ($bom->finishedProduct?->uom ?? '');
+                        @endphp
 
-                @if($bom->lines->isEmpty())
-                    <div class="empty-ing">No ingredients in this recipe.</div>
-                @else
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Ingredient</th>
-                                <th class="qty">Quantity</th>
-                                <th class="rate">Rate</th>
-                                <th class="amount">Amount</th>
+                        @if($bom->lines->isEmpty())
+                            <tr class="dish-row empty-row">
+                                <td class="col-dish">{{ $dishName }}</td>
+                                <td colspan="4">No ingredients</td>
                             </tr>
-                        </thead>
-                        <tbody>
+                        @else
                             @foreach($bom->lines as $line)
                                 @php
                                     $qty = (float) $line->qty;
@@ -143,32 +152,30 @@
                                     $lineAmount = (float) $line->lineMaterialCostPerBatch();
                                     $ratePerQtyUom = $qty > 0 ? ($lineAmount / $qty) : (float) ($line->component?->cost ?? 0);
                                 @endphp
-                                <tr>
-                                    <td>{{ $line->component?->name ?? '—' }}</td>
-                                    <td class="qty">{{ fmt_num($qty, 3) }} {{ $uom }}</td>
-                                    <td class="rate">{{ fmt_num($ratePerQtyUom, 2) }}/{{ $uom }}</td>
-                                    <td class="amount">{{ fmt_num($lineAmount, 2) }}</td>
+                                <tr @class(['dish-row' => $loop->first, 'ing-row' => ! $loop->first])>
+                                    <td class="col-dish">{{ $loop->first ? $dishName : '·' }}</td>
+                                    <td class="col-ing">{{ $line->component?->name ?? '—' }}</td>
+                                    <td class="col-qty">{{ fmt_num($qty, 3) }} {{ $uom }}</td>
+                                    <td class="col-rate">{{ fmt_num($ratePerQtyUom, 2) }}</td>
+                                    <td class="col-amt">{{ fmt_num($lineAmount, 2) }}</td>
                                 </tr>
                             @endforeach
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <th colspan="3" class="text-end" style="text-align:right;">Total recipe cost</th>
-                                <th class="amount">{{ fmt_num($materialPerBatch, 2) }}</th>
+                            <tr class="total-row">
+                                <td class="col-dish"></td>
+                                <td class="col-ing" colspan="2" style="text-align:right;">
+                                    Total
+                                    @if($batchQty > 0 && $finishedUom !== '')
+                                        · {{ fmt_num($standardPerUnit, 2) }}/{{ $finishedUom }}
+                                    @endif
+                                </td>
+                                <td class="col-rate"></td>
+                                <td class="col-amt">{{ fmt_num($materialPerBatch, 2) }}</td>
                             </tr>
-                        </tfoot>
-                    </table>
-                    @if($batchQty > 0 && $finishedUom !== '')
-                        <div class="recipe-total per-unit">
-                            Cost per {{ $finishedUom }}: {{ fmt_num($standardPerUnit, 2) }}
-                            (batch {{ fmt_num($batchQty, 3) }} {{ $finishedUom }})
-                        </div>
-                    @endif
-                @endif
-            </section>
-        @empty
-            <p style="text-align:center;color:#666;padding:24px 0;">No recipes found.</p>
-        @endforelse
+                        @endif
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
     </div>
 
     <script>
