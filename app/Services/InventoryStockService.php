@@ -133,33 +133,34 @@ final class InventoryStockService
     }
 
     /**
-     * Department where recipe/BoM components should be consumed for a finished product.
-     * Prefers non-warehouse (e.g. Kitchen) — warehouse only as last resort.
+     * Department where recipe/BoM components should be consumed (POS sale, manufacturing, etc.).
+     * Uses the finished/POS item's tagged department — never warehouse.
      */
     public function consumptionDepartmentIdForProduct(InventoryProduct $product): int
     {
         $product->loadMissing(['department', 'departments']);
 
-        if ($product->department && ! $product->department->is_warehouse) {
-            return (int) $product->department->id;
+        $candidates = collect();
+
+        if ($product->department_id && $product->department) {
+            $candidates->push($product->department);
         }
 
         foreach ($product->departments as $dept) {
-            if (! $dept->is_warehouse) {
-                return (int) $dept->id;
+            if (! $candidates->contains('id', (int) $dept->id)) {
+                $candidates->push($dept);
             }
         }
 
-        if ($product->department_id) {
-            return (int) $product->department_id;
+        $operating = $candidates->first(fn ($dept) => ! $dept->is_warehouse);
+        if ($operating !== null) {
+            return (int) $operating->id;
         }
 
-        $first = $product->departments->first();
-        if ($first) {
-            return (int) $first->id;
-        }
-
-        return (int) $this->warehouse()->id;
+        throw new \RuntimeException(sprintf(
+            '%s ke liye kitchen/department set karein — recipe ingredients warehouse se cut nahi hoti.',
+            $product->name
+        ));
     }
 
     /**
