@@ -11,7 +11,7 @@ Write-Host ''
 Get-NetConnectionProfile | ForEach-Object {
     if ($_.NetworkCategory -ne 'Private') {
         Set-NetConnectionProfile -InterfaceIndex $_.InterfaceIndex -NetworkCategory Private
-        Write-Host "[OK] Network '$($_..Name)' -> Private" -ForegroundColor Green
+        Write-Host "[OK] Network '$($_.Name)' -> Private" -ForegroundColor Green
     } else {
         Write-Host "[OK] Network '$($_.Name)' already Private" -ForegroundColor DarkGray
     }

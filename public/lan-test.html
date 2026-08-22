@@ -16,6 +16,14 @@
     <p>Phone / tablet server se connect ho gaya.</p>
     <a href="/login">Login</a>
     <a href="/restaurant-pos">Restaurant POS</a>
-    <p class="note">URL hamesha <strong>http://192.168.1.15/</strong> — https mat use karein.</p>
+    <p class="note">URL hamesha <strong id="lan-url">http://…/</strong> — https mat use karein (jab tak HTTPS setup na ho).</p>
+    <script>
+        (function () {
+            var host = location.hostname || '192.168.1.105';
+            var url = location.protocol + '//' + host + (location.port ? ':' + location.port : '') + '/';
+            var el = document.getElementById('lan-url');
+            if (el) el.textContent = url;
+        })();
+    </script>
 </body>
 </html>
