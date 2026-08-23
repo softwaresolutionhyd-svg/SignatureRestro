@@ -36,7 +36,7 @@
                             <option value="">Select product...</option>
                             @foreach($products as $p)
                                 <option value="{{ $p->id }}" @selected((string)old('product_id') === (string)$p->id)>
-                                    {{ $p->sku }} — {{ $p->name }} (On hand: {{ fmt_num((float)$p->qty_on_hand, 3) }} {{ $p->uom }})
+                                    {{ $p->sku }} — {{ $p->name }}
                                 </option>
                             @endforeach
                         </select>
@@ -138,6 +138,12 @@
     </div>
 
     @php
+        $productCatalog = $products->map(fn ($p) => [
+            'id' => (string) $p->id,
+            'sku' => (string) $p->sku,
+            'name' => (string) $p->name,
+            'base_uom' => (string) $p->uom,
+        ])->values();
         $productMap = $products->mapWithKeys(function ($p) {
             return [(string) $p->id => [
                 'uoms' => $p->uomsForForms(),
@@ -153,6 +159,8 @@
     @endphp
 
     <script>
+        const productCatalog = @json($productCatalog);
+        const departmentStockMap = @json($departmentStockMap ?? []);
         const productMap = @json($productMap);
 
         const productSearchInput = document.getElementById('productSearchInput');
@@ -182,14 +190,43 @@
         const initialUom = @json(old('uom', request()->query('uom')));
         let lastDepartmentStock = null;
         let lastUnitCostBase = null;
+        let productOptions = [];
 
-        const productOptions = Array.from(productSelect.options)
-            .filter((opt) => !!opt.value)
-            .map((opt) => ({
-                id: String(opt.value),
-                label: String(opt.text).trim(),
-                normalized: String(opt.text).toLowerCase(),
-            }));
+        function departmentQty(productId) {
+            const deptId = getSelectedDepartmentId();
+            if (!deptId || !productId) {
+                return 0;
+            }
+            return Number(departmentStockMap[deptId]?.[String(productId)] ?? 0);
+        }
+
+        function buildProductLabel(item) {
+            const qty = departmentQty(item.id);
+            return `${item.sku} — ${item.name} (On hand: ${formatQty(qty)} ${item.base_uom})`;
+        }
+
+        function rebuildProductOptions() {
+            productOptions = productCatalog.map((item) => {
+                const label = buildProductLabel(item);
+                return {
+                    id: String(item.id),
+                    label,
+                    normalized: label.toLowerCase(),
+                    searchKey: `${item.sku} ${item.name}`.toLowerCase(),
+                };
+            });
+        }
+
+        function refreshSelectedProductLabel() {
+            const productId = productIdInput.value;
+            if (!productId) {
+                return;
+            }
+            const option = productOptions.find((opt) => opt.id === String(productId));
+            if (option) {
+                productSearchInput.value = option.label;
+            }
+        }
 
         function formatQty(qty) {
             return Number(qty || 0).toLocaleString(undefined, {
@@ -215,8 +252,7 @@
             if (deptRow) {
                 return Number(deptRow.qty || 0);
             }
-            const product = productMap[productId];
-            return product ? Number(product.qty_on_hand || 0) : 0;
+            return departmentQty(productId);
         }
 
         function getUomFactor(productId, uom) {
@@ -327,6 +363,20 @@
                 const departments = Array.isArray(data.departments) ? data.departments : [];
                 const baseUom = data.base_uom || '';
                 const selectedDeptId = getSelectedDepartmentId();
+                const activeProductId = productIdInput.value;
+
+                if (activeProductId && departments.length > 0) {
+                    departments.forEach((row) => {
+                        const deptKey = String(row.id);
+                        if (!departmentStockMap[deptKey]) {
+                            departmentStockMap[deptKey] = {};
+                        }
+                        departmentStockMap[deptKey][String(activeProductId)] = Number(row.qty || 0);
+                    });
+                    rebuildProductOptions();
+                    refreshSelectedProductLabel();
+                    buildProductSearchOptions(productSearchInput.value);
+                }
 
                 if (departments.length === 0) {
                     departmentStockList.innerHTML = '<span class="text-secondary small">No department stock found.</span>';
@@ -429,7 +479,7 @@
             const query = (term || '').trim().toLowerCase();
             const list = !query
                 ? productOptions.slice(0, 50)
-                : productOptions.filter((opt) => opt.normalized.includes(query)).slice(0, 100);
+                : productOptions.filter((opt) => opt.searchKey.includes(query)).slice(0, 100);
 
             productSearchOptions.innerHTML = list
                 .map((opt) => `<option value="${opt.label}"></option>`)
@@ -499,6 +549,10 @@
         }
 
         departmentSelect?.addEventListener('change', () => {
+            rebuildProductOptions();
+            buildProductSearchOptions(productSearchInput.value);
+            refreshSelectedProductLabel();
+
             const productId = productIdInput.value;
             if (productId) {
                 setUomStockHint(productId);
@@ -542,6 +596,7 @@
         });
 
         moveTypeSelect?.addEventListener('change', syncWastageReasonRequirement);
+        rebuildProductOptions();
         setupProductSearch();
 
         const pid = initialProductId ?? productIdInput.value ?? productSelect.value;

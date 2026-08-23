@@ -8,6 +8,7 @@ use App\Models\InventoryCostLayer;
 use App\Models\InventoryDepartment;
 use App\Models\InventoryMove;
 use App\Models\InventoryProduct;
+use App\Models\InventoryProductStock;
 use App\Models\InventoryUnit;
 use App\Models\Setting;
 use App\Notifications\StockUpdated;
@@ -58,7 +59,18 @@ class MoveController extends Controller
             }])
             ->get(['id', 'sku', 'name', 'uom', 'qty_on_hand', 'cost', 'package_contents_qty', 'package_contents_uom']);
 
-        return view('inventory.moves.create', compact('products', 'departments', 'warehouse'));
+        $departmentStockMap = [];
+        $productIds = $products->pluck('id');
+        if ($productIds->isNotEmpty()) {
+            InventoryProductStock::query()
+                ->whereIn('product_id', $productIds)
+                ->get(['product_id', 'department_id', 'qty_on_hand'])
+                ->each(function (InventoryProductStock $row) use (&$departmentStockMap) {
+                    $departmentStockMap[(string) $row->department_id][(string) $row->product_id] = (float) $row->qty_on_hand;
+                });
+        }
+
+        return view('inventory.moves.create', compact('products', 'departments', 'warehouse', 'departmentStockMap'));
     }
 
     public function productStock(InventoryProduct $product)
