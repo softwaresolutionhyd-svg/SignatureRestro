@@ -22,9 +22,14 @@
                     <a class="btn btn-sm btn-outline-secondary {{ $type === 'wastage' ? 'active' : '' }}" href="{{ route('inventory.moves.index', ['type' => 'wastage']) }}">WASTAGE</a>
                 </div>
             </div>
-            <a href="{{ route('inventory.moves.create') }}" class="btn btn-success">
-                <i class="bi bi-plus-circle me-1"></i> Stock Adjustment
-            </a>
+            <div class="d-flex flex-wrap gap-2">
+                <a href="{{ route('inventory.moves.create') }}" class="btn btn-success">
+                    <i class="bi bi-plus-circle me-1"></i> Stock Adjustment
+                </a>
+                <a href="{{ route('inventory.moves.cost-adjustment') }}" class="btn btn-outline-success">
+                    <i class="bi bi-currency-dollar me-1"></i> Stock Cost Adjustment
+                </a>
+            </div>
         </div>
 
         <div class="table-responsive">

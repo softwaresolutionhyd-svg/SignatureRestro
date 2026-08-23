@@ -76,6 +76,9 @@ $alertBadge = $lowStockBadge + $outBadge;
         <a href="{{ route('inventory.moves.create') }}" class="btn btn-success">
             <i class="bi bi-plus-circle me-1"></i> {{ __('Stock Adjustment') }}
         </a>
+        <a href="{{ route('inventory.moves.cost-adjustment') }}" class="btn btn-outline-success">
+            <i class="bi bi-currency-dollar me-1"></i> {{ __('Stock Cost Adjustment') }}
+        </a>
     </div>
 </div>
 

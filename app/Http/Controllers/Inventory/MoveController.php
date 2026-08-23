@@ -112,6 +112,55 @@ class MoveController extends Controller
             ->with('status', 'Product cost updated.');
     }
 
+    public function costAdjustment()
+    {
+        $products = InventoryProduct::query()
+            ->where('active', true)
+            ->where('for_purchase', true)
+            ->orderBy('name')
+            ->with(['uomConversions' => function ($q) {
+                $q->where('active', true)->select(['id', 'product_id', 'uom', 'factor_to_base']);
+            }])
+            ->get(['id', 'sku', 'name', 'uom', 'cost', 'package_contents_qty', 'package_contents_uom']);
+
+        return view('inventory.moves.cost-adjustment', compact('products'));
+    }
+
+    public function updateCosts(Request $request)
+    {
+        $data = $request->validate([
+            'lines' => ['required', 'array', 'min:1'],
+            'lines.*.product_id' => ['required', 'integer', 'exists:tenant.inventory_products,id'],
+            'lines.*.uom' => ['required', 'string', 'max:30'],
+            'lines.*.unit_cost' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $updated = 0;
+
+        DB::connection('tenant')->transaction(function () use ($data, &$updated) {
+            foreach ($data['lines'] as $line) {
+                /** @var InventoryProduct $product */
+                $product = InventoryProduct::query()->lockForUpdate()->findOrFail((int) $line['product_id']);
+                $factor = $product->factorToBaseForUom((string) $line['uom']);
+                if ($factor === null || $factor <= 0) {
+                    abort(422, "Invalid UOM for {$product->sku}.");
+                }
+
+                $unitCostBase = round((float) $line['unit_cost'] / (float) $factor, 6);
+                InventoryCostLayer::applyManualUnitCost($product, $unitCostBase, self::FIFO_EPSILON);
+                $updated++;
+            }
+        });
+
+        $message = $updated === 1
+            ? 'Cost updated for 1 product.'
+            : "Cost updated for {$updated} products.";
+
+        return redirect()
+            ->route('inventory.moves.cost-adjustment')
+            ->with('status', $message);
+    }
+
     public function store(InventoryMoveStoreRequest $request)
     {
         $data = $request->validated();
