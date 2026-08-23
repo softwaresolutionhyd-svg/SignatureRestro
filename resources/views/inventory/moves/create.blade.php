@@ -366,19 +366,37 @@
             });
         }
 
-        function resolveProductFromSearchInput(row) {
+        function clearRowProductSelection(row) {
+            row.querySelector('.line-product-id').value = '';
+            row._unitCostBase = null;
+            row.querySelector('.line-uom').innerHTML = '<option value="">UOM...</option>';
+            row.querySelector('.line-unit-cost').value = '';
+            syncRowStockHint(row);
+            row.querySelector('.line-cost-hint').textContent = '—';
+        }
+
+        function resolveProductFromSearchInput(row, { allowPartial = false } = {}) {
             const searchInput = row.querySelector('.line-product-search');
+            const value = searchInput.value.trim();
             const exact = findProductByLabel(searchInput.value);
-            const contains = findProductByContains(searchInput.value);
+
             if (exact) {
                 setRowProduct(row, exact);
-            } else if (contains) {
-                setRowProduct(row, contains);
-            } else if (!searchInput.value.trim()) {
+                return;
+            }
+
+            if (allowPartial) {
+                const contains = findProductByContains(searchInput.value);
+                if (contains) {
+                    setRowProduct(row, contains);
+                    return;
+                }
+            }
+
+            if (!value) {
                 setRowProduct(row, null);
             } else {
-                row.querySelector('.line-product-id').value = '';
-                syncRowStockHint(row);
+                clearRowProductSelection(row);
             }
         }
 
@@ -390,14 +408,14 @@
 
             searchInput.addEventListener('focus', () => buildProductSearchOptions(searchInput.value));
             searchInput.addEventListener('input', () => {
-                resolveProductFromSearchInput(row);
+                resolveProductFromSearchInput(row, { allowPartial: false });
                 buildProductSearchOptions(searchInput.value);
             });
-            searchInput.addEventListener('blur', () => resolveProductFromSearchInput(row));
+            searchInput.addEventListener('blur', () => resolveProductFromSearchInput(row, { allowPartial: true }));
             searchInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    resolveProductFromSearchInput(row);
+                    resolveProductFromSearchInput(row, { allowPartial: true });
                 }
             });
 
