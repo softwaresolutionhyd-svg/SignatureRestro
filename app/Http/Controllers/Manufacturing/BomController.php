@@ -163,7 +163,7 @@ class BomController extends Controller
 
         $boms = ManufacturingBom::query()
             ->with([
-                'finishedProduct:id,sku,name,uom',
+                'finishedProduct:id,sku,name,uom,price',
                 'lines' => fn ($query) => $query->orderBy('sort_order'),
                 'lines.component' => fn ($query) => $query->select([
                     'id', 'sku', 'name', 'uom', 'cost', 'qty_on_hand',

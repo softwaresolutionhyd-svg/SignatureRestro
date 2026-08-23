@@ -84,6 +84,21 @@
             padding: 2px 4px 4px;
             border-bottom: 1.5px solid #999;
         }
+        tr.total-row .summary-bar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 10px 18px;
+            text-align: right;
+        }
+        tr.total-row .summary-item .label {
+            font-weight: 600;
+            color: #555;
+            margin-right: 4px;
+        }
+        tr.total-row .summary-item .value { font-weight: 700; }
+        tr.total-row .summary-item.profit .value { color: #166534; }
+        tr.total-row .summary-item.loss .value { color: #b91c1c; }
         tr.total-row .col-amt { font-size: 8.5px; }
         tr.ing-row td.col-dish { color: transparent; font-size: 0; border-top-color: #ddd; }
         tr.empty-row td { font-style: italic; color: #666; font-size: 8px; }
@@ -135,14 +150,36 @@
                             $dishName = $bom->finishedProduct?->name ?? '—';
                             $materialPerBatch = (float) $bom->materialCostPerBatch();
                             $batchQty = (float) $bom->batch_qty;
-                            $standardPerUnit = $batchQty > 0 ? ($materialPerBatch / $batchQty) : 0.0;
+                            $totalCost = $batchQty > 0 ? ($materialPerBatch / $batchQty) : $materialPerBatch;
+                            $salePrice = (float) ($bom->finishedProduct?->price ?? 0);
+                            $profit = $salePrice - $totalCost;
                             $finishedUom = (string) ($bom->finishedProduct?->uom ?? '');
+                            $uomSuffix = $finishedUom !== '' ? '/'.$finishedUom : '';
                         @endphp
 
                         @if($bom->lines->isEmpty())
                             <tr class="dish-row empty-row">
                                 <td class="col-dish">{{ $dishName }}</td>
                                 <td colspan="4">No ingredients</td>
+                            </tr>
+                            <tr class="total-row">
+                                <td class="col-dish"></td>
+                                <td class="col-ing" colspan="4">
+                                    <div class="summary-bar">
+                                        <span class="summary-item">
+                                            <span class="label">Total Cost:</span>
+                                            <span class="value">{{ fmt_num($totalCost, 2) }}{{ $uomSuffix }}</span>
+                                        </span>
+                                        <span class="summary-item">
+                                            <span class="label">Sale Price:</span>
+                                            <span class="value">{{ fmt_num($salePrice, 2) }}</span>
+                                        </span>
+                                        <span class="summary-item {{ $profit >= 0 ? 'profit' : 'loss' }}">
+                                            <span class="label">Profit:</span>
+                                            <span class="value">{{ fmt_num($profit, 2) }}</span>
+                                        </span>
+                                    </div>
+                                </td>
                             </tr>
                         @else
                             @foreach($bom->lines as $line)
@@ -162,14 +199,22 @@
                             @endforeach
                             <tr class="total-row">
                                 <td class="col-dish"></td>
-                                <td class="col-ing" colspan="2" style="text-align:right;">
-                                    Total
-                                    @if($batchQty > 0 && $finishedUom !== '')
-                                        · {{ fmt_num($standardPerUnit, 2) }}/{{ $finishedUom }}
-                                    @endif
+                                <td class="col-ing" colspan="4">
+                                    <div class="summary-bar">
+                                        <span class="summary-item">
+                                            <span class="label">Total Cost:</span>
+                                            <span class="value">{{ fmt_num($totalCost, 2) }}{{ $uomSuffix }}</span>
+                                        </span>
+                                        <span class="summary-item">
+                                            <span class="label">Sale Price:</span>
+                                            <span class="value">{{ fmt_num($salePrice, 2) }}</span>
+                                        </span>
+                                        <span class="summary-item {{ $profit >= 0 ? 'profit' : 'loss' }}">
+                                            <span class="label">Profit:</span>
+                                            <span class="value">{{ fmt_num($profit, 2) }}</span>
+                                        </span>
+                                    </div>
                                 </td>
-                                <td class="col-rate"></td>
-                                <td class="col-amt">{{ fmt_num($materialPerBatch, 2) }}</td>
                             </tr>
                         @endif
                     @endforeach
