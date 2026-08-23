@@ -89,36 +89,7 @@ class MoveController extends Controller
         DB::connection('tenant')->transaction(function () use ($product, $unitCostBase) {
             /** @var InventoryProduct $locked */
             $locked = InventoryProduct::query()->lockForUpdate()->findOrFail($product->id);
-
-            $layers = InventoryCostLayer::query()
-                ->where('product_id', $locked->id)
-                ->where('qty_remaining', '>', self::FIFO_EPSILON)
-                ->lockForUpdate()
-                ->get();
-
-            if ($layers->isNotEmpty()) {
-                foreach ($layers as $layer) {
-                    $layer->update(['unit_cost' => $unitCostBase]);
-                }
-            } elseif ((float) $locked->qty_on_hand > self::FIFO_EPSILON) {
-                InventoryCostLayer::create([
-                    'product_id' => $locked->id,
-                    'qty_remaining' => (float) $locked->qty_on_hand,
-                    'unit_cost' => $unitCostBase,
-                    'source' => 'manual_cost',
-                    'reference' => 'manual-cost-update',
-                    'received_at' => now(),
-                ]);
-            }
-
-            $locked->cost = $unitCostBase;
-            $price = round((float) $locked->price, 2);
-            if ($price > 0) {
-                $locked->profit = round($price - $unitCostBase, 2);
-            }
-            $locked->save();
-
-            InventoryCostLayer::refreshProductUnitCost((int) $locked->id, self::FIFO_EPSILON);
+            InventoryCostLayer::applyManualUnitCost($locked, $unitCostBase, self::FIFO_EPSILON);
         });
 
         return redirect()

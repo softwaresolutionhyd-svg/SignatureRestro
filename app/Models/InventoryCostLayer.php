@@ -78,7 +78,8 @@ class InventoryCostLayer extends Model
         } elseif ($qtyAll > $epsilon) {
             $cost = round($valueAll / $qtyAll, 6);
         } else {
-            $cost = 0.0;
+            $existing = (float) $product->cost;
+            $cost = $existing > $epsilon ? round($existing, 6) : 0.0;
         }
 
         if ($cost <= $epsilon && ($product->for_purchase ?? false)) {
@@ -94,6 +95,75 @@ class InventoryCostLayer extends Model
         }
 
         return $cost;
+    }
+
+    /**
+     * Set manual unit cost on product + FIFO layers (stock adjustment screen).
+     */
+    public static function applyManualUnitCost(InventoryProduct $product, float $unitCostBase, float $epsilon = 0.000001): float
+    {
+        $unitCostBase = round(max(0, $unitCostBase), 6);
+        $productId = (int) $product->id;
+
+        static::query()
+            ->where('product_id', $productId)
+            ->where('qty_remaining', '>', $epsilon)
+            ->update(['unit_cost' => $unitCostBase]);
+
+        $qtyOnHand = (float) $product->qty_on_hand;
+        if ($qtyOnHand > $epsilon && ! static::query()
+            ->where('product_id', $productId)
+            ->where('qty_remaining', '>', $epsilon)
+            ->exists()) {
+            static::create([
+                'company_id' => $product->company_id,
+                'product_id' => $productId,
+                'qty_remaining' => $qtyOnHand,
+                'unit_cost' => $unitCostBase,
+                'source' => 'manual_cost',
+                'reference' => 'manual-cost-update',
+                'received_at' => now(),
+            ]);
+        }
+
+        $anchor = static::query()
+            ->where('product_id', $productId)
+            ->where('source', 'manual_cost')
+            ->where('reference', 'manual-cost-anchor')
+            ->first();
+
+        if ($anchor) {
+            $anchor->update([
+                'unit_cost' => $unitCostBase,
+                'received_at' => now(),
+            ]);
+        } else {
+            static::create([
+                'company_id' => $product->company_id,
+                'product_id' => $productId,
+                'qty_remaining' => 0,
+                'unit_cost' => $unitCostBase,
+                'source' => 'manual_cost',
+                'reference' => 'manual-cost-anchor',
+                'received_at' => now(),
+            ]);
+        }
+
+        $product->cost = $unitCostBase;
+        $price = round((float) $product->price, 2);
+        if ($price > 0) {
+            $product->profit = round($price - $unitCostBase, 2);
+        }
+        $product->save();
+
+        $hasRemaining = static::query()
+            ->where('product_id', $productId)
+            ->where('qty_remaining', '>', $epsilon)
+            ->exists();
+
+        return $hasRemaining
+            ? static::refreshProductUnitCost($productId, $epsilon)
+            : $unitCostBase;
     }
 
     /**
