@@ -403,6 +403,7 @@
         function bindLineRow(row) {
             const searchInput = row.querySelector('.line-product-search');
             const uomSelect = row.querySelector('.line-uom');
+            const qtyInput = row.querySelector('.line-qty');
             const removeBtn = row.querySelector('.line-remove');
             const updateCostBtn = row.querySelector('.line-update-cost');
 
@@ -420,6 +421,17 @@
             });
 
             uomSelect.addEventListener('change', () => syncRowCostFields(row));
+
+            function maybeAddLineOnTab(e) {
+                if (e.key !== 'Tab' || e.shiftKey) return;
+                const rows = [...linesBody.querySelectorAll('.move-line-row')];
+                if (rows[rows.length - 1] !== row) return;
+                e.preventDefault();
+                const next = addLine({});
+                next?.querySelector('.line-product-search')?.focus();
+            }
+
+            qtyInput?.addEventListener('keydown', maybeAddLineOnTab);
 
             removeBtn.addEventListener('click', () => {
                 if (linesBody.querySelectorAll('.move-line-row').length <= 1) return;
