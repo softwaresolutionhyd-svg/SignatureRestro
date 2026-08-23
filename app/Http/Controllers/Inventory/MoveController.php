@@ -56,7 +56,7 @@ class MoveController extends Controller
             ->with(['uomConversions' => function ($q) {
                 $q->where('active', true)->select(['id', 'product_id', 'uom', 'factor_to_base']);
             }])
-            ->get(['id', 'sku', 'name', 'uom', 'qty_on_hand', 'package_contents_qty', 'package_contents_uom']);
+            ->get(['id', 'sku', 'name', 'uom', 'qty_on_hand', 'cost', 'package_contents_qty', 'package_contents_uom']);
 
         return view('inventory.moves.create', compact('products', 'departments', 'warehouse'));
     }
@@ -65,8 +65,68 @@ class MoveController extends Controller
     {
         return response()->json([
             'base_uom' => (string) $product->uom,
+            'unit_cost_base' => round((float) $product->cost, 6),
             'departments' => $this->inventoryStock->departmentStockBreakdown((int) $product->id),
         ]);
+    }
+
+    public function updateProductCost(Request $request, InventoryProduct $product)
+    {
+        $data = $request->validate([
+            'unit_cost' => ['required', 'numeric', 'min:0'],
+            'uom' => ['required', 'string', 'max:30'],
+        ]);
+
+        $factor = $product->factorToBaseForUom((string) $data['uom']);
+        if ($factor === null || $factor <= 0) {
+            return back()->withErrors([
+                'unit_cost' => 'Selected UOM is not configured for this product.',
+            ]);
+        }
+
+        $unitCostBase = round((float) $data['unit_cost'] / (float) $factor, 6);
+
+        DB::connection('tenant')->transaction(function () use ($product, $unitCostBase) {
+            /** @var InventoryProduct $locked */
+            $locked = InventoryProduct::query()->lockForUpdate()->findOrFail($product->id);
+
+            $layers = InventoryCostLayer::query()
+                ->where('product_id', $locked->id)
+                ->where('qty_remaining', '>', self::FIFO_EPSILON)
+                ->lockForUpdate()
+                ->get();
+
+            if ($layers->isNotEmpty()) {
+                foreach ($layers as $layer) {
+                    $layer->update(['unit_cost' => $unitCostBase]);
+                }
+            } elseif ((float) $locked->qty_on_hand > self::FIFO_EPSILON) {
+                InventoryCostLayer::create([
+                    'product_id' => $locked->id,
+                    'qty_remaining' => (float) $locked->qty_on_hand,
+                    'unit_cost' => $unitCostBase,
+                    'source' => 'manual_cost',
+                    'reference' => 'manual-cost-update',
+                    'received_at' => now(),
+                ]);
+            }
+
+            $locked->cost = $unitCostBase;
+            $price = round((float) $locked->price, 2);
+            if ($price > 0) {
+                $locked->profit = round($price - $unitCostBase, 2);
+            }
+            $locked->save();
+
+            InventoryCostLayer::refreshProductUnitCost((int) $locked->id, self::FIFO_EPSILON);
+        });
+
+        return redirect()
+            ->route('inventory.moves.create', array_filter([
+                'product_id' => $product->id,
+                'uom' => $data['uom'],
+            ]))
+            ->with('status', 'Product cost updated.');
     }
 
     public function store(InventoryMoveStoreRequest $request)

@@ -6,6 +6,13 @@
 @section('content')
     @include('inventory.partials.subnav')
 
+    @if(session('status'))
+        <div class="alert alert-success alert-dismissible fade show">
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            {{ session('status') }}
+        </div>
+    @endif
+
     <div class="card shadow-sm">
         <div class="card-header bg-white fw-semibold">Update stock</div>
         <div class="card-body">
@@ -24,7 +31,7 @@
                             list="productSearchOptions"
                         >
                         <datalist id="productSearchOptions"></datalist>
-                        <input type="hidden" id="productIdInput" name="product_id" value="{{ old('product_id') }}" required>
+                        <input type="hidden" id="productIdInput" name="product_id" value="{{ old('product_id', request()->query('product_id')) }}" required>
                         <select id="productSelect" class="d-none">
                             <option value="">Select product...</option>
                             @foreach($products as $p)
@@ -88,7 +95,19 @@
                         @error('reference')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
 
-                    <div class="col-12 col-lg-8">
+                    <div class="col-12 col-lg-4">
+                        <label class="form-label">Unit Cost <span class="text-secondary small">(per selected UOM)</span></label>
+                        <div class="input-group">
+                            <input type="number" step="0.000001" min="0" id="unitCostInput"
+                                   class="form-control @error('unit_cost') is-invalid @enderror"
+                                   value="{{ old('unit_cost') }}" placeholder="0">
+                            <button type="button" class="btn btn-outline-primary" id="updateCostBtn">Update Cost</button>
+                        </div>
+                        <div class="form-text" id="currentCostHint">Select product to view current cost.</div>
+                        @error('unit_cost')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                    </div>
+
+                    <div class="col-12 col-lg-4">
                         <label class="form-label" id="moveNoteLabel">Note</label>
                         <input type="text" id="moveNoteInput" name="note" value="{{ old('note') }}"
                                class="form-control @error('note') is-invalid @enderror" maxlength="255">
@@ -109,6 +128,12 @@
                     <a href="{{ route('inventory.moves.index') }}" class="btn btn-outline-secondary">Cancel</a>
                 </div>
             </form>
+
+            <form method="POST" action="" id="updateCostForm" class="d-none">
+                @csrf
+                <input type="hidden" name="unit_cost" id="updateCostValue">
+                <input type="hidden" name="uom" id="updateCostUom">
+            </form>
         </div>
     </div>
 
@@ -117,12 +142,14 @@
             return [(string) $p->id => [
                 'uoms' => $p->uomsForForms(),
                 'qty_on_hand' => (float) $p->qty_on_hand,
+                'unit_cost_base' => round((float) $p->cost, 6),
                 'base_uom' => (string) $p->uom,
                 'inner_qty_on_hand' => $p->qtyOnHandAsPackageContents(),
                 'inner_uom' => $p->hasPackageContents() ? (string) $p->package_contents_uom : null,
             ]];
         });
         $productStockUrlTemplate = preg_replace('/\/\d+$/', '/__ID__', route('inventory.moves.product-stock', ['product' => 0]));
+        $updateCostUrlTemplate = preg_replace('/\/\d+$/', '/__ID__', route('inventory.moves.update-cost', ['product' => 0]));
     @endphp
 
     <script>
@@ -143,10 +170,18 @@
         const departmentSelect = document.getElementById('departmentSelect');
         const qtyHelpText = document.getElementById('qtyHelpText');
         const productStockUrlTemplate = @json($productStockUrlTemplate);
+        const updateCostUrlTemplate = @json($updateCostUrlTemplate);
+        const unitCostInput = document.getElementById('unitCostInput');
+        const currentCostHint = document.getElementById('currentCostHint');
+        const updateCostBtn = document.getElementById('updateCostBtn');
+        const updateCostForm = document.getElementById('updateCostForm');
+        const updateCostValue = document.getElementById('updateCostValue');
+        const updateCostUom = document.getElementById('updateCostUom');
 
-        const initialProductId = @json(old('product_id'));
-        const initialUom = @json(old('uom'));
+        const initialProductId = @json(old('product_id', request()->query('product_id')));
+        const initialUom = @json(old('uom', request()->query('uom')));
         let lastDepartmentStock = null;
+        let lastUnitCostBase = null;
 
         const productOptions = Array.from(productSelect.options)
             .filter((opt) => !!opt.value)
@@ -182,6 +217,57 @@
             }
             const product = productMap[productId];
             return product ? Number(product.qty_on_hand || 0) : 0;
+        }
+
+        function getUomFactor(productId, uom) {
+            const product = productMap[productId];
+            if (!product || !uom) {
+                return null;
+            }
+            const row = (product.uoms || []).find((item) => item.uom === uom);
+            return row ? Number(row.factor || 0) : null;
+        }
+
+        function formatCost(value) {
+            if (!Number.isFinite(value)) {
+                return '0';
+            }
+            let text = (Math.round(value * 1000000) / 1000000).toFixed(6);
+            text = text.replace(/\.?0+$/, '');
+            return text === '' ? '0' : text;
+        }
+
+        function costInSelectedUom(productId, uom, unitCostBase) {
+            const factor = getUomFactor(productId, uom);
+            if (factor === null || factor <= 0) {
+                return unitCostBase;
+            }
+            return unitCostBase * factor;
+        }
+
+        function syncCostFields(productId, preferValue = null) {
+            const product = productMap[productId];
+            const uom = uomSelect?.value || product?.base_uom || '';
+            const unitCostBase = lastUnitCostBase ?? product?.unit_cost_base ?? 0;
+
+            if (!productId || !product) {
+                currentCostHint.textContent = 'Select product to view current cost.';
+                if (preferValue === null && !unitCostInput.value) {
+                    unitCostInput.value = '';
+                }
+                return;
+            }
+
+            const currentInUom = costInSelectedUom(productId, uom, unitCostBase);
+            currentCostHint.textContent = uom
+                ? `Current cost: ${formatCost(currentInUom)} per ${uom}`
+                : `Current cost: ${formatCost(unitCostBase)} per ${product.base_uom}`;
+
+            if (preferValue !== null) {
+                unitCostInput.value = formatCost(preferValue);
+            } else if (!unitCostInput.value && currentInUom > 0) {
+                unitCostInput.value = formatCost(currentInUom);
+            }
         }
 
         function setUomStockHint(productId) {
@@ -237,6 +323,7 @@
                 }
 
                 lastDepartmentStock = data;
+                lastUnitCostBase = Number(data.unit_cost_base ?? 0);
                 const departments = Array.isArray(data.departments) ? data.departments : [];
                 const baseUom = data.base_uom || '';
                 const selectedDeptId = getSelectedDepartmentId();
@@ -261,6 +348,7 @@
                 if (productId) {
                     setUomStockHint(productId);
                     refreshUomOptions(productId);
+                    syncCostFields(productId);
                 }
             } catch (error) {
                 if (requestId !== departmentStockRequestId) {
@@ -290,6 +378,8 @@
             } else if (list.length > 0) {
                 uomSelect.value = list[0].uom;
             }
+
+            syncCostFields(productId);
         }
 
         let preferInitialUom = true;
@@ -299,6 +389,7 @@
             preferInitialUom = false;
             refreshUomOptions(productId, uomPreference);
             setUomStockHint(productId);
+            syncCostFields(productId, uomPreference ? null : undefined);
             loadDepartmentStock(productId);
         }
 
@@ -322,6 +413,7 @@
             if (!option) {
                 productIdInput.value = '';
                 productSelect.value = '';
+                lastUnitCostBase = null;
                 setUoms('');
                 loadDepartmentStock('');
                 return;
@@ -411,10 +503,42 @@
             if (productId) {
                 setUomStockHint(productId);
                 refreshUomOptions(productId);
+                syncCostFields(productId);
                 if (lastDepartmentStock) {
                     loadDepartmentStock(productId);
                 }
             }
+        });
+
+        uomSelect?.addEventListener('change', () => {
+            const productId = productIdInput.value;
+            if (productId) {
+                syncCostFields(productId);
+            }
+        });
+
+        updateCostBtn?.addEventListener('click', () => {
+            const productId = productIdInput.value;
+            const uom = uomSelect?.value || '';
+            const costValue = unitCostInput?.value ?? '';
+
+            if (!productId) {
+                alert('Pehle product select karein.');
+                return;
+            }
+            if (!uom) {
+                alert('Pehle UOM select karein.');
+                return;
+            }
+            if (costValue === '' || Number(costValue) < 0) {
+                alert('Valid unit cost likhein.');
+                return;
+            }
+
+            updateCostForm.action = updateCostUrlTemplate.replace('__ID__', encodeURIComponent(productId));
+            updateCostValue.value = costValue;
+            updateCostUom.value = uom;
+            updateCostForm.submit();
         });
 
         moveTypeSelect?.addEventListener('change', syncWastageReasonRequirement);
