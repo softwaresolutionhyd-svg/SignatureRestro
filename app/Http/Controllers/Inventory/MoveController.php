@@ -115,139 +115,169 @@ class MoveController extends Controller
     public function store(InventoryMoveStoreRequest $request)
     {
         $data = $request->validated();
+        $applied = 0;
 
-        DB::connection('tenant')->transaction(function () use ($data, $request) {
-            /** @var InventoryProduct $product */
-            $product = InventoryProduct::query()->lockForUpdate()->findOrFail($data['product_id']);
-            $department = InventoryDepartment::query()->findOrFail($data['department_id']);
-            $isWarehouse = (bool) $department->is_warehouse;
-
-            $qtyUom = (float) $data['qty_uom'];
-            $uom = (string) $data['uom'];
-
-            $factor = $product->factorToBaseForUom($uom);
-
-            if ($factor === null || $factor <= 0) {
-                abort(422, 'Invalid UOM for this product.');
+        DB::connection('tenant')->transaction(function () use ($data, $request, &$applied) {
+            foreach ($data['lines'] as $line) {
+                $this->applyMoveLine(
+                    productId: (int) $line['product_id'],
+                    departmentId: (int) $data['department_id'],
+                    type: (string) $data['type'],
+                    qtyUom: (float) $line['qty_uom'],
+                    uom: (string) $line['uom'],
+                    reference: $data['reference'] ?? null,
+                    note: $data['note'] ?? null,
+                    userId: $request->user()?->id,
+                );
+                $applied++;
             }
+        });
 
-            $qtyBase = $qtyUom * $factor;
-            $deptBefore = $this->inventoryStock->stockQty((int) $product->id, (int) $department->id);
-            $productBefore = (float) $product->qty_on_hand;
+        $message = $applied === 1
+            ? 'Stock updated.'
+            : "Stock updated for {$applied} products.";
 
-            $deptAfter = match ($data['type']) {
-                'in' => $deptBefore + $qtyBase,
-                'out', 'wastage' => $deptBefore - $qtyBase,
+        return redirect()->route('inventory.moves.index')->with('status', $message);
+    }
+
+    /**
+     * @param  int|null  $userId
+     */
+    private function applyMoveLine(
+        int $productId,
+        int $departmentId,
+        string $type,
+        float $qtyUom,
+        string $uom,
+        ?string $reference,
+        ?string $note,
+        ?int $userId,
+    ): void {
+        /** @var InventoryProduct $product */
+        $product = InventoryProduct::query()->lockForUpdate()->findOrFail($productId);
+        $department = InventoryDepartment::query()->findOrFail($departmentId);
+        $isWarehouse = (bool) $department->is_warehouse;
+
+        $factor = $product->factorToBaseForUom($uom);
+
+        if ($factor === null || $factor <= 0) {
+            abort(422, "Invalid UOM for {$product->sku}.");
+        }
+
+        $qtyBase = $qtyUom * $factor;
+        $deptBefore = $this->inventoryStock->stockQty((int) $product->id, (int) $department->id);
+        $productBefore = (float) $product->qty_on_hand;
+
+        $deptAfter = match ($type) {
+            'in' => $deptBefore + $qtyBase,
+            'out', 'wastage' => $deptBefore - $qtyBase,
+            'adjust' => $qtyBase,
+        };
+
+        if (in_array($type, ['out', 'wastage'], true) && $qtyBase > $deptBefore) {
+            $hasActiveBom = $product->manufacturingBoms()->where('active', true)->exists();
+            if ($type === 'wastage' || ! $hasActiveBom) {
+                abort(422, $type === 'wastage'
+                    ? sprintf('Insufficient stock in %s for WASTAGE (%s).', $department->name, $product->sku)
+                    : sprintf('Insufficient stock in %s for OUT (%s).', $department->name, $product->sku));
+            }
+        }
+
+        [$deptBeforeActual, $deptAfterActual] = $this->inventoryStock->setDepartmentQuantity(
+            (int) $product->id,
+            (int) $department->id,
+            $deptAfter
+        );
+
+        $after = $deptAfterActual;
+        $unitCost = null;
+        $totalCost = null;
+
+        if ($isWarehouse) {
+            $after = match ($type) {
+                'in' => $productBefore + $qtyBase,
+                'out', 'wastage' => $productBefore - $qtyBase,
                 'adjust' => $qtyBase,
             };
 
-            if (in_array($data['type'], ['out', 'wastage'], true) && $qtyBase > $deptBefore) {
-                $hasActiveBom = $product->manufacturingBoms()->where('active', true)->exists();
-                if ($data['type'] === 'wastage' || ! $hasActiveBom) {
-                    abort(422, $data['type'] === 'wastage'
-                        ? sprintf('Insufficient stock in %s for WASTAGE.', $department->name)
-                        : sprintf('Insufficient stock in %s for OUT.', $department->name));
-                }
-            }
+            $product->update(['qty_on_hand' => $after]);
 
-            [$deptBeforeActual, $deptAfterActual] = $this->inventoryStock->setDepartmentQuantity(
-                (int) $product->id,
-                (int) $department->id,
-                $deptAfter
-            );
-
-            $after = $deptAfterActual;
-            $unitCost = null;
-            $totalCost = null;
-
-            if ($isWarehouse) {
-                $after = match ($data['type']) {
-                    'in' => $productBefore + $qtyBase,
-                    'out', 'wastage' => $productBefore - $qtyBase,
-                    'adjust' => $qtyBase,
-                };
-
-                $product->update(['qty_on_hand' => $after]);
-
-                if ($data['type'] === 'in') {
-                    $layerCost = (float) $product->cost;
+            if ($type === 'in') {
+                $layerCost = (float) $product->cost;
+                InventoryCostLayer::create([
+                    'product_id' => $product->id,
+                    'qty_remaining' => $qtyBase,
+                    'unit_cost' => $layerCost,
+                    'source' => 'adjust',
+                    'reference' => $reference,
+                    'received_at' => now(),
+                ]);
+                $this->refreshProductCostFromLayers($product->id);
+            } elseif (in_array($type, ['out', 'wastage'], true)) {
+                [$unitCost, $totalCost] = $this->consumeFifo($product->id, $qtyBase);
+                $this->refreshProductCostFromLayers($product->id);
+            } elseif ($type === 'adjust') {
+                SyncAwareDelete::query(
+                    InventoryCostLayer::query()->where('product_id', $product->id)
+                );
+                if ($qtyBase > 0) {
                     InventoryCostLayer::create([
                         'product_id' => $product->id,
                         'qty_remaining' => $qtyBase,
-                        'unit_cost' => $layerCost,
+                        'unit_cost' => (float) $product->cost,
                         'source' => 'adjust',
-                        'reference' => $data['reference'] ?? null,
+                        'reference' => $reference,
                         'received_at' => now(),
                     ]);
-                    $this->refreshProductCostFromLayers($product->id);
-                } elseif (in_array($data['type'], ['out', 'wastage'], true)) {
-                    [$unitCost, $totalCost] = $this->consumeFifo($product->id, $qtyBase);
-                    $this->refreshProductCostFromLayers($product->id);
-                } elseif ($data['type'] === 'adjust') {
-                    SyncAwareDelete::query(
-                        InventoryCostLayer::query()->where('product_id', $product->id)
-                    );
-                    if ($qtyBase > 0) {
-                        InventoryCostLayer::create([
-                            'product_id' => $product->id,
-                            'qty_remaining' => $qtyBase,
-                            'unit_cost' => (float) $product->cost,
-                            'source' => 'adjust',
-                            'reference' => $data['reference'] ?? null,
-                            'received_at' => now(),
-                        ]);
-                    }
-                    $this->refreshProductCostFromLayers($product->id);
                 }
+                $this->refreshProductCostFromLayers($product->id);
             }
+        }
 
-            $moveNote = $data['note'] ?? null;
-            if ($moveNote === null || $moveNote === '') {
-                $moveNote = sprintf('%s — %s', ucfirst($data['type']), $department->name);
-            }
+        $moveNote = $note;
+        if ($moveNote === null || $moveNote === '') {
+            $moveNote = sprintf('%s — %s', ucfirst($type), $department->name);
+        }
 
-            InventoryMove::create([
-                'product_id' => $product->id,
-                'user_id' => $request->user()?->id,
-                'from_department_id' => in_array($data['type'], ['out', 'wastage'], true) ? $department->id : null,
-                'to_department_id' => in_array($data['type'], ['in', 'adjust'], true) ? $department->id : null,
-                'type' => $data['type'],
-                'qty' => $qtyBase,
-                'uom' => $uom,
-                'qty_uom' => $qtyUom,
-                'factor_to_base' => $factor,
-                'unit_cost' => $unitCost,
-                'total_cost' => $totalCost,
-                'qty_before' => $isWarehouse ? $productBefore : $deptBeforeActual,
-                'qty_after' => $isWarehouse ? $after : $deptAfterActual,
-                'reference' => $data['reference'] ?? null,
-                'note' => $moveNote,
-            ]);
+        InventoryMove::create([
+            'product_id' => $product->id,
+            'user_id' => $userId,
+            'from_department_id' => in_array($type, ['out', 'wastage'], true) ? $department->id : null,
+            'to_department_id' => in_array($type, ['in', 'adjust'], true) ? $department->id : null,
+            'type' => $type,
+            'qty' => $qtyBase,
+            'uom' => $uom,
+            'qty_uom' => $qtyUom,
+            'factor_to_base' => $factor,
+            'unit_cost' => $unitCost,
+            'total_cost' => $totalCost,
+            'qty_before' => $isWarehouse ? $productBefore : $deptBeforeActual,
+            'qty_after' => $isWarehouse ? $after : $deptAfterActual,
+            'reference' => $reference,
+            'note' => $moveNote,
+        ]);
 
-            $title = match ($data['type']) {
-                'in' => 'Stock increased',
-                'out' => 'Stock decreased',
-                'wastage' => 'Stock wastage recorded',
-                default => 'Stock adjusted',
-            };
+        $title = match ($type) {
+            'in' => 'Stock increased',
+            'out' => 'Stock decreased',
+            'wastage' => 'Stock wastage recorded',
+            default => 'Stock adjusted',
+        };
 
-            $scopeLabel = $isWarehouse ? 'total' : $department->name;
-            $body = "{$product->sku} — {$product->name} ({$scopeLabel}): "
-                .fmt_num($isWarehouse ? $productBefore : $deptBeforeActual, 3)
-                .' → '
-                .fmt_num($isWarehouse ? $after : $deptAfterActual, 3)
-                ." ({$qtyUom} {$uom})";
+        $scopeLabel = $isWarehouse ? 'total' : $department->name;
+        $body = "{$product->sku} — {$product->name} ({$scopeLabel}): "
+            .fmt_num($isWarehouse ? $productBefore : $deptBeforeActual, 3)
+            .' → '
+            .fmt_num($isWarehouse ? $after : $deptAfterActual, 3)
+            ." ({$qtyUom} {$uom})";
 
-            StaffNotifier::notifyManagement(new StockUpdated([
-                'title' => $title,
-                'body' => $body,
-                'product_id' => $product->id,
-                'type' => $data['type'],
-                'ts' => now()->toIso8601String(),
-            ]), function_exists('current_company_id') ? current_company_id() : null);
-        });
-
-        return redirect()->route('inventory.moves.index')->with('status', 'Stock updated.');
+        StaffNotifier::notifyManagement(new StockUpdated([
+            'title' => $title,
+            'body' => $body,
+            'product_id' => $product->id,
+            'type' => $type,
+            'ts' => now()->toIso8601String(),
+        ]), function_exists('current_company_id') ? current_company_id() : null);
     }
 
     private function consumeFifo(int $productId, float $qtyBase): array
