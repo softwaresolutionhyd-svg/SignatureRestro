@@ -197,7 +197,7 @@
                 @if(($q ?? '') !== '')
                     · “{{ $q }}”
                 @endif
-                <span class="noprint"> · Qty / UoM edit = auto-save</span>
+                <span class="noprint"> · Ingredient / Qty / UoM edit = auto-save</span>
             </p>
         </header>
 
@@ -252,7 +252,17 @@
                                         data-line-id="{{ $line->id }}"
                                         data-component-id="{{ $line->component_product_id }}">
                                         <td class="col-dish">{{ $loop->first ? $dishName : '·' }}</td>
-                                        <td class="col-ing">{{ $line->component?->name ?? '—' }}</td>
+                                        <td class="col-ing">
+                                            @php
+                                                $metaRow = collect($ingredientMeta)->firstWhere('id', (int) $line->component_product_id);
+                                                $ingLabel = $metaRow['label']
+                                                    ?? trim(($line->component?->sku ?? '').' — '.($line->component?->name ?? '—').' ('.($line->component?->uom ?? '').')');
+                                            @endphp
+                                            <input type="text" class="cell-input edit-only line-ingredient" list="ingredientOptions"
+                                                   value="{{ $ingLabel }}" data-component-id="{{ $line->component_product_id }}"
+                                                   placeholder="Ingredient…" autocomplete="off">
+                                            <span class="print-only line-ingredient-print">{{ $line->component?->name ?? '—' }}</span>
+                                        </td>
                                         <td class="col-qty">
                                             <input type="number" class="cell-input qty edit-only line-qty" step="0.001" min="0.001" value="{{ rtrim(rtrim(number_format($qty, 3, '.', ''), '0'), '.') ?: '0' }}">
                                             <span class="print-only">{{ fmt_num($qty, 3) }}</span>
@@ -351,16 +361,39 @@
             const q = String(label || '').trim().toLowerCase();
             if (!q) return null;
             return ingredients.find((i) => String(i.label).toLowerCase() === q)
+                || ingredients.find((i) => String(i.name).toLowerCase() === q)
                 || ingredients.find((i) => String(i.label).toLowerCase().includes(q)
                     || `${i.sku} ${i.name}`.toLowerCase().includes(q))
                 || null;
         }
 
-        function fillAddUom(select, ingredient) {
+        function findIngredientById(id) {
+            return ingredients.find((i) => String(i.id) === String(id)) || null;
+        }
+
+        function ingredientLabel(lineOrIng) {
+            if (!lineOrIng) return '';
+            if (lineOrIng.label) return lineOrIng.label;
+            const fromCatalog = findIngredientById(lineOrIng.component_product_id || lineOrIng.id);
+            if (fromCatalog) return fromCatalog.label;
+            return lineOrIng.component_name || lineOrIng.name || '';
+        }
+
+        function fillUomSelect(select, ingredient, preferUom) {
             const list = ingredient?.uoms || [];
-            select.innerHTML = list.length
-                ? list.map((u, idx) => `<option value="${u.uom}" ${idx === 0 ? 'selected' : ''}>${u.uom}</option>`).join('')
+            const codes = list.length
+                ? list.map((u) => u.uom)
+                : (preferUom ? [preferUom] : []);
+            const preferred = preferUom || codes[0] || '';
+            select.innerHTML = codes.length
+                ? codes.map((c) =>
+                    `<option value="${c}" ${String(c).toLowerCase() === String(preferred).toLowerCase() ? 'selected' : ''}>${c}</option>`
+                ).join('')
                 : '<option value="">UoM</option>';
+        }
+
+        function fillAddUom(select, ingredient) {
+            fillUomSelect(select, ingredient, null);
         }
 
         async function api(url, method, body) {
@@ -410,8 +443,17 @@
             block.querySelectorAll('.line-row').forEach((row) => {
                 const line = byId[String(row.dataset.lineId)];
                 if (!line) return;
+                row.dataset.componentId = String(line.component_product_id);
                 const qtyInput = row.querySelector('.line-qty');
                 const uomSelect = row.querySelector('.line-uom');
+                const ingInput = row.querySelector('.line-ingredient');
+                if (ingInput && document.activeElement !== ingInput) {
+                    const label = ingredientLabel(line);
+                    ingInput.value = label;
+                    ingInput.dataset.componentId = String(line.component_product_id);
+                    const printIng = row.querySelector('.line-ingredient-print');
+                    if (printIng) printIng.textContent = line.component_name || '—';
+                }
                 if (qtyInput && document.activeElement !== qtyInput) {
                     qtyInput.value = String(line.qty);
                     const printQty = row.querySelector('.col-qty .print-only');
@@ -462,23 +504,58 @@
         function bindLineRow(block, row) {
             const qty = row.querySelector('.line-qty');
             const uom = row.querySelector('.line-uom');
+            const ing = row.querySelector('.line-ingredient');
             const removeBtn = row.querySelector('.line-remove');
 
             const save = () => {
+                const matched = findIngredientByLabel(ing?.value || '');
+                const componentId = matched?.id || ing?.dataset.componentId || row.dataset.componentId;
+                if (!componentId) {
+                    setStatus('Valid ingredient select karein', 'error');
+                    return Promise.reject(new Error('ingredient'));
+                }
+                if (matched) {
+                    ing.value = matched.label;
+                    ing.dataset.componentId = String(matched.id);
+                    row.dataset.componentId = String(matched.id);
+                }
                 const bomId = block.dataset.bomId;
                 const lineId = row.dataset.lineId;
                 const url = urls.updateLine
                     .replace('__BOM__', encodeURIComponent(bomId))
                     .replace('__LINE__', encodeURIComponent(lineId));
                 return api(url, 'PATCH', {
+                    component_product_id: Number(componentId),
                     qty: qty.value,
                     uom: uom.value,
                 }).then((snap) => applySnapshot(block, snap));
             };
 
+            const onIngredientPicked = () => {
+                const matched = findIngredientByLabel(ing.value);
+                if (!matched) return;
+                ing.value = matched.label;
+                ing.dataset.componentId = String(matched.id);
+                row.dataset.componentId = String(matched.id);
+                fillUomSelect(uom, matched, uom.value);
+                const printIng = row.querySelector('.line-ingredient-print');
+                if (printIng) printIng.textContent = matched.name || matched.label;
+                scheduleSave(row, save);
+            };
+
             qty?.addEventListener('input', () => scheduleSave(row, save));
             qty?.addEventListener('change', () => scheduleSave(row, save));
             uom?.addEventListener('change', () => scheduleSave(row, save));
+            ing?.addEventListener('change', onIngredientPicked);
+            ing?.addEventListener('blur', () => {
+                const matched = findIngredientByLabel(ing.value);
+                if (matched) {
+                    onIngredientPicked();
+                } else if (ing.dataset.componentId) {
+                    const prev = findIngredientById(ing.dataset.componentId);
+                    if (prev) ing.value = prev.label;
+                }
+            });
 
             removeBtn?.addEventListener('click', async () => {
                 if (!confirm('Is ingredient ko recipe se hataein?')) return;
@@ -502,9 +579,15 @@
             tr.dataset.lineId = String(line.id);
             tr.dataset.componentId = String(line.component_product_id);
             const uoms = (line.uoms && line.uoms.length) ? line.uoms : [line.uom];
+            const label = ingredientLabel(line);
             tr.innerHTML = `
                 <td class="col-dish">${isFirst ? dish : '·'}</td>
-                <td class="col-ing"></td>
+                <td class="col-ing">
+                    <input type="text" class="cell-input edit-only line-ingredient" list="ingredientOptions"
+                           value="" data-component-id="${line.component_product_id}"
+                           placeholder="Ingredient…" autocomplete="off">
+                    <span class="print-only line-ingredient-print"></span>
+                </td>
                 <td class="col-qty">
                     <input type="number" class="cell-input qty edit-only line-qty" step="0.001" min="0.001" value="${line.qty}">
                     <span class="print-only">${fmt(line.qty, 3)}</span>
@@ -521,7 +604,10 @@
                     <button type="button" class="btn-mini del line-remove" title="Remove">&times;</button>
                 </td>
             `;
-            tr.querySelector('.col-ing').textContent = line.component_name || '—';
+            const ingInput = tr.querySelector('.line-ingredient');
+            const printIng = tr.querySelector('.line-ingredient-print');
+            if (ingInput) ingInput.value = label;
+            if (printIng) printIng.textContent = line.component_name || '—';
             const addRow = block.querySelector('.add-row');
             block.insertBefore(tr, addRow);
             bindLineRow(block, tr);

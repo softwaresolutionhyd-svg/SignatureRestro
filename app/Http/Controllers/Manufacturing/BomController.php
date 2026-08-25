@@ -123,16 +123,43 @@ class BomController extends Controller
     {
         abort_unless((int) $line->bom_id === (int) $bom->id, 404);
 
+        $ingredientIds = IngredientsCategory::categoryIds();
         $data = $request->validate([
+            'component_product_id' => [
+                'nullable',
+                'integer',
+                'exists:tenant.inventory_products,id',
+                Rule::exists('tenant.inventory_products', 'id')->where(function ($q) use ($ingredientIds) {
+                    $q->whereIn('category_id', $ingredientIds)->where('active', true);
+                }),
+            ],
             'qty' => ['required', 'numeric', 'min:0.001'],
             'uom' => ['required', 'string', 'max:30'],
+        ], [
+            'component_product_id.exists' => 'Sirf Ingredients category ke products allowed hain.',
         ]);
 
-        $line->load(['component.uomConversions' => fn ($q) => $q->where('active', true)]);
-        $this->assertValidLineUom($line->component, (string) $data['uom']);
+        $componentId = array_key_exists('component_product_id', $data) && $data['component_product_id'] !== null
+            ? (int) $data['component_product_id']
+            : (int) $line->component_product_id;
 
-        DB::connection('tenant')->transaction(function () use ($line, $data, $bom) {
+        if ($componentId === (int) $bom->finished_product_id) {
+            return response()->json(['message' => 'Ingredient finished product nahi ho sakta.'], 422);
+        }
+
+        if ($componentId !== (int) $line->component_product_id
+            && $bom->lines()->where('component_product_id', $componentId)->where('id', '!=', $line->id)->exists()) {
+            return response()->json(['message' => 'Yeh ingredient pehle se recipe mein hai.'], 422);
+        }
+
+        $component = InventoryProduct::query()
+            ->with(['uomConversions' => fn ($q) => $q->where('active', true)])
+            ->findOrFail($componentId);
+        $this->assertValidLineUom($component, (string) $data['uom']);
+
+        DB::connection('tenant')->transaction(function () use ($line, $data, $bom, $componentId) {
             $line->update([
+                'component_product_id' => $componentId,
                 'qty' => $data['qty'],
                 'uom' => trim((string) $data['uom']),
             ]);
