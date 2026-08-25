@@ -92,6 +92,55 @@
             break-inside: avoid;
             justify-content: flex-start;
             padding: 4px;
+            position: relative;
+        }
+        .id-pack-select {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            z-index: 2;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 7px;
+            background: rgba(255,255,255,.95);
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--ink);
+            box-shadow: 0 1px 3px rgba(0,0,0,.08);
+            cursor: pointer;
+            user-select: none;
+        }
+        .id-pack-select input {
+            width: 15px;
+            height: 15px;
+            margin: 0;
+            cursor: pointer;
+        }
+        .id-pack.is-checked {
+            outline: 2px solid var(--wine);
+            outline-offset: 2px;
+            border-radius: 6px;
+        }
+        .toolbar button.btn-print-only {
+            background: #fff;
+            color: var(--wine);
+            border: 1px solid var(--wine);
+        }
+        .toolbar label.chk-select-all {
+            display: inline-flex;
+            gap: 4px;
+            align-items: center;
+            font-size: 12px;
+            white-space: nowrap;
+            font-weight: 600;
+        }
+        #printOnlyCount {
+            font-size: 12px;
+            color: var(--muted);
+            min-width: 4.5em;
         }
         .id-face {
             width: 85.6mm;
@@ -267,7 +316,7 @@
         @media print {
             @page { size: A4 portrait; margin: 8mm; }
             body { background: #fff; padding: 0; }
-            .toolbar, .report-meta { display: none !important; }
+            .toolbar, .report-meta, .id-pack-select { display: none !important; }
             .sheet {
                 display: block;
             }
@@ -277,6 +326,10 @@
                 margin-bottom: 6mm;
                 page-break-inside: avoid;
                 break-inside: avoid;
+                outline: none !important;
+            }
+            body.print-selection .id-pack:not(.is-checked) {
+                display: none !important;
             }
             .id-face, .id-head, .gold-line, .id-photo, .qr-plate {
                 -webkit-print-color-adjust: exact;
@@ -337,7 +390,15 @@
                     </label>
                 </form>
             @endunless
-            <button type="button" onclick="window.print()">Print / PDF</button>
+            @unless($single ?? false)
+                <label class="chk-select-all">
+                    <input type="checkbox" id="selectAllCards">
+                    Select all
+                </label>
+                <span id="printOnlyCount">0 selected</span>
+                <button type="button" class="btn-print-only" id="printOnlyBtn">Print only</button>
+            @endunless
+            <button type="button" id="printAllBtn">Print / PDF</button>
             <a class="btn-link btn-muted" href="{{ route('employees.index') }}">Back</a>
         </div>
     </div>
@@ -352,7 +413,13 @@
                     trim((string) ($emp->district ?? '')),
                 ], fn ($v) => $v !== ''));
             @endphp
-            <section class="id-pack">
+            <section class="id-pack" data-employee-id="{{ $emp->id }}">
+                @unless($single ?? false)
+                    <label class="id-pack-select">
+                        <input type="checkbox" class="card-select" value="{{ $emp->id }}">
+                        Print
+                    </label>
+                @endunless
                 <article class="id-face">
                     <header class="id-head">
                         @if(!empty($companyLogo))
@@ -416,6 +483,69 @@
             <p>No employees match these filters.</p>
         @endforelse
     </div>
+    @unless($single ?? false)
+        <script>
+        (function () {
+            const packs = () => [...document.querySelectorAll('.id-pack')];
+            const boxes = () => [...document.querySelectorAll('.card-select')];
+            const selectAll = document.getElementById('selectAllCards');
+            const countEl = document.getElementById('printOnlyCount');
+            const printOnlyBtn = document.getElementById('printOnlyBtn');
+            const printAllBtn = document.getElementById('printAllBtn');
+
+            function syncPack(box) {
+                const pack = box.closest('.id-pack');
+                if (pack) pack.classList.toggle('is-checked', box.checked);
+            }
+
+            function updateCount() {
+                const selected = boxes().filter((b) => b.checked).length;
+                const total = boxes().length;
+                if (countEl) countEl.textContent = `${selected} selected`;
+                if (selectAll) {
+                    selectAll.checked = total > 0 && selected === total;
+                    selectAll.indeterminate = selected > 0 && selected < total;
+                }
+            }
+
+            boxes().forEach((box) => {
+                box.addEventListener('change', () => {
+                    syncPack(box);
+                    updateCount();
+                });
+            });
+
+            selectAll?.addEventListener('change', () => {
+                boxes().forEach((box) => {
+                    box.checked = selectAll.checked;
+                    syncPack(box);
+                });
+                updateCount();
+            });
+
+            printAllBtn?.addEventListener('click', () => {
+                document.body.classList.remove('print-selection');
+                window.print();
+            });
+
+            printOnlyBtn?.addEventListener('click', () => {
+                const selected = boxes().filter((b) => b.checked);
+                if (selected.length === 0) {
+                    alert('Pehle employees select karein jinke cards print karne hain.');
+                    return;
+                }
+                document.body.classList.add('print-selection');
+                window.print();
+            });
+
+            window.addEventListener('afterprint', () => {
+                document.body.classList.remove('print-selection');
+            });
+
+            updateCount();
+        })();
+        </script>
+    @endunless
     @if($single ?? false)
         <script>window.addEventListener('load', () => setTimeout(() => window.print(), 400));</script>
     @endif
