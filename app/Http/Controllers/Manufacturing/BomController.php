@@ -10,6 +10,7 @@ use App\Models\ManufacturingOrder;
 use App\Models\Setting;
 use App\Services\Sync\SyncAwareDelete;
 use App\Support\IngredientsCategory;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -105,8 +106,188 @@ class BomController extends Controller
         $boms = $this->filteredBomsForExport($request);
         $companyName = (string) Setting::get('company_name', config('app.name'));
         $q = trim((string) $request->query('q', ''));
+        IngredientsCategory::assignWarehouseProducts();
+        $ingredientProducts = $this->bomIngredientProducts(
+            $boms->flatMap(fn (ManufacturingBom $bom) => $bom->lines->pluck('component_product_id'))
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all()
+        );
+        $ingredientMeta = $this->bomProductsMetaFrom($ingredientProducts);
 
-        return view('manufacturing.boms.print-all', compact('boms', 'companyName', 'q'));
+        return view('manufacturing.boms.print-all', compact('boms', 'companyName', 'q', 'ingredientMeta'));
+    }
+
+    public function updateLine(Request $request, ManufacturingBom $bom, ManufacturingBomLine $line): JsonResponse
+    {
+        abort_unless((int) $line->bom_id === (int) $bom->id, 404);
+
+        $data = $request->validate([
+            'qty' => ['required', 'numeric', 'min:0.001'],
+            'uom' => ['required', 'string', 'max:30'],
+        ]);
+
+        $line->load(['component.uomConversions' => fn ($q) => $q->where('active', true)]);
+        $this->assertValidLineUom($line->component, (string) $data['uom']);
+
+        DB::connection('tenant')->transaction(function () use ($line, $data, $bom) {
+            $line->update([
+                'qty' => $data['qty'],
+                'uom' => trim((string) $data['uom']),
+            ]);
+            $bom->refresh()->load(['lines.component.uomConversions', 'finishedProduct']);
+            $bom->syncFinishedProductStandardCost();
+        });
+
+        return response()->json($this->bomPrintSnapshot($bom->fresh(['lines.component.uomConversions', 'finishedProduct'])));
+    }
+
+    public function storeLine(Request $request, ManufacturingBom $bom): JsonResponse
+    {
+        $ingredientIds = IngredientsCategory::categoryIds();
+        $data = $request->validate([
+            'component_product_id' => [
+                'required',
+                'integer',
+                'exists:tenant.inventory_products,id',
+                Rule::exists('tenant.inventory_products', 'id')->where(function ($q) use ($ingredientIds) {
+                    $q->whereIn('category_id', $ingredientIds)->where('active', true);
+                }),
+            ],
+            'qty' => ['required', 'numeric', 'min:0.001'],
+            'uom' => ['required', 'string', 'max:30'],
+        ], [
+            'component_product_id.exists' => 'Sirf Ingredients category ke products allowed hain.',
+        ]);
+
+        $componentId = (int) $data['component_product_id'];
+        if ($componentId === (int) $bom->finished_product_id) {
+            return response()->json(['message' => 'Ingredient finished product nahi ho sakta.'], 422);
+        }
+
+        if ($bom->lines()->where('component_product_id', $componentId)->exists()) {
+            return response()->json(['message' => 'Yeh ingredient pehle se recipe mein hai.'], 422);
+        }
+
+        $component = InventoryProduct::query()
+            ->with(['uomConversions' => fn ($q) => $q->where('active', true)])
+            ->findOrFail($componentId);
+        $this->assertValidLineUom($component, (string) $data['uom']);
+
+        $line = null;
+        DB::connection('tenant')->transaction(function () use ($bom, $data, &$line) {
+            $sort = (int) ($bom->lines()->max('sort_order') ?? -1) + 1;
+            $line = ManufacturingBomLine::create([
+                'company_id' => $bom->company_id,
+                'bom_id' => $bom->id,
+                'component_product_id' => (int) $data['component_product_id'],
+                'qty' => $data['qty'],
+                'uom' => trim((string) $data['uom']),
+                'sort_order' => $sort,
+            ]);
+            $bom->refresh()->load(['lines.component.uomConversions', 'finishedProduct']);
+            $bom->syncFinishedProductStandardCost();
+        });
+
+        $snapshot = $this->bomPrintSnapshot($bom->fresh(['lines.component.uomConversions', 'finishedProduct']));
+        $snapshot['new_line_id'] = $line?->id;
+
+        return response()->json($snapshot);
+    }
+
+    public function destroyLine(Request $request, ManufacturingBom $bom, ManufacturingBomLine $line): JsonResponse
+    {
+        abort_unless((int) $line->bom_id === (int) $bom->id, 404);
+
+        DB::connection('tenant')->transaction(function () use ($line, $bom) {
+            SyncAwareDelete::models([$line]);
+            $bom->refresh()->load(['lines.component.uomConversions', 'finishedProduct']);
+            $bom->syncFinishedProductStandardCost();
+        });
+
+        return response()->json($this->bomPrintSnapshot($bom->fresh(['lines.component.uomConversions', 'finishedProduct'])));
+    }
+
+    public function updateSalePrice(Request $request, ManufacturingBom $bom): JsonResponse
+    {
+        $data = $request->validate([
+            'sale_price' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $finished = InventoryProduct::query()->findOrFail((int) $bom->finished_product_id);
+        $finished->price = round((float) $data['sale_price'], 2);
+        $finished->save();
+
+        return response()->json($this->bomPrintSnapshot($bom->fresh(['lines.component.uomConversions', 'finishedProduct'])));
+    }
+
+    private function assertValidLineUom(?InventoryProduct $comp, string $uom): void
+    {
+        if (! $comp) {
+            abort(422, 'Ingredient not found.');
+        }
+
+        $allowed = $comp->allowedUomCodes();
+        $u = trim($uom);
+        foreach ($allowed as $code) {
+            if (strcasecmp($code, $u) === 0) {
+                return;
+            }
+        }
+
+        abort(422, 'Invalid unit "'.$u.'" for '.$comp->sku.'. Allowed: '.implode(', ', $allowed));
+    }
+
+    /**
+     * @return array{
+     *     bom_id:int,
+     *     total_cost:float,
+     *     sale_price:float,
+     *     profit:float,
+     *     finished_uom:string,
+     *     lines:list<array{id:int,component_product_id:int,component_name:string,qty:float,uom:string,rate:float,amount:float,uoms:list<string>}>
+     * }
+     */
+    private function bomPrintSnapshot(ManufacturingBom $bom): array
+    {
+        $bom->loadMissing(['finishedProduct', 'lines.component.uomConversions']);
+        $materialPerBatch = (float) $bom->materialCostPerBatch();
+        $batchQty = (float) $bom->batch_qty;
+        $totalCost = $batchQty > 0 ? ($materialPerBatch / $batchQty) : $materialPerBatch;
+        $salePrice = (float) ($bom->finishedProduct?->price ?? 0);
+
+        $lines = $bom->lines->map(function (ManufacturingBomLine $line) {
+            $qty = (float) $line->qty;
+            $uom = $line->effectiveUom();
+            $amount = (float) $line->lineMaterialCostPerBatch();
+            $rate = $qty > 0 ? ($amount / $qty) : (float) ($line->component?->cost ?? 0);
+            $uoms = collect($line->component?->uomsForForms() ?? [])
+                ->pluck('uom')
+                ->map(fn ($u) => (string) $u)
+                ->values()
+                ->all();
+
+            return [
+                'id' => (int) $line->id,
+                'component_product_id' => (int) $line->component_product_id,
+                'component_name' => (string) ($line->component?->name ?? '—'),
+                'qty' => $qty,
+                'uom' => $uom,
+                'rate' => round($rate, 6),
+                'amount' => round($amount, 6),
+                'uoms' => $uoms !== [] ? $uoms : array_filter([$uom]),
+            ];
+        })->values()->all();
+
+        return [
+            'bom_id' => (int) $bom->id,
+            'total_cost' => round($totalCost, 6),
+            'sale_price' => round($salePrice, 2),
+            'profit' => round($salePrice - $totalCost, 6),
+            'finished_uom' => (string) ($bom->finishedProduct?->uom ?? ''),
+            'lines' => $lines,
+        ];
     }
 
     public function exportExcel(Request $request): StreamedResponse
@@ -167,6 +348,7 @@ class BomController extends Controller
                 'lines' => fn ($query) => $query->orderBy('sort_order'),
                 'lines.component' => fn ($query) => $query->select([
                     'id', 'sku', 'name', 'uom', 'cost', 'qty_on_hand',
+                    'package_contents_qty', 'package_contents_uom',
                 ])->with([
                     'uomConversions' => fn ($c) => $c->where('active', true),
                 ]),
@@ -453,7 +635,7 @@ class BomController extends Controller
             })
             ->with(['uomConversions' => fn ($c) => $c->where('active', true)])
             ->orderBy('name')
-            ->get(['id', 'sku', 'name', 'uom', 'cost', 'category_id']);
+            ->get(['id', 'sku', 'name', 'uom', 'cost', 'category_id', 'package_contents_qty', 'package_contents_uom']);
     }
 
     /**
@@ -483,6 +665,8 @@ class BomController extends Controller
                 return [
                     'id' => $p->id,
                     'label' => $p->sku.' — '.$p->name.' ('.$p->uom.')',
+                    'name' => (string) $p->name,
+                    'sku' => (string) $p->sku,
                     'base_uom' => $p->uom,
                     'cost' => (float) $p->cost,
                     'uoms' => $uoms,

@@ -205,6 +205,10 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
             Route::get('/', [ManufacturingController::class, 'index'])->name('index');
             Route::get('boms/print-all', [ManufacturingBomController::class, 'printAll'])->name('boms.print-all');
             Route::get('boms/export', [ManufacturingBomController::class, 'exportExcel'])->name('boms.export');
+            Route::patch('boms/{bom}/lines/{line}', [ManufacturingBomController::class, 'updateLine'])->name('boms.lines.update');
+            Route::post('boms/{bom}/lines', [ManufacturingBomController::class, 'storeLine'])->name('boms.lines.store');
+            Route::delete('boms/{bom}/lines/{line}', [ManufacturingBomController::class, 'destroyLine'])->name('boms.lines.destroy');
+            Route::patch('boms/{bom}/sale-price', [ManufacturingBomController::class, 'updateSalePrice'])->name('boms.sale-price');
             Route::resource('boms', ManufacturingBomController::class);
             Route::post('orders/{order}/complete', [ManufacturingOrderController::class, 'complete'])->name('orders.complete');
             Route::resource('orders', ManufacturingOrderController::class)->only(['index', 'create', 'store', 'show', 'destroy']);
