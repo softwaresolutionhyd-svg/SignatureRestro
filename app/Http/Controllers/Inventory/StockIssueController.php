@@ -49,7 +49,7 @@ class StockIssueController extends Controller
                 'stocks' => fn ($q) => $q->where('department_id', $warehouse->id),
                 'uomConversions' => fn ($q) => $q->where('active', true)->select(['id', 'product_id', 'uom', 'factor_to_base']),
             ])
-            ->get(['id', 'sku', 'name', 'uom', 'qty_on_hand']);
+            ->get(['id', 'sku', 'name', 'uom', 'qty_on_hand', 'cost', 'package_contents_qty', 'package_contents_uom']);
 
         $products->transform(function (InventoryProduct $product) use ($warehouse) {
             $product->warehouse_qty = $this->stockService->stockQty((int) $product->id, (int) $warehouse->id);

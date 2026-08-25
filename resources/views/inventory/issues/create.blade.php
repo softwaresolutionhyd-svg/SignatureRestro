@@ -18,6 +18,10 @@
 
         $productOptionsJs = $products->map(function ($p) {
             $label = $p->sku.' — '.$p->name.' (Warehouse: '.fmt_num((float) ($p->warehouse_qty ?? 0), 3).' '.$p->uom.')';
+            $uoms = collect($p->uomsForForms())->map(fn ($row) => [
+                'uom' => (string) ($row['uom'] ?? ''),
+                'factor' => (float) ($row['factor'] ?? 1),
+            ])->values()->all();
 
             return [
                 'id' => (string) $p->id,
@@ -26,6 +30,8 @@
                 'search' => mb_strtolower(trim($p->sku.' '.$p->name)),
                 'uom' => (string) $p->uom,
                 'warehouseQty' => (float) ($p->warehouse_qty ?? 0),
+                'unitCostBase' => round((float) ($p->cost ?? 0), 6),
+                'uoms' => $uoms,
             ];
         })->values()->all();
     @endphp
@@ -81,17 +87,25 @@
                     <table class="table table-sm align-middle mb-0">
                         <thead class="table-light">
                         <tr>
-                            <th style="min-width:280px;">Product</th>
+                            <th style="min-width:260px;">Product</th>
                             <th style="width:110px;">Qty</th>
-                            <th style="width:100px;">UOM</th>
-                            <th style="min-width:160px;">Warehouse</th>
+                            <th style="width:120px;">UOM</th>
+                            <th style="min-width:140px;">Warehouse</th>
+                            <th style="width:120px;" class="text-end">Amount</th>
                             <th style="width:44px;"></th>
                         </tr>
                         </thead>
                         <tbody id="issueLinesBody"></tbody>
+                        <tfoot>
+                        <tr class="table-light">
+                            <td colspan="4" class="text-end fw-semibold">Total</td>
+                            <td class="text-end fw-semibold" id="issueLinesTotal">0</td>
+                            <td></td>
+                        </tr>
+                        </tfoot>
                     </table>
                 </div>
-                <div class="form-text mt-1">Har line warehouse se selected department ko issue hogi.</div>
+                <div class="form-text mt-1">Har line warehouse se selected department ko issue hogi. Last line pe Qty se Tab = nayi line.</div>
 
                 <div class="d-flex gap-2 mt-4">
                     <button class="btn btn-primary" type="submit" @disabled($departments->isEmpty())>
@@ -117,10 +131,16 @@
                        class="form-control form-control-sm issue-qty" value="" required>
             </td>
             <td>
-                <input type="text" name="lines[__i__][uom]" class="form-control form-control-sm issue-uom" value="" required maxlength="30" readonly>
+                <select name="lines[__i__][uom]" class="form-select form-select-sm issue-uom" required>
+                    <option value="">UOM...</option>
+                </select>
             </td>
             <td>
                 <div class="small text-secondary issue-wh-hint">—</div>
+            </td>
+            <td class="text-end">
+                <div class="fw-semibold issue-line-amount">0</div>
+                <div class="small text-secondary issue-rate-hint"></div>
             </td>
             <td class="text-center">
                 <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 issue-remove" title="Remove">&times;</button>
@@ -136,10 +156,19 @@
     const tpl = document.getElementById('issueLineRowTpl');
     const addBtn = document.getElementById('issueAddLineBtn');
     const sharedList = document.getElementById('issueProductSearchOptionsShared');
+    const totalEl = document.getElementById('issueLinesTotal');
     const initialLines = @json($oldLines);
     const productOptions = @json($productOptionsJs);
 
     let idx = 0;
+
+    function fmtNum(value, digits = 2) {
+        const num = Number(value || 0);
+        return num.toLocaleString(undefined, {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: digits,
+        });
+    }
 
     function findByLabel(label) {
         const value = (label || '').trim().toLowerCase();
@@ -165,7 +194,72 @@
         sharedList.innerHTML = list.map((opt) => `<option value="${opt.label.replace(/"/g, '&quot;')}"></option>`).join('');
     }
 
-    function setProduct(row, option) {
+    function getFactor(option, uom) {
+        if (!option) return 1;
+        const row = (option.uoms || []).find((u) => String(u.uom).toLowerCase() === String(uom || '').toLowerCase());
+        return row ? Number(row.factor || 0) || 1 : 1;
+    }
+
+    function syncRowAmount(row) {
+        const option = findById(row.querySelector('.issue-product-id')?.value || '');
+        const qty = Number(row.querySelector('.issue-qty')?.value || 0);
+        const uom = row.querySelector('.issue-uom')?.value || '';
+        const amountEl = row.querySelector('.issue-line-amount');
+        const rateHint = row.querySelector('.issue-rate-hint');
+        const hint = row.querySelector('.issue-wh-hint');
+
+        if (!option || !uom) {
+            if (amountEl) amountEl.textContent = '0';
+            if (rateHint) rateHint.textContent = '';
+            refreshTotal();
+            return;
+        }
+
+        const factor = getFactor(option, uom);
+        const rate = Number(option.unitCostBase || 0) * factor;
+        const amount = qty > 0 ? qty * rate : 0;
+        if (amountEl) amountEl.textContent = fmtNum(amount, 2);
+        if (rateHint) rateHint.textContent = rate > 0 ? `@ ${fmtNum(rate, 4)}/${uom}` : '';
+
+        const stockInUom = factor > 0 ? (Number(option.warehouseQty || 0) / factor) : 0;
+        if (hint) {
+            hint.textContent = `Available: ${fmtNum(stockInUom, 3)} ${uom}`;
+            hint.className = 'small issue-wh-hint ' + (stockInUom > 0 ? 'text-primary fw-semibold' : 'text-secondary');
+        }
+
+        refreshTotal();
+    }
+
+    function refreshTotal() {
+        let total = 0;
+        body.querySelectorAll('.issue-line-row').forEach((row) => {
+            const option = findById(row.querySelector('.issue-product-id')?.value || '');
+            const qty = Number(row.querySelector('.issue-qty')?.value || 0);
+            const uom = row.querySelector('.issue-uom')?.value || '';
+            if (!option || !uom || qty <= 0) return;
+            const factor = getFactor(option, uom);
+            total += qty * Number(option.unitCostBase || 0) * factor;
+        });
+        if (totalEl) totalEl.textContent = fmtNum(total, 2);
+    }
+
+    function fillUomSelect(select, option, preferUom = null) {
+        const list = option?.uoms || [];
+        const current = preferUom || select.value || option?.uom || '';
+        select.innerHTML = '<option value="">UOM...</option>' + list.map((u) => {
+            const stockInUom = u.factor > 0 ? (Number(option.warehouseQty || 0) / u.factor) : 0;
+            const selected = String(current).toLowerCase() === String(u.uom).toLowerCase() ? 'selected' : '';
+            return `<option value="${u.uom}" ${selected}>${u.uom} (${fmtNum(stockInUom, 3)})</option>`;
+        }).join('');
+
+        if (current && list.some((u) => String(u.uom).toLowerCase() === String(current).toLowerCase())) {
+            select.value = list.find((u) => String(u.uom).toLowerCase() === String(current).toLowerCase()).uom;
+        } else if (list.length > 0) {
+            select.value = list[0].uom;
+        }
+    }
+
+    function setProduct(row, option, preferUom = null) {
         const search = row.querySelector('.issue-product-search');
         const idInput = row.querySelector('.issue-product-id');
         const uom = row.querySelector('.issue-uom');
@@ -173,19 +267,23 @@
         if (!option) {
             idInput.value = '';
             search.classList.remove('is-valid');
-            uom.value = '';
+            uom.innerHTML = '<option value="">UOM...</option>';
             hint.textContent = '—';
+            hint.className = 'small text-secondary issue-wh-hint';
+            syncRowAmount(row);
             return;
         }
         idInput.value = option.id;
         search.value = option.label;
         search.classList.remove('is-invalid');
-        uom.value = option.uom;
-        hint.textContent = `Available: ${Number(option.warehouseQty).toFixed(3)} ${option.uom}`;
+        fillUomSelect(uom, option, preferUom || option.uom);
+        syncRowAmount(row);
     }
 
     function bindRow(row) {
         const search = row.querySelector('.issue-product-search');
+        const qty = row.querySelector('.issue-qty');
+        const uom = row.querySelector('.issue-uom');
 
         search.addEventListener('focus', () => buildSharedOptions(search.value));
         search.addEventListener('input', () => {
@@ -193,8 +291,9 @@
             if (exact) setProduct(row, exact);
             else {
                 row.querySelector('.issue-product-id').value = '';
-                row.querySelector('.issue-uom').value = '';
+                row.querySelector('.issue-uom').innerHTML = '<option value="">UOM...</option>';
                 row.querySelector('.issue-wh-hint').textContent = '—';
+                syncRowAmount(row);
             }
             buildSharedOptions(search.value);
         });
@@ -214,9 +313,22 @@
             else if (contains) setProduct(row, contains);
         });
 
+        qty.addEventListener('input', () => syncRowAmount(row));
+        uom.addEventListener('change', () => syncRowAmount(row));
+
+        qty.addEventListener('keydown', (e) => {
+            if (e.key !== 'Tab' || e.shiftKey) return;
+            const rows = [...body.querySelectorAll('.issue-line-row')];
+            if (rows[rows.length - 1] !== row) return;
+            e.preventDefault();
+            const next = addRow({});
+            next?.querySelector('.issue-product-search')?.focus();
+        });
+
         row.querySelector('.issue-remove').addEventListener('click', () => {
             if (body.querySelectorAll('.issue-line-row').length <= 1) return;
             row.remove();
+            refreshTotal();
         });
     }
 
@@ -227,19 +339,23 @@
         bindRow(row);
         if (data && data.product_id) {
             const opt = findById(data.product_id);
-            if (opt) setProduct(row, opt);
+            if (opt) setProduct(row, opt, data.uom || null);
         }
         if (data && data.qty_uom !== undefined && data.qty_uom !== null && data.qty_uom !== '') {
             row.querySelector('.issue-qty').value = data.qty_uom;
+            syncRowAmount(row);
         }
-        if (data && data.uom) {
-            row.querySelector('.issue-uom').value = data.uom;
+        if (data && data.uom && row.querySelector('.issue-product-id').value) {
+            const opt = findById(row.querySelector('.issue-product-id').value);
+            if (opt) fillUomSelect(row.querySelector('.issue-uom'), opt, data.uom);
+            syncRowAmount(row);
         }
         return row;
     }
 
     (initialLines.length ? initialLines : [{}]).forEach(addRow);
     buildSharedOptions('');
+    refreshTotal();
 
     addBtn?.addEventListener('click', () => addRow({}));
 
