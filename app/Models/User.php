@@ -152,6 +152,10 @@ class User extends Authenticatable
                 return $this->canAccessDemand();
             }
 
+            if ($module === 'attendance') {
+                return $this->canManageTeamAttendance();
+            }
+
             return $this->canAccessPosClosing();
         }
 
@@ -210,10 +214,10 @@ class User extends Authenticatable
         return false;
     }
 
-    /** Manager / owner designation — team attendance mark / change. */
+    /** Team attendance mark / change — Admin / Super Admin only (not Manager). */
     public function canManageTeamAttendance(): bool
     {
-        return $this->hasManagerDesignationAccess();
+        return $this->bypassesModulePermissions() || ($this->role ?? null) === 'admin';
     }
 
     /** QR card scan → Present: Admin / Super Admin session only (any device). */

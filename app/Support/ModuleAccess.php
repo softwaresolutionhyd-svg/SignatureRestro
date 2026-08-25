@@ -32,6 +32,7 @@ final class ModuleAccess
     public const ADMIN_ONLY_MODULES = [
         'pos-closing',
         'demand',
+        'attendance',
     ];
 
     /** Legacy permission keys merged when checking HR access. */

@@ -68,15 +68,18 @@ class EnsureUserHasModuleAccess
                 return $next($request);
             }
 
+            if ($module === 'attendance') {
+                if (! $user->canManageTeamAttendance()) {
+                    abort(403);
+                }
+
+                return $next($request);
+            }
+
             if (! $user->canAccessPosClosing()) {
                 abort(403);
             }
 
-            return $next($request);
-        }
-
-        // Attendance module: managers (team attendance) keep access even without matrix tick.
-        if ($module === 'attendance' && $user instanceof User && $user->canManageTeamAttendance()) {
             return $next($request);
         }
 

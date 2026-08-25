@@ -204,7 +204,7 @@
         </a>
         @endif
 
-        @if($u->canViewModule('attendance') || $u->canManageTeamAttendance())
+        @if($u->canViewModule('attendance'))
         <a class="odoo-app" href="{{ route('attendance.index') }}">
             <div class="odoo-icon" style="--icon-color:#22c55e;">
                 <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">

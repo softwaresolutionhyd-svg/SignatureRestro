@@ -390,12 +390,12 @@ class AttendanceController extends Controller
         ]);
     }
 
-    /** Managers always; others need Attendance module permission. */
+    /** Admin / Super Admin only. */
     private function assertAttendanceAccess(Request $request): void
     {
         $user = $request->user();
         abort_unless(
-            $user && ($user->canManageTeamAttendance() || $user->canViewModule('attendance')),
+            $user && $user->canManageTeamAttendance(),
             403
         );
     }
