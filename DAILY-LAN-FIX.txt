@@ -11,55 +11,45 @@ WiFi signal aana = internet nahi = sirf WiFi network se connect.
   Software URL : http://192.168.1.105/order-taker
   Test page    : http://192.168.1.105/lan-test.html
 
-Agar kuch devices chal rahe hain aur ek tablet nahi —
-masla TABLET → SERVER path ka hai, software ka nahi.
+## MASLA: Extender pe connect hai, kabhi chal jata hai —
+##         jab "Connected, no internet" / net slow ho to software band
 
-## Error: ERR_ADDRESS_UNREACHABLE / site can't be reached
+Asli wajah (software bug nahi):
+  Android WiFi ko "no internet" samajhta hai
+  → traffic Mobile Data (4G) pe bhej deta hai
+  → 192.168.1.105 LAN IP nahi milta
+  → Order Taker "kaam nahi karta"
 
-Matlab: tablet WiFi se server Ethernet tak pahunch nahi sakti.
-Asli wajah aksar:
-  - Extender / router AP Isolation ON
-  - Guest WiFi
-  - Server cable router pe, tablet extender pe (alag "bubble")
+### TABLET pe turant fix (har device)
+1. Mobile Data OFF (Order Taker use karte waqt)
+2. Wi‑Fi → Intelligent Wi‑Fi / Auto switch to mobile data → OFF
+3. Best: Airplane Mode ON, phir sirf Wi‑Fi ON
+4. Guest WiFi se connect na ho
 
-## PERMANENT FIX (ek baar karo — roz ka masla khatam)
+### PC pe strong fix (optional — Admin)
+1. scripts\start-cafe-captive-dns.bat  (window OPEN rehne do)
+2. Router DHCP DNS = 192.168.1.105
+   (Primary DNS = cafe PC)
+Phir Android local check se "internet OK" maan lega — SIM pe switch nahi karega.
 
-### Option A (best — 2 minute)
-1. Server PC ka Ethernet cable ROUTER se NIKALO
-2. Wahi cable EXTENDER ke LAN port mein LAGAO
-   (WAN / Internet port NAHI — LAN port)
-3. PC 10 sec wait / restart
-4. Tablet par kholo:
-   http://192.168.1.105/lan-test.html
-5. Pass ho to:
-   http://192.168.1.105/order-taker
+## PERMANENT NETWORK FIX
+
+### Option A (best)
+1. Server Ethernet cable ROUTER se NIKALO
+2. EXTENDER ke LAN port mein LAGAO (WAN nahi)
+3. http://192.168.1.105/lan-test.html
 
 ### Option B
-Router (192.168.1.1) + dono extenders:
-  - AP Isolation / Client Isolation = OFF
-  - Guest WiFi = OFF
-  - Allow wireless devices to access wired LAN = ON
+Router + extenders: AP Isolation OFF, Guest WiFi OFF
 
-### Option C
-Server PC pe USB WiFi dongle — same WiFi jisme tablets hain.
+## PC scripts (Admin)
 
-## PC pe scripts (Admin — right click)
-
-1) scripts\emergency-cafe-network-fix.bat
-   → firewall + Apache abhi theek
-
-2) scripts\install-cafe-lan-keepalive.bat
-   → har boot + 30 min auto check (roz firewall/Apache)
-
-## Tablet checklist
-
-  - URL mein http:// likho (https NAHI)
-  - IP 192.168.1.105 (extender IP mat likho)
-  - WiFi guest network se connect na ho
-  - Chrome fail ho to Firefox try karo
+  scripts\emergency-cafe-network-fix.bat
+  scripts\install-cafe-lan-keepalive.bat
+  scripts\start-cafe-captive-dns.bat
 
 ## Yaad rakho
 
-  Signal aana ≠ server tak raasta open.
-  Software offline hai — lekin tablet aur server
-  SAME local network pe hona zaroori hai.
+  Signal aana ≠ server tak raasta.
+  "No internet" WiFi pe Mobile Data ON = LAN software tootega.
+  Software offline hai — tablet aur server SAME WiFi/LAN pe + Mobile Data OFF.

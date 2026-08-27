@@ -5,13 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Signature LAN Test</title>
     <style>
-        body { font-family: system-ui, sans-serif; max-width: 520px; margin: 2rem auto; padding: 1rem; text-align: center; background: #f8fafc; color: #111; }
+        body { font-family: system-ui, sans-serif; max-width: 540px; margin: 1.5rem auto; padding: 1rem; text-align: center; background: #f8fafc; color: #111; }
         .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; }
         h1 { color: #16a34a; margin: 0 0 .5rem; }
-        a.btn { display: inline-block; margin: .4rem; padding: .75rem 1.2rem; background: #2563eb; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600; }
-        .note { color: #64748b; font-size: .9rem; margin-top: 1rem; }
-        .warn { margin-top: 1rem; padding: .85rem; background: #fff7ed; border: 1px solid #fdba74; border-radius: 8px; color: #9a3412; font-size: .88rem; text-align: left; }
+        a.btn { display: inline-block; margin: .35rem; padding: .7rem 1.1rem; background: #2563eb; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: .95rem; }
+        .note { color: #64748b; font-size: .88rem; margin-top: 1rem; }
+        .warn { margin-top: 1rem; padding: .85rem; background: #fff7ed; border: 1px solid #fdba74; border-radius: 8px; color: #9a3412; font-size: .86rem; text-align: left; }
+        .tip { margin-top: .75rem; padding: .85rem; background: #ecfdf5; border: 1px solid #6ee7b7; border-radius: 8px; color: #065f46; font-size: .86rem; text-align: left; }
         code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; }
+        ol { margin: .35rem 0 0; padding-left: 1.2rem; }
     </style>
 </head>
 <body>
@@ -22,13 +24,24 @@
         <a class="btn" href="/order-taker">Order Taker</a>
         <a class="btn" href="/restaurant-pos">Restaurant POS</a>
         <p class="note">URL: <strong id="lan-url">http://…/</strong> — <code>https</code> mat use karein.</p>
+
+        <div class="tip">
+            <strong>“Connected, no internet” / net slow pe software band?</strong>
+            <ol>
+                <li>Order-taker use karte waqt tablet pe <strong>Mobile Data OFF</strong> rakho.</li>
+                <li>Wi‑Fi settings → Intelligent Wi‑Fi / Switch to mobile data → <strong>OFF</strong>.</li>
+                <li>Best: Airplane Mode ON, phir sirf Wi‑Fi ON.</li>
+                <li>Android Wi‑Fi ko “no internet” samajh kar traffic SIM pe bhej deta hai — is liye <code>192.168.1.105</code> nahi milta.</li>
+            </ol>
+        </div>
+
         <div class="warn">
-            <strong>Agar kisi device pe “site can’t be reached” aaye:</strong>
-            <ol style="margin:.4rem 0 0;padding-left:1.2rem;">
+            <strong>Agar “site can’t be reached” aaye:</strong>
+            <ol>
                 <li>WiFi signal hona kaafi nahi — server PC tak raasta chahiye.</li>
-                <li>Server Ethernet cable <strong>extender ke LAN port</strong> mein lagao (router se hatao).</li>
+                <li>Server Ethernet cable <strong>extender ke LAN port</strong> mein lagao.</li>
                 <li>Router/extender: <strong>AP Isolation = OFF</strong>, Guest WiFi OFF.</li>
-                <li>Detail file: <code>DAILY-LAN-FIX.txt</code> on server.</li>
+                <li>PC pe: <code>DAILY-LAN-FIX.txt</code> + <code>scripts\start-cafe-captive-dns.bat</code></li>
             </ol>
         </div>
     </div>

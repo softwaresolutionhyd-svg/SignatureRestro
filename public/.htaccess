@@ -5,6 +5,15 @@
 
     RewriteEngine On
 
+    # Android / Windows / captive portal checks → local "internet OK"
+    # (Router DNS = 192.168.1.105 hone par WiFi "no internet" nahi dikhega)
+    RewriteRule ^generate_204$ generate_204.php [L]
+    RewriteRule ^gen_204$ generate_204.php [L]
+    RewriteRule ^hotspot-detect\.html$ hotspot-detect.html [L]
+    RewriteRule ^library/test/success\.html$ hotspot-detect.html [L]
+    RewriteRule ^connecttest\.txt$ connecttest.txt [L]
+    RewriteRule ^ncsi\.txt$ ncsi.txt [L]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

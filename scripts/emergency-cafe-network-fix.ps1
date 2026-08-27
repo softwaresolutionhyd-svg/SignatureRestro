@@ -76,6 +76,7 @@ if ($serverIp) {
 # Signature — phone/tablet IP access (port 80)
 <VirtualHost *:80>
     ServerName $serverIp
+    ServerAlias connectivitycheck.gstatic.com www.gstatic.com connectivitycheck.android.com clients3.google.com captive.apple.com www.msftconnecttest.com www.msftncsi.com detectportal.firefox.com
     DocumentRoot "C:/laragon/www/signature/public"
     <Directory "C:/laragon/www/signature/public">
         AllowOverride All
