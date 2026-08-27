@@ -1,0 +1,65 @@
+# ROZ TABLET / ORDER-TAKER NA CHALE — YE PARHO
+# ============================================
+
+Software OFFLINE / LAN pe chalta hai.
+Internet ki zaroorat NAHI.
+WiFi signal aana = internet nahi = sirf WiFi network se connect.
+
+## Abhi server status (normal)
+
+  Server PC IP : 192.168.1.105
+  Software URL : http://192.168.1.105/order-taker
+  Test page    : http://192.168.1.105/lan-test.html
+
+Agar kuch devices chal rahe hain aur ek tablet nahi —
+masla TABLET → SERVER path ka hai, software ka nahi.
+
+## Error: ERR_ADDRESS_UNREACHABLE / site can't be reached
+
+Matlab: tablet WiFi se server Ethernet tak pahunch nahi sakti.
+Asli wajah aksar:
+  - Extender / router AP Isolation ON
+  - Guest WiFi
+  - Server cable router pe, tablet extender pe (alag "bubble")
+
+## PERMANENT FIX (ek baar karo — roz ka masla khatam)
+
+### Option A (best — 2 minute)
+1. Server PC ka Ethernet cable ROUTER se NIKALO
+2. Wahi cable EXTENDER ke LAN port mein LAGAO
+   (WAN / Internet port NAHI — LAN port)
+3. PC 10 sec wait / restart
+4. Tablet par kholo:
+   http://192.168.1.105/lan-test.html
+5. Pass ho to:
+   http://192.168.1.105/order-taker
+
+### Option B
+Router (192.168.1.1) + dono extenders:
+  - AP Isolation / Client Isolation = OFF
+  - Guest WiFi = OFF
+  - Allow wireless devices to access wired LAN = ON
+
+### Option C
+Server PC pe USB WiFi dongle — same WiFi jisme tablets hain.
+
+## PC pe scripts (Admin — right click)
+
+1) scripts\emergency-cafe-network-fix.bat
+   → firewall + Apache abhi theek
+
+2) scripts\install-cafe-lan-keepalive.bat
+   → har boot + 30 min auto check (roz firewall/Apache)
+
+## Tablet checklist
+
+  - URL mein http:// likho (https NAHI)
+  - IP 192.168.1.105 (extender IP mat likho)
+  - WiFi guest network se connect na ho
+  - Chrome fail ho to Firefox try karo
+
+## Yaad rakho
+
+  Signal aana ≠ server tak raasta open.
+  Software offline hai — lekin tablet aur server
+  SAME local network pe hona zaroori hai.
