@@ -14,6 +14,7 @@ use App\Models\InventoryCategory;
 use App\Models\InventoryDepartment;
 use App\Models\InventoryMove;
 use App\Models\InventoryProduct;
+use App\Models\InventoryProductStock;
 use App\Models\PosOrder;
 use App\Models\PosOrderItem;
 use App\Models\PosSession;
@@ -1384,6 +1385,234 @@ class ReportsController extends Controller
         }
 
         return round((float) $issue->qty * $unitCost, 2);
+    }
+
+    /* ──────────────────────────────────────────
+     |  Consumption Report (department / recipe)
+     ─────────────────────────────────────────── */
+    public function consumption(Request $request)
+    {
+        return view('reports.consumption', $this->consumptionReportData($request));
+    }
+
+    public function consumptionPrint(Request $request)
+    {
+        return view('reports.consumption-print', $this->consumptionReportData($request));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function consumptionReportData(Request $request): array
+    {
+        $from = $request->input('from', now()->startOfMonth()->format('Y-m-d'));
+        $to = $request->input('to', now()->format('Y-m-d'));
+        $departmentId = (int) $request->input('department_id', 0);
+        $departmentId = $departmentId > 0 ? $departmentId : null;
+        $currency = Setting::get('currency_symbol', 'Rs.');
+
+        $departments = InventoryDepartment::query()
+            ->where('active', true)
+            ->where('is_warehouse', false)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $deptMap = $departments->pluck('name', 'id');
+
+        $items = PosOrderItem::query()
+            ->whereHas('order', function ($q) use ($from, $to) {
+                $q->where('status', 'paid')
+                    ->where(function ($inner) {
+                        $inner->where('type', 'sale')->orWhereNull('type');
+                    })
+                    ->whereBetween('created_at', [$from.' 00:00:00', $to.' 23:59:59']);
+            })
+            ->with([
+                'order:id,created_at,status,type,order_no',
+                'product' => fn ($q) => $q->with([
+                    'department:id,name,is_warehouse',
+                    'departments:id,name,is_warehouse',
+                    'uomConversions' => fn ($c) => $c->where('active', true),
+                ]),
+            ])
+            ->get();
+
+        $recipeRows = [];
+        foreach ($items as $item) {
+            $product = $item->product;
+            $deptId = $this->resolveOperatingDepartmentId($product);
+            if ($deptId === null) {
+                continue;
+            }
+            if ($departmentId !== null && $deptId !== $departmentId) {
+                continue;
+            }
+
+            $day = $item->order?->created_at?->format('Y-m-d') ?? 'unknown';
+            $productId = (int) ($item->product_id ?? 0);
+            $key = $day.'|'.$deptId.'|'.$productId;
+
+            $qty = (float) $item->qty;
+            $saleAmount = (float) $item->total;
+            $uom = (string) ($item->uom ?: ($product?->uom ?? ''));
+
+            if (! isset($recipeRows[$key])) {
+                $recipeRows[$key] = [
+                    'date' => $day,
+                    'date_label' => $day !== 'unknown' ? Carbon::parse($day)->format('d M Y (D)') : 'Unknown',
+                    'department_id' => $deptId,
+                    'department' => (string) ($deptMap[$deptId] ?? $product?->department?->name ?? 'Unknown'),
+                    'product_id' => $productId,
+                    'recipe' => (string) ($product?->name ?? '—'),
+                    'sku' => (string) ($product?->sku ?? ''),
+                    'uom' => $uom,
+                    'qty' => 0.0,
+                    'sale_amount' => 0.0,
+                ];
+            }
+
+            $recipeRows[$key]['qty'] += $qty;
+            $recipeRows[$key]['sale_amount'] += $saleAmount;
+            if ($recipeRows[$key]['uom'] === '' && $uom !== '') {
+                $recipeRows[$key]['uom'] = $uom;
+            }
+        }
+
+        $recipeRows = collect($recipeRows)
+            ->map(function (array $row) {
+                $row['qty'] = round($row['qty'], 3);
+                $row['sale_amount'] = round($row['sale_amount'], 2);
+
+                return $row;
+            })
+            ->sortBy([
+                ['date', 'desc'],
+                ['department', 'asc'],
+                ['recipe', 'asc'],
+            ])
+            ->values();
+
+        $byDay = $recipeRows
+            ->groupBy('date')
+            ->map(function (Collection $group, string $day) {
+                return [
+                    'date' => $day,
+                    'label' => $day !== 'unknown' ? Carbon::parse($day)->format('d M Y (D)') : 'Unknown',
+                    'recipes' => $group->count(),
+                    'qty' => round((float) $group->sum('qty'), 3),
+                    'sale_amount' => round((float) $group->sum('sale_amount'), 2),
+                ];
+            })
+            ->sortKeysDesc()
+            ->values();
+
+        $byDepartment = $recipeRows
+            ->groupBy('department_id')
+            ->map(function (Collection $group) {
+                $first = $group->first();
+
+                return [
+                    'department_id' => $first['department_id'] ?? null,
+                    'name' => $first['department'] ?? 'Unknown',
+                    'recipes' => $group->pluck('product_id')->unique()->count(),
+                    'qty' => round((float) $group->sum('qty'), 3),
+                    'sale_amount' => round((float) $group->sum('sale_amount'), 2),
+                ];
+            })
+            ->sortByDesc('sale_amount')
+            ->values();
+
+        $stockQuery = InventoryProductStock::query()
+            ->whereHas('department', fn ($q) => $q->where('is_warehouse', false)->where('active', true))
+            ->with([
+                'product:id,sku,name,uom,cost',
+                'department:id,name,is_warehouse',
+            ]);
+
+        if ($departmentId !== null) {
+            $stockQuery->where('department_id', $departmentId);
+        }
+
+        $stockRows = $stockQuery->get()
+            ->map(function (InventoryProductStock $row) {
+                $qty = (float) $row->qty_on_hand;
+                $unitCost = (float) ($row->product?->cost ?? 0);
+                $amount = round($qty * $unitCost, 2);
+
+                return [
+                    'department_id' => (int) $row->department_id,
+                    'department' => (string) ($row->department?->name ?? 'Unknown'),
+                    'product_id' => (int) $row->product_id,
+                    'sku' => (string) ($row->product?->sku ?? ''),
+                    'product' => (string) ($row->product?->name ?? '—'),
+                    'uom' => (string) ($row->product?->uom ?? ''),
+                    'qty' => round($qty, 3),
+                    'unit_cost' => round($unitCost, 6),
+                    'amount' => $amount,
+                ];
+            })
+            ->filter(fn (array $row) => abs($row['qty']) > 0.0000001)
+            ->sortBy([
+                ['department', 'asc'],
+                ['product', 'asc'],
+            ])
+            ->values();
+
+        $stockByDepartment = $stockRows
+            ->groupBy('department_id')
+            ->map(function (Collection $group) {
+                $first = $group->first();
+
+                return [
+                    'name' => $first['department'] ?? 'Unknown',
+                    'items' => $group->count(),
+                    'qty' => round((float) $group->sum('qty'), 3),
+                    'amount' => round((float) $group->sum('amount'), 2),
+                ];
+            })
+            ->sortByDesc('amount')
+            ->values();
+
+        $totalSaleQty = round((float) $recipeRows->sum('qty'), 3);
+        $totalSaleAmount = round((float) $recipeRows->sum('sale_amount'), 2);
+        $totalStockAmount = round((float) $stockRows->sum('amount'), 2);
+        $departmentHit = $recipeRows->pluck('department_id')->unique()->count();
+        $recipeHit = $recipeRows->pluck('product_id')->unique()->count();
+
+        $selectedDepartment = $departmentId
+            ? $departments->firstWhere('id', $departmentId)
+            : null;
+
+        return compact(
+            'from', 'to', 'departmentId', 'departments', 'selectedDepartment', 'currency',
+            'recipeRows', 'byDay', 'byDepartment',
+            'stockRows', 'stockByDepartment',
+            'totalSaleQty', 'totalSaleAmount', 'totalStockAmount', 'departmentHit', 'recipeHit'
+        );
+    }
+
+    private function resolveOperatingDepartmentId(?InventoryProduct $product): ?int
+    {
+        if (! $product) {
+            return null;
+        }
+
+        $product->loadMissing(['department', 'departments']);
+        $candidates = collect();
+
+        if ($product->department_id && $product->department) {
+            $candidates->push($product->department);
+        }
+
+        foreach ($product->departments as $dept) {
+            if (! $candidates->contains('id', (int) $dept->id)) {
+                $candidates->push($dept);
+            }
+        }
+
+        $operating = $candidates->first(fn ($dept) => ! (bool) $dept->is_warehouse);
+
+        return $operating ? (int) $operating->id : null;
     }
 
     /* ──────────────────────────────────────────

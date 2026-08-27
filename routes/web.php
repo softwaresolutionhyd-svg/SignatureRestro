@@ -449,6 +449,8 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
         Route::get('/inventory/products/print', [ReportsController::class, 'inventoryProductsPrint'])->name('inventory.print');
         Route::get('/issue-stock', [ReportsController::class, 'issueStock'])->name('issue-stock');
         Route::get('/issue-stock/print', [ReportsController::class, 'issueStockPrint'])->name('issue-stock.print');
+        Route::get('/consumption', [ReportsController::class, 'consumption'])->name('consumption');
+        Route::get('/consumption/print', [ReportsController::class, 'consumptionPrint'])->name('consumption.print');
         Route::get('/employees', [ReportsController::class, 'employees']) ->name('employees');
     });
 
