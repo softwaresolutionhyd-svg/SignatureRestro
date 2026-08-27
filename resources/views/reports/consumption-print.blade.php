@@ -41,9 +41,76 @@
     <table style="width:70%;">
         <tr><th>Sale Qty</th><td class="num">{{ fmt_num($totalSaleQty, 3) }}</td></tr>
         <tr><th>Sale Amount</th><td class="num">{{ $currency }} {{ fmt_num($totalSaleAmount, 2) }}</td></tr>
-        <tr><th>Recipes</th><td class="num">{{ $recipeHit }}</td></tr>
-        <tr><th>Departments</th><td class="num">{{ $departmentHit }}</td></tr>
+        <tr><th>Ingredients Used</th><td class="num">{{ $ingredientHit }}</td></tr>
+        <tr><th>Ingredient Cost</th><td class="num">{{ $currency }} {{ fmt_num($totalIngredientAmount, 2) }}</td></tr>
         <tr><th>Stock Value (now)</th><td class="num">{{ $currency }} {{ fmt_num($totalStockAmount, 2) }}</td></tr>
+    </table>
+
+    <h2>Ingredients Consumption (Total)</h2>
+    <table>
+        <thead>
+        <tr>
+            <th>#</th>
+            <th>Ingredient</th>
+            <th class="num">Qty Used</th>
+            <th>UOM</th>
+            <th class="num">Cost Amount</th>
+            <th>Departments</th>
+        </tr>
+        </thead>
+        <tbody>
+        @forelse($ingredientSummary as $i => $row)
+            <tr>
+                <td>{{ $i + 1 }}</td>
+                <td>{{ $row['ingredient'] }}@if(($row['sku'] ?? '') !== '') <span style="color:#555;">({{ $row['sku'] }})</span>@endif</td>
+                <td class="num">{{ fmt_num($row['qty'], 3) }}</td>
+                <td>{{ $row['uom'] ?: '—' }}</td>
+                <td class="num">{{ $currency }} {{ fmt_num($row['amount'], 2) }}</td>
+                <td>{{ implode(', ', $row['departments'] ?? []) ?: '—' }}</td>
+            </tr>
+        @empty
+            <tr><td colspan="6" style="text-align:center;">No ingredient consumption</td></tr>
+        @endforelse
+        </tbody>
+        @if($ingredientSummary->isNotEmpty())
+            <tfoot>
+            <tr>
+                <td colspan="2" class="num">Total</td>
+                <td class="num">{{ fmt_num($totalIngredientQty, 3) }}</td>
+                <td></td>
+                <td class="num">{{ $currency }} {{ fmt_num($totalIngredientAmount, 2) }}</td>
+                <td></td>
+            </tr>
+            </tfoot>
+        @endif
+    </table>
+
+    <h2>Ingredients by Day / Department</h2>
+    <table>
+        <thead>
+        <tr>
+            <th>Date</th>
+            <th>Department</th>
+            <th>Ingredient</th>
+            <th class="num">Qty</th>
+            <th>UOM</th>
+            <th class="num">Cost</th>
+        </tr>
+        </thead>
+        <tbody>
+        @forelse($ingredientRows as $row)
+            <tr>
+                <td>{{ $row['date_label'] }}</td>
+                <td>{{ $row['department'] }}</td>
+                <td>{{ $row['ingredient'] }}</td>
+                <td class="num">{{ fmt_num($row['qty'], 3) }}</td>
+                <td>{{ $row['uom'] ?: '—' }}</td>
+                <td class="num">{{ $currency }} {{ fmt_num($row['amount'], 2) }}</td>
+            </tr>
+        @empty
+            <tr><td colspan="6" style="text-align:center;">No data</td></tr>
+        @endforelse
+        </tbody>
     </table>
 
     <h2>Recipe-wise Sales</h2>

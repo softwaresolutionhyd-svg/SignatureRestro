@@ -1573,11 +1573,117 @@ class ReportsController extends Controller
             ->sortByDesc('amount')
             ->values();
 
+        // Actual ingredient consumption from recipe/BoM POS stock outs (+ refund returns netted).
+        $ingredientMoveQuery = InventoryMove::query()
+            ->where('note', 'like', '%(BoM)%')
+            ->whereIn('type', ['out', 'in'])
+            ->whereBetween('created_at', [$from.' 00:00:00', $to.' 23:59:59'])
+            ->with([
+                'product:id,sku,name,uom,cost',
+                'fromDepartment:id,name',
+                'toDepartment:id,name',
+            ]);
+
+        if ($departmentId !== null) {
+            $ingredientMoveQuery->where(function ($q) use ($departmentId) {
+                $q->where(function ($out) use ($departmentId) {
+                    $out->where('type', 'out')->where('from_department_id', $departmentId);
+                })->orWhere(function ($inn) use ($departmentId) {
+                    $inn->where('type', 'in')->where('to_department_id', $departmentId);
+                });
+            });
+        }
+
+        $ingredientRowsMap = [];
+        foreach ($ingredientMoveQuery->orderBy('created_at')->get() as $move) {
+            $isOut = $move->type === 'out';
+            $deptId = $isOut
+                ? (int) ($move->from_department_id ?? 0)
+                : (int) ($move->to_department_id ?? 0);
+            if ($deptId <= 0) {
+                continue;
+            }
+            if ($departmentId !== null && $deptId !== $departmentId) {
+                continue;
+            }
+
+            $day = $move->created_at?->format('Y-m-d') ?? 'unknown';
+            $productId = (int) ($move->product_id ?? 0);
+            $key = $day.'|'.$deptId.'|'.$productId;
+            $sign = $isOut ? 1.0 : -1.0;
+            $qty = $sign * (float) $move->qty;
+            $cost = $sign * abs((float) ($move->total_cost ?? 0));
+            if ($cost == 0.0 && $move->product) {
+                $cost = $sign * abs((float) $move->qty * (float) ($move->product->cost ?? 0));
+            }
+
+            if (! isset($ingredientRowsMap[$key])) {
+                $deptName = $isOut
+                    ? (string) ($move->fromDepartment?->name ?? ($deptMap[$deptId] ?? 'Unknown'))
+                    : (string) ($move->toDepartment?->name ?? ($deptMap[$deptId] ?? 'Unknown'));
+
+                $ingredientRowsMap[$key] = [
+                    'date' => $day,
+                    'date_label' => $day !== 'unknown' ? Carbon::parse($day)->format('d M Y (D)') : 'Unknown',
+                    'department_id' => $deptId,
+                    'department' => $deptName,
+                    'product_id' => $productId,
+                    'ingredient' => (string) ($move->product?->name ?? '—'),
+                    'sku' => (string) ($move->product?->sku ?? ''),
+                    'uom' => (string) ($move->uom ?: ($move->product?->uom ?? '')),
+                    'qty' => 0.0,
+                    'amount' => 0.0,
+                ];
+            }
+
+            $ingredientRowsMap[$key]['qty'] += $qty;
+            $ingredientRowsMap[$key]['amount'] += $cost;
+            if ($ingredientRowsMap[$key]['uom'] === '' && $move->uom) {
+                $ingredientRowsMap[$key]['uom'] = (string) $move->uom;
+            }
+        }
+
+        $ingredientRows = collect($ingredientRowsMap)
+            ->map(function (array $row) {
+                $row['qty'] = round($row['qty'], 3);
+                $row['amount'] = round($row['amount'], 2);
+
+                return $row;
+            })
+            ->filter(fn (array $row) => abs($row['qty']) > 0.0000001 || abs($row['amount']) > 0.0000001)
+            ->sortBy([
+                ['date', 'desc'],
+                ['department', 'asc'],
+                ['ingredient', 'asc'],
+            ])
+            ->values();
+
+        $ingredientSummary = $ingredientRows
+            ->groupBy('product_id')
+            ->map(function (Collection $group) {
+                $first = $group->first();
+
+                return [
+                    'product_id' => $first['product_id'] ?? null,
+                    'ingredient' => $first['ingredient'] ?? '—',
+                    'sku' => $first['sku'] ?? '',
+                    'uom' => $first['uom'] ?? '',
+                    'qty' => round((float) $group->sum('qty'), 3),
+                    'amount' => round((float) $group->sum('amount'), 2),
+                    'departments' => $group->pluck('department')->unique()->values()->all(),
+                ];
+            })
+            ->sortByDesc('qty')
+            ->values();
+
         $totalSaleQty = round((float) $recipeRows->sum('qty'), 3);
         $totalSaleAmount = round((float) $recipeRows->sum('sale_amount'), 2);
         $totalStockAmount = round((float) $stockRows->sum('amount'), 2);
+        $totalIngredientQty = round((float) $ingredientSummary->sum('qty'), 3);
+        $totalIngredientAmount = round((float) $ingredientSummary->sum('amount'), 2);
         $departmentHit = $recipeRows->pluck('department_id')->unique()->count();
         $recipeHit = $recipeRows->pluck('product_id')->unique()->count();
+        $ingredientHit = $ingredientSummary->count();
 
         $selectedDepartment = $departmentId
             ? $departments->firstWhere('id', $departmentId)
@@ -1587,7 +1693,10 @@ class ReportsController extends Controller
             'from', 'to', 'departmentId', 'departments', 'selectedDepartment', 'currency',
             'recipeRows', 'byDay', 'byDepartment',
             'stockRows', 'stockByDepartment',
-            'totalSaleQty', 'totalSaleAmount', 'totalStockAmount', 'departmentHit', 'recipeHit'
+            'ingredientRows', 'ingredientSummary',
+            'totalSaleQty', 'totalSaleAmount', 'totalStockAmount',
+            'totalIngredientQty', 'totalIngredientAmount',
+            'departmentHit', 'recipeHit', 'ingredientHit'
         );
     }
 

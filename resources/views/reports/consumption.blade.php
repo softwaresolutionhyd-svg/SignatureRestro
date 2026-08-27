@@ -62,15 +62,15 @@
     @if($selectedDepartment)
         &nbsp;|&nbsp; <strong>Department:</strong> {{ $selectedDepartment->name }}
     @endif
-    <div class="text-secondary mt-1">Sale = paid POS recipes tagged to department. Stock = current on-hand in that department (qty × cost).</div>
+    <div class="text-secondary mt-1">Sale = paid POS recipes. Ingredients = recipe/BoM se actual stock use (cheese, masala, etc.). Stock = current on-hand.</div>
 </div>
 
 <div class="row g-3 mb-4">
     @foreach([
         ['Sale Qty', fmt_num($totalSaleQty, 3), 'bi-basket', '#0d9488'],
         ['Sale Amount', $currency.' '.fmt_num($totalSaleAmount, 2), 'bi-currency-dollar', '#7c3aed'],
-        ['Recipes', $recipeHit, 'bi-journal-text', '#0ea5e9'],
-        ['Stock Value (now)', $currency.' '.fmt_num($totalStockAmount, 2), 'bi-box-seam', '#f97316'],
+        ['Ingredients Used', $ingredientHit, 'bi-egg-fried', '#0ea5e9'],
+        ['Ingredient Cost', $currency.' '.fmt_num($totalIngredientAmount, 2), 'bi-cash-stack', '#f97316'],
     ] as [$label,$val,$icon,$color])
     <div class="col-6 col-md-3">
         <div class="card shadow-sm border-0 h-100">
@@ -151,6 +151,96 @@
                 </table>
             </div>
         </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span class="fw-semibold">Ingredients Consumption (Total)</span>
+        <span class="small text-secondary">
+            Cheese / masala wagaira recipe sales se kitna use hua · Qty {{ fmt_num($totalIngredientQty, 3) }} · Cost {{ $currency }} {{ fmt_num($totalIngredientAmount, 2) }}
+        </span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle">
+            <thead class="table-light">
+            <tr>
+                <th>#</th>
+                <th>Ingredient</th>
+                <th class="text-end">Qty Used</th>
+                <th>UOM</th>
+                <th class="text-end">Cost Amount</th>
+                <th>Departments</th>
+            </tr>
+            </thead>
+            <tbody>
+            @forelse($ingredientSummary as $i => $row)
+                <tr>
+                    <td class="small text-secondary">{{ $i + 1 }}</td>
+                    <td>
+                        <div class="fw-semibold small">{{ $row['ingredient'] }}</div>
+                        @if(($row['sku'] ?? '') !== '')
+                            <div class="text-secondary" style="font-size:11px;">{{ $row['sku'] }}</div>
+                        @endif
+                    </td>
+                    <td class="text-end small fw-semibold">{{ fmt_num($row['qty'], 3) }}</td>
+                    <td class="small text-secondary">{{ $row['uom'] ?: '—' }}</td>
+                    <td class="text-end small">{{ $currency }} {{ fmt_num($row['amount'], 2) }}</td>
+                    <td class="small text-secondary">{{ implode(', ', $row['departments'] ?? []) ?: '—' }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="6" class="text-center py-4 text-secondary">Is period mein BoM/recipe se koi ingredient consume nahi hua.</td></tr>
+            @endforelse
+            </tbody>
+            @if($ingredientSummary->isNotEmpty())
+                <tfoot class="table-light">
+                <tr>
+                    <th colspan="2" class="text-end">Total</th>
+                    <th class="text-end">{{ fmt_num($totalIngredientQty, 3) }}</th>
+                    <th></th>
+                    <th class="text-end">{{ $currency }} {{ fmt_num($totalIngredientAmount, 2) }}</th>
+                    <th></th>
+                </tr>
+                </tfoot>
+            @endif
+        </table>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-white fw-semibold">Ingredients by Day / Department</div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle">
+            <thead class="table-light">
+            <tr>
+                <th>Date</th>
+                <th>Department</th>
+                <th>Ingredient</th>
+                <th class="text-end">Qty Used</th>
+                <th>UOM</th>
+                <th class="text-end">Cost Amount</th>
+            </tr>
+            </thead>
+            <tbody>
+            @forelse($ingredientRows as $row)
+                <tr>
+                    <td class="small">{{ $row['date_label'] }}</td>
+                    <td class="small fw-semibold">{{ $row['department'] }}</td>
+                    <td>
+                        <div class="fw-semibold small">{{ $row['ingredient'] }}</div>
+                        @if(($row['sku'] ?? '') !== '')
+                            <div class="text-secondary" style="font-size:11px;">{{ $row['sku'] }}</div>
+                        @endif
+                    </td>
+                    <td class="text-end small">{{ fmt_num($row['qty'], 3) }}</td>
+                    <td class="small text-secondary">{{ $row['uom'] ?: '—' }}</td>
+                    <td class="text-end small">{{ $currency }} {{ fmt_num($row['amount'], 2) }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="6" class="text-center py-4 text-secondary">Day-wise ingredient data nahi mili.</td></tr>
+            @endforelse
+            </tbody>
+        </table>
     </div>
 </div>
 
