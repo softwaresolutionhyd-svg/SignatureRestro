@@ -1562,8 +1562,72 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
 }
 
 .restaurant-pos-app .rp-pay-dock .rp-pay-method {
-    min-width: 7.5rem;
+    min-width: 9.5rem;
+    max-width: 14rem;
     margin-top: 0 !important;
+}
+
+.restaurant-pos-app .rp-add-pay-btn {
+    font-size: 0.68rem !important;
+    font-weight: 600;
+    text-decoration: none !important;
+    white-space: nowrap;
+    line-height: 1.1;
+}
+
+.restaurant-pos-app .rp-add-pay-btn:hover {
+    text-decoration: underline !important;
+}
+
+.restaurant-pos-app .rp-payment-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.restaurant-pos-app .rp-pay-line {
+    display: grid;
+    grid-template-columns: 1fr minmax(4.2rem, 5.5rem) auto;
+    gap: 0.28rem;
+    align-items: center;
+}
+
+.restaurant-pos-app .rp-pay-line .form-select,
+.restaurant-pos-app .rp-pay-line .form-control {
+    font-size: 0.78rem;
+    padding: 0.28rem 0.4rem;
+    min-height: 2rem;
+    background: #fff;
+    color: #1c1917;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.restaurant-pos-app .rp-pay-line-remove {
+    width: 1.85rem;
+    height: 1.85rem;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.35rem;
+    line-height: 1;
+}
+
+.restaurant-pos-app .rp-pay-balance-hint {
+    font-size: 0.68rem;
+    font-weight: 600;
+}
+
+.restaurant-pos-app .rp-pay-balance-hint.is-short {
+    color: #fbbf24;
+}
+
+.restaurant-pos-app .rp-pay-balance-hint.is-over {
+    color: #f87171;
+}
+
+.restaurant-pos-app .rp-pay-balance-hint.is-ok {
+    color: #4ade80;
 }
 
 .restaurant-pos-app .rp-pay-dock .rp-actions {

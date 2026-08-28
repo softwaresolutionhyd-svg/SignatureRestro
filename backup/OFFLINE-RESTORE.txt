@@ -1,0 +1,27 @@
+SOFTWARESOLUTION — OFFLINE RESTORE (Laragon / Windows)
+======================================================
+
+ZIP mein: poora code, vendor, .env, storage data, database SQL dump.
+
+
+STEP 1 — Extract
+----------------
+Extract to: C:\laragon\www\Signature
+
+
+STEP 2 — MySQL database (ZAROORI)
+-----------------------
+1. Laragon > MySQL START
+2. HeidiSQL / import-database.bat se backup/database-full-20260828-112119.sql import karo
+
+Database name: signature_local
+
+
+STEP 3 — Laragon Apache
+-----------------------
+1. Laragon > Apache START
+2. Browser: http://signature.test/login
+3. php artisan config:clear && php artisan storage:link
+
+
+Nightly: End POS Session pe yeh backup auto banti hai (backup/ folder).

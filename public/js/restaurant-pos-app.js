@@ -69,6 +69,12 @@
         }
     } catch (_) { /* ignore */ }
     let payments = [{ method: 'cash', amount: 0 }];
+    let autoPaymentAmount = true;
+    const PAY_METHODS = [
+        { value: 'cash', label: 'Cash' },
+        { value: 'card', label: 'Card' },
+        { value: 'bank', label: 'Bank' },
+    ];
     let orderType = 'sale';
     let isCreditMode = false;
     let selectedContactId = null;
@@ -313,6 +319,9 @@
         if (paymentsBlock) {
             paymentsBlock.classList.toggle('d-none', isCreditMode || !canPosPay);
         }
+        if (!isCreditMode && canPosPay) {
+            renderPaymentLines();
+        }
 
         if (!payBtn) return;
 
@@ -320,6 +329,7 @@
             payBtn.classList.remove('d-none', 'btn-danger');
             payBtn.classList.add('btn-rp-primary');
             payBtn.innerHTML = '<i class="bi bi-credit-card"></i> Pay Now';
+            payBtn.disabled = !paymentsBalanced() && cart.length > 0;
             return;
         }
 
@@ -327,10 +337,12 @@
             payBtn.classList.remove('d-none', 'btn-rp-primary');
             payBtn.classList.add('btn-danger');
             payBtn.innerHTML = '<i class="bi bi-journal-text"></i> Record Credit';
+            payBtn.disabled = false;
             return;
         }
 
         payBtn.classList.add('d-none');
+        payBtn.disabled = false;
     }
 
     function filterContacts(q) {
@@ -1627,6 +1639,8 @@
         if (autoPaymentAmount && payments.length === 1) {
             payments[0].amount = grand;
         }
+        syncPaymentAmountInputs();
+        updatePayBalanceHint();
     }
 
     let orderListMode = null;
@@ -2392,6 +2406,8 @@
         if (autoPaymentAmount && payments.length === 1) {
             payments[0].amount = calcCartTotals().grand;
         }
+        syncPaymentAmountInputs();
+        updatePayBalanceHint();
     }
 
     function hasKitchenLockedItems() {
@@ -2486,7 +2502,154 @@
         }
     }
 
-    let autoPaymentAmount = true;
+    function paymentsSum() {
+        return Math.round(payments.reduce((s, p) => s + Number(p.amount || 0), 0) * 100) / 100;
+    }
+
+    function cashPaymentsSum() {
+        return Math.round(
+            payments
+                .filter((p) => String(p.method || '') === 'cash')
+                .reduce((s, p) => s + Number(p.amount || 0), 0) * 100
+        ) / 100;
+    }
+
+    function paymentRemaining() {
+        return Math.round((calcCartTotals().grand - paymentsSum()) * 100) / 100;
+    }
+
+    function paymentsBalanced() {
+        return Math.abs(paymentRemaining()) <= 0.02;
+    }
+
+    function syncPaymentsFromDom() {
+        const wrap = $('#rpPaymentLines');
+        if (!wrap) return;
+        wrap.querySelectorAll('.rp-pay-line').forEach((row) => {
+            const i = Number(row.dataset.index);
+            if (!Number.isFinite(i) || !payments[i]) return;
+            const methodEl = row.querySelector('.rp-pay-line-method');
+            const amountEl = row.querySelector('.rp-pay-line-amount');
+            if (methodEl) payments[i].method = methodEl.value || 'cash';
+            if (amountEl && !(autoPaymentAmount && payments.length === 1)) {
+                payments[i].amount = Math.round((Number(amountEl.value) || 0) * 100) / 100;
+            }
+        });
+        if (autoPaymentAmount && payments.length === 1) {
+            payments[0].amount = calcCartTotals().grand;
+        }
+    }
+
+    function syncPaymentAmountInputs() {
+        const wrap = $('#rpPaymentLines');
+        if (!wrap || !wrap.children.length) {
+            if ($('#rpPaymentsBlock') && !($('#rpPaymentsBlock').classList.contains('d-none'))) {
+                renderPaymentLines();
+            }
+            return;
+        }
+        if (autoPaymentAmount && payments.length === 1) {
+            const input = wrap.querySelector('.rp-pay-line-amount');
+            if (input && document.activeElement !== input) {
+                input.value = Number(payments[0].amount || 0).toFixed(2);
+            }
+        }
+    }
+
+    function updatePayBalanceHint() {
+        const hint = $('#rpPayBalanceHint');
+        if (!hint) return;
+        if (isCreditMode || !canPosPay) {
+            hint.classList.add('d-none');
+            return;
+        }
+        const rem = paymentRemaining();
+        if (Math.abs(rem) <= 0.02) {
+            if (payments.length > 1) {
+                hint.classList.remove('d-none', 'is-short', 'is-over');
+                hint.classList.add('is-ok');
+                hint.textContent = 'Split OK — total matched';
+            } else {
+                hint.classList.add('d-none');
+                hint.textContent = '';
+            }
+        } else {
+            hint.classList.remove('d-none', 'is-ok');
+            if (rem > 0) {
+                hint.classList.add('is-short');
+                hint.classList.remove('is-over');
+                hint.textContent = `Remaining: ${fmtMoney(rem)}`;
+            } else {
+                hint.classList.add('is-over');
+                hint.classList.remove('is-short');
+                hint.textContent = `Over by: ${fmtMoney(Math.abs(rem))}`;
+            }
+        }
+
+        const payBtn = $('#rpPayBtn');
+        if (payBtn && canPosPay && !isCreditMode && !payBtn.classList.contains('d-none')) {
+            payBtn.disabled = cart.length > 0 && !paymentsBalanced();
+        }
+    }
+
+    function renderPaymentLines() {
+        const wrap = $('#rpPaymentLines');
+        if (!wrap) return;
+
+        if (autoPaymentAmount && payments.length === 1) {
+            payments[0].amount = calcCartTotals().grand;
+        }
+
+        const amountReadonly = autoPaymentAmount && payments.length === 1;
+        wrap.innerHTML = payments.map((p, i) => {
+            const methodOpts = PAY_METHODS.map((m) => (
+                `<option value="${m.value}"${String(p.method) === m.value ? ' selected' : ''}>${m.label}</option>`
+            )).join('');
+            const amt = Number(p.amount || 0).toFixed(2);
+            return `
+                <div class="rp-pay-line" data-index="${i}">
+                    <select class="form-select form-select-sm rp-pay-line-method" data-index="${i}" aria-label="Payment method ${i + 1}">
+                        ${methodOpts}
+                    </select>
+                    <input type="number" class="form-control form-control-sm rp-pay-line-amount" data-index="${i}"
+                           min="0" step="0.01" inputmode="decimal" value="${amt}"
+                           ${amountReadonly ? 'readonly' : ''} aria-label="Amount ${i + 1}">
+                    <button type="button" class="btn btn-outline-secondary btn-sm rp-pay-line-remove"
+                            data-index="${i}" ${payments.length <= 1 ? 'disabled' : ''} title="Remove" aria-label="Remove payment">
+                        &times;
+                    </button>
+                </div>`;
+        }).join('');
+
+        updatePayBalanceHint();
+    }
+
+    function addPaymentMethod() {
+        syncPaymentsFromDom();
+        autoPaymentAmount = false;
+        const grand = calcCartTotals().grand;
+        let rem = paymentRemaining();
+        if (payments.length === 1 && Math.abs(rem) < 0.01) {
+            const half = Math.round((grand / 2) * 100) / 100;
+            payments[0].amount = half;
+            rem = Math.round((grand - half) * 100) / 100;
+        }
+        const used = String(payments[0]?.method || 'cash');
+        const next = used === 'cash' ? 'card' : (used === 'card' ? 'bank' : 'cash');
+        payments.push({ method: next, amount: Math.max(0, rem) });
+        renderPaymentLines();
+    }
+
+    function removePaymentLine(idx) {
+        if (payments.length <= 1) return;
+        syncPaymentsFromDom();
+        payments.splice(idx, 1);
+        if (payments.length === 1) {
+            autoPaymentAmount = true;
+            payments[0].amount = calcCartTotals().grand;
+        }
+        renderPaymentLines();
+    }
 
     function cartItemsForSubmit() {
         syncItemNotesFromDom();
@@ -2569,14 +2732,24 @@
         }
 
         if (mode === 'checkout' && !isCreditMode && orderType === 'sale') {
+            syncPaymentsFromDom();
             const grand = calcCartTotals().grand;
             if (autoPaymentAmount && payments.length === 1) {
                 payments[0].amount = grand;
-                payments[0].method = $('#rpPayMethod')?.value || payments[0].method || 'cash';
             }
-            const paySum = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+            payments = payments
+                .map((p) => ({
+                    method: String(p.method || 'cash'),
+                    amount: Math.round((Number(p.amount) || 0) * 100) / 100,
+                }))
+                .filter((p) => p.amount > 0.001 || payments.length === 1);
+            if (!payments.length) {
+                payments = [{ method: 'cash', amount: grand }];
+            }
+            const paySum = paymentsSum();
             if (Math.abs(paySum - grand) > 0.02) {
-                alert('Payment total match nahi kar raha.');
+                alert('Payment total match nahi kar raha. Cash + Card/Bank amounts bill ke barabar karein.');
+                renderPaymentLines();
                 return false;
             }
         }
@@ -2662,7 +2835,6 @@
         const form = $('#rpSubmitForm');
         if (!form) return null;
 
-        const totals = calcCartTotals();
         const formData = new FormData(form);
         formData.set('items', JSON.stringify(cartItemsForSubmit()));
         if (isCreditMode) {
@@ -2672,8 +2844,7 @@
         } else {
             formData.set('is_credit', '0');
             formData.set('contact_id', '');
-            const payMethod = $('#rpPayMethod')?.value || 'cash';
-            formData.set('payments', JSON.stringify([{ method: payMethod, amount: totals.grand }]));
+            formData.set('payments', JSON.stringify(payments));
         }
         Object.entries(extraFields).forEach(([key, value]) => {
             formData.set(key, String(value));
@@ -2838,12 +3009,13 @@
     }
 
     function updatePayModalAmounts() {
-        const grand = calcCartTotals().grand;
+        const cashDue = cashPaymentsSum();
+        const due = cashDue > 0.001 ? cashDue : calcCartTotals().grand;
         const tendered = Number($('#rpCashTendered')?.value || 0);
-        const change = Math.max(0, Math.round((tendered - grand) * 100) / 100);
-        const ok = tendered >= grand - 0.001;
+        const change = Math.max(0, Math.round((tendered - due) * 100) / 100);
+        const ok = tendered >= due - 0.001;
 
-        if ($('#rpPayModalTotal')) $('#rpPayModalTotal').textContent = fmtMoney(grand);
+        if ($('#rpPayModalTotal')) $('#rpPayModalTotal').textContent = fmtMoney(due);
         if ($('#rpCashChange')) $('#rpCashChange').textContent = fmtMoney(change);
         const disablePay = !ok;
         if ($('#rpPayModalConfirm')) $('#rpPayModalConfirm').disabled = disablePay;
@@ -2860,15 +3032,33 @@
             return;
         }
 
-        const payMethod = $('#rpPayMethod')?.value || 'cash';
-        if (payMethod !== 'cash') {
+        const cashDue = cashPaymentsSum();
+        if (cashDue <= 0.001) {
             submitOrder('checkout');
             return;
         }
 
-        const grand = calcCartTotals().grand;
-        renderCashSuggestions(grand);
-        setCashTendered(grand <= 0 ? 0 : grand, { manual: false });
+        const isSplit = payments.length > 1;
+        const title = $('#rpPayModalLabel');
+        const totalLabel = $('#rpPayModalTotalLabel');
+        const splitHint = $('#rpPayModalSplitHint');
+        if (title) title.textContent = isSplit ? 'Cash Portion' : 'Cash Payment';
+        if (totalLabel) totalLabel.textContent = isSplit ? 'Cash due' : 'Total Amount';
+        if (splitHint) {
+            if (isSplit) {
+                const parts = payments
+                    .map((p) => `${String(p.method || '').charAt(0).toUpperCase()}${String(p.method || '').slice(1)} ${fmtMoney(Number(p.amount || 0))}`)
+                    .join(' + ');
+                splitHint.textContent = `Bill total ${fmtMoney(calcCartTotals().grand)} · ${parts}`;
+                splitHint.classList.remove('d-none');
+            } else {
+                splitHint.textContent = '';
+                splitHint.classList.add('d-none');
+            }
+        }
+
+        renderCashSuggestions(cashDue);
+        setCashTendered(cashDue <= 0 ? 0 : cashDue, { manual: false });
 
         const modal = getPayModal();
         if (!modal) {
@@ -2879,14 +3069,14 @@
     }
 
     async function confirmPayModal({ printBill = true } = {}) {
-        const grand = calcCartTotals().grand;
+        const cashDue = cashPaymentsSum();
         const tendered = Number($('#rpCashTendered')?.value || 0);
-        if (tendered < grand - 0.001) {
+        if (tendered < cashDue - 0.001) {
             updatePayModalAmounts();
             return;
         }
 
-        const change = Math.max(0, Math.round((tendered - grand) * 100) / 100);
+        const change = Math.max(0, Math.round((tendered - cashDue) * 100) / 100);
         const confirmBtn = printBill ? $('#rpPayModalConfirm') : $('#rpPayModalMarkPaid');
         const otherBtn = printBill ? $('#rpPayModalMarkPaid') : $('#rpPayModalConfirm');
         if (confirmBtn) confirmBtn.disabled = true;
@@ -2996,9 +3186,9 @@
             } catch (_) { /* ignore */ }
         }
         // Har nayi bill Cash se start — Bank/Card previous bill se sticky na rahe.
-        if ($('#rpPayMethod')) $('#rpPayMethod').value = 'cash';
         payments = [{ method: 'cash', amount: 0 }];
         autoPaymentAmount = true;
+        renderPaymentLines();
 
         const form = $('#rpSubmitForm');
         if (form) {
@@ -3268,10 +3458,10 @@
         updateCancelOrderButton();
 
         // Pending bill open → Payment hamesha Cash default (Bank/Card sticky na rahe).
-        if ($('#rpPayMethod')) $('#rpPayMethod').value = 'cash';
         const grand = calcCartTotals().grand;
         payments = [{ method: 'cash', amount: grand }];
         autoPaymentAmount = true;
+        renderPaymentLines();
 
         // Refresh void list then strip again (covers first open before voids loaded).
         stripKitchenVoidsForOpenOrder(order.id);
@@ -4648,8 +4838,30 @@
             $('#rpSelectedContactWrap')?.classList.add('d-none');
         });
 
-        $('#rpPayMethod')?.addEventListener('change', () => {
-            payments = [{ method: $('#rpPayMethod')?.value || 'cash', amount: calcCartTotals().grand }];
+        $('#rpAddPayMethodBtn')?.addEventListener('click', () => addPaymentMethod());
+        const payLines = $('#rpPaymentLines');
+        payLines?.addEventListener('click', (e) => {
+            const btn = e.target.closest('.rp-pay-line-remove');
+            if (!btn || btn.disabled) return;
+            removePaymentLine(Number(btn.dataset.index));
+        });
+        payLines?.addEventListener('change', (e) => {
+            const methodEl = e.target.closest('.rp-pay-line-method');
+            if (!methodEl) return;
+            const i = Number(methodEl.dataset.index);
+            if (!Number.isFinite(i) || !payments[i]) return;
+            payments[i].method = methodEl.value || 'cash';
+            autoPaymentAmount = payments.length === 1;
+            updatePayBalanceHint();
+        });
+        payLines?.addEventListener('input', (e) => {
+            const amountEl = e.target.closest('.rp-pay-line-amount');
+            if (!amountEl) return;
+            const i = Number(amountEl.dataset.index);
+            if (!Number.isFinite(i) || !payments[i]) return;
+            autoPaymentAmount = false;
+            payments[i].amount = Math.round((Number(amountEl.value) || 0) * 100) / 100;
+            updatePayBalanceHint();
         });
 
         $('#rpRemoveConfirm')?.addEventListener('click', () => confirmRemoveWithReason());
@@ -4797,6 +5009,8 @@
         updateCheckoutActions();
         renderAll();
         payments = [{ method: 'cash', amount: 0 }];
+        autoPaymentAmount = true;
+        renderPaymentLines();
         if (boot.activeOrderTab === 'paid') {
             showPaidTabAfterCheckout();
         } else if (boot.activeOrderTab === 'pending') {

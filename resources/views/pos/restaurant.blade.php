@@ -6,7 +6,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=66">
+<link rel="stylesheet" href="{{ asset('css/restaurant-pos.css') }}?v=67">
 @endpush
 
 @section('content')
@@ -309,12 +309,14 @@
 
             @if($canPosPay ?? false)
             <div id="rpPaymentsBlock" class="rp-pay-method">
-                <label class="form-label small mb-0">Payment</label>
-                <select id="rpPayMethod" class="form-select form-select-sm">
-                    <option value="cash">Cash</option>
-                    <option value="card">Card</option>
-                    <option value="bank">Bank</option>
-                </select>
+                <div class="d-flex align-items-center justify-content-between gap-1 mb-1">
+                    <label class="form-label small mb-0">Payment</label>
+                    <button type="button" class="btn btn-link btn-sm text-info p-0 rp-add-pay-btn" id="rpAddPayMethodBtn" title="Split payment: Cash + Card / Bank">
+                        <i class="bi bi-plus-circle"></i> Add method
+                    </button>
+                </div>
+                <div id="rpPaymentLines" class="rp-payment-lines"></div>
+                <div id="rpPayBalanceHint" class="rp-pay-balance-hint small mt-1 d-none"></div>
             </div>
             @endif
 
@@ -478,9 +480,10 @@
             </div>
             <div class="modal-body pt-2">
                 <div class="rp-pay-modal-total">
-                    <span class="rp-pay-modal-label">Total Amount</span>
+                    <span class="rp-pay-modal-label" id="rpPayModalTotalLabel">Total Amount</span>
                     <span class="rp-pay-modal-amount" id="rpPayModalTotal">0.00</span>
                 </div>
+                <div id="rpPayModalSplitHint" class="small text-secondary mb-2 d-none"></div>
                 <div class="mb-3">
                     <div class="form-label fw-semibold mb-2">Customer ne diye</div>
                     <div class="rp-cash-suggest" id="rpCashSuggestions" role="group" aria-label="Cash suggestions"></div>
@@ -594,5 +597,5 @@
 <script>
 window.RESTAURANT_POS_BOOTSTRAP = @json($restaurantBootstrap);
 </script>
-<script src="{{ asset('js/restaurant-pos-app.js') }}?v=125"></script>
+<script src="{{ asset('js/restaurant-pos-app.js') }}?v=126"></script>
 @endsection

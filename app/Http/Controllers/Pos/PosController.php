@@ -4047,6 +4047,22 @@ class PosController extends Controller
                 ->values()
             : collect();
 
+        // Cashier list: split tenders show amounts (e.g. "Cash 500 + Card 500").
+        $paymentLabel = '—';
+        if ($order->customerTypeKey() === 'ast_offr') {
+            $paymentLabel = PosOrder::MESS_BILL_LABEL;
+        } elseif ($order->is_credit) {
+            $paymentLabel = 'Credit';
+        } elseif ($order->relationLoaded('payments') && $order->payments->isNotEmpty()) {
+            if ($order->payments->count() > 1) {
+                $paymentLabel = $order->payments
+                    ->map(fn ($p) => ucfirst((string) $p->method).' '.number_format((float) $p->amount, 2, '.', ''))
+                    ->implode(' + ');
+            } else {
+                $paymentLabel = $payMethods->implode(', ');
+            }
+        }
+
         $orderAt = $order->ready_for_pos_at ?? $order->created_at;
         $serveTime = trim((string) ($order->serve_time ?? ''));
         $serveDate = $order->serve_date instanceof \Illuminate\Support\Carbon
@@ -4082,11 +4098,7 @@ class PosController extends Controller
             'from_order_taker' => $order->isFromOrderTaker(),
             'is_credit' => (bool) $order->is_credit,
             'is_refund' => $order->type === 'refund',
-            'payment_label' => $order->customerTypeKey() === 'ast_offr'
-                ? PosOrder::MESS_BILL_LABEL
-                : ($order->is_credit
-                    ? 'Credit'
-                    : ($payMethods->isNotEmpty() ? $payMethods->implode(', ') : '—')),
+            'payment_label' => $paymentLabel,
             'grand_total' => (float) $order->grand_total,
             'bill_discount_percent' => (float) ($order->bill_discount_percent ?? 0),
             'is_owner_discount' => (bool) ($order->is_owner_discount ?? false),
