@@ -1630,6 +1630,14 @@ body.admin-app-body:has(.restaurant-pos-app) .admin-main {
     color: #4ade80;
 }
 
+.restaurant-pos-app .rp-pay-balance-hint .rp-apply-remaining {
+    font-size: 0.68rem !important;
+    font-weight: 700;
+    color: #38bdf8 !important;
+    text-decoration: underline !important;
+    vertical-align: baseline;
+}
+
 .restaurant-pos-app .rp-pay-dock .rp-actions {
     margin-top: 0;
     min-width: 11rem;

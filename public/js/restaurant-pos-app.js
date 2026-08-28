@@ -320,6 +320,7 @@
             paymentsBlock.classList.toggle('d-none', isCreditMode || !canPosPay);
         }
         if (!isCreditMode && canPosPay) {
+            syncPaymentsFromDom();
             renderPaymentLines();
         }
 
@@ -329,7 +330,7 @@
             payBtn.classList.remove('d-none', 'btn-danger');
             payBtn.classList.add('btn-rp-primary');
             payBtn.innerHTML = '<i class="bi bi-credit-card"></i> Pay Now';
-            payBtn.disabled = !paymentsBalanced() && cart.length > 0;
+            payBtn.disabled = false;
             return;
         }
 
@@ -2568,7 +2569,7 @@
             if (payments.length > 1) {
                 hint.classList.remove('d-none', 'is-short', 'is-over');
                 hint.classList.add('is-ok');
-                hint.textContent = 'Split OK — total matched';
+                hint.innerHTML = 'Split OK — total matched';
             } else {
                 hint.classList.add('d-none');
                 hint.textContent = '';
@@ -2578,18 +2579,28 @@
             if (rem > 0) {
                 hint.classList.add('is-short');
                 hint.classList.remove('is-over');
-                hint.textContent = `Remaining: ${fmtMoney(rem)}`;
+                hint.innerHTML = `Remaining: ${escHtml(fmtMoney(rem))} · <button type="button" class="btn btn-link btn-sm p-0 align-baseline rp-apply-remaining" id="rpApplyRemainingBtn">Apply to last</button>`;
             } else {
                 hint.classList.add('is-over');
                 hint.classList.remove('is-short');
                 hint.textContent = `Over by: ${fmtMoney(Math.abs(rem))}`;
             }
         }
+    }
 
-        const payBtn = $('#rpPayBtn');
-        if (payBtn && canPosPay && !isCreditMode && !payBtn.classList.contains('d-none')) {
-            payBtn.disabled = cart.length > 0 && !paymentsBalanced();
+    function applyRemainingToLastPayment() {
+        syncPaymentsFromDom();
+        if (!payments.length) return;
+        const rem = paymentRemaining();
+        if (Math.abs(rem) <= 0.02) {
+            updatePayBalanceHint();
+            return;
         }
+        autoPaymentAmount = false;
+        const last = payments[payments.length - 1];
+        last.amount = Math.round((Number(last.amount || 0) + rem) * 100) / 100;
+        if (last.amount < 0) last.amount = 0;
+        renderPaymentLines();
     }
 
     function renderPaymentLines() {
@@ -3025,6 +3036,28 @@
 
     function openPayModal() {
         if (checkoutInFlight) return;
+
+        if (!isCreditMode && canPosPay && cart.length) {
+            syncPaymentsFromDom();
+            if (autoPaymentAmount && payments.length === 1) {
+                payments[0].amount = calcCartTotals().grand;
+            }
+            if (!paymentsBalanced()) {
+                const rem = paymentRemaining();
+                if (rem > 0.02) {
+                    const apply = window.confirm(
+                        `Payment abhi incomplete hai.\nRemaining: ${fmtMoney(rem)}\n\nOK = remaining last method pe laga do aur pay continue.\nCancel = amounts khud theek karo.`
+                    );
+                    if (!apply) return;
+                    applyRemainingToLastPayment();
+                    if (!paymentsBalanced()) return;
+                } else {
+                    alert(`Payment total bill se zyada hai (over by ${fmtMoney(Math.abs(rem))}). Amounts theek karein.`);
+                    return;
+                }
+            }
+        }
+
         if (!prepareSubmit('checkout')) return;
 
         if (isCreditMode) {
@@ -4862,6 +4895,11 @@
             autoPaymentAmount = false;
             payments[i].amount = Math.round((Number(amountEl.value) || 0) * 100) / 100;
             updatePayBalanceHint();
+        });
+        $('#rpPayBalanceHint')?.addEventListener('click', (e) => {
+            if (!e.target.closest('#rpApplyRemainingBtn, .rp-apply-remaining')) return;
+            e.preventDefault();
+            applyRemainingToLastPayment();
         });
 
         $('#rpRemoveConfirm')?.addEventListener('click', () => confirmRemoveWithReason());
