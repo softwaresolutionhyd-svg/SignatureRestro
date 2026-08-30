@@ -90,16 +90,6 @@ class EmployeeAdvanceController extends Controller
             'return_to_ledger' => ['nullable', 'boolean'],
         ]);
 
-        $hasActive = EmployeeAdvance::query()
-            ->where('employee_id', $data['employee_id'])
-            ->where('status', 'active')
-            ->where('balance', '>', 0)
-            ->exists();
-
-        if ($hasActive) {
-            return back()->withInput()->withErrors('Is employee ka pehle se active advance hai. Pehle salary deduct / settle hone do.');
-        }
-
         $advance = EmployeeAdvance::create([
             'employee_id' => $data['employee_id'],
             'amount' => $data['amount'],
@@ -137,13 +127,7 @@ class EmployeeAdvanceController extends Controller
             ->paginate(Setting::pageSize('employees_per_page', 30))
             ->withQueryString();
 
-        $hasActive = EmployeeAdvance::query()
-            ->where('employee_id', $employee->id)
-            ->where('status', 'active')
-            ->where('balance', '>', 0)
-            ->exists();
-
-        return view('employees.advances-ledger', compact('employee', 'advances', 'hasActive'));
+        return view('employees.advances-ledger', compact('employee', 'advances'));
     }
 
     public function print(EmployeeAdvance $advance)

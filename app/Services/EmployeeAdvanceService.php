@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\EmployeeAdvance;
 use App\Models\PayrollEntry;
 use App\Support\EnsuresEmployeeAdvanceSchema;
+use Illuminate\Support\Collection;
 
 class EmployeeAdvanceService
 {
@@ -13,29 +14,42 @@ class EmployeeAdvanceService
 
     public function activeAdvanceForEmployee(int $employeeId): ?EmployeeAdvance
     {
+        return $this->activeAdvancesForEmployee($employeeId)->first();
+    }
+
+    /**
+     * @return Collection<int, EmployeeAdvance>
+     */
+    public function activeAdvancesForEmployee(int $employeeId): Collection
+    {
         $this->ensureEmployeeAdvanceSchema();
 
         return EmployeeAdvance::query()
             ->where('employee_id', $employeeId)
             ->where('status', 'active')
             ->where('balance', '>', 0)
-            ->orderByDesc('id')
-            ->first();
+            ->orderBy('id')
+            ->get();
     }
 
     public function amountForPayroll(Employee $employee, string $period): float
     {
-        $advance = $this->activeAdvanceForEmployee((int) $employee->id);
-        if ($advance === null || ! $advance->isActive()) {
-            return 0.0;
+        $total = 0.0;
+
+        foreach ($this->activeAdvancesForEmployee((int) $employee->id) as $advance) {
+            if (! $advance->isActive()) {
+                continue;
+            }
+
+            $startPeriod = ($advance->start_date ?? $advance->created_at)?->format('Y-m');
+            if ($startPeriod !== null && $period < $startPeriod) {
+                continue;
+            }
+
+            $total += (float) $advance->balance;
         }
 
-        $startPeriod = ($advance->start_date ?? $advance->created_at)?->format('Y-m');
-        if ($startPeriod !== null && $period < $startPeriod) {
-            return 0.0;
-        }
-
-        return round((float) $advance->balance, 2);
+        return round($total, 2);
     }
 
     public function syncAdvanceDeductionForPayroll(PayrollEntry $entry, Employee $employee, string $period): void
@@ -53,24 +67,38 @@ class EmployeeAdvanceService
     {
         $this->ensureEmployeeAdvanceSchema();
 
-        $amount = round((float) ($entry->advance ?? 0), 2);
-        if ($amount <= 0) {
+        $remaining = round((float) ($entry->advance ?? 0), 2);
+        if ($remaining <= 0) {
             return;
         }
 
-        $advance = $this->activeAdvanceForEmployee((int) $entry->employee_id);
-        if ($advance === null) {
-            return;
-        }
+        $advances = $this->activeAdvancesForEmployee((int) $entry->employee_id);
+        foreach ($advances as $advance) {
+            if ($remaining <= 0) {
+                break;
+            }
 
-        $balanceAfter = round(max(0, (float) $advance->balance - $amount), 2);
-        $advance->balance = $balanceAfter;
-        $advance->settled_payroll_entry_id = $entry->id;
-        $advance->settled_period = $entry->period;
-        $advance->settled_at = now();
-        if ($balanceAfter <= 0) {
-            $advance->status = 'settled';
+            $startPeriod = ($advance->start_date ?? $advance->created_at)?->format('Y-m');
+            if ($startPeriod !== null && $entry->period < $startPeriod) {
+                continue;
+            }
+
+            $take = round(min((float) $advance->balance, $remaining), 2);
+            if ($take <= 0) {
+                continue;
+            }
+
+            $balanceAfter = round(max(0, (float) $advance->balance - $take), 2);
+            $advance->balance = $balanceAfter;
+            $advance->settled_payroll_entry_id = $entry->id;
+            $advance->settled_period = $entry->period;
+            $advance->settled_at = now();
+            if ($balanceAfter <= 0) {
+                $advance->status = 'settled';
+            }
+            $advance->save();
+
+            $remaining = round($remaining - $take, 2);
         }
-        $advance->save();
     }
 }

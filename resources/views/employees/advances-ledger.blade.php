@@ -21,24 +21,12 @@
             </div>
         </div>
         <div class="d-flex flex-wrap gap-2">
-            @if($hasActive)
-                <button type="button" class="btn btn-primary btn-sm" disabled title="Pehle active advance settle hone do">
-                    <i class="bi bi-plus-circle me-1"></i> Add New Entry
-                </button>
-            @else
-                <a href="{{ route('employees.advances.create', ['employee_id' => $employee->id]) }}" class="btn btn-primary btn-sm">
-                    <i class="bi bi-plus-circle me-1"></i> Add New Entry
-                </a>
-            @endif
+            <a href="{{ route('employees.advances.create', ['employee_id' => $employee->id]) }}" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-circle me-1"></i> Add New Entry
+            </a>
             <a href="{{ route('employees.advances.index') }}" class="btn btn-outline-secondary btn-sm">Back to Advances</a>
         </div>
     </div>
-
-    @if($hasActive)
-        <div class="alert alert-warning small py-2">
-            Is employee ka active advance outstanding hai. Naya entry tabhi add hoga jab yeh salary deduct / settle ho jaye.
-        </div>
-    @endif
 
     <div class="card shadow-sm">
         <div class="card-header bg-white fw-semibold">All Advance Entries</div>
