@@ -16,12 +16,6 @@
         <div class="card-body d-flex flex-wrap gap-2 align-items-center justify-content-between">
             <form class="d-flex flex-wrap gap-2 align-items-center" method="GET" action="{{ route('employees.advances.index') }}">
                 <input type="text" name="employee_no" value="{{ $employeeNo }}" class="form-control form-control-sm" placeholder="ID ya naam" style="max-width: 170px;">
-                <select name="status" class="form-select form-select-sm" style="max-width: 140px;">
-                    <option value="active" @selected($status === 'active')>Active</option>
-                    <option value="settled" @selected($status === 'settled')>Settled</option>
-                    <option value="cancelled" @selected($status === 'cancelled')>Cancelled</option>
-                    <option value="all" @selected($status === 'all')>All</option>
-                </select>
                 <button class="btn btn-sm btn-outline-primary" type="submit">Filter</button>
             </form>
             <a href="{{ route('employees.advances.create') }}" class="btn btn-primary btn-sm">
@@ -31,8 +25,8 @@
     </div>
 
     <div class="alert alert-info small py-2">
-        Employee ko diya gaya <strong>advance</strong> usi month payroll ke <strong>Advance</strong> column mein auto deduct hota hai.
-        <strong>Mark paid</strong> par advance ledger balance zero ho kar record settled ho jata hai.
+        Yahan sirf <strong>active</strong> advances dikhte hain. Salary <strong>Mark paid</strong> hone par advance settle ho kar is list se hat jata hai.
+        Purani entries ke liye employee ka <strong>View Ledger</strong> kholo.
     </div>
 
     <div class="card shadow-sm">
@@ -61,28 +55,19 @@
                         </td>
                         <td>{{ $advance->start_date?->format('Y-m-d') ?? '—' }}</td>
                         <td>
-                            @if($advance->status === 'active')
-                                <span class="badge text-bg-warning text-dark">Active</span>
-                            @elseif($advance->status === 'settled')
-                                <span class="badge text-bg-success">Settled</span>
-                            @else
-                                <span class="badge text-bg-secondary">Cancelled</span>
-                            @endif
+                            <span class="badge text-bg-warning text-dark">Active</span>
                         </td>
                         <td class="text-end">
                             <a class="btn btn-sm btn-outline-danger" href="{{ route('employees.advances.print', $advance) }}" target="_blank" rel="noopener" title="Print advance receipt">
                                 <i class="bi bi-printer"></i> Print
                             </a>
-                            <a class="btn btn-sm btn-outline-primary" href="{{ route('employees.advances.edit', $advance) }}">View / Edit</a>
-                            <form class="d-inline" method="POST" action="{{ route('employees.advances.destroy', $advance) }}" onsubmit="return confirm('Is advance ki record delete ho jayegi. Continue?');">
-                                @csrf
-                                @method('DELETE')
-                                <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
-                            </form>
+                            <a class="btn btn-sm btn-outline-primary" href="{{ route('employees.advances.ledger', $advance->employee) }}">
+                                <i class="bi bi-journal-text me-1"></i>View Ledger
+                            </a>
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" class="text-center text-secondary py-4">No advance records yet.</td></tr>
+                    <tr><td colspan="7" class="text-center text-secondary py-4">No active advance records.</td></tr>
                 @endforelse
                 </tbody>
             </table>

@@ -394,6 +394,7 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
             Route::get('/advances', [EmployeeAdvanceController::class, 'index'])->name('advances.index');
             Route::get('/advances/create', [EmployeeAdvanceController::class, 'create'])->name('advances.create');
             Route::post('/advances', [EmployeeAdvanceController::class, 'store'])->name('advances.store');
+            Route::get('/advances/employee/{employee}', [EmployeeAdvanceController::class, 'ledger'])->name('advances.ledger');
             Route::get('/advances/{advance}/edit', [EmployeeAdvanceController::class, 'edit'])->name('advances.edit');
             Route::get('/advances/{advance}/print', [EmployeeAdvanceController::class, 'print'])->name('advances.print');
             Route::put('/advances/{advance}', [EmployeeAdvanceController::class, 'update'])->name('advances.update');

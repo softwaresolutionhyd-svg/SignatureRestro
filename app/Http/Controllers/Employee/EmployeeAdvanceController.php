@@ -28,12 +28,13 @@ class EmployeeAdvanceController extends Controller
         abort_unless($request->user()?->canManagePayroll(), 403);
         $this->ensureEmployeeAdvanceSchema();
 
-        $status = $request->query('status', 'active');
         $employeeNo = trim((string) $request->query('employee_no', ''));
 
+        // List only open advances — salary Mark paid settles them and they leave this screen.
         $advances = EmployeeAdvance::query()
             ->with(['employee:id,name,employee_no'])
-            ->when($status !== 'all', fn ($q) => $q->where('status', $status))
+            ->where('status', 'active')
+            ->where('balance', '>', 0)
             ->when($employeeNo !== '', fn ($q) => $q->whereHas(
                 'employee',
                 fn ($eq) => $eq->matchingSearch($employeeNo)
@@ -44,13 +45,23 @@ class EmployeeAdvanceController extends Controller
             ->paginate(Setting::pageSize('employees_per_page', 30))
             ->withQueryString();
 
-        return view('employees.advances-index', compact('advances', 'status', 'employeeNo'));
+        return view('employees.advances-index', compact('advances', 'employeeNo'));
     }
 
-    public function create()
+    public function create(Request $request)
     {
         abort_unless(auth()->user()?->canManagePayroll(), 403);
         $this->ensureEmployeeAdvanceSchema();
+
+        $prefillEmployeeId = (int) $request->query('employee_id', 0);
+        $prefillEmployee = null;
+        if ($prefillEmployeeId > 0) {
+            $prefillEmployee = Employee::query()
+                ->excludeAdminAccounts()
+                ->where('active', true)
+                ->whereKey($prefillEmployeeId)
+                ->first(['id', 'name', 'employee_no']);
+        }
 
         $employees = Employee::query()
             ->excludeAdminAccounts()
@@ -61,6 +72,8 @@ class EmployeeAdvanceController extends Controller
         return view('employees.advances-form', [
             'advance' => new EmployeeAdvance(['start_date' => now()->toDateString(), 'status' => 'active']),
             'employees' => $employees,
+            'prefillEmployee' => $prefillEmployee,
+            'returnToLedger' => $prefillEmployee !== null,
         ]);
     }
 
@@ -74,6 +87,7 @@ class EmployeeAdvanceController extends Controller
             'amount' => ['required', 'numeric', 'min:0.01'],
             'start_date' => ['nullable', 'date'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'return_to_ledger' => ['nullable', 'boolean'],
         ]);
 
         $hasActive = EmployeeAdvance::query()
@@ -83,11 +97,14 @@ class EmployeeAdvanceController extends Controller
             ->exists();
 
         if ($hasActive) {
-            return back()->withInput()->withErrors('Is employee ka pehle se active advance hai.');
+            return back()->withInput()->withErrors('Is employee ka pehle se active advance hai. Pehle salary deduct / settle hone do.');
         }
 
         $advance = EmployeeAdvance::create([
-            ...$data,
+            'employee_id' => $data['employee_id'],
+            'amount' => $data['amount'],
+            'start_date' => $data['start_date'] ?? null,
+            'notes' => $data['notes'] ?? null,
             'balance' => $data['amount'],
             'status' => 'active',
             'created_by' => $request->user()->id,
@@ -97,9 +114,36 @@ class EmployeeAdvanceController extends Controller
 
         ActivityLogger::log('employee_advance.created', 'Employee advance created', $advance);
 
+        if ($request->boolean('return_to_ledger')) {
+            return redirect()
+                ->route('employees.advances.ledger', $advance->employee_id)
+                ->with('status', 'Naya advance entry add ho gaya.');
+        }
+
         return redirect()
             ->route('employees.advances.print', ['advance' => $advance, 'auto' => 1])
             ->with('status', 'Advance record created.');
+    }
+
+    public function ledger(Employee $employee)
+    {
+        abort_unless(auth()->user()?->canManagePayroll(), 403);
+        $this->ensureEmployeeAdvanceSchema();
+
+        $advances = EmployeeAdvance::query()
+            ->with(['settledPayrollEntry:id,period,paid_at'])
+            ->where('employee_id', $employee->id)
+            ->orderByDesc('id')
+            ->paginate(Setting::pageSize('employees_per_page', 30))
+            ->withQueryString();
+
+        $hasActive = EmployeeAdvance::query()
+            ->where('employee_id', $employee->id)
+            ->where('status', 'active')
+            ->where('balance', '>', 0)
+            ->exists();
+
+        return view('employees.advances-ledger', compact('employee', 'advances', 'hasActive'));
     }
 
     public function print(EmployeeAdvance $advance)
@@ -119,12 +163,7 @@ class EmployeeAdvanceController extends Controller
         abort_unless(auth()->user()?->canManagePayroll(), 403);
         $this->ensureEmployeeAdvanceSchema();
 
-        $advance->load(['employee:id,name,employee_no', 'settledPayrollEntry:id,period,paid_at']);
-
-        return view('employees.advances-form', [
-            'advance' => $advance,
-            'employees' => collect(),
-        ]);
+        return redirect()->route('employees.advances.ledger', $advance->employee_id);
     }
 
     public function update(Request $request, EmployeeAdvance $advance)
@@ -161,39 +200,14 @@ class EmployeeAdvanceController extends Controller
 
         ActivityLogger::log('employee_advance.updated', 'Employee advance updated', $advance);
 
-        return redirect()->route('employees.advances.index')->with('status', 'Advance updated.');
+        return redirect()
+            ->route('employees.advances.ledger', $advance->employee_id)
+            ->with('status', 'Advance updated.');
     }
 
     public function destroy(EmployeeAdvance $advance)
     {
-        abort_unless(auth()->user()?->canManagePayroll(), 403);
-        $this->ensureEmployeeAdvanceSchema();
-
-        $employeeId = (int) $advance->employee_id;
-        $period = $this->periodForAdvance($advance);
-        $advance->delete();
-
-        $drafts = PayrollEntry::query()
-            ->where('employee_id', $employeeId)
-            ->where('status', '!=', 'paid')
-            ->where('advance', '>', 0)
-            ->get();
-
-        foreach ($drafts as $entry) {
-            $entry->advance = 0;
-            $entry->recalculateNet();
-            $entry->save();
-        }
-
-        if ($this->cloudSync->isLocalRole()) {
-            $this->syncPayrollQueue->queuePayrollData($period);
-        }
-
-        ActivityLogger::log('employee_advance.deleted', 'Employee advance deleted', null, [
-            'employee_id' => $employeeId,
-        ]);
-
-        return redirect()->route('employees.advances.index')->with('status', 'Advance entry delete ho gayi.');
+        abort(403, 'Advance delete allowed nahi. Salary paid hone par ledger settle ho kar list se hat jata hai.');
     }
 
     private function periodForAdvance(EmployeeAdvance $advance): string
