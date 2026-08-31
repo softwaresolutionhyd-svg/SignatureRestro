@@ -17,7 +17,9 @@
         th, td { border: 1px solid #000; padding: 4px 6px; text-align: left; vertical-align: top; }
         th { font-weight: bold; }
         td.num, th.num { text-align: right; white-space: nowrap; }
-        tfoot td, tfoot th { font-weight: bold; }
+        /* Prevent Total row from repeating at the bottom of every printed page */
+        tfoot { display: table-row-group; }
+        tr.total-row td { font-weight: bold; }
         @media print { .noprint { display: none; } }
     </style>
 </head>
@@ -138,18 +140,16 @@
         @empty
             <tr><td colspan="6" style="text-align:center;">No ingredient consumption</td></tr>
         @endforelse
-        </tbody>
         @if($ingredientSummary->isNotEmpty())
-            <tfoot>
-            <tr>
+            <tr class="total-row">
                 <td colspan="2" class="num">Total</td>
                 <td class="num">{{ fmt_num($totalIngredientQty, 3) }}</td>
                 <td></td>
                 <td class="num">{{ $currency }} {{ fmt_num($totalIngredientAmount, 2) }}</td>
                 <td></td>
             </tr>
-            </tfoot>
         @endif
+        </tbody>
     </table>
     @endif
 
@@ -209,17 +209,15 @@
         @empty
             <tr><td colspan="6" style="text-align:center;">No data</td></tr>
         @endforelse
-        </tbody>
         @if($recipeRows->isNotEmpty())
-            <tfoot>
-            <tr>
+            <tr class="total-row">
                 <td colspan="3" class="num">Total</td>
                 <td class="num">{{ fmt_num($totalSaleQty, 3) }}</td>
                 <td></td>
                 <td class="num">{{ $currency }} {{ fmt_num($totalSaleAmount, 2) }}</td>
             </tr>
-            </tfoot>
         @endif
+        </tbody>
     </table>
     @endif
 
@@ -249,15 +247,13 @@
         @empty
             <tr><td colspan="6" style="text-align:center;">No stock</td></tr>
         @endforelse
-        </tbody>
         @if($stockRows->isNotEmpty())
-            <tfoot>
-            <tr>
+            <tr class="total-row">
                 <td colspan="5" class="num">Total Stock Amount</td>
                 <td class="num">{{ $currency }} {{ fmt_num($totalStockAmount, 2) }}</td>
             </tr>
-            </tfoot>
         @endif
+        </tbody>
     </table>
     @endif
 
