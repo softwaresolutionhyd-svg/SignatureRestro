@@ -2,15 +2,22 @@
 @section('title', 'Consumption Report — ' . config('app.name'))
 
 @section('content')
+@php
+    $consumptionPrintBase = request()->only(['from', 'to', 'department_id']);
+    $sectionPrintUrl = fn (string $section) => route('reports.consumption.print', array_merge($consumptionPrintBase, [
+        'section' => $section,
+        'print' => 1,
+    ]));
+@endphp
 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
     <div>
         <h4 class="fw-bold mb-0">Consumption Report</h4>
         <div class="text-secondary small">Department-wise recipe sales (day wise) + remaining stock with amount</div>
     </div>
     <div class="d-flex gap-2 no-print">
-        <a href="{{ route('reports.consumption.print', array_merge(request()->only(['from', 'to', 'department_id']), ['print' => 1])) }}"
+        <a href="{{ route('reports.consumption.print', array_merge($consumptionPrintBase, ['print' => 1])) }}"
            target="_blank" class="btn btn-outline-danger btn-sm">
-            <i class="bi bi-printer me-1"></i> Print / PDF
+            <i class="bi bi-printer me-1"></i> Print All
         </a>
         <a href="{{ route('reports.issue-stock') }}" class="btn btn-outline-primary btn-sm">Issue Stock</a>
         <a href="{{ route('reports.index') }}" class="btn btn-outline-secondary btn-sm">← All Reports</a>
@@ -62,7 +69,7 @@
     @if($selectedDepartment)
         &nbsp;|&nbsp; <strong>Department:</strong> {{ $selectedDepartment->name }}
     @endif
-    <div class="text-secondary mt-1">Sale = paid POS recipes. Ingredients = recipe/BoM se actual stock use (cheese, masala, etc.). Stock = current on-hand.</div>
+    <div class="text-secondary mt-1">Sale = paid POS recipes. Ingredients = recipe/BoM se actual stock use. Stock = current on-hand. Har section ke Print se sirf wohi part print hota hai.</div>
 </div>
 
 <div class="row g-3 mb-4">
@@ -89,7 +96,12 @@
 <div class="row g-3 mb-4">
     <div class="col-12 col-md-5">
         <div class="card shadow-sm border-0 h-100">
-            <div class="card-header bg-white fw-semibold">Sales by Day</div>
+            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span class="fw-semibold">Sales by Day</span>
+                <a href="{{ $sectionPrintUrl('by_day') }}" target="_blank" class="btn btn-outline-danger btn-sm no-print">
+                    <i class="bi bi-printer me-1"></i> Print
+                </a>
+            </div>
             <div class="table-responsive" style="max-height:280px;overflow-y:auto;">
                 <table class="table table-sm table-hover mb-0 align-middle">
                     <thead class="table-light sticky-top">
@@ -118,7 +130,12 @@
     </div>
     <div class="col-12 col-md-7">
         <div class="card shadow-sm border-0 h-100">
-            <div class="card-header bg-white fw-semibold">Sales by Department</div>
+            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span class="fw-semibold">Sales by Department</span>
+                <a href="{{ $sectionPrintUrl('by_department') }}" target="_blank" class="btn btn-outline-danger btn-sm no-print">
+                    <i class="bi bi-printer me-1"></i> Print
+                </a>
+            </div>
             <div class="table-responsive" style="max-height:280px;overflow-y:auto;">
                 <table class="table table-sm table-hover mb-0 align-middle">
                     <thead class="table-light sticky-top">
@@ -157,9 +174,14 @@
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
         <span class="fw-semibold">Ingredients Consumption (Total)</span>
-        <span class="small text-secondary">
-            Cheese / masala wagaira recipe sales se kitna use hua · Qty {{ fmt_num($totalIngredientQty, 3) }} · Cost {{ $currency }} {{ fmt_num($totalIngredientAmount, 2) }}
-        </span>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="small text-secondary">
+                Qty {{ fmt_num($totalIngredientQty, 3) }} · Cost {{ $currency }} {{ fmt_num($totalIngredientAmount, 2) }}
+            </span>
+            <a href="{{ $sectionPrintUrl('ingredients') }}" target="_blank" class="btn btn-outline-danger btn-sm no-print">
+                <i class="bi bi-printer me-1"></i> Print
+            </a>
+        </div>
     </div>
     <div class="table-responsive">
         <table class="table table-sm table-hover mb-0 align-middle">
@@ -208,7 +230,12 @@
 </div>
 
 <div class="card shadow-sm border-0 mb-4">
-    <div class="card-header bg-white fw-semibold">Ingredients by Day / Department</div>
+    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span class="fw-semibold">Ingredients by Day / Department</span>
+        <a href="{{ $sectionPrintUrl('ingredients_day') }}" target="_blank" class="btn btn-outline-danger btn-sm no-print">
+            <i class="bi bi-printer me-1"></i> Print
+        </a>
+    </div>
     <div class="table-responsive">
         <table class="table table-sm table-hover mb-0 align-middle">
             <thead class="table-light">
@@ -245,7 +272,12 @@
 </div>
 
 <div class="card shadow-sm border-0 mb-4">
-    <div class="card-header bg-white fw-semibold">Recipe-wise Consumption / Sales</div>
+    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span class="fw-semibold">Recipe-wise Consumption / Sales</span>
+        <a href="{{ $sectionPrintUrl('recipes') }}" target="_blank" class="btn btn-outline-danger btn-sm no-print">
+            <i class="bi bi-printer me-1"></i> Print
+        </a>
+    </div>
     <div class="table-responsive">
         <table class="table table-sm table-hover mb-0 align-middle">
             <thead class="table-light">
@@ -292,9 +324,14 @@
 </div>
 
 <div class="card shadow-sm border-0 mb-4">
-    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
         <span class="fw-semibold">Remaining Stock (Department)</span>
-        <span class="small text-secondary">Current on-hand · Total {{ $currency }} {{ fmt_num($totalStockAmount, 2) }}</span>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="small text-secondary">Current on-hand · Total {{ $currency }} {{ fmt_num($totalStockAmount, 2) }}</span>
+            <a href="{{ $sectionPrintUrl('stock') }}" target="_blank" class="btn btn-outline-danger btn-sm no-print">
+                <i class="bi bi-printer me-1"></i> Print
+            </a>
+        </div>
     </div>
     <div class="table-responsive">
         <table class="table table-sm table-hover mb-0 align-middle">

@@ -1397,7 +1397,24 @@ class ReportsController extends Controller
 
     public function consumptionPrint(Request $request)
     {
-        return view('reports.consumption-print', $this->consumptionReportData($request));
+        $data = $this->consumptionReportData($request);
+        $section = (string) $request->input('section', 'all');
+        $labels = [
+            'all' => 'Full Report',
+            'by_day' => 'Sales by Day',
+            'by_department' => 'Sales by Department',
+            'ingredients' => 'Ingredients Consumption (Total)',
+            'ingredients_day' => 'Ingredients by Day / Department',
+            'recipes' => 'Recipe-wise Consumption / Sales',
+            'stock' => 'Remaining Stock (Department)',
+        ];
+        if (! array_key_exists($section, $labels)) {
+            $section = 'all';
+        }
+        $data['printSection'] = $section;
+        $data['printSectionLabel'] = $labels[$section];
+
+        return view('reports.consumption-print', $data);
     }
 
     /**

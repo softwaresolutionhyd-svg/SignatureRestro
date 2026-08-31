@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Consumption Report — {{ config('app.name') }}</title>
+    <title>Consumption Report — {{ $printSectionLabel ?? 'Full Report' }} — {{ config('app.name') }}</title>
     <style>
         * { box-sizing: border-box; }
         @page { size: A4 portrait; margin: 12mm; }
@@ -22,6 +22,10 @@
     </style>
 </head>
 <body>
+@php
+    $printSection = $printSection ?? 'all';
+    $show = fn (string $key) => $printSection === 'all' || $printSection === $key;
+@endphp
     <div class="noprint">
         <button type="button" onclick="window.print()">Print / PDF</button>
         <a href="{{ route('reports.consumption', request()->only(['from', 'to', 'department_id'])) }}">Back</a>
@@ -31,13 +35,19 @@
         <div style="text-align:center;"><img src="{{ $rpLogo }}" alt="" style="max-height:70px;max-width:220px;margin-bottom:4px;"></div>
     @endif
     <h1>{{ \App\Models\Setting::get('company_name', config('app.name')) }}</h1>
-    <h2 style="text-align:center;font-weight:normal;margin-top:0;">Consumption Report</h2>
+    <h2 style="text-align:center;font-weight:normal;margin-top:0;">
+        Consumption Report
+        @if($printSection !== 'all')
+            — {{ $printSectionLabel }}
+        @endif
+    </h2>
 
     <div class="meta">
         <p>Period: <strong>{{ \Carbon\Carbon::parse($from)->format('d M Y') }} — {{ \Carbon\Carbon::parse($to)->format('d M Y') }}</strong>@if($selectedDepartment) &nbsp;|&nbsp; Department: <strong>{{ $selectedDepartment->name }}</strong>@endif</p>
         <p>Generated: {{ now()->format('d M Y, h:i A') }}</p>
     </div>
 
+    @if($printSection === 'all')
     <table style="width:70%;">
         <tr><th>Sale Qty</th><td class="num">{{ fmt_num($totalSaleQty, 3) }}</td></tr>
         <tr><th>Sale Amount</th><td class="num">{{ $currency }} {{ fmt_num($totalSaleAmount, 2) }}</td></tr>
@@ -45,7 +55,64 @@
         <tr><th>Ingredient Cost</th><td class="num">{{ $currency }} {{ fmt_num($totalIngredientAmount, 2) }}</td></tr>
         <tr><th>Stock Value (now)</th><td class="num">{{ $currency }} {{ fmt_num($totalStockAmount, 2) }}</td></tr>
     </table>
+    @endif
 
+    @if($show('by_day'))
+    <h2>Sales by Day</h2>
+    <table>
+        <thead>
+        <tr>
+            <th>Date</th>
+            <th class="num">Recipes</th>
+            <th class="num">Qty</th>
+            <th class="num">Sale</th>
+        </tr>
+        </thead>
+        <tbody>
+        @forelse($byDay as $row)
+            <tr>
+                <td>{{ $row['label'] }}</td>
+                <td class="num">{{ $row['recipes'] }}</td>
+                <td class="num">{{ fmt_num($row['qty'], 3) }}</td>
+                <td class="num">{{ $currency }} {{ fmt_num($row['sale_amount'], 2) }}</td>
+            </tr>
+        @empty
+            <tr><td colspan="4" style="text-align:center;">No sales in this period</td></tr>
+        @endforelse
+        </tbody>
+    </table>
+    @endif
+
+    @if($show('by_department'))
+    <h2>Sales by Department</h2>
+    @php $stockAmountByDept = $stockByDepartment->keyBy('name'); @endphp
+    <table>
+        <thead>
+        <tr>
+            <th>Department</th>
+            <th class="num">Recipes</th>
+            <th class="num">Qty</th>
+            <th class="num">Sale</th>
+            <th class="num">Stock Value</th>
+        </tr>
+        </thead>
+        <tbody>
+        @forelse($byDepartment as $row)
+            <tr>
+                <td>{{ $row['name'] }}</td>
+                <td class="num">{{ $row['recipes'] }}</td>
+                <td class="num">{{ fmt_num($row['qty'], 3) }}</td>
+                <td class="num">{{ $currency }} {{ fmt_num($row['sale_amount'], 2) }}</td>
+                <td class="num">{{ $currency }} {{ fmt_num((float) ($stockAmountByDept[$row['name']]['amount'] ?? 0), 2) }}</td>
+            </tr>
+        @empty
+            <tr><td colspan="5" style="text-align:center;">No department sales</td></tr>
+        @endforelse
+        </tbody>
+    </table>
+    @endif
+
+    @if($show('ingredients'))
     <h2>Ingredients Consumption (Total)</h2>
     <table>
         <thead>
@@ -84,7 +151,9 @@
             </tfoot>
         @endif
     </table>
+    @endif
 
+    @if($show('ingredients_day'))
     <h2>Ingredients by Day / Department</h2>
     <table>
         <thead>
@@ -112,7 +181,9 @@
         @endforelse
         </tbody>
     </table>
+    @endif
 
+    @if($show('recipes'))
     <h2>Recipe-wise Sales</h2>
     <table>
         <thead>
@@ -150,7 +221,9 @@
             </tfoot>
         @endif
     </table>
+    @endif
 
+    @if($show('stock'))
     <h2>Remaining Stock (Department)</h2>
     <table>
         <thead>
@@ -186,6 +259,7 @@
             </tfoot>
         @endif
     </table>
+    @endif
 
     <script>
         window.addEventListener('load', () => {
