@@ -1454,7 +1454,7 @@ class ReportsController extends Controller
             ])
             ->get();
 
-        $recipeRows = [];
+        $recipeDayRows = [];
         foreach ($items as $item) {
             $product = $item->product;
             $deptId = $this->resolveOperatingDepartmentId($product);
@@ -1473,8 +1473,8 @@ class ReportsController extends Controller
             $saleAmount = (float) $item->total;
             $uom = (string) ($item->uom ?: ($product?->uom ?? ''));
 
-            if (! isset($recipeRows[$key])) {
-                $recipeRows[$key] = [
+            if (! isset($recipeDayRows[$key])) {
+                $recipeDayRows[$key] = [
                     'date' => $day,
                     'date_label' => $day !== 'unknown' ? Carbon::parse($day)->format('d M Y (D)') : 'Unknown',
                     'department_id' => $deptId,
@@ -1488,39 +1488,57 @@ class ReportsController extends Controller
                 ];
             }
 
-            $recipeRows[$key]['qty'] += $qty;
-            $recipeRows[$key]['sale_amount'] += $saleAmount;
-            if ($recipeRows[$key]['uom'] === '' && $uom !== '') {
-                $recipeRows[$key]['uom'] = $uom;
+            $recipeDayRows[$key]['qty'] += $qty;
+            $recipeDayRows[$key]['sale_amount'] += $saleAmount;
+            if ($recipeDayRows[$key]['uom'] === '' && $uom !== '') {
+                $recipeDayRows[$key]['uom'] = $uom;
             }
         }
 
-        $recipeRows = collect($recipeRows)
+        $recipeDayRows = collect($recipeDayRows)
             ->map(function (array $row) {
                 $row['qty'] = round($row['qty'], 3);
                 $row['sale_amount'] = round($row['sale_amount'], 2);
 
                 return $row;
             })
-            ->sortBy([
-                ['date', 'desc'],
-                ['department', 'asc'],
-                ['recipe', 'asc'],
-            ])
             ->values();
 
-        $byDay = $recipeRows
+        $byDay = $recipeDayRows
             ->groupBy('date')
             ->map(function (Collection $group, string $day) {
                 return [
                     'date' => $day,
                     'label' => $day !== 'unknown' ? Carbon::parse($day)->format('d M Y (D)') : 'Unknown',
-                    'recipes' => $group->count(),
+                    'recipes' => $group->pluck('product_id')->unique()->count(),
                     'qty' => round((float) $group->sum('qty'), 3),
                     'sale_amount' => round((float) $group->sum('sale_amount'), 2),
                 ];
             })
             ->sortKeysDesc()
+            ->values();
+
+        // Period summary: one row per recipe (not date-wise).
+        $recipeRows = $recipeDayRows
+            ->groupBy(fn (array $row) => ($row['department_id'] ?? 0).'|'.($row['product_id'] ?? 0))
+            ->map(function (Collection $group) {
+                $first = $group->first();
+
+                return [
+                    'department_id' => $first['department_id'] ?? null,
+                    'department' => $first['department'] ?? 'Unknown',
+                    'product_id' => $first['product_id'] ?? 0,
+                    'recipe' => $first['recipe'] ?? '—',
+                    'sku' => $first['sku'] ?? '',
+                    'uom' => $first['uom'] ?? '',
+                    'qty' => round((float) $group->sum('qty'), 3),
+                    'sale_amount' => round((float) $group->sum('sale_amount'), 2),
+                ];
+            })
+            ->sortBy([
+                ['department', 'asc'],
+                ['recipe', 'asc'],
+            ])
             ->values();
 
         $byDepartment = $recipeRows

@@ -274,15 +274,18 @@
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
         <span class="fw-semibold">Recipe-wise Consumption / Sales</span>
-        <a href="{{ $sectionPrintUrl('recipes') }}" target="_blank" class="btn btn-outline-danger btn-sm no-print">
-            <i class="bi bi-printer me-1"></i> Print
-        </a>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="small text-secondary">Period total · date filter ke hisaab se</span>
+            <a href="{{ $sectionPrintUrl('recipes') }}" target="_blank" class="btn btn-outline-danger btn-sm no-print">
+                <i class="bi bi-printer me-1"></i> Print
+            </a>
+        </div>
     </div>
     <div class="table-responsive">
         <table class="table table-sm table-hover mb-0 align-middle">
             <thead class="table-light">
             <tr>
-                <th>Date</th>
+                <th>#</th>
                 <th>Department</th>
                 <th>Recipe</th>
                 <th class="text-end">Qty</th>
@@ -291,9 +294,9 @@
             </tr>
             </thead>
             <tbody>
-            @forelse($recipeRows as $row)
+            @forelse($recipeRows as $i => $row)
                 <tr>
-                    <td class="small">{{ $row['date_label'] }}</td>
+                    <td class="small text-secondary">{{ $i + 1 }}</td>
                     <td class="small fw-semibold">{{ $row['department'] }}</td>
                     <td>
                         <div class="fw-semibold small">{{ $row['recipe'] }}</div>

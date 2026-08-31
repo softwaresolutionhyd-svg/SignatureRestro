@@ -184,11 +184,11 @@
     @endif
 
     @if($show('recipes'))
-    <h2>Recipe-wise Sales</h2>
+    <h2>Recipe-wise Sales (Period Total)</h2>
     <table>
         <thead>
         <tr>
-            <th>Date</th>
+            <th>#</th>
             <th>Department</th>
             <th>Recipe</th>
             <th class="num">Qty</th>
@@ -197,9 +197,9 @@
         </tr>
         </thead>
         <tbody>
-        @forelse($recipeRows as $row)
+        @forelse($recipeRows as $i => $row)
             <tr>
-                <td>{{ $row['date_label'] }}</td>
+                <td>{{ $i + 1 }}</td>
                 <td>{{ $row['department'] }}</td>
                 <td>{{ $row['recipe'] }}@if($row['sku'] !== '') <span style="color:#555;">({{ $row['sku'] }})</span>@endif</td>
                 <td class="num">{{ fmt_num($row['qty'], 3) }}</td>
