@@ -15,6 +15,7 @@ use App\Models\InventoryDepartment;
 use App\Models\InventoryMove;
 use App\Models\InventoryProduct;
 use App\Models\InventoryProductStock;
+use App\Models\ManufacturingBom;
 use App\Models\PosOrder;
 use App\Models\PosOrderItem;
 use App\Models\PosSession;
@@ -1608,75 +1609,32 @@ class ReportsController extends Controller
             ->sortByDesc('amount')
             ->values();
 
-        // Actual ingredient consumption from recipe/BoM POS stock outs (+ refund returns netted).
-        $ingredientMoveQuery = InventoryMove::query()
-            ->where('note', 'like', '%(BoM)%')
-            ->whereIn('type', ['out', 'in'])
-            ->whereBetween('created_at', [$from.' 00:00:00', $to.' 23:59:59'])
+        // Ingredient use = paid sales × active recipe (BoM), net of refunds — same math as kitchen consumption.
+        $consumptionItems = PosOrderItem::query()
+            ->whereHas('order', function ($q) use ($from, $to) {
+                $q->where('status', 'paid')
+                    ->where(function ($inner) {
+                        $inner->where('type', 'sale')
+                            ->orWhere('type', 'refund')
+                            ->orWhereNull('type');
+                    })
+                    ->whereBetween('created_at', [$from.' 00:00:00', $to.' 23:59:59']);
+            })
             ->with([
-                'product:id,sku,name,uom,cost',
-                'fromDepartment:id,name',
-                'toDepartment:id,name',
-            ]);
+                'order:id,created_at,status,type,order_no',
+                'product' => fn ($q) => $q->with([
+                    'department:id,name,is_warehouse',
+                    'departments:id,name,is_warehouse',
+                    'uomConversions' => fn ($c) => $c->where('active', true),
+                ]),
+            ])
+            ->get();
 
-        if ($departmentId !== null) {
-            $ingredientMoveQuery->where(function ($q) use ($departmentId) {
-                $q->where(function ($out) use ($departmentId) {
-                    $out->where('type', 'out')->where('from_department_id', $departmentId);
-                })->orWhere(function ($inn) use ($departmentId) {
-                    $inn->where('type', 'in')->where('to_department_id', $departmentId);
-                });
-            });
-        }
-
-        $ingredientRowsMap = [];
-        foreach ($ingredientMoveQuery->orderBy('created_at')->get() as $move) {
-            $isOut = $move->type === 'out';
-            $deptId = $isOut
-                ? (int) ($move->from_department_id ?? 0)
-                : (int) ($move->to_department_id ?? 0);
-            if ($deptId <= 0) {
-                continue;
-            }
-            if ($departmentId !== null && $deptId !== $departmentId) {
-                continue;
-            }
-
-            $day = $move->created_at?->format('Y-m-d') ?? 'unknown';
-            $productId = (int) ($move->product_id ?? 0);
-            $key = $day.'|'.$deptId.'|'.$productId;
-            $sign = $isOut ? 1.0 : -1.0;
-            $qty = $sign * (float) $move->qty;
-            $cost = $sign * abs((float) ($move->total_cost ?? 0));
-            if ($cost == 0.0 && $move->product) {
-                $cost = $sign * abs((float) $move->qty * (float) ($move->product->cost ?? 0));
-            }
-
-            if (! isset($ingredientRowsMap[$key])) {
-                $deptName = $isOut
-                    ? (string) ($move->fromDepartment?->name ?? ($deptMap[$deptId] ?? 'Unknown'))
-                    : (string) ($move->toDepartment?->name ?? ($deptMap[$deptId] ?? 'Unknown'));
-
-                $ingredientRowsMap[$key] = [
-                    'date' => $day,
-                    'date_label' => $day !== 'unknown' ? Carbon::parse($day)->format('d M Y (D)') : 'Unknown',
-                    'department_id' => $deptId,
-                    'department' => $deptName,
-                    'product_id' => $productId,
-                    'ingredient' => (string) ($move->product?->name ?? '—'),
-                    'sku' => (string) ($move->product?->sku ?? ''),
-                    'uom' => (string) ($move->uom ?: ($move->product?->uom ?? '')),
-                    'qty' => 0.0,
-                    'amount' => 0.0,
-                ];
-            }
-
-            $ingredientRowsMap[$key]['qty'] += $qty;
-            $ingredientRowsMap[$key]['amount'] += $cost;
-            if ($ingredientRowsMap[$key]['uom'] === '' && $move->uom) {
-                $ingredientRowsMap[$key]['uom'] = (string) $move->uom;
-            }
-        }
+        $ingredientRowsMap = $this->buildRecipeIngredientConsumptionMap(
+            $consumptionItems,
+            $departmentId,
+            $deptMap
+        );
 
         $ingredientRows = collect($ingredientRowsMap)
             ->map(function (array $row) {
@@ -1757,6 +1715,165 @@ class ReportsController extends Controller
         $operating = $candidates->first(fn ($dept) => ! (bool) $dept->is_warehouse);
 
         return $operating ? (int) $operating->id : null;
+    }
+
+    /**
+     * Recipe-based ingredient consumption from paid POS lines (sales minus refunds).
+     *
+     * @param  Collection<int, PosOrderItem>  $orderItems
+     * @param  array<int, string>  $deptMap
+     * @return array<string, array<string, mixed>>
+     */
+    private function buildRecipeIngredientConsumptionMap(
+        Collection $orderItems,
+        ?int $departmentId,
+        array $deptMap
+    ): array {
+        if ($orderItems->isEmpty()) {
+            return [];
+        }
+
+        $finishedIds = $orderItems->pluck('product_id')->unique()->filter()->map(fn ($id) => (int) $id)->all();
+
+        $bomsByFinished = ManufacturingBom::query()
+            ->whereIn('finished_product_id', $finishedIds)
+            ->where('active', true)
+            ->with(['lines.component.uomConversions'])
+            ->orderBy('id')
+            ->get()
+            ->groupBy('finished_product_id')
+            ->map(fn (Collection $group) => $group->first());
+
+        $ingredientRowsMap = [];
+
+        foreach ($orderItems as $item) {
+            if ((bool) ($item->is_custom ?? false)) {
+                continue;
+            }
+
+            $order = $item->order;
+            if ($order === null || $order->status !== 'paid') {
+                continue;
+            }
+
+            $sign = $order->type === 'refund' ? -1.0 : 1.0;
+            $product = $item->product;
+            if ($product === null) {
+                continue;
+            }
+
+            $deptId = $this->resolveOperatingDepartmentId($product);
+            if ($deptId === null) {
+                continue;
+            }
+            if ($departmentId !== null && $deptId !== $departmentId) {
+                continue;
+            }
+
+            $factor = $product->factorToBaseForUom((string) $item->uom);
+            if ($factor === null || $factor <= 0) {
+                continue;
+            }
+
+            $qtyFinishedBase = (float) $item->qty * $factor;
+            if ($qtyFinishedBase <= 0) {
+                continue;
+            }
+
+            $day = $order->created_at?->format('Y-m-d') ?? 'unknown';
+            $deptName = (string) ($deptMap[$deptId] ?? $product->department?->name ?? 'Unknown');
+
+            /** @var ManufacturingBom|null $bom */
+            $bom = $bomsByFinished->get((int) $product->id);
+            if ($bom !== null && (float) $bom->batch_qty > 0) {
+                $mult = ($qtyFinishedBase / (float) $bom->batch_qty) * $sign;
+                foreach ($bom->lines as $line) {
+                    $component = $line->component;
+                    if ($component === null) {
+                        continue;
+                    }
+
+                    $lineUom = $line->effectiveUom();
+                    $qtyInLineUom = (float) $line->qty * $mult;
+                    if (abs($qtyInLineUom) < 0.0000001) {
+                        continue;
+                    }
+
+                    $component->loadMissing('uomConversions');
+                    try {
+                        $qtyBase = $component->convertQtyToBaseUom(abs($qtyInLineUom), $lineUom);
+                        if ($qtyInLineUom < 0) {
+                            $qtyBase *= -1;
+                        }
+                    } catch (\InvalidArgumentException) {
+                        $qtyBase = $qtyInLineUom;
+                    }
+
+                    $this->accumulateIngredientConsumptionRow(
+                        $ingredientRowsMap,
+                        $day,
+                        $deptId,
+                        $deptName,
+                        $component,
+                        $qtyBase
+                    );
+                }
+
+                continue;
+            }
+
+            if ($product->for_purchase) {
+                $this->accumulateIngredientConsumptionRow(
+                    $ingredientRowsMap,
+                    $day,
+                    $deptId,
+                    $deptName,
+                    $product,
+                    $qtyFinishedBase * $sign
+                );
+            }
+        }
+
+        return $ingredientRowsMap;
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $map
+     */
+    private function accumulateIngredientConsumptionRow(
+        array &$map,
+        string $day,
+        int $deptId,
+        string $deptName,
+        InventoryProduct $product,
+        float $qtyBase
+    ): void {
+        if (abs($qtyBase) < 0.0000001) {
+            return;
+        }
+
+        $productId = (int) $product->id;
+        $key = $day.'|'.$deptId.'|'.$productId;
+        $unitCost = (float) ($product->cost ?? 0);
+        $amount = $qtyBase * $unitCost;
+
+        if (! isset($map[$key])) {
+            $map[$key] = [
+                'date' => $day,
+                'date_label' => $day !== 'unknown' ? Carbon::parse($day)->format('d M Y (D)') : 'Unknown',
+                'department_id' => $deptId,
+                'department' => $deptName,
+                'product_id' => $productId,
+                'ingredient' => (string) ($product->name ?? '—'),
+                'sku' => (string) ($product->sku ?? ''),
+                'uom' => (string) ($product->uom ?? ''),
+                'qty' => 0.0,
+                'amount' => 0.0,
+            ];
+        }
+
+        $map[$key]['qty'] += $qtyBase;
+        $map[$key]['amount'] += $amount;
     }
 
     /* ──────────────────────────────────────────

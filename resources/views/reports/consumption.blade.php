@@ -69,7 +69,7 @@
     @if($selectedDepartment)
         &nbsp;|&nbsp; <strong>Department:</strong> {{ $selectedDepartment->name }}
     @endif
-    <div class="text-secondary mt-1">Sale = paid POS recipes. Ingredients = recipe/BoM se actual stock use. Stock = current on-hand. Har section ke Print se sirf wohi part print hota hai.</div>
+    <div class="text-secondary mt-1">Sale = paid POS recipes. Ingredients = recipe × qty sold (paid bills, refunds net). Stock = current on-hand.</div>
 </div>
 
 <div class="row g-3 mb-4">
