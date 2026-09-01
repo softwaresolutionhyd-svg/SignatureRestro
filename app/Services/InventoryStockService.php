@@ -138,29 +138,87 @@ final class InventoryStockService
      */
     public function consumptionDepartmentIdForProduct(InventoryProduct $product): int
     {
+        return $this->firstOperatingDepartmentIdForProduct($product, true);
+    }
+
+    /**
+     * Department to deduct a BoM ingredient from.
+     * Prefers the component's own department, then where that ingredient has shelf stock,
+     * then the finished dish department as a last resort.
+     */
+    public function consumptionDepartmentIdForBomComponent(InventoryProduct $component, InventoryProduct $finishedFallback): int
+    {
+        $component->loadMissing(['department', 'departments']);
+
+        $tagged = $this->operatingDepartmentsForProduct($component);
+
+        if ($tagged->count() === 1) {
+            return (int) $tagged->first()->id;
+        }
+
+        $stockRows = InventoryProductStock::query()
+            ->where('product_id', $component->id)
+            ->where('qty_on_hand', '>', 0)
+            ->whereHas('department', fn ($q) => $q->where('is_warehouse', false))
+            ->orderByDesc('qty_on_hand')
+            ->get();
+
+        if ($stockRows->isNotEmpty()) {
+            if ($tagged->isNotEmpty()) {
+                $taggedIds = $tagged->pluck('id')->map(fn ($id) => (int) $id);
+                $match = $stockRows->first(fn ($row) => $taggedIds->contains((int) $row->department_id));
+                if ($match !== null) {
+                    return (int) $match->department_id;
+                }
+            }
+
+            return (int) $stockRows->first()->department_id;
+        }
+
+        if ($tagged->isNotEmpty()) {
+            return (int) $tagged->first()->id;
+        }
+
+        return $this->consumptionDepartmentIdForProduct($finishedFallback);
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, InventoryDepartment>
+     */
+    private function operatingDepartmentsForProduct(InventoryProduct $product): \Illuminate\Support\Collection
+    {
         $product->loadMissing(['department', 'departments']);
 
         $candidates = collect();
 
-        if ($product->department_id && $product->department) {
+        if ($product->department_id && $product->department && ! $product->department->is_warehouse) {
             $candidates->push($product->department);
         }
 
         foreach ($product->departments as $dept) {
-            if (! $candidates->contains('id', (int) $dept->id)) {
+            if (! $dept->is_warehouse && ! $candidates->contains('id', (int) $dept->id)) {
                 $candidates->push($dept);
             }
         }
 
-        $operating = $candidates->first(fn ($dept) => ! $dept->is_warehouse);
+        return $candidates;
+    }
+
+    private function firstOperatingDepartmentIdForProduct(InventoryProduct $product, bool $throwIfMissing): int
+    {
+        $operating = $this->operatingDepartmentsForProduct($product)->first();
         if ($operating !== null) {
             return (int) $operating->id;
         }
 
-        throw new \RuntimeException(sprintf(
-            '%s ke liye kitchen/department set karein — recipe ingredients warehouse se cut nahi hoti.',
-            $product->name
-        ));
+        if ($throwIfMissing) {
+            throw new \RuntimeException(sprintf(
+                '%s ke liye kitchen/department set karein — recipe ingredients warehouse se cut nahi hoti.',
+                $product->name
+            ));
+        }
+
+        throw new \RuntimeException('No operating department found for '.$product->name);
     }
 
     /**
@@ -390,5 +448,84 @@ final class InventoryStockService
             'active' => true,
             'is_warehouse' => true,
         ]);
+    }
+
+    /**
+     * Move BoM component qty from the wrong department shelf to the correct one
+     * (historical POS sales that used the finished dish department instead of the ingredient's).
+     *
+     * @return array{fixed: int, skipped: int}
+     */
+    public function reconcileMisallocatedBomDepartmentStock(): array
+    {
+        $moves = InventoryMove::query()
+            ->where('note', 'like', '%(BoM)%')
+            ->where(function ($q) {
+                $q->whereNotNull('from_department_id')
+                    ->orWhereNotNull('to_department_id');
+            })
+            ->orderBy('id')
+            ->get();
+
+        $fixed = 0;
+        $skipped = 0;
+
+        DB::connection('tenant')->transaction(function () use ($moves, &$fixed, &$skipped) {
+            foreach ($moves as $move) {
+                $note = trim((string) $move->note);
+                if (! preg_match('/^POS (sale|refund) — (.+) \(BoM\)$/u', $note, $matches)) {
+                    $skipped++;
+
+                    continue;
+                }
+
+                $finished = InventoryProduct::query()
+                    ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($matches[2]))])
+                    ->first();
+                if ($finished === null) {
+                    $skipped++;
+
+                    continue;
+                }
+
+                $component = InventoryProduct::query()->find($move->product_id);
+                if ($component === null) {
+                    $skipped++;
+
+                    continue;
+                }
+
+                $finished->loadMissing(['department', 'departments']);
+                $correctDeptId = $this->consumptionDepartmentIdForBomComponent($component, $finished);
+                $qty = (float) $move->qty;
+                if ($qty <= 0) {
+                    $skipped++;
+
+                    continue;
+                }
+
+                $isSale = $matches[1] === 'sale';
+                $wrongDeptId = (int) ($isSale ? $move->from_department_id : $move->to_department_id);
+                if ($wrongDeptId <= 0 || $wrongDeptId === $correctDeptId) {
+                    $skipped++;
+
+                    continue;
+                }
+
+                if ($isSale) {
+                    $this->addStock((int) $component->id, $wrongDeptId, $qty);
+                    $this->removeStock((int) $component->id, $correctDeptId, $qty, true);
+                    $move->update(['from_department_id' => $correctDeptId]);
+                } else {
+                    $this->removeStock((int) $component->id, $wrongDeptId, $qty, true);
+                    $this->addStock((int) $component->id, $correctDeptId, $qty);
+                    $move->update(['to_department_id' => $correctDeptId]);
+                }
+
+                $fixed++;
+            }
+        });
+
+        return ['fixed' => $fixed, 'skipped' => $skipped];
     }
 }

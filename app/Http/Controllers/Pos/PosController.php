@@ -3808,8 +3808,7 @@ class PosController extends Controller
         }
 
         $finished->loadMissing(['department', 'departments']);
-        $consumeDeptId = app(\App\Services\InventoryStockService::class)
-            ->consumptionDepartmentIdForProduct($finished);
+        $stockService = app(\App\Services\InventoryStockService::class);
 
         $ref = $order->order_no;
         $notePrefix = $isSale ? 'POS sale' : 'POS refund';
@@ -3817,6 +3816,7 @@ class PosController extends Controller
         foreach ($bom->lines as $line) {
             $component = $locked[$line->component_product_id];
             $component->loadMissing('uomConversions');
+            $consumeDeptId = $stockService->consumptionDepartmentIdForBomComponent($component, $finished);
             $lineUom = $line->effectiveUom();
             $qtyInLineUom = (float) $line->qty * $mult;
             $needBase = $component->convertQtyToBaseUom($qtyInLineUom, $lineUom);

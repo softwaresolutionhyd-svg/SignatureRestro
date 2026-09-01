@@ -125,12 +125,12 @@ class OrderController extends Controller
                 $absorbedTotal = 0.0;
                 $finishedPreview = $locked[$bom->finished_product_id];
                 $finishedPreview->loadMissing(['department', 'departments']);
-                $consumeDeptId = app(\App\Services\InventoryStockService::class)
-                    ->consumptionDepartmentIdForProduct($finishedPreview);
+                $stockService = app(\App\Services\InventoryStockService::class);
 
                 foreach ($bom->lines as $line) {
                     $component = $locked[$line->component_product_id];
                     $component->loadMissing('uomConversions');
+                    $consumeDeptId = $stockService->consumptionDepartmentIdForBomComponent($component, $finishedPreview);
                     $lineUom = $line->uom !== null && trim((string) $line->uom) !== ''
                         ? trim((string) $line->uom)
                         : (string) $component->uom;
