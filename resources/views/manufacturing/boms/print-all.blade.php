@@ -40,6 +40,47 @@
         }
         #saveStatus.error { color: #b91c1c; }
         #saveStatus.pending { color: #92400e; }
+        .dish-search-bar {
+            display: inline-flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+            margin: 8px 0 4px;
+            padding: 8px 10px;
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            max-width: 100%;
+        }
+        .dish-search-bar label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #334155;
+            white-space: nowrap;
+        }
+        .dish-search-bar input[type="search"] {
+            min-width: 220px;
+            max-width: 320px;
+            padding: 5px 8px;
+            font-size: 12px;
+            border: 1px solid #94a3b8;
+            border-radius: 4px;
+        }
+        .dish-search-bar button {
+            padding: 5px 12px;
+            font-size: 12px;
+            border: 1px solid #4f46e5;
+            border-radius: 4px;
+            background: #4f46e5;
+            color: #fff;
+            cursor: pointer;
+        }
+        .dish-search-bar a.clear-search {
+            font-size: 12px;
+            color: #64748b;
+            text-decoration: none;
+        }
+        .dish-search-bar a.clear-search:hover { color: #334155; text-decoration: underline; }
         .sheet {
             max-width: 210mm;
             margin: 0 auto;
@@ -185,6 +226,19 @@
     <div class="noprint">
         <button type="button" onclick="window.print()">Print / PDF</button>
         <a href="{{ route('manufacturing.boms.index', request()->only(['q', 'finished_product', 'return'])) }}">Back to BoMs</a>
+        <form class="dish-search-bar" method="GET" action="{{ route('manufacturing.boms.print-all') }}">
+            @foreach(request()->only(['finished_product', 'return']) as $key => $val)
+                @if($val !== null && $val !== '')
+                    <input type="hidden" name="{{ $key }}" value="{{ $val }}">
+                @endif
+            @endforeach
+            <label for="dishSearchInput">Dish Name</label>
+            <input type="search" id="dishSearchInput" name="q" value="{{ $q ?? '' }}" placeholder="e.g. Soup, Pepsi, Cappuccino…" autocomplete="off">
+            <button type="submit">Search</button>
+            @if(($q ?? '') !== '')
+                <a class="clear-search" href="{{ route('manufacturing.boms.print-all', array_filter(request()->only(['finished_product', 'return']), fn ($v) => $v !== null && $v !== '')) }}">Clear</a>
+            @endif
+        </form>
         <span id="saveStatus"></span>
     </div>
 
@@ -680,6 +734,16 @@
 
         if (new URLSearchParams(window.location.search).get('auto') === '1') {
             window.addEventListener('load', () => window.print());
+        }
+
+        const dishSearch = document.getElementById('dishSearchInput');
+        if (dishSearch && dishSearch.value.trim() !== '') {
+            const first = document.querySelector('.bom-block');
+            if (first) {
+                window.addEventListener('load', () => {
+                    first.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
+            }
         }
     })();
     </script>
