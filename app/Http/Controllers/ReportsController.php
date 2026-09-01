@@ -1633,7 +1633,7 @@ class ReportsController extends Controller
         $ingredientRowsMap = $this->buildRecipeIngredientConsumptionMap(
             $consumptionItems,
             $departmentId,
-            $deptMap
+            $deptMap->all()
         );
 
         $ingredientRows = collect($ingredientRowsMap)
