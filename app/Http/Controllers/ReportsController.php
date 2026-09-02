@@ -1486,11 +1486,19 @@ class ReportsController extends Controller
                     'uom' => $uom,
                     'qty' => 0.0,
                     'sale_amount' => 0.0,
+                    'cost_amount' => 0.0,
+                    'profit' => 0.0,
                 ];
             }
 
+            $factor = $product ? $product->factorToBaseForUom((string) ($item->uom ?: $uom)) : null;
+            $costAmount = ($factor !== null && $factor > 0)
+                ? ((float) $item->qty * $factor * (float) ($product->cost ?? 0))
+                : 0.0;
+
             $recipeDayRows[$key]['qty'] += $qty;
             $recipeDayRows[$key]['sale_amount'] += $saleAmount;
+            $recipeDayRows[$key]['cost_amount'] += $costAmount;
             if ($recipeDayRows[$key]['uom'] === '' && $uom !== '') {
                 $recipeDayRows[$key]['uom'] = $uom;
             }
@@ -1500,6 +1508,8 @@ class ReportsController extends Controller
             ->map(function (array $row) {
                 $row['qty'] = round($row['qty'], 3);
                 $row['sale_amount'] = round($row['sale_amount'], 2);
+                $row['cost_amount'] = round($row['cost_amount'], 2);
+                $row['profit'] = round($row['sale_amount'] - $row['cost_amount'], 2);
 
                 return $row;
             })
@@ -1514,6 +1524,7 @@ class ReportsController extends Controller
                     'recipes' => $group->pluck('product_id')->unique()->count(),
                     'qty' => round((float) $group->sum('qty'), 3),
                     'sale_amount' => round((float) $group->sum('sale_amount'), 2),
+                    'profit' => round((float) $group->sum('profit'), 2),
                 ];
             })
             ->sortKeysDesc()
@@ -1524,6 +1535,8 @@ class ReportsController extends Controller
             ->groupBy(fn (array $row) => ($row['department_id'] ?? 0).'|'.($row['product_id'] ?? 0))
             ->map(function (Collection $group) {
                 $first = $group->first();
+                $saleAmount = round((float) $group->sum('sale_amount'), 2);
+                $costAmount = round((float) $group->sum('cost_amount'), 2);
 
                 return [
                     'department_id' => $first['department_id'] ?? null,
@@ -1533,7 +1546,9 @@ class ReportsController extends Controller
                     'sku' => $first['sku'] ?? '',
                     'uom' => $first['uom'] ?? '',
                     'qty' => round((float) $group->sum('qty'), 3),
-                    'sale_amount' => round((float) $group->sum('sale_amount'), 2),
+                    'sale_amount' => $saleAmount,
+                    'cost_amount' => $costAmount,
+                    'profit' => round($saleAmount - $costAmount, 2),
                 ];
             })
             ->sortBy([
@@ -1553,6 +1568,7 @@ class ReportsController extends Controller
                     'recipes' => $group->pluck('product_id')->unique()->count(),
                     'qty' => round((float) $group->sum('qty'), 3),
                     'sale_amount' => round((float) $group->sum('sale_amount'), 2),
+                    'profit' => round((float) $group->sum('profit'), 2),
                 ];
             })
             ->sortByDesc('sale_amount')
@@ -1671,6 +1687,7 @@ class ReportsController extends Controller
 
         $totalSaleQty = round((float) $recipeRows->sum('qty'), 3);
         $totalSaleAmount = round((float) $recipeRows->sum('sale_amount'), 2);
+        $totalProfit = round((float) $recipeRows->sum('profit'), 2);
         $totalStockAmount = round((float) $stockRows->sum('amount'), 2);
         $totalIngredientQty = round((float) $ingredientSummary->sum('qty'), 3);
         $totalIngredientAmount = round((float) $ingredientSummary->sum('amount'), 2);
@@ -1687,7 +1704,7 @@ class ReportsController extends Controller
             'recipeRows', 'byDay', 'byDepartment',
             'stockRows', 'stockByDepartment',
             'ingredientRows', 'ingredientSummary',
-            'totalSaleQty', 'totalSaleAmount', 'totalStockAmount',
+            'totalSaleQty', 'totalSaleAmount', 'totalProfit', 'totalStockAmount',
             'totalIngredientQty', 'totalIngredientAmount',
             'departmentHit', 'recipeHit', 'ingredientHit'
         );

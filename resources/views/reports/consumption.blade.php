@@ -291,6 +291,7 @@
                 <th class="text-end">Qty</th>
                 <th>UOM</th>
                 <th class="text-end">Sale Amount</th>
+                <th class="text-end">Profit</th>
             </tr>
             </thead>
             <tbody>
@@ -307,9 +308,12 @@
                     <td class="text-end small">{{ fmt_num($row['qty'], 3) }}</td>
                     <td class="small text-secondary">{{ $row['uom'] ?: '—' }}</td>
                     <td class="text-end small">{{ $currency }} {{ fmt_num($row['sale_amount'], 2) }}</td>
+                    <td class="text-end small fw-semibold {{ ($row['profit'] ?? 0) < 0 ? 'text-danger' : 'text-success' }}">
+                        {{ $currency }} {{ fmt_num($row['profit'] ?? 0, 2) }}
+                    </td>
                 </tr>
             @empty
-                <tr><td colspan="6" class="text-center py-4 text-secondary">Is period mein koi department recipe sale nahi mili.</td></tr>
+                <tr><td colspan="7" class="text-center py-4 text-secondary">Is period mein koi department recipe sale nahi mili.</td></tr>
             @endforelse
             </tbody>
             @if($recipeRows->isNotEmpty())
@@ -319,6 +323,9 @@
                     <th class="text-end">{{ fmt_num($totalSaleQty, 3) }}</th>
                     <th></th>
                     <th class="text-end">{{ $currency }} {{ fmt_num($totalSaleAmount, 2) }}</th>
+                    <th class="text-end {{ ($totalProfit ?? 0) < 0 ? 'text-danger' : 'text-success' }}">
+                        {{ $currency }} {{ fmt_num($totalProfit ?? 0, 2) }}
+                    </th>
                 </tr>
                 </tfoot>
             @endif

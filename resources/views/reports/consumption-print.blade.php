@@ -194,6 +194,7 @@
             <th class="num">Qty</th>
             <th>UOM</th>
             <th class="num">Sale Amount</th>
+            <th class="num">Profit</th>
         </tr>
         </thead>
         <tbody>
@@ -205,9 +206,12 @@
                 <td class="num">{{ fmt_num($row['qty'], 3) }}</td>
                 <td>{{ $row['uom'] ?: '—' }}</td>
                 <td class="num">{{ $currency }} {{ fmt_num($row['sale_amount'], 2) }}</td>
+                <td class="num" style="color: {{ ($row['profit'] ?? 0) < 0 ? '#b91c1c' : '#166534' }};">
+                    {{ $currency }} {{ fmt_num($row['profit'] ?? 0, 2) }}
+                </td>
             </tr>
         @empty
-            <tr><td colspan="6" style="text-align:center;">No data</td></tr>
+            <tr><td colspan="7" style="text-align:center;">No data</td></tr>
         @endforelse
         @if($recipeRows->isNotEmpty())
             <tr class="total-row">
@@ -215,6 +219,9 @@
                 <td class="num">{{ fmt_num($totalSaleQty, 3) }}</td>
                 <td></td>
                 <td class="num">{{ $currency }} {{ fmt_num($totalSaleAmount, 2) }}</td>
+                <td class="num" style="color: {{ ($totalProfit ?? 0) < 0 ? '#b91c1c' : '#166534' }};">
+                    {{ $currency }} {{ fmt_num($totalProfit ?? 0, 2) }}
+                </td>
             </tr>
         @endif
         </tbody>
