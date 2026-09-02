@@ -44,13 +44,19 @@
             display: inline-flex;
             flex-wrap: wrap;
             align-items: center;
-            gap: 6px;
+            gap: 6px 10px;
             margin: 8px 0 4px;
             padding: 8px 10px;
             background: #fff;
             border: 1px solid #cbd5e1;
             border-radius: 6px;
             max-width: 100%;
+        }
+        .dish-search-bar .search-group {
+            display: inline-flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
         }
         .dish-search-bar label {
             font-size: 12px;
@@ -59,8 +65,8 @@
             white-space: nowrap;
         }
         .dish-search-bar input[type="search"] {
-            min-width: 220px;
-            max-width: 320px;
+            min-width: 180px;
+            max-width: 260px;
             padding: 5px 8px;
             font-size: 12px;
             border: 1px solid #94a3b8;
@@ -225,17 +231,23 @@
 <body>
     <div class="noprint">
         <button type="button" onclick="window.print()">Print / PDF</button>
-        <a href="{{ route('manufacturing.boms.index', request()->only(['q', 'finished_product', 'return'])) }}">Back to BoMs</a>
+        <a href="{{ route('manufacturing.boms.index', request()->only(['q', 'iq', 'finished_product', 'return'])) }}">Back to BoMs</a>
         <form class="dish-search-bar" method="GET" action="{{ route('manufacturing.boms.print-all') }}">
             @foreach(request()->only(['finished_product', 'return']) as $key => $val)
                 @if($val !== null && $val !== '')
                     <input type="hidden" name="{{ $key }}" value="{{ $val }}">
                 @endif
             @endforeach
-            <label for="dishSearchInput">Dish Name</label>
-            <input type="search" id="dishSearchInput" name="q" value="{{ $q ?? '' }}" placeholder="e.g. Soup, Pepsi, Cappuccino…" autocomplete="off">
+            <div class="search-group">
+                <label for="dishSearchInput">Dish Name</label>
+                <input type="search" id="dishSearchInput" name="q" value="{{ $q ?? '' }}" placeholder="e.g. Soup, Pepsi, Cappuccino…" autocomplete="off">
+            </div>
+            <div class="search-group">
+                <label for="ingredientSearchInput">Ingredients</label>
+                <input type="search" id="ingredientSearchInput" name="iq" value="{{ $iq ?? '' }}" placeholder="e.g. Mutton, Milk, Sugar…" autocomplete="off">
+            </div>
             <button type="submit">Search</button>
-            @if(($q ?? '') !== '')
+            @if(($q ?? '') !== '' || ($iq ?? '') !== '')
                 <a class="clear-search" href="{{ route('manufacturing.boms.print-all', array_filter(request()->only(['finished_product', 'return']), fn ($v) => $v !== null && $v !== '')) }}">Clear</a>
             @endif
         </form>
@@ -249,7 +261,10 @@
                 {{ now()->timezone(config('app.timezone'))->format('d M Y, h:i A') }}
                 · {{ $boms->count() }} recipes
                 @if(($q ?? '') !== '')
-                    · “{{ $q }}”
+                    · Dish: “{{ $q }}”
+                @endif
+                @if(($iq ?? '') !== '')
+                    · Ingredient: “{{ $iq }}”
                 @endif
                 <span class="noprint"> · Ingredient / Qty / UoM edit = auto-save</span>
             </p>
@@ -737,7 +752,8 @@
         }
 
         const dishSearch = document.getElementById('dishSearchInput');
-        if (dishSearch && dishSearch.value.trim() !== '') {
+        const ingredientSearch = document.getElementById('ingredientSearchInput');
+        if ((dishSearch && dishSearch.value.trim() !== '') || (ingredientSearch && ingredientSearch.value.trim() !== '')) {
             const first = document.querySelector('.bom-block');
             if (first) {
                 window.addEventListener('load', () => {

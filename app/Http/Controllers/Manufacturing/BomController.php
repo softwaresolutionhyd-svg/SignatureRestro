@@ -106,6 +106,7 @@ class BomController extends Controller
         $boms = $this->filteredBomsForExport($request);
         $companyName = (string) Setting::get('company_name', config('app.name'));
         $q = trim((string) $request->query('q', ''));
+        $iq = trim((string) $request->query('iq', ''));
         IngredientsCategory::assignWarehouseProducts();
         $ingredientProducts = $this->bomIngredientProducts(
             $boms->flatMap(fn (ManufacturingBom $bom) => $bom->lines->pluck('component_product_id'))
@@ -116,7 +117,7 @@ class BomController extends Controller
         );
         $ingredientMeta = $this->bomProductsMetaFrom($ingredientProducts);
 
-        return view('manufacturing.boms.print-all', compact('boms', 'companyName', 'q', 'ingredientMeta'));
+        return view('manufacturing.boms.print-all', compact('boms', 'companyName', 'q', 'iq', 'ingredientMeta'));
     }
 
     public function updateLine(Request $request, ManufacturingBom $bom, ManufacturingBomLine $line): JsonResponse
@@ -367,6 +368,7 @@ class BomController extends Controller
     private function filteredBomsForExport(Request $request): Collection
     {
         $q = trim((string) $request->query('q', ''));
+        $iq = trim((string) $request->query('iq', ''));
         $finishedProductId = $request->filled('finished_product') ? $request->integer('finished_product') : null;
 
         $boms = ManufacturingBom::query()
@@ -389,6 +391,12 @@ class BomController extends Controller
                             $p->where('sku', 'like', "%{$q}%")
                                 ->orWhere('name', 'like', "%{$q}%");
                         });
+                });
+            })
+            ->when($iq !== '', function ($query) use ($iq) {
+                $query->whereHas('lines.component', function ($p) use ($iq) {
+                    $p->where('sku', 'like', "%{$iq}%")
+                        ->orWhere('name', 'like', "%{$iq}%");
                 });
             })
             ->orderBy(
