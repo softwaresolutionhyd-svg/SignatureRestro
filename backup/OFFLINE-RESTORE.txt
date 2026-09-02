@@ -12,7 +12,7 @@ Extract to: C:\laragon\www\Signature
 STEP 2 — MySQL database (ZAROORI)
 -----------------------
 1. Laragon > MySQL START
-2. HeidiSQL / import-database.bat se backup/database-full-20260901-014107.sql import karo
+2. HeidiSQL / import-database.bat se backup/database-full-20260902-002120.sql import karo
 
 Database name: signature_local
 

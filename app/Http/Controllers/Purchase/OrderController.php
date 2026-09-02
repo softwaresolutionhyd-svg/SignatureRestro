@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Purchase;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\PurchaseOrderStoreRequest;
+use App\Models\CreditLedger;
 use App\Models\InventoryProduct;
 use App\Models\InventoryProductUomConversion;
 use App\Models\InventoryUnit;
@@ -324,6 +325,27 @@ class OrderController extends Controller
         $this->autoJournal->postPurchasePaid($order);
 
         return redirect()->route('purchase.orders.edit', $order)->with('status', 'Purchase marked as paid.');
+    }
+
+    public function destroy(PurchaseOrder $order)
+    {
+        abort_unless(in_array($order->status, ['rfq', 'confirmed'], true), 403, 'Received POs cannot be deleted.');
+
+        DB::connection('tenant')->transaction(function () use ($order) {
+            SyncAwareDelete::query(
+                CreditLedger::query()->where('purchase_order_id', $order->id)
+            );
+            SyncAwareDelete::query(
+                PurchaseOrderLine::query()->where('purchase_order_id', $order->id)
+            );
+            $order->delete();
+        });
+
+        $redirect = request()->input('return') === 'stock-in'
+            ? redirect()->route('inventory.stock-in.index')
+            : redirect()->route('purchase.orders.index');
+
+        return $redirect->with('status', "PO {$order->number} deleted.");
     }
 
     private function syncLinesAndTotals(PurchaseOrder $order, array $lines, array $header = []): void

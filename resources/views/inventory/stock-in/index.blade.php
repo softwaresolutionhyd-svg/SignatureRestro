@@ -61,6 +61,14 @@
                                         <i class="bi bi-box-arrow-in-down me-1"></i> Receive
                                     </button>
                                 </form>
+                                <form method="POST" action="{{ route('purchase.orders.destroy', $o) }}"
+                                      class="d-inline"
+                                      onsubmit="return confirm('Delete PO {{ $o->number }} permanently?');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <input type="hidden" name="return" value="stock-in">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
                             </div>
                         </td>
                     </tr>
