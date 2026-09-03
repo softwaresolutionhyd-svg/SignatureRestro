@@ -1160,6 +1160,13 @@ class ReportsController extends Controller
         $applyIngredientsOnly($kpiBase);
         $applyDepartment($kpiBase);
 
+        $selectedDepartment = $departmentId
+            ? $departments->firstWhere('id', $departmentId)
+            : null;
+        $monthOpeningBalance = null;
+        $monthOpeningQty = null;
+        $monthOpeningLabel = now()->startOfMonth()->format('d M Y');
+
         if ($departmentId !== null) {
             $kpiBase->withSum(
                 ['stocks as report_qty' => fn ($s) => $s->where('department_id', $departmentId)],
@@ -1172,6 +1179,40 @@ class ReportsController extends Controller
             $lowStock = $kpiProducts->filter(fn (InventoryProduct $p) => $p->qty_on_hand > 0 && $p->qty_on_hand <= 10)->count();
             $outOfStock = $kpiProducts->filter(fn (InventoryProduct $p) => $p->qty_on_hand <= 0)->count();
             $totalValue = round((float) $kpiProducts->sum(fn (InventoryProduct $p) => (float) $p->qty_on_hand * (float) $p->cost), 2);
+
+            $monthStart = now()->startOfMonth()->startOfDay();
+            $moveRows = InventoryMove::query()
+                ->select(['product_id', 'from_department_id', 'to_department_id', 'qty'])
+                ->where('created_at', '>=', $monthStart)
+                ->where(function ($q) use ($departmentId) {
+                    $q->where('from_department_id', $departmentId)
+                        ->orWhere('to_department_id', $departmentId);
+                })
+                ->get();
+
+            $netByProduct = [];
+            foreach ($moveRows as $move) {
+                $pid = (int) $move->product_id;
+                if (! isset($netByProduct[$pid])) {
+                    $netByProduct[$pid] = 0.0;
+                }
+                if ((int) $move->to_department_id === $departmentId) {
+                    $netByProduct[$pid] += (float) $move->qty;
+                }
+                if ((int) $move->from_department_id === $departmentId) {
+                    $netByProduct[$pid] -= (float) $move->qty;
+                }
+            }
+
+            $monthOpeningQty = round((float) $kpiProducts->sum(function (InventoryProduct $p) use ($netByProduct) {
+                $pid = (int) $p->id;
+                return (float) $p->qty_on_hand - (float) ($netByProduct[$pid] ?? 0.0);
+            }), 3);
+            $monthOpeningBalance = round((float) $kpiProducts->sum(function (InventoryProduct $p) use ($netByProduct) {
+                $pid = (int) $p->id;
+                $openingQty = (float) $p->qty_on_hand - (float) ($netByProduct[$pid] ?? 0.0);
+                return $openingQty * (float) $p->cost;
+            }), 2);
         } else {
             $totalProducts = (clone $kpiBase)->count();
             $lowStock      = (clone $kpiBase)->where('qty_on_hand', '>', 0)->where('qty_on_hand', '<=', 10)->excludingActiveBomFinishedProducts()->count();
@@ -1189,8 +1230,9 @@ class ReportsController extends Controller
 
         return view('reports.inventory', compact(
             'products', 'filter', 'currency',
-            'departmentId', 'departments',
+            'departmentId', 'departments', 'selectedDepartment',
             'totalProducts', 'lowStock', 'outOfStock', 'totalValue',
+            'monthOpeningBalance', 'monthOpeningQty', 'monthOpeningLabel',
             'chartLabels', 'chartData'
         ));
     }

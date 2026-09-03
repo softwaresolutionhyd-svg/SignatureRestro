@@ -39,6 +39,19 @@
     </div>
 </form>
 
+@if($selectedDepartment)
+<div class="alert alert-info border-0 shadow-sm d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+    <div>
+        <div class="fw-semibold">{{ $selectedDepartment->name }} Opening Balance</div>
+        <div class="small text-secondary">Current month opening as of {{ $monthOpeningLabel }}</div>
+    </div>
+    <div class="text-end">
+        <div class="fw-bold fs-5">{{ $currency }} {{ fmt_num((float) ($monthOpeningBalance ?? 0), 2) }}</div>
+        <div class="small text-secondary">Opening Qty: {{ fmt_num((float) ($monthOpeningQty ?? 0), 3) }}</div>
+    </div>
+</div>
+@endif
+
 {{-- KPI --}}
 <div class="row g-3 mb-4">
     @foreach([
