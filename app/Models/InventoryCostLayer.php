@@ -91,6 +91,10 @@ class InventoryCostLayer extends Model
 
         if (abs((float) $product->cost - $cost) >= 0.0000001) {
             $product->cost = $cost;
+            if ($product->for_purchase ?? false) {
+                $price = round((float) $product->price, 2);
+                $product->profit = round($price - round($cost, 2), 2);
+            }
             $product->save();
         }
 

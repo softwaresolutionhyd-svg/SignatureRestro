@@ -30,6 +30,6 @@ class StockInController extends Controller
 
         return redirect()
             ->route('inventory.stock-in.index')
-            ->with('status', "PO {$order->number} received — stock updated.");
+            ->with('status', "PO {$order->number} received — stock + FIFO cost updated.");
     }
 }

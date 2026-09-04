@@ -1138,8 +1138,23 @@ class ProductController extends Controller
             $lockedProduct = InventoryProduct::query()->lockForUpdate()->find($product->id);
             if ($lockedProduct) {
                 InventoryCostLayer::refreshProductUnitCost((int) $product->id);
+                $lockedProduct->refresh();
+                if ($lockedProduct->for_purchase ?? false) {
+                    $cost = round((float) $lockedProduct->cost, 2);
+                    $price = round((float) $lockedProduct->price, 2);
+                    $profit = round($price - $cost, 2);
+                    if (abs((float) $lockedProduct->profit - $profit) >= 0.0000001) {
+                        $lockedProduct->update(['profit' => $profit]);
+                    }
+                }
             }
         });
+
+        try {
+            ManufacturingBom::syncFinishedProductsUsingComponent((int) $product->id);
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         $safeReturn = $this->safeInternalReturnUrl($request->input('return'));
 
@@ -1148,7 +1163,7 @@ class ProductController extends Controller
                 'product' => $product,
                 'return' => $safeReturn,
             ], fn ($v) => $v !== null && $v !== ''))
-            ->with('status', 'Purchase history line updated.');
+            ->with('status', 'Purchase history line updated — FIFO cost refreshed.');
     }
 
     /**

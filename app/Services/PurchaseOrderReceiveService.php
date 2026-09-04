@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\InventoryCostLayer;
 use App\Models\InventoryMove;
 use App\Models\InventoryProduct;
+use App\Models\ManufacturingBom;
 use App\Models\PurchaseOrder;
 use App\Notifications\StockUpdated;
 use App\Support\StaffNotifier;
@@ -23,8 +24,11 @@ final class PurchaseOrderReceiveService
     {
         abort_unless($order->status === 'confirmed', 403);
 
-        DB::connection('tenant')->transaction(function () use ($order) {
+        $touchedProductIds = [];
+
+        DB::connection('tenant')->transaction(function () use ($order, &$touchedProductIds) {
             $order->load('lines');
+            $warehouse = $this->inventoryStock->ensureWarehouse();
 
             foreach ($order->lines as $line) {
                 /** @var InventoryProduct $product */
@@ -38,14 +42,20 @@ final class PurchaseOrderReceiveService
                 }
 
                 $qtyBase = (float) $line->qty * $factor;
-                $after = $before + $qtyBase;
+                if ($qtyBase <= self::FIFO_EPSILON) {
+                    continue;
+                }
 
+                $after = $before + $qtyBase;
                 $product->update(['qty_on_hand' => $after]);
 
                 $this->inventoryStock->addToWarehouse($product, $qtyBase);
 
-                $unitCostBase = $factor > 0 ? ((float) $line->unit_price / $factor) : (float) $line->unit_price;
+                // Purchase rate converted to product base UOM (FIFO layer cost).
+                $unitCostBase = round(((float) $line->unit_price) / $factor, 6);
+
                 InventoryCostLayer::create([
+                    'company_id' => $product->company_id,
                     'product_id' => $product->id,
                     'qty_remaining' => $qtyBase,
                     'unit_cost' => $unitCostBase,
@@ -55,20 +65,29 @@ final class PurchaseOrderReceiveService
                 ]);
 
                 InventoryMove::create([
+                    'company_id' => $product->company_id,
                     'product_id' => $product->id,
                     'user_id' => auth()->id(),
                     'type' => 'in',
+                    'from_department_id' => null,
+                    'to_department_id' => $warehouse->id,
                     'qty' => $qtyBase,
                     'uom' => $line->uom,
                     'qty_uom' => (float) $line->qty,
                     'factor_to_base' => $factor,
                     'unit_cost' => $unitCostBase,
-                    'total_cost' => $unitCostBase * $qtyBase,
+                    'total_cost' => round($unitCostBase * $qtyBase, 6),
                     'qty_before' => $before,
                     'qty_after' => $after,
                     'reference' => $order->number,
                     'note' => 'Received from vendor',
                 ]);
+
+                // FIFO remaining-stock weighted cost → product.cost (auto).
+                InventoryCostLayer::refreshProductUnitCost((int) $product->id, self::FIFO_EPSILON);
+                $this->syncPurchaseProfit($product->fresh());
+
+                $touchedProductIds[(int) $product->id] = true;
 
                 $body = "{$product->sku} — {$product->name}: received {$line->qty} {$line->uom} (PO {$order->number})";
                 StaffNotifier::notifyManagement(new StockUpdated([
@@ -81,24 +100,35 @@ final class PurchaseOrderReceiveService
                 ]), function_exists('current_company_id') ? current_company_id() : null);
             }
 
-            $this->refreshProductCostsFromLayers($order->lines->pluck('product_id')->unique()->all());
-
             $order->update([
                 'status' => 'received',
                 'received_at' => now(),
             ]);
         });
 
+        // Recipes that use these ingredients: roll up new FIFO costs.
+        foreach (array_keys($touchedProductIds) as $productId) {
+            try {
+                ManufacturingBom::syncFinishedProductsUsingComponent((int) $productId);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
         $this->autoJournal->postPurchaseReceived($order->fresh());
     }
 
-    /**
-     * @param  list<int|string>  $productIds
-     */
-    private function refreshProductCostsFromLayers(array $productIds): void
+    private function syncPurchaseProfit(InventoryProduct $product): void
     {
-        foreach ($productIds as $pid) {
-            InventoryCostLayer::refreshProductUnitCost((int) $pid, self::FIFO_EPSILON);
+        if (! ($product->for_purchase ?? false)) {
+            return;
+        }
+
+        $cost = round((float) $product->cost, 2);
+        $price = round((float) $product->price, 2);
+        $profit = round($price - $cost, 2);
+        if (abs((float) $product->profit - $profit) >= 0.0000001) {
+            $product->update(['profit' => $profit]);
         }
     }
 }

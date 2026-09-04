@@ -311,7 +311,7 @@
             </div>
         @elseif($fifoDrivenCost)
             <div class="form-text small text-secondary">
-                Purchase <strong>Stock in</strong> receive par FIFO se auto update — manual cost edit nahi hoti.
+                Purchase <strong>Stock in → Receive</strong> par FIFO layers se cost auto update hoti hai (remaining stock weighted average). Manual edit band.
             </div>
         @else
             <div class="form-text small text-secondary">Manual entry — active recipe ho to cost auto set hoti hai.</div>
