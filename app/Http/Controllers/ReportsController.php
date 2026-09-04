@@ -1180,39 +1180,9 @@ class ReportsController extends Controller
             $outOfStock = $kpiProducts->filter(fn (InventoryProduct $p) => $p->qty_on_hand <= 0)->count();
             $totalValue = round((float) $kpiProducts->sum(fn (InventoryProduct $p) => (float) $p->qty_on_hand * (float) $p->cost), 2);
 
-            $monthStart = now()->startOfMonth()->startOfDay();
-            $moveRows = InventoryMove::query()
-                ->select(['product_id', 'from_department_id', 'to_department_id', 'qty'])
-                ->where('created_at', '>=', $monthStart)
-                ->where(function ($q) use ($departmentId) {
-                    $q->where('from_department_id', $departmentId)
-                        ->orWhere('to_department_id', $departmentId);
-                })
-                ->get();
-
-            $netByProduct = [];
-            foreach ($moveRows as $move) {
-                $pid = (int) $move->product_id;
-                if (! isset($netByProduct[$pid])) {
-                    $netByProduct[$pid] = 0.0;
-                }
-                if ((int) $move->to_department_id === $departmentId) {
-                    $netByProduct[$pid] += (float) $move->qty;
-                }
-                if ((int) $move->from_department_id === $departmentId) {
-                    $netByProduct[$pid] -= (float) $move->qty;
-                }
-            }
-
-            $monthOpeningQty = round((float) $kpiProducts->sum(function (InventoryProduct $p) use ($netByProduct) {
-                $pid = (int) $p->id;
-                return (float) $p->qty_on_hand - (float) ($netByProduct[$pid] ?? 0.0);
-            }), 3);
-            $monthOpeningBalance = round((float) $kpiProducts->sum(function (InventoryProduct $p) use ($netByProduct) {
-                $pid = (int) $p->id;
-                $openingQty = (float) $p->qty_on_hand - (float) ($netByProduct[$pid] ?? 0.0);
-                return $openingQty * (float) $p->cost;
-            }), 2);
+            $opening = $this->departmentMonthOpening($departmentId, $kpiProducts);
+            $monthOpeningQty = $opening['qty'];
+            $monthOpeningBalance = $opening['value'];
         } else {
             $totalProducts = (clone $kpiBase)->count();
             $lowStock      = (clone $kpiBase)->where('qty_on_hand', '>', 0)->where('qty_on_hand', '<=', 10)->excludingActiveBomFinishedProducts()->count();
@@ -1235,6 +1205,78 @@ class ReportsController extends Controller
             'monthOpeningBalance', 'monthOpeningQty', 'monthOpeningLabel',
             'chartLabels', 'chartData'
         ));
+    }
+
+    /**
+     * Month opening for a department = current dept stock − signed moves since month start.
+     * Adjust moves store absolute target qty in `qty`, so use qty_after − qty_before for those.
+     *
+     * @param  \Illuminate\Support\Collection<int, InventoryProduct>  $products
+     * @return array{qty: float, value: float}
+     */
+    private function departmentMonthOpening(int $departmentId, $products): array
+    {
+        $monthStart = now()->startOfMonth()->startOfDay();
+        $productIds = $products->pluck('id')->map(fn ($id) => (int) $id)->filter()->unique()->values()->all();
+        if ($productIds === []) {
+            return ['qty' => 0.0, 'value' => 0.0];
+        }
+
+        $moveRows = InventoryMove::query()
+            ->select([
+                'product_id',
+                'type',
+                'from_department_id',
+                'to_department_id',
+                'qty',
+                'qty_before',
+                'qty_after',
+            ])
+            ->where('created_at', '>=', $monthStart)
+            ->whereIn('product_id', $productIds)
+            ->where(function ($q) use ($departmentId) {
+                $q->where('from_department_id', $departmentId)
+                    ->orWhere('to_department_id', $departmentId);
+            })
+            ->get();
+
+        $netByProduct = [];
+        foreach ($moveRows as $move) {
+            $pid = (int) $move->product_id;
+            $fromId = (int) ($move->from_department_id ?? 0);
+            $toId = (int) ($move->to_department_id ?? 0);
+            $delta = 0.0;
+
+            if ((string) $move->type === 'adjust' && $toId === $departmentId) {
+                // Adjust qty column is absolute target, not movement size.
+                $delta = (float) $move->qty_after - (float) $move->qty_before;
+            } elseif ($toId === $departmentId && $fromId === $departmentId) {
+                $delta = 0.0;
+            } elseif ($toId === $departmentId) {
+                $delta = (float) $move->qty;
+            } elseif ($fromId === $departmentId) {
+                $delta = -1 * (float) $move->qty;
+            }
+
+            $netByProduct[$pid] = ($netByProduct[$pid] ?? 0.0) + $delta;
+        }
+
+        $openingQty = 0.0;
+        $openingValue = 0.0;
+        foreach ($products as $product) {
+            $pid = (int) $product->id;
+            $current = (float) ($product->qty_on_hand ?? 0);
+            $open = $current - (float) ($netByProduct[$pid] ?? 0.0);
+            // Display opening as non-negative shelf position (oversell / bad history can go below zero).
+            $open = max(0.0, $open);
+            $openingQty += $open;
+            $openingValue += $open * (float) ($product->cost ?? 0);
+        }
+
+        return [
+            'qty' => round($openingQty, 3),
+            'value' => round($openingValue, 2),
+        ];
     }
 
     public function inventoryProductsPrint(Request $request)
