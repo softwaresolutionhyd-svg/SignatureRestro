@@ -26,7 +26,22 @@
 {{-- Filters --}}
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body py-3">
+        @php
+            $group = $group ?? request('group', 'all');
+            $groupQuery = request()->only(['search', 'active']);
+        @endphp
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            <a href="{{ route('contacts.index', array_merge($groupQuery, ['group' => 'all'])) }}"
+               class="btn btn-sm {{ $group === 'all' ? 'btn-primary' : 'btn-outline-secondary' }}">All</a>
+            <a href="{{ route('contacts.index', array_merge($groupQuery, ['group' => 'employees'])) }}"
+               class="btn btn-sm {{ $group === 'employees' ? 'btn-primary' : 'btn-outline-secondary' }}">Employees</a>
+            <a href="{{ route('contacts.index', array_merge($groupQuery, ['group' => 'vendors'])) }}"
+               class="btn btn-sm {{ $group === 'vendors' ? 'btn-primary' : 'btn-outline-secondary' }}">Vendors</a>
+            <a href="{{ route('contacts.index', array_merge($groupQuery, ['group' => 'other'])) }}"
+               class="btn btn-sm {{ $group === 'other' ? 'btn-primary' : 'btn-outline-secondary' }}">Other</a>
+        </div>
         <form method="GET" class="row g-2 align-items-end">
+            <input type="hidden" name="group" value="{{ $group }}">
             <div class="col-12 col-md-5">
                 <input type="text" name="search" class="form-control form-control-sm"
                     placeholder="Search name, phone, email…" value="{{ request('search') }}">

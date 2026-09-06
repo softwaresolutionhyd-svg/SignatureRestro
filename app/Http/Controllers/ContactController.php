@@ -31,6 +31,26 @@ class ContactController extends Controller
             $query->where('active', $request->active === '1');
         }
 
+        $group = strtolower(trim((string) $request->input('group', 'all')));
+        if (! in_array($group, ['all', 'employees', 'vendors', 'other'], true)) {
+            $group = 'all';
+        }
+
+        if ($group === 'employees') {
+            $query->where('category', Contact::EMPLOYEE_CATEGORY);
+        } elseif ($group === 'vendors') {
+            $query->where('category', Contact::SUPPLIER_CATEGORY);
+        } elseif ($group === 'other') {
+            $query->where(function ($w) {
+                $w->whereNull('category')
+                    ->orWhere('category', '')
+                    ->orWhereNotIn('category', [
+                        Contact::EMPLOYEE_CATEGORY,
+                        Contact::SUPPLIER_CATEGORY,
+                    ]);
+            });
+        }
+
         $contacts = $query
             ->paginate(Setting::pageSize('contacts_per_page', 20))
             ->withQueryString();
@@ -38,7 +58,7 @@ class ContactController extends Controller
         $categoryOptions = Contact::categoryOptions();
         $categoryRows = Contact::categoryRows();
 
-        return view('contacts.index', compact('contacts', 'categoryOptions', 'categoryRows'));
+        return view('contacts.index', compact('contacts', 'categoryOptions', 'categoryRows', 'group'));
     }
 
     /** AJAX: quick search for POS contact picker */
