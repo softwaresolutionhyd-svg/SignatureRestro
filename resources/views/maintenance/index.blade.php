@@ -12,7 +12,6 @@
             <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addMaintenanceCategoryModal">+ Add Category</button>
             <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addMaintenanceLocationModal">+ Add Location</button>
             @if($u?->isSuperAdmin())
-                <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#setOpeningStockModal">Set Previous Balance Stock</button>
                 <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#purgeMaintenanceModal">Delete All Data</button>
             @endif
         </div>
@@ -406,48 +405,6 @@
     </div>
 </div>
 @if($u?->isSuperAdmin())
-<div class="modal fade" id="setOpeningStockModal" tabindex="-1" aria-labelledby="setOpeningStockModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="setOpeningStockModalLabel">Set Previous Balance Stock</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form method="POST" action="{{ route('maintenance.opening-stock.set') }}">
-                @csrf
-                <div class="modal-body">
-                    <div class="row g-2">
-                        <div class="col-12">
-                            <label class="form-label small">Item</label>
-                            <select name="product_id" class="form-select" required>
-                                <option value="">Select item</option>
-                                @foreach($items as $item)
-                                    <option value="{{ $item->id }}">{{ $item->name }} (Current: {{ fmt_num((float)$item->qty_on_hand, 3) }} {{ $item->uom }})</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small">Previous balance qty</label>
-                            <input type="number" name="qty_uom" class="form-control" min="0" step="0.001" required>
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small">UOM</label>
-                            <input type="text" name="uom" class="form-control" value="Nos" required maxlength="30">
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label small">Note</label>
-                            <input type="text" name="note" class="form-control" maxlength="255" placeholder="Optional">
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button class="btn btn-danger" type="submit">Set Stock</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
 <div class="modal fade" id="purgeMaintenanceModal" tabindex="-1" aria-labelledby="purgeMaintenanceModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">

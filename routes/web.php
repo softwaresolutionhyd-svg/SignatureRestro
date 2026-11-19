@@ -228,7 +228,6 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
         Route::post('/issues', [MaintenanceController::class, 'issue'])->name('issues.store');
         Route::post('/locations', [MaintenanceController::class, 'storeLocation'])->name('locations.store');
         Route::post('/categories', [MaintenanceController::class, 'storeCategory'])->name('categories.store');
-        Route::post('/opening-stock', [MaintenanceController::class, 'setOpeningStock'])->name('opening-stock.set');
         Route::delete('/purge', [MaintenanceController::class, 'purgeAll'])->name('purge');
     });
 
