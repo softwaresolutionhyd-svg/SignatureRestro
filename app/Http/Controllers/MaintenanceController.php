@@ -443,50 +443,6 @@ class MaintenanceController extends Controller
         return redirect()->route('maintenance.index')->with('status', 'Demand category added.');
     }
 
-    public function setOpeningStock(Request $request)
-    {
-        $this->ensureMaintenanceTables();
-        abort_unless($request->user()?->isSuperAdmin(), 403);
-
-        $data = $request->validate([
-            'product_id' => ['required', 'integer', 'exists:tenant.inventory_products,id'],
-            'qty_uom' => ['required', 'numeric', 'min:0'],
-            'uom' => ['required', 'string', 'max:30'],
-            'note' => ['nullable', 'string', 'max:255'],
-        ]);
-
-        DB::connection('tenant')->transaction(function () use ($request, $data) {
-            $item = $this->maintenanceItemQuery()->lockForUpdate()->findOrFail((int) $data['product_id']);
-            $factor = (float) $item->factorToBaseForUom((string) $data['uom']);
-            if ($factor <= 0) {
-                abort(422, 'Selected UOM is not configured for this item.');
-            }
-
-            $qtyBase = (float) $data['qty_uom'] * $factor;
-            $before = (float) $item->qty_on_hand;
-            $after = $qtyBase;
-            $item->update(['qty_on_hand' => $after]);
-
-            InventoryMove::query()->create([
-                'product_id' => $item->id,
-                'user_id' => $request->user()?->id,
-                'type' => $after >= $before ? 'in' : 'out',
-                'qty' => abs($after - $before),
-                'uom' => (string) $data['uom'],
-                'qty_uom' => abs((float) $data['qty_uom'] - ($before / $factor)),
-                'factor_to_base' => $factor,
-                'unit_cost' => null,
-                'total_cost' => null,
-                'qty_before' => $before,
-                'qty_after' => $after,
-                'reference' => 'maintenance-opening-balance',
-                'note' => 'Opening balance set'.($data['note'] ? ' | '.$data['note'] : ''),
-            ]);
-        });
-
-        return redirect()->route('maintenance.index')->with('status', 'Opening stock updated.');
-    }
-
     public function purgeAll(Request $request): RedirectResponse
     {
         $this->ensureMaintenanceTables();
