@@ -3,6 +3,7 @@
 @section('title', 'Stock in (PO receive) — ' . config('app.name'))
 
 @section('content')
+    @include('partials.super-admin-reason-modal')
     @if (session('status'))
         <div class="alert alert-success">{{ session('status') }}</div>
     @endif
@@ -63,7 +64,11 @@
                                 </form>
                                 <form method="POST" action="{{ route('purchase.orders.destroy', $o) }}"
                                       class="d-inline"
-                                      onsubmit="return confirm('Delete PO {{ $o->number }} permanently?');">
+                                      @if(auth()->user()?->isSuperAdmin())
+                                          data-sa-require-reason="1"
+                                      @else
+                                          onsubmit="return confirm('Delete PO {{ $o->number }} permanently?');"
+                                      @endif>
                                     @csrf
                                     @method('DELETE')
                                     <input type="hidden" name="return" value="stock-in">

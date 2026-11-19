@@ -16,6 +16,7 @@ use App\Services\AutoJournalService;
 use App\Services\PurchaseCreditLedgerService;
 use App\Services\PurchaseTotalsReconciler;
 use App\Services\Sync\SyncAwareDelete;
+use App\Support\SuperAdminAudit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -67,6 +68,7 @@ class OrderController extends Controller
     public function store(PurchaseOrderStoreRequest $request)
     {
         $data = $request->validated();
+        $adminReason = SuperAdminAudit::requireReasonIfSuperAdmin($request);
 
         $order = DB::connection('tenant')->transaction(function () use ($data, $request) {
             $nextId = (PurchaseOrder::query()->max('id') ?? 0) + 1;
@@ -91,6 +93,16 @@ class OrderController extends Controller
         });
 
         $this->purchaseCreditLedger->syncForOrder($order->fresh('vendor'));
+
+        if ($adminReason !== null) {
+            SuperAdminAudit::log(
+                SuperAdminAudit::TYPE_ADD,
+                $adminReason,
+                $order,
+                ['entity' => 'purchase_order', 'order_number' => (string) $order->number],
+                'Created purchase order '.$order->number
+            );
+        }
 
         return redirect()->route('purchase.orders.edit', $order)->with('status', 'RFQ created.');
     }
@@ -142,6 +154,19 @@ class OrderController extends Controller
 
         $data = $request->validated();
 
+        $sessionAction = $request->session()->get('super_admin_action');
+        if (
+            SuperAdminAudit::userIsSuperAdmin($request->user())
+            && ! $request->filled('admin_reason')
+            && is_array($sessionAction)
+            && ($sessionAction['entity'] ?? '') === 'purchase_order'
+            && (int) ($sessionAction['id'] ?? 0) === (int) $order->id
+            && filled($sessionAction['reason'] ?? null)
+        ) {
+            $request->merge(['admin_reason' => (string) $sessionAction['reason']]);
+        }
+        $adminReason = SuperAdminAudit::requireReasonIfSuperAdmin($request);
+
         DB::connection('tenant')->transaction(function () use ($order, $data) {
             $nextType = (string) $data['purchase_type'];
             $payload = [
@@ -170,6 +195,17 @@ class OrderController extends Controller
         });
 
         $this->purchaseCreditLedger->syncForOrder($order->fresh('vendor'));
+
+        if ($adminReason !== null) {
+            SuperAdminAudit::log(
+                SuperAdminAudit::TYPE_EDIT,
+                $adminReason,
+                $order->fresh(),
+                ['entity' => 'purchase_order', 'order_number' => (string) $order->number],
+                'Updated purchase order '.$order->number
+            );
+            $request->session()->forget('super_admin_action');
+        }
 
         return redirect()->route('purchase.orders.edit', $order)->with('status', 'Purchase updated.');
     }
@@ -327,9 +363,12 @@ class OrderController extends Controller
         return redirect()->route('purchase.orders.edit', $order)->with('status', 'Purchase marked as paid.');
     }
 
-    public function destroy(PurchaseOrder $order)
+    public function destroy(Request $request, PurchaseOrder $order)
     {
         abort_unless(in_array($order->status, ['rfq', 'confirmed'], true), 403, 'Received POs cannot be deleted.');
+
+        $adminReason = SuperAdminAudit::requireReasonIfSuperAdmin($request);
+        $number = (string) $order->number;
 
         DB::connection('tenant')->transaction(function () use ($order) {
             SyncAwareDelete::query(
@@ -341,11 +380,21 @@ class OrderController extends Controller
             $order->delete();
         });
 
-        $redirect = request()->input('return') === 'stock-in'
+        if ($adminReason !== null) {
+            SuperAdminAudit::log(
+                SuperAdminAudit::TYPE_DELETE,
+                $adminReason,
+                null,
+                ['entity' => 'purchase_order', 'order_number' => $number, 'status' => (string) $order->status],
+                "Deleted purchase order {$number}"
+            );
+        }
+
+        $redirect = $request->input('return') === 'stock-in'
             ? redirect()->route('inventory.stock-in.index')
             : redirect()->route('purchase.orders.index');
 
-        return $redirect->with('status', "PO {$order->number} deleted.");
+        return $redirect->with('status', "PO {$number} deleted.");
     }
 
     private function syncLinesAndTotals(PurchaseOrder $order, array $lines, array $header = []): void

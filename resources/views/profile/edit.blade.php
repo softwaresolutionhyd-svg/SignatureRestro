@@ -160,7 +160,10 @@
         <div class="card profile-card mb-4">
             <div class="card-header py-3">Account settings</div>
             <div class="card-body">
-                <form method="POST" action="{{ route('profile.update') }}" autocomplete="off">
+                @include('partials.super-admin-reason-modal')
+                <form method="POST" action="{{ route('profile.update') }}" autocomplete="off"
+                      id="profileUpdateForm"
+                      @if(auth()->user()?->isSuperAdmin()) data-sa-require-reason-on-password="1" @endif>
                     @csrf
                     @method('PUT')
 

@@ -9,6 +9,7 @@ use App\Models\LeaveRequest;
 use App\Models\Setting;
 use App\Support\AppPasswordRules;
 use App\Support\LoginUsername;
+use App\Support\SuperAdminAudit;
 use App\Support\WebAuthSession;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
@@ -133,6 +134,12 @@ class ProfileController extends Controller
             $rules['password'] = AppPasswordRules::requiredConfirmed();
         }
 
+        $changingPassword = $mustChange || $request->filled('password');
+        $adminReason = null;
+        if ($changingPassword && SuperAdminAudit::userIsSuperAdmin($user)) {
+            $adminReason = SuperAdminAudit::requireReason($request);
+        }
+
         $data = $request->validate($rules);
 
         $user->name = $data['name'];
@@ -144,6 +151,16 @@ class ProfileController extends Controller
         }
 
         $user->save();
+
+        if ($adminReason !== null) {
+            SuperAdminAudit::log(
+                SuperAdminAudit::TYPE_PASSWORD_CHANGE,
+                $adminReason,
+                $user,
+                ['entity' => 'user', 'target' => 'self'],
+                'Super Admin changed own password'
+            );
+        }
 
         if ($request->hasSession()) {
             $request->session()->put(

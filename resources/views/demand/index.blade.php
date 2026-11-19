@@ -66,7 +66,9 @@
     <div class="card shadow-sm">
         <div class="card-header bg-white fw-semibold">{{ __('Create Demand') }}</div>
         <div class="card-body">
-            <form method="POST" action="{{ route('demand.store') }}" id="demandCreateForm">
+            @include('partials.super-admin-reason-modal')
+            <form method="POST" action="{{ route('demand.store') }}" id="demandCreateForm"
+                  @if(auth()->user()?->isSuperAdmin()) data-sa-require-reason="1" @endif>
                 @csrf
 
                 <div class="row g-3 mb-3">

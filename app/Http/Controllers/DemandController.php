@@ -8,6 +8,7 @@ use App\Models\StockDemand;
 use App\Models\StockDemandLine;
 use App\Services\InventoryStockService;
 use App\Support\IngredientsCategory;
+use App\Support\SuperAdminAudit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -137,8 +138,10 @@ class DemandController extends Controller
 
         $ingredientIds = collect($this->ingredientProducts())->pluck('id')->map(fn ($id) => (int) $id)->all();
 
+        $adminReason = SuperAdminAudit::requireReasonIfSuperAdmin($request);
+
         try {
-            DB::connection('tenant')->transaction(function () use ($request, $data, $department, $ingredientIds) {
+            $demand = DB::connection('tenant')->transaction(function () use ($request, $data, $department, $ingredientIds) {
                 $demand = StockDemand::query()->create([
                     'demand_no' => $this->nextDemandNo(),
                     'department_id' => $department->id,
@@ -174,14 +177,151 @@ class DemandController extends Controller
                         'status' => 'pending',
                     ]);
                 }
+
+                return $demand;
             });
         } catch (RuntimeException $e) {
             return back()->withInput()->withErrors(['lines' => $e->getMessage()]);
         }
 
+        if ($adminReason !== null) {
+            SuperAdminAudit::log(
+                SuperAdminAudit::TYPE_ADD,
+                $adminReason,
+                $demand,
+                ['entity' => 'stock_demand', 'order_number' => (string) $demand->demand_no],
+                'Created demand '.$demand->demand_no
+            );
+        }
+
         return redirect()
             ->route('demand.index', ['tab' => 'create'])
             ->with('success', 'Demand create ho gayi. Storekeeper Today\'s Demand mein issue karega.');
+    }
+
+    public function edit(Request $request, StockDemand $demand)
+    {
+        $this->ensureTables();
+        SuperAdminAudit::abortUnlessSuperAdmin($request->user());
+
+        $demand->load(['department:id,name', 'lines.product:id,sku,name,uom']);
+        $departments = InventoryDepartment::query()
+            ->where('active', true)
+            ->where('is_warehouse', false)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $sessionReason = data_get($request->session()->get('super_admin_action'), 'reason');
+
+        return view('demand.edit', compact('demand', 'departments', 'sessionReason'));
+    }
+
+    public function update(Request $request, StockDemand $demand)
+    {
+        $this->ensureTables();
+        SuperAdminAudit::abortUnlessSuperAdmin($request->user());
+
+        $demand->load('lines');
+        $hasIssued = $demand->lines->contains(fn (StockDemandLine $l) => (float) $l->issued_qty_base > 0);
+        if ($hasIssued || $demand->status === 'issued') {
+            return back()->withErrors(['admin_reason' => 'Issued demands cannot be edited.']);
+        }
+
+        $sessionAction = $request->session()->get('super_admin_action');
+        if (
+            ! $request->filled('admin_reason')
+            && is_array($sessionAction)
+            && ($sessionAction['entity'] ?? '') === 'stock_demand'
+            && (int) ($sessionAction['id'] ?? 0) === (int) $demand->id
+            && filled($sessionAction['reason'] ?? null)
+        ) {
+            $request->merge(['admin_reason' => (string) $sessionAction['reason']]);
+        }
+        $reason = SuperAdminAudit::requireReason($request);
+
+        $data = $request->validate([
+            'department_id' => ['required', 'integer', 'exists:tenant.inventory_departments,id'],
+            'note' => ['nullable', 'string', 'max:255'],
+            'lines' => ['required', 'array', 'min:1'],
+            'lines.*.id' => ['nullable', 'integer'],
+            'lines.*.product_id' => ['required', 'integer', 'exists:tenant.inventory_products,id'],
+            'lines.*.qty_uom' => ['required', 'numeric', 'min:0.001'],
+            'lines.*.uom' => ['required', 'string', 'max:30'],
+        ]);
+
+        $department = InventoryDepartment::query()->findOrFail((int) $data['department_id']);
+        if ($department->is_warehouse) {
+            return back()->withInput()->withErrors([
+                'department_id' => 'Warehouse ke liye demand nahi bana sakte.',
+            ]);
+        }
+
+        DB::connection('tenant')->transaction(function () use ($demand, $data, $department) {
+            $demand->update([
+                'department_id' => $department->id,
+                'note' => $data['note'] ?? null,
+            ]);
+
+            $keepIds = [];
+            foreach ((array) $data['lines'] as $row) {
+                $product = InventoryProduct::query()->findOrFail((int) $row['product_id']);
+                $uom = trim((string) $row['uom']);
+                $qtyUom = (float) $row['qty_uom'];
+                $factor = (float) ($product->factorToBaseForUom($uom) ?? 0);
+                if ($factor <= 0) {
+                    $factor = 1.0;
+                    $uom = (string) $product->uom;
+                }
+                $qtyBase = round($qtyUom * $factor, 3);
+                $lineId = isset($row['id']) ? (int) $row['id'] : 0;
+                $line = $lineId > 0
+                    ? StockDemandLine::query()->where('demand_id', $demand->id)->whereKey($lineId)->first()
+                    : null;
+
+                if ($line) {
+                    $line->update([
+                        'product_id' => $product->id,
+                        'qty_uom' => $qtyUom,
+                        'uom' => $uom,
+                        'qty_base' => $qtyBase,
+                        'status' => 'pending',
+                    ]);
+                    $keepIds[] = (int) $line->id;
+                } else {
+                    $created = StockDemandLine::query()->create([
+                        'demand_id' => $demand->id,
+                        'product_id' => $product->id,
+                        'qty_uom' => $qtyUom,
+                        'uom' => $uom,
+                        'qty_base' => $qtyBase,
+                        'issued_qty_base' => 0,
+                        'status' => 'pending',
+                    ]);
+                    $keepIds[] = (int) $created->id;
+                }
+            }
+
+            StockDemandLine::query()
+                ->where('demand_id', $demand->id)
+                ->when($keepIds !== [], fn ($q) => $q->whereNotIn('id', $keepIds))
+                ->when($keepIds === [], fn ($q) => $q)
+                ->delete();
+
+            $demand->update(['status' => 'pending']);
+        });
+
+        SuperAdminAudit::log(
+            SuperAdminAudit::TYPE_EDIT,
+            $reason,
+            $demand->fresh(),
+            ['entity' => 'stock_demand', 'order_number' => (string) $demand->demand_no],
+            'Updated demand '.$demand->demand_no
+        );
+        $request->session()->forget('super_admin_action');
+
+        return redirect()
+            ->route('purchases-demands.index', ['tab' => 'demands'])
+            ->with('status', 'Demand updated.');
     }
 
     public function issueLine(Request $request, StockDemandLine $line)
