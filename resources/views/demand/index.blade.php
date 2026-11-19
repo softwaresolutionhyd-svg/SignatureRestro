@@ -137,7 +137,7 @@
             </td>
             <td>
                 <input type="number" step="0.001" min="0.001" name="lines[__INDEX__][qty_uom]"
-                       class="form-control form-control-sm" required value="1">
+                       class="form-control form-control-sm" required value="" inputmode="decimal">
             </td>
             <td>
                 <input type="text" name="lines[__INDEX__][uom]" class="form-control form-control-sm demand-uom" required maxlength="30" readonly>
