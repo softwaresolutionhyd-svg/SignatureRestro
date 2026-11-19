@@ -383,7 +383,16 @@
         const total = lineTotalOf(tr);
         const unitInput = tr.querySelector('[name$="[unit_price]"]');
         if (!unitInput) return;
-        unitInput.value = qty > 0 ? fmtUnit(total / qty) : '0';
+        // Keep rate empty when qty is blank so typing does not append after a leftover 0.
+        unitInput.value = qty > 0 ? fmtUnit(total / qty) : '';
+    }
+
+    /** Blank for new/empty lines; never prefill literal 0 (avoids "05" typing annoyance). */
+    function qtyInputValue(v) {
+        if (v === null || v === undefined || v === '') return '';
+        const n = Number(v);
+        if (!Number.isFinite(n) || n === 0) return '';
+        return String(v);
     }
 
     function refreshSubtotal() {
@@ -510,9 +519,9 @@
                 ${uomOptions(line.product_id, line.uom)}
               </select>
             </td>
-            <td><input class="form-control text-end" type="number" step="0.001" min="0.001" name="lines[${idx}][qty]" value="${line.qty ?? ''}" required></td>
+            <td><input class="form-control text-end" type="number" step="0.001" min="0.001" name="lines[${idx}][qty]" value="${qtyInputValue(line.qty)}" required inputmode="decimal"></td>
             <td>
-              <input class="form-control text-end" type="number" step="any" min="0" name="lines[${idx}][unit_price]" value="${line.unit_price ?? '0'}" required>
+              <input class="form-control text-end" type="number" step="any" min="0" name="lines[${idx}][unit_price]" value="${line.unit_price ?? ''}" inputmode="decimal">
               <input type="hidden" name="lines[${idx}][tax_percent]" value="0">
             </td>
             <td><input class="form-control text-end fw-semibold lineTotalInput" type="number" step="any" min="0" name="lines[${idx}][line_total]" placeholder="0.00" value="${line.line_total ?? ''}"></td>
@@ -571,7 +580,7 @@
             const isLastRow = rows[rows.length - 1] === tr;
             if (!isLastRow) return;
             e.preventDefault();
-            addLine({ unit_price: 0, tax_percent: 0 });
+            addLine({ tax_percent: 0 });
             const nextRow = body.querySelector('tr:last-child .line-product-search');
             if (nextRow) nextRow.focus();
         });
@@ -705,7 +714,7 @@
 
             products.push(normalizeProductPayload(json.product));
             refreshProductDatalist();
-            addLine({ product_id: json.product.id, uom: json.product.base_uom, qty: 1, unit_price: payload.cost || 0, tax_percent: 0 });
+            addLine({ product_id: json.product.id, uom: json.product.base_uom, unit_price: payload.cost || '', tax_percent: 0 });
             const qtyInput = body.querySelector('tr:last-child [name$="[qty]"]');
             if (qtyInput) qtyInput.focus();
             quickModal?.hide();
@@ -799,12 +808,12 @@
     quickAddProductSaveBtn?.addEventListener('click', createQuickProduct);
     quickEditProductSaveBtn?.addEventListener('click', saveQuickEditedProduct);
 
-    addBtn.addEventListener('click', () => addLine({ unit_price: 0, tax_percent: 0 }));
+    addBtn.addEventListener('click', () => addLine({ tax_percent: 0 }));
 
     if (initialLines && initialLines.length) {
         initialLines.forEach(l => addLine(l));
     } else {
-        addLine({ unit_price: 0, tax_percent: 0 });
+        addLine({ tax_percent: 0 });
     }
 </script>
 
