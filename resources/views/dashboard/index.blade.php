@@ -140,6 +140,18 @@
         </a>
         @endif
 
+        @if($u->canViewModule('purchase') || $u->canAccessDemand())
+        <a class="odoo-app" href="{{ route('purchases-demands.index') }}">
+            <div class="odoo-icon" style="--icon-color:#8b1e1e;">
+                <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="6" y="8" width="28" height="24" rx="3" stroke="currentColor" stroke-width="2.5"/>
+                    <path d="M12 16h16M12 22h12M12 28h8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <span class="odoo-label">{{ __('Purchases & Demands') }}</span>
+        </a>
+        @endif
+
         @if($u->canViewModule('inventory'))
         <a class="odoo-app" href="{{ route('inventory.index') }}">
             <div class="odoo-icon" style="--icon-color:#0ea5e9;">

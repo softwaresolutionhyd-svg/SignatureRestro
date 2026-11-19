@@ -45,7 +45,9 @@ final class AdminBreadcrumbs
             str_starts_with($name, 'manufacturing.') => self::manufacturing($name, $dash),
             str_starts_with($name, 'maintenance.') => [$dash, ['label' => 'Maintenance', 'url' => null]],
             str_starts_with($name, 'custom-forms.') => [$dash, ['label' => 'Custom Forms', 'url' => null]],
+            str_starts_with($name, 'purchases-demands.') => [$dash, ['label' => 'Purchases & Demands', 'url' => null]],
             str_starts_with($name, 'purchase.') => self::purchase($name, $dash),
+            str_starts_with($name, 'demand.') => self::demand($name, $dash),
             str_starts_with($name, 'restaurant-pos.closing') => [
                 $dash,
                 ['label' => 'Restaurant POS', 'url' => route('restaurant-pos.index')],
@@ -209,6 +211,20 @@ final class AdminBreadcrumbs
         return $out;
     }
 
+    /**
+     * @param  array{label: string, url: ?string}  $dash
+     * @return list<array{label: string, url: ?string}>
+     */
+    private static function demand(string $name, array $dash): array
+    {
+        $out = [$dash, ['label' => 'Demand', 'url' => $name === 'demand.index' ? null : route('demand.index')]];
+        if (in_array($name, ['demand.edit', 'demand.update'], true)) {
+            $out[] = ['label' => 'Edit', 'url' => null];
+        }
+
+        return $out;
+    }
+
     private static function purchase(string $name, array $dash): array
     {
         $out = [$dash, ['label' => 'Purchase', 'url' => $name === 'purchase.index' ? null : route('purchase.index')]];
@@ -348,6 +364,7 @@ final class AdminBreadcrumbs
             'reports.inventory'  => 'Inventory',
             'reports.issue-stock' => 'Issue Stock',
             'reports.employees'  => 'Employees',
+            'reports.super-admin-audit' => 'Super Admin Audit Log',
         ];
         return [$dash, $hub, ['label' => $labels[$name] ?? 'Report', 'url' => null]];
     }

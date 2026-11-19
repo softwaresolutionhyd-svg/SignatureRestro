@@ -3,6 +3,9 @@
         <a href="{{ route('purchase.index') }}" class="btn btn-outline-primary {{ request()->routeIs('purchase.index') ? 'active' : '' }}">
             <i class="bi bi-grid me-1"></i> {{ __('Overview') }}
         </a>
+        <a href="{{ route('purchases-demands.index') }}" class="btn btn-outline-primary {{ request()->routeIs('purchases-demands.*') ? 'active' : '' }}">
+            <i class="bi bi-list-ul me-1"></i> {{ __('Purchases & Demands') }}
+        </a>
         <a href="{{ route('purchase.orders.index') }}" class="btn btn-outline-primary {{ request()->routeIs('purchase.orders.*') ? 'active' : '' }}">
             <i class="bi bi-receipt me-1"></i> {{ __('RFQs / POs') }}
         </a>

@@ -19,6 +19,7 @@ use App\Support\EnsuresEmployeeProfileSchema;
 use App\Support\EnsuresEmployeeStaffCategorySchema;
 use App\Support\LoginUsername;
 use App\Support\ModuleAccess;
+use App\Support\SuperAdminAudit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -408,12 +409,28 @@ class EmployeeController extends Controller
         $data = $request->validate([
             'password' => AppPasswordRules::requiredConfirmed(),
         ]);
+        $adminReason = SuperAdminAudit::requireReasonIfSuperAdmin($request);
+
         $employee->user->update([
             'password' => $data['password'],
             'must_change_password' => false,
         ]);
 
         ActivityLogger::log('employee.password_reset', 'Employee login password reset', $employee);
+
+        if ($adminReason !== null) {
+            SuperAdminAudit::log(
+                SuperAdminAudit::TYPE_PASSWORD_CHANGE,
+                $adminReason,
+                $employee,
+                [
+                    'entity' => 'employee',
+                    'employee_no' => (string) ($employee->employee_no ?? ''),
+                    'user_email' => (string) ($employee->user->email ?? ''),
+                ],
+                'Reset employee login password'
+            );
+        }
 
         return redirect()->back()->with('status', 'Password updated for '.LoginUsername::display($employee->user->email).'.');
     }

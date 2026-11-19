@@ -4,6 +4,7 @@
 @section('page_title', 'Purchase / RFQs & POs')
 
 @section('content')
+    @include('partials.super-admin-reason-modal')
     @include('purchase.partials.subnav')
 
     <div class="card shadow-sm">
@@ -71,6 +72,19 @@
                             <a class="btn btn-sm btn-outline-secondary" href="{{ route('purchase.orders.print', $o) }}" target="_blank" rel="noopener">
                                 <i class="bi bi-printer"></i> Print
                             </a>
+                            @if(auth()->user()?->isSuperAdmin())
+                                <form method="POST" action="{{ route('purchases-demands.purchases.begin-edit', $o) }}" class="d-inline">
+                                    @csrf
+                                    <button type="button" class="btn btn-sm btn-outline-primary" data-sa-reason-submit data-sa-reason-title="Reason for edit">Edit</button>
+                                </form>
+                                @if(in_array($o->status, ['rfq', 'confirmed', 'received', 'cancelled'], true))
+                                <form method="POST" action="{{ route('purchases-demands.purchases.destroy', $o) }}" class="d-inline">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="button" class="btn btn-sm btn-outline-danger" data-sa-reason-submit data-sa-reason-title="Reason for delete">Delete</button>
+                                </form>
+                                @endif
+                            @endif
                         </td>
                     </tr>
                 @empty

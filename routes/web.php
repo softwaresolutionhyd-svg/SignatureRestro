@@ -47,6 +47,7 @@ use App\Http\Controllers\ContactController;
 use App\Http\Controllers\CreditBookController;
 use App\Http\Controllers\MaintenanceController;
 use App\Http\Controllers\DemandController;
+use App\Http\Controllers\PurchasesDemandsController;
 use App\Http\Controllers\GuestRoom\GuestRoomDashboardController;
 use App\Http\Controllers\GuestRoom\RoomCategoryController;
 use App\Http\Controllers\GuestRoom\RoomController as GuestRoomRoomController;
@@ -235,7 +236,18 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
     Route::prefix('demand')->name('demand.')->middleware('moduleAccess')->group(function () {
         Route::get('/', [DemandController::class, 'index'])->name('index');
         Route::post('/', [DemandController::class, 'store'])->name('store');
+        Route::get('/{demand}/edit', [DemandController::class, 'edit'])->name('edit');
+        Route::put('/{demand}', [DemandController::class, 'update'])->name('update');
         Route::post('/lines/{line}/issue', [DemandController::class, 'issueLine'])->name('lines.issue');
+    });
+
+    // Purchases & Demands hub (screenshot list + Super Admin edit/delete with reason)
+    Route::prefix('purchases-demands')->name('purchases-demands.')->group(function () {
+        Route::get('/', [PurchasesDemandsController::class, 'index'])->name('index');
+        Route::post('/purchases/{order}/begin-edit', [PurchasesDemandsController::class, 'beginPurchaseEdit'])->name('purchases.begin-edit');
+        Route::delete('/purchases/{order}', [PurchasesDemandsController::class, 'destroyPurchase'])->name('purchases.destroy');
+        Route::post('/demands/{demand}/begin-edit', [PurchasesDemandsController::class, 'beginDemandEdit'])->name('demands.begin-edit');
+        Route::delete('/demands/{demand}', [PurchasesDemandsController::class, 'destroyDemand'])->name('demands.destroy');
     });
 
     Route::prefix('custom-forms')->name('custom-forms.')->middleware('moduleAccess')->group(function () {
@@ -453,6 +465,9 @@ Route::middleware(['auth', 'employee', 'passwordChanged'])->group(function () {
         Route::get('/consumption', [ReportsController::class, 'consumption'])->name('consumption');
         Route::get('/consumption/print', [ReportsController::class, 'consumptionPrint'])->name('consumption.print');
         Route::get('/employees', [ReportsController::class, 'employees']) ->name('employees');
+        Route::get('/super-admin-audit', [ReportsController::class, 'superAdminAudit'])
+            ->middleware('role:company_admin,super_admin,admin')
+            ->name('super-admin-audit');
     });
 
     // Contacts

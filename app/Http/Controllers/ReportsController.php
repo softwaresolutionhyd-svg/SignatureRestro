@@ -25,6 +25,7 @@ use App\Models\PurchaseVendor;
 use App\Models\Setting;
 use App\Services\PurchaseTotalsReconciler;
 use App\Support\PosOrderMetrics;
+use App\Support\SuperAdminAudit;
 use App\Services\NetworkPrinterService;
 use App\Services\PosSessionSummaryService;
 use Carbon\Carbon;
@@ -2495,6 +2496,54 @@ class ReportsController extends Controller
             'employees', 'dept', 'status', 'currency',
             'totalSalary', 'activeCount', 'inactiveCount',
             'byDept', 'chartLabels', 'chartData', 'departments'
+        ));
+    }
+
+    /* ──────────────────────────────────────────
+     |  Super Admin audit log
+     ─────────────────────────────────────────── */
+    public function superAdminAudit(Request $request): View
+    {
+        SuperAdminAudit::abortUnlessSuperAdmin($request->user());
+
+        $actionType = (string) $request->query('action_type', '');
+        $from = $request->query('from');
+        $to = $request->query('to');
+        $userId = $request->query('user_id');
+
+        $query = SuperAdminAudit::queryLogs()
+            ->with('user:id,name,email')
+            ->orderByDesc('id');
+
+        if ($actionType !== '' && in_array($actionType, [
+            SuperAdminAudit::TYPE_ADD,
+            SuperAdminAudit::TYPE_EDIT,
+            SuperAdminAudit::TYPE_DELETE,
+            SuperAdminAudit::TYPE_PASSWORD_CHANGE,
+            SuperAdminAudit::TYPE_OTHER,
+        ], true)) {
+            $query->where('action', SuperAdminAudit::PREFIX.$actionType);
+        }
+
+        if ($from) {
+            $query->whereDate('created_at', '>=', $from);
+        }
+        if ($to) {
+            $query->whereDate('created_at', '<=', $to);
+        }
+        if ($userId) {
+            $query->where('user_id', (int) $userId);
+        }
+
+        $logs = $query->paginate(Setting::pageSize('reports_per_page', 30))->withQueryString();
+
+        $users = \App\Models\User::query()
+            ->whereIn('role', ['super_admin', 'company_admin', 'admin'])
+            ->orderBy('name')
+            ->get(['id', 'name', 'email']);
+
+        return view('reports.super-admin-audit', compact(
+            'logs', 'actionType', 'from', 'to', 'userId', 'users'
         ));
     }
 }

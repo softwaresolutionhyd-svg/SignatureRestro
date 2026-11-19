@@ -4,10 +4,14 @@
 @section('page_title', 'Purchase / ' . $order->number)
 
 @section('content')
+    @include('partials.super-admin-reason-modal')
     @include('purchase.partials.subnav')
 
     @if (session('status'))
         <div class="alert alert-success">{{ session('status') }}</div>
+    @endif
+    @if ($errors->has('admin_reason'))
+        <div class="alert alert-danger">{{ $errors->first('admin_reason') }}</div>
     @endif
 
     <div class="card shadow-sm">
@@ -67,8 +71,12 @@
                 </div>
             @endif
             @if($order->isLineEditable())
-                <form method="POST" action="{{ route('purchase.orders.update', $order) }}">
+                <form method="POST" action="{{ route('purchase.orders.update', $order) }}"
+                      @if(auth()->user()?->isSuperAdmin()) data-sa-require-reason="1" @endif>
                     @method('PUT')
+                    @if(auth()->user()?->isSuperAdmin() && session('super_admin_action.reason'))
+                        <input type="hidden" name="admin_reason" value="{{ session('super_admin_action.reason') }}">
+                    @endif
                     @include('purchase.orders.form')
                 </form>
             @else

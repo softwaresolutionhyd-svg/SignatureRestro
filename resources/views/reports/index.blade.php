@@ -146,13 +146,22 @@
                     <div><div class="fw-semibold">{{ __('Consumption Report') }}</div><div class="text-secondary small">{{ __('Department recipe sales, day wise, remaining stock + amount') }}</div></div>
                     <i class="bi bi-chevron-right ms-auto text-secondary"></i>
                 </a>
-                <a href="{{ route('reports.employees') }}" class="d-flex align-items-center gap-3 px-4 py-3 text-decoration-none text-dark">
+                <a href="{{ route('reports.employees') }}" class="d-flex align-items-center gap-3 px-4 py-3 border-bottom text-decoration-none text-dark">
                     <span class="rounded-circle d-flex align-items-center justify-content-center" style="width:38px;height:38px;background:rgba(236,72,153,.1);">
                         <i class="bi bi-people-fill" style="color:#ec4899;"></i>
                     </span>
                     <div><div class="fw-semibold">{{ __('Employee Report') }}</div><div class="text-secondary small">{{ __('Staff, salary breakdown') }}</div></div>
                     <i class="bi bi-chevron-right ms-auto text-secondary"></i>
                 </a>
+                @if($ru?->isSuperAdmin())
+                <a href="{{ route('reports.super-admin-audit') }}" class="d-flex align-items-center gap-3 px-4 py-3 text-decoration-none text-dark">
+                    <span class="rounded-circle d-flex align-items-center justify-content-center" style="width:38px;height:38px;background:rgba(185,28,28,.1);">
+                        <i class="bi bi-shield-lock-fill" style="color:#b91c1c;"></i>
+                    </span>
+                    <div><div class="fw-semibold">{{ __('Super Admin Audit Log') }}</div><div class="text-secondary small">{{ __('Edits, deletes, password changes with reason') }}</div></div>
+                    <i class="bi bi-chevron-right ms-auto text-secondary"></i>
+                </a>
+                @endif
             </div>
         </div>
     </div>
